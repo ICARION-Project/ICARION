@@ -45,14 +45,13 @@
 #include "core/param/paramUtils.h"
 #include "utils/cli_parser.h"  // CLI argument parser
 #include "core/utils/simulationsUtils.h"  // print_domain_summary, init_ions, print_results
-#include "core/physics/reactions/reactionUtils.h"
+#include "core/physics/reactions/reactionUtils.h"  // ReactionEntry struct only
 #include "core/io/fieldArrayLoader.h"
-#include "core/io/speciesLoader.h"
+#include "core/io/speciesLoader.h"  // io::SpeciesDatabase (temporary until Phase 5)
 
 // New config system (Phase 4)
 #include "core/config/loader/ConfigLoader.h"
 #include "core/config/adapter/LegacyAdapter.h"
-#include "core/io/reactionLoader.h"
 
 /**
  * @file ICARION.cpp
@@ -241,48 +240,84 @@ int main(int argc, char* argv[]) {
         run_guard_check_global(gParams);
 
         // === 4. Load physical models ===
-        // NEW input system: Load species from dedicated species database
+        // Species and reactions are ALREADY loaded in full_config by ConfigLoader!
+        // (ConfigLoader calls full_config.load_databases() automatically)
+        std::cout << "\n=== Physical Models ===\n";
+        std::cout << "Species loaded:  " << full_config.species_db.size() << "\n";
+        std::cout << "Reactions loaded: " << full_config.reaction_db.size() << "\n";
+        
+        // --- Convert species for integrator (temporary until Phase 5) ---
         ICARION::io::SpeciesDatabase speciesDB;
         
-        if (!gParams.species_database_file.empty()) {
-            // NEW system: Load from species_database
-            std::cout << "Loading species from: " << gParams.species_database_file << "\n";
-            speciesDB = ICARION::io::load_species(gParams.species_database_file);
+        for (const auto& [id, props] : full_config.species_db.species) {
+            ICARION::io::Species species;
+            species.id = id;
+            species.name = props.name.value_or(id);
+            species.mass_u = props.mass_amu;
+            species.mass_kg = props.mass_kg;
+            species.charge_e = props.charge;
+            species.charge_C = props.charge_C;
+            species.mobility_m2Vs = props.mobility_m2Vs;
+            species.CCS_m2 = props.CCS_m2;
+            species.geometry_file = props.geometry_file;
             
-            // Calculate derived quantities (mobility from CCS) using first domain's environment
+            // Calculate reduced mass (if domain available)
             if (!domains.empty()) {
-                double temperature_K = domains[0].env.temperature_K;
                 double neutral_mass_kg = domains[0].env.neutral_mass_kg;
-                speciesDB.calculate_derived_quantities(temperature_K, neutral_mass_kg);
+                species.reduced_mass_kg = (species.mass_kg * neutral_mass_kg) / 
+                                         (species.mass_kg + neutral_mass_kg);
+            } else {
+                species.reduced_mass_kg = species.mass_kg;  // Fallback
             }
             
-            std::cout << "✓ Loaded " << speciesDB.size() << " species\n";
-        } else if (!gParams.reaction_file.empty()) {
-            // OLD system fallback: Load from reaction_file (backward compatibility)
-            std::cout << "Warning: Using legacy species loading from reaction_file\n";
-            std::cout << "         Please migrate to 'species_database' field in config\n";
-            auto old_db = load_speciesDB(gParams);
-            
-            // Convert old format to new format
-            for (const auto& [name, old_species] : old_db) {
-                ICARION::io::Species new_species;
-                new_species.id = name;
-                new_species.name = old_species.name;
-                new_species.mass_kg = old_species.mass_kg;
-                new_species.mass_u = old_species.mass_kg / AMU_TO_KG;
-                new_species.charge_C = old_species.charge;
-                new_species.charge_e = old_species.charge / ELEM_CHARGE_C;
-                new_species.mobility_m2Vs = old_species.mobility;
-                new_species.CCS_m2 = old_species.CCS;
-                speciesDB.add(new_species);
-            }
-            std::cout << "✓ Converted " << speciesDB.size() << " species from legacy format\n";
-        } else {
-            std::cerr << "Warning: No species database specified (species_database or reaction_database)\n";
+            speciesDB.add(species);
         }
         
+        // --- Convert reactions for integrator (inline, no adapter class) ---
         std::vector<ReactionEntry> reaction_list;
-        reaction_list = load_reactions(gParams);
+        
+        if (gParams.enable_reactions && full_config.reaction_db.size() > 0) {
+            reaction_list.reserve(full_config.reaction_db.reactions.size());
+            
+            size_t skipped = 0;
+            for (const auto& rxn : full_config.reaction_db.reactions) {
+                // Validate: single-reactant → single-product only
+                if (rxn.reactant.empty() || rxn.product.empty()) {
+                    std::cerr << "Warning: Skipping reaction '" << rxn.id 
+                              << "' - missing reactant or product\n";
+                    skipped++;
+                    continue;
+                }
+                
+                // Create legacy entry
+                ReactionEntry entry;
+                entry.reactant = rxn.reactant;
+                entry.product = rxn.product;
+                entry.rate_constant = rxn.rate_constant_m3s;
+                entry.neutral_concentration = 0.0;  // Computed dynamically in integrator
+                
+                // Convert order terms
+                for (const auto& term : rxn.order_terms) {
+                    ReactionOrderTerm legacy_term;
+                    legacy_term.species = term.species;
+                    legacy_term.exponent = term.exponent;
+                    entry.order.push_back(legacy_term);
+                }
+                
+                reaction_list.push_back(entry);
+            }
+            
+            std::cout << "✓ " << reaction_list.size() << " reactions converted for integrator";
+            if (skipped > 0) {
+                std::cout << " (" << skipped << " skipped)";
+            }
+            std::cout << "\n";
+            
+        } else if (!gParams.enable_reactions) {
+            std::cout << "ℹ  Reactions disabled (enable_reactions=false)\n";
+        } else {
+            std::cout << "ℹ  No reactions loaded\n";
+        }
 
         // === Dry-run mode: Validate configuration and exit ===
         if (opts.dry_run) {

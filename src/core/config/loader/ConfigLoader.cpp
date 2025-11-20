@@ -125,12 +125,22 @@ std::string ConfigLoader::resolve_path(const std::string& path,
     
     // If already absolute, return as-is
     if (p.is_absolute()) {
-        return path;
+        return p.lexically_normal().string();
     }
     
     // Resolve relative to base path
     if (!base_path.empty()) {
-        return (base_path / p).string();
+        std::filesystem::path resolved = (base_path / p).lexically_normal();
+        
+        // Try canonical path if file exists (resolves symlinks and .. properly)
+        std::error_code ec;
+        auto canonical = std::filesystem::canonical(resolved, ec);
+        if (!ec) {
+            return canonical.string();
+        }
+        
+        // Fallback to lexically normalized if file doesn't exist yet
+        return resolved.string();
     }
     
     return path;

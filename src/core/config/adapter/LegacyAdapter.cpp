@@ -6,6 +6,44 @@
 
 namespace ICARION::config {
 
+// ====================================================================
+// Enum conversion helpers
+// ====================================================================
+
+static core::CollisionModel convert_collision_model(config::CollisionModel model) {
+    switch (model) {
+        case config::CollisionModel::NoCollisions:
+            return core::CollisionModel::NoCollisions;
+        case config::CollisionModel::HSD:
+            return core::CollisionModel::HardSphere;
+        case config::CollisionModel::Langevin:
+            return core::CollisionModel::Langevin;
+        case config::CollisionModel::Friction:
+            return core::CollisionModel::Friction;
+        case config::CollisionModel::EHSS:
+            return core::CollisionModel::EHSS;
+        case config::CollisionModel::HSS:
+            return core::CollisionModel::HSMC;
+        case config::CollisionModel::UnknownCollisionModel:
+            return core::CollisionModel::UnknownCollisionModel;
+        default:
+            return core::CollisionModel::UnknownCollisionModel;
+    }
+}
+
+static core::SolverType convert_solver_type(config::SolverType solver) {
+    switch (solver) {
+        case config::SolverType::RK4:
+            return core::SolverType::RK4;
+        case config::SolverType::RK45:
+            return core::SolverType::RK45;
+        case config::SolverType::Boris:
+            return core::SolverType::Boris;
+        default:
+            return core::SolverType::RK45;
+    }
+}
+
 core::GlobalParams LegacyAdapter::to_global_params(const FullConfig& config) {
     core::GlobalParams g{};
     
@@ -21,7 +59,7 @@ core::GlobalParams LegacyAdapter::to_global_params(const FullConfig& config) {
     g.rng_seed = config.simulation.rng_seed;
     
     // === Physics ===
-    g.collisionModel = config.physics.collision_model;
+    g.collisionModel = convert_collision_model(config.physics.collision_model);
     g.enable_reactions = config.physics.enable_reactions;
     g.enable_space_charge = config.physics.enable_space_charge;
     g.enable_ou_thermalization = config.physics.enable_ou_thermalization;
@@ -64,7 +102,7 @@ core::InstrumentDomain LegacyAdapter::convert_domain(const DomainConfig& domain)
     // === Identification ===
     dom.index = domain.domain_index;
     dom.instrument = domain.instrument;
-    dom.solver_type = domain.solver;
+    dom.solver_type = convert_solver_type(domain.solver);
     
     // === Geometry ===
     dom.geom = convert_geometry(domain.geometry);
@@ -127,13 +165,10 @@ core::Geometry LegacyAdapter::convert_geometry(const GeometryConfig& geom) {
     g.end_aperture_m = geom.end_aperture_m;
     g.origin_m = geom.origin_m;
     
-    // Bounds (computed by GeometryConfig::compute_bounds())
-    g.x_min = geom.x_min;
-    g.x_max = geom.x_max;
-    g.y_min = geom.y_min;
-    g.y_max = geom.y_max;
-    g.z_min = geom.z_min;
-    g.z_max = geom.z_max;
+    // Bounds (GeometryConfig stores as Vec3)
+    // Note: GeometryConfig::compute_bounds() must have been called
+    g.min_bound = geom.min_bound;
+    g.max_bound = geom.max_bound;
     
     return g;
 }
@@ -144,18 +179,15 @@ core::Environment LegacyAdapter::convert_environment(const EnvironmentConfig& en
     // Input parameters
     e.pressure_Pa = env.pressure_Pa;
     e.temperature_K = env.temperature_K;
-    e.gas_species = env.gas_species;
+    e.neutral_species_id = env.gas_species;
     e.gas_velocity_m_s = env.gas_velocity_m_s;
     
     // Derived quantities (computed by EnvironmentConfig::compute_derived_properties())
-    e.mass_amu = env.mass_amu;
-    e.number_density_m3 = env.number_density_m3;
-    e.polarizability_A3 = env.polarizability_A3;
-    e.collision_diameter_m = env.collision_diameter_m;
-    e.kB_T_J = env.kB_T_J;
-    e.thermal_velocity_m_s = env.thermal_velocity_m_s;
-    e.mean_free_path_m = env.mean_free_path_m;
-    e.collision_frequency_Hz = env.collision_frequency_Hz;
+    e.neutral_mass_kg = env.gas_mass_kg;
+    e.particle_density_m_3 = env.particle_density_m_3;
+    e.neutral_polarizability_m3 = env.gas_polarizability_m3;
+    e.neutral_radius_m = env.gas_radius_m;
+    e.mean_thermal_velocity_m_s = env.mean_thermal_velocity_m_s;
     
     return e;
 }
@@ -189,8 +221,8 @@ void LegacyAdapter::convert_fields(const FieldsConfig& fields, core::InstrumentD
     
     // Frequency sweep
     dom.AC.enable_frequency_sweep = fields.ac.enable_frequency_sweep;
-    dom.AC.frequency_start_Hz = fields.ac.frequency_start_Hz;
-    dom.AC.frequency_sweep_slope_Hz_s = fields.ac.frequency_sweep_slope_Hz_s;
+    dom.AC.ac_start_freq_Hz = fields.ac.frequency_start_Hz;
+    dom.AC.ac_sweep_slope_Hz_per_s = fields.ac.frequency_sweep_slope_Hz_s;
     
     // LQIT lock
     dom.AC.lqit_lock_enable = fields.ac.lqit_lock_enable;

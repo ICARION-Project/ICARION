@@ -378,7 +378,7 @@ int main(int argc, char* argv[]) {
         // === 7. Run simulation ===
         auto             start  = std::chrono::high_resolution_clock::now();
         logger.log("Starting integration...");
-        SimulationResult result = integrate_trajectory(
+        std::vector<IonState> final_ions = integrate_trajectory(
             ions, 
             t_start, 
             t_end, 
@@ -395,7 +395,7 @@ int main(int argc, char* argv[]) {
         
         // === 8. Write completion metadata ===
         int active_count = 0;
-        for (const auto& ion : result.ions) {
+        for (const auto& ion : final_ions) {
             if (ion.active) active_count++;
         }
         
@@ -426,13 +426,13 @@ int main(int argc, char* argv[]) {
         
         // === 10. Optional result printout ===
         if (gParams.print_results) {
-            ICARION::utils::print_results(result, 100);
+            ICARION::utils::print_results(final_ions, 100);
         }
         logger.log("HDF5 file written successfully.");
         double elapsed_s = std::chrono::duration<double>(end - start).count();
         logger.log("Simulation completed in " + std::to_string(elapsed_s) + " s CPU time.");
 
-        logger.finalize(result, gParams.output_file);
+        logger.finalize(final_ions, gParams.output_file);
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;

@@ -38,7 +38,7 @@
  *
  *   @see         paramUtils/paramUtils.h
  *   @see         physics/collisionHelpers.h
- *   @see         types/SimulationResult.h
+ *   @see         types/IonState.h
  *   @see         physics/ionMotion.h
  *   @see         physics/eventFunctions.h
  *   @see         physics/geometryReader.h
@@ -86,7 +86,7 @@
  *
  *   @see         paramUtils/paramUtils.h
  *   @see         physics/collisionHelpers.h
- *   @see         types/SimulationResult.h
+ *   @see         types/IonState.h
  *   @see         physics/ionMotion.h
  *   @see         physics/eventFunctions.h
  *   @see         physics/geometryReader.h
@@ -114,7 +114,6 @@
 #include "H5Cpp.h"
 #include "utils/constants.h"
 #include "core/physics/reactions/reactionUtils.h"
-#include "core/types/SimulationResult.h"
 #include "core/io/logger.h"
 // Context-based SimulationContext
 #include "optimizer/SimulationContext.h"
@@ -143,7 +142,7 @@ namespace trajectory {
  * @param ctx Simulation context for optimizer integration (optional)
  * @param logger Run logger for output (optional)
  * 
- * @return SimulationResult containing arrival times, collision statistics, trajectory data
+ * @return std::vector<IonState> containing final ion states with arrival times and statistics
  * 
  * Integrates equations of motion for ion ensemble under electric fields, collisions,
  * and reactions. Supports multiple instrument types (LQIT, SIFDT-MS, IMS, Orbitrap)
@@ -152,7 +151,7 @@ namespace trajectory {
  * Writes trajectory snapshots to HDF5 at intervals defined by gParams.t_eval.
  * Handles boundary conditions (absorbing, reflecting, periodic) and detection events.
  */
-SimulationResult integrate_trajectory(std::vector<IonState>& ions, double t_start, double t_end, double dt,
+std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t_start, double t_end, double dt,
 						   GlobalParams& gParams, 
 						   const ICARION::io::SpeciesDatabase& speciesDB,
 						   const std::vector<ReactionEntry>&               reaction_list,
@@ -163,7 +162,7 @@ SimulationResult integrate_trajectory(std::vector<IonState>& ions, double t_star
 // Context-aware overload (modern API). Accepts a single SimulationContext
 // containing all simulation state and settings and forwards to the
 // canonical integrator implementation.
-SimulationResult integrate_trajectory(optimization::SimulationContext& ctx,
+std::vector<IonState> integrate_trajectory(optimization::SimulationContext& ctx,
                                      const RK45Settings& rk45 = RK45Settings(),
                                      ICARION::io::RunLogger* logger = nullptr);
 
@@ -171,7 +170,7 @@ SimulationResult integrate_trajectory(optimization::SimulationContext& ctx,
 // collisions; the legacy definition lives in `src/solvers/integrator.cpp` and
 // is available as `integrate_trajectory_legacy(...)` if needed for testing or
 // reference.
-SimulationResult integrate_trajectory_legacy(std::vector<IonState>& ions, double t_start, double t_end, double dt,
+std::vector<IonState> integrate_trajectory_legacy(std::vector<IonState>& ions, double t_start, double t_end, double dt,
 						   GlobalParams& gParams, 
 						   const std::unordered_map<std::string, Species>& speciesDB,
 						   const std::vector<ReactionEntry>&               reaction_list,

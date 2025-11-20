@@ -125,13 +125,13 @@ void print_domain_summary(std::vector<InstrumentDomain>& domains) {
  * @note Intended for human-readable console output; not for data export.
  *       Positions are printed in mm, velocities in m/s, and arrival times in µs.
  */
-void print_results(const SimulationResult& result, size_t max_nr_ions = 100) {
+void print_results(const std::vector<IonState>& ions, size_t max_nr_ions = 100) {
     std::ostringstream oss;
     oss << "Simulation complete.\n";
-    oss << "Number of ions: " << result.ions.size() << "\n";
+    oss << "Number of ions: " << ions.size() << "\n";
 
     size_t count = 0;
-    for (const auto& ion : result.ions) {
+    for (const auto& ion : ions) {
         if (count++ >= max_nr_ions)
             break;  
 
@@ -143,7 +143,7 @@ void print_results(const SimulationResult& result, size_t max_nr_ions = 100) {
         oss << "Arrival time: " << std::fixed << std::setprecision(6) << std::max(0.0, ion.t) * 1e6 << " µs\n";
     }
 
-    if (result.ions.size() > max_nr_ions) {
+    if (ions.size() > max_nr_ions) {
         oss << "... output truncated. Showing first " << max_nr_ions << " ions.\n";
     }
 

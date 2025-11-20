@@ -64,8 +64,6 @@ RunLogger::RunLogger(const std::string& output_file_base) {
     if (!file_.is_open()) throw std::runtime_error("Failed to create log file: " + filepath_);
 }
 
-// --- String helpers for legacy enums (ICARION::core namespace) ---
-// Note: These are kept for legacy GlobalParams/InstrumentDomain which use core:: enums
 // The new config system uses ICARION::config enums with EnumMapper
 static std::string solver_to_string(SolverType s) {
     switch (s) {
@@ -221,10 +219,10 @@ void RunLogger::log(const std::string& msg) {
 }
 
 // --- Final block ---
-void RunLogger::finalize(const SimulationResult& result, const std::string& output_file) {
+void RunLogger::finalize(const std::vector<IonState>& ions, const std::string& output_file) {
     // --- Compute ion stats ---
-    size_t total   = result.ions.size();
-    size_t active  = std::count_if(result.ions.begin(), result.ions.end(),
+    size_t total   = ions.size();
+    size_t active  = std::count_if(ions.begin(), ions.end(),
                                    [](const IonState& i){ return i.active; });
     size_t lost    = total - active;
     double frac_lost = total > 0 ? 100.0 * static_cast<double>(lost) / total : 0.0;

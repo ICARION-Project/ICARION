@@ -12,7 +12,7 @@
 #include <vector>
 #include "core/param/paramUtils.h"
 #include "core/integrator/integrator.h"
-#include "core/types/SimulationResult.h"
+#include "core/types/IonState.h"
 #include "core/io/speciesLoader.h"
 
 namespace ICARION {
@@ -45,7 +45,7 @@ void print_domain_summary(std::vector<InstrumentDomain>& domains);
  * - Domain indices
  * - Species distribution
  */
-void print_results(const SimulationResult& result, size_t max_nr_ions);
+void print_results(const std::vector<IonState>& ions, size_t max_nr_ions);
 
 }  // namespace utils
 }  // namespace ICARION

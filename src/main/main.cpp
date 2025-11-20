@@ -193,6 +193,51 @@ int main(int argc, char* argv[]) {
         std::cout << "Loaded " << domains.size() << " instrument domains.\n";
         ICARION::utils::print_domain_summary(domains);
 
+        // === Save input config for reproducibility ===
+        // Log the input configuration to output folder so simulation can be exactly reproduced
+        std::string config_log_path = gParams.output_file;
+        // Replace .h5 extension with _config.json
+        size_t ext_pos = config_log_path.find_last_of('.');
+        if (ext_pos != std::string::npos) {
+            config_log_path = config_log_path.substr(0, ext_pos) + "_config.json";
+        } else {
+            config_log_path += "_config.json";
+        }
+        
+        std::ofstream config_log(config_log_path);
+        if (config_log.is_open()) {
+            config_log << config_json;
+            config_log.close();
+            std::cout << "✓ Input configuration saved to: " << config_log_path << "\n";
+        } else {
+            std::cerr << "Warning: Could not save input configuration to " << config_log_path << "\n";
+        }
+        
+        // === Print simulation parameters summary ===
+        std::cout << "\n=== Simulation Parameters Summary ===\n";
+        std::cout << "Timestep:        " << gParams.dt_s * 1e9 << " ns\n";
+        std::cout << "Total steps:     " << gParams.sim_time_steps << "\n";
+        std::cout << "Max time:        " << (gParams.dt_s * gParams.sim_time_steps * 1e6) << " µs\n";
+        std::cout << "Write interval:  " << gParams.write_interval << "\n";
+        std::cout << "Collision model: ";
+        switch (gParams.collisionModel) {
+            case ICARION::core::CollisionModel::NoCollisions: std::cout << "NoCollisions"; break;
+            case ICARION::core::CollisionModel::HardSphere: std::cout << "HardSphere"; break;
+            case ICARION::core::CollisionModel::Langevin: std::cout << "Langevin"; break;
+            case ICARION::core::CollisionModel::Friction: std::cout << "Friction"; break;
+            case ICARION::core::CollisionModel::EHSS: std::cout << "EHSS"; break;
+            case ICARION::core::CollisionModel::HSMC: std::cout << "HSMC"; break;
+            default: std::cout << "Unknown"; break;
+        }
+        std::cout << "\n";
+        std::cout << "Reactions:       " << (gParams.enable_reactions ? "enabled" : "disabled") << "\n";
+        std::cout << "Space charge:    " << (gParams.enable_space_charge ? "enabled" : "disabled") << "\n";
+        std::cout << "GPU:             " << (gParams.enable_gpu ? "enabled" : "disabled") << "\n";
+        std::cout << "OpenMP:          " << (gParams.parallelization ? "enabled" : "disabled") << "\n";
+        std::cout << "RNG seed:        " << gParams.rng_seed << "\n";
+        std::cout << "Output file:     " << gParams.output_file << "\n";
+        std::cout << "=====================================\n\n";
+
         run_guard_check_global(gParams);
 
         // === 4. Load physical models ===

@@ -44,7 +44,7 @@
 #include "core/io/hdf5Writer.h"
 #include "core/param/paramUtils.h"
 #include "utils/cli_parser.h"  // CLI argument parser
-#include "core/utils/simulationsUtils.h"  // print_domain_summary, init_ions, print_results
+#include "core/utils/simulationsUtils.h"  // print_domain_summary, print_results
 #include "core/physics/reactions/reactionUtils.h"  // ReactionEntry struct only
 #include "core/io/fieldArrayLoader.h"
 #include "core/io/speciesLoader.h"  // io::SpeciesDatabase (temporary until Phase 5)
@@ -363,8 +363,10 @@ int main(int argc, char* argv[]) {
             }
             
         } else {
-            // Normal initialization from ion cloud file
-            ions = ICARION::utils::init_ions(gParams, speciesDB, domains);
+            // Normal initialization from ion configuration
+            std::mt19937 rng(gParams.rng_seed);
+            ions = full_config.generate_ions(rng);
+            std::cout << "Generated " << ions.size() << " ions from configuration.\n";
         }
 
         // === 6. Initialize logger ===
@@ -376,7 +378,7 @@ int main(int argc, char* argv[]) {
         // === 7. Run simulation ===
         auto             start  = std::chrono::high_resolution_clock::now();
         logger.log("Starting integration...");
-        SimulationResult result = integrate_trajectory(
+        std::vector<IonState> final_ions = integrate_trajectory(
             ions, 
             t_start, 
             t_end, 
@@ -393,7 +395,7 @@ int main(int argc, char* argv[]) {
         
         // === 8. Write completion metadata ===
         int active_count = 0;
-        for (const auto& ion : result.ions) {
+        for (const auto& ion : final_ions) {
             if (ion.active) active_count++;
         }
         
@@ -424,13 +426,13 @@ int main(int argc, char* argv[]) {
         
         // === 10. Optional result printout ===
         if (gParams.print_results) {
-            ICARION::utils::print_results(result, 100);
+            ICARION::utils::print_results(final_ions, 100);
         }
         logger.log("HDF5 file written successfully.");
         double elapsed_s = std::chrono::duration<double>(end - start).count();
         logger.log("Simulation completed in " + std::to_string(elapsed_s) + " s CPU time.");
 
-        logger.finalize(result, gParams.output_file);
+        logger.finalize(final_ions, gParams.output_file);
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;

@@ -30,6 +30,7 @@
  */
 
 #include "core/utils/simulationsUtils.h"
+#include "core/config/conversion/EnumMapper.h"
 #include <iomanip>
 #include <iostream>
 #include <vector>
@@ -42,121 +43,11 @@
 namespace ICARION {
 namespace utils {
 
-/**
- * @brief Initialize ion states from a JSON ion cloud file.
- *
- * @param[in,out] gParams Simulation parameters (updates num_ions).
- * @param[in] speciesDB Database of species properties for reference.
- * @param[in] domains Vector of instrument domains for domain assignment.
- * @return std::vector<IonState> Fully initialized ion states.
- *
- * @throws std::runtime_error if the ion cloud JSON file cannot be opened.
- *
- * @details
- * Each ion is assigned:
- * - Position and velocity from JSON.
- * - Species properties (mass, charge, mobility, CCS).
- * - Domain-specific environmental parameters (temperature, neutral mass,
- *   particle density, polarizability, gas velocity) based on position.
- * - Birth time (if provided) and "born" flag.
- */
 
-std::vector<IonState> init_ions(GlobalParams& gParams,
-                                const ICARION::io::SpeciesDatabase& speciesDB,
-                                const std::vector<InstrumentDomain>& domains) {
-    std::string   filename = gParams.ion_cloud_file;
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        throw std::runtime_error("Could not open ion cloud JSON file: " + filename);
-    }
+// [REMOVED] init_ions() function - replaced by FullConfig::generate_ions() in config system
+// See: src/core/config/types/FullConfig.h and src/core/config/loader/IonLoader.h
 
-    Json::Value root;
-    file >> root;
-    file.close();
-
-    std::vector<IonState> ions;
-    const Json::Value     ionsArray = root["ions"];
-    ions.reserve(ionsArray.size());
-
-    for (const auto& ionNode : ionsArray) {
-        std::string species_name = ionNode["species"].asString();
-        
-        // NEW: Use SpeciesDatabase::has() and get()
-        if (!speciesDB.has(species_name)) {
-            std::cerr << "Warning: Species '" << species_name << "' not found in database, skipping ion\n";
-            continue;
-        }
-
-        const ICARION::io::Species& sp = speciesDB.get(species_name);
-
-        IonState ion;
-        ion.species_id              = sp.id;
-        ion.mass_kg                 = sp.mass_kg;
-        ion.reduced_mobility_cm2_Vs = sp.mobility_m2Vs * 1e4;  // Convert m²/Vs to cm²/Vs
-        ion.ion_charge_C            = sp.charge_C;
-        ion.CCS_m2                  = sp.CCS_m2;
-        ion.t = 0;
-        ion.pos = Vec3(ionNode["pos"][0].asDouble(), ionNode["pos"][1].asDouble(),
-                       ionNode["pos"][2].asDouble());
-
-        ion.vel = Vec3(ionNode["vel"][0].asDouble(), ionNode["vel"][1].asDouble(),
-                       ionNode["vel"][2].asDouble());
-
-        // optional birth time
-        if (ionNode.isMember("birth_time")) {
-            ion.birth_time_s = ionNode["birth_time"].asDouble();
-        } else {
-            ion.birth_time_s = 0.0;
-        }
-        ion.born = (ion.birth_time_s <= 0.0);
-
-        // Assign domain properties
-    ion.current_domain_index = -1; // default: outside all domains
-    // Debug prints removed to avoid excessive log spam during automated runs.
-    // If you need them, re-enable manually for local debugging.
-        for (size_t i = 0; i < domains.size(); ++i) {
-            bool inside = isInsideDomain(domains[i], ion.pos);
-            if (inside) {
-                ion.current_domain_index = static_cast<int>(i);
-                const InstrumentDomain& dom = domains[i];  
-
-                ion.domain_neutral_mass_kg           = dom.env.neutral_mass_kg;
-                ion.domain_particle_density_m3       = dom.env.particle_density_m_3;
-                ion.domain_neutral_polarizability_m3 = dom.env.neutral_polarizability_m3;
-                ion.domain_temperature_K             = dom.env.temperature_K;
-                ion.domain_gas_velocity_m_s          = dom.env.gas_velocity_m_s;  
-                break;
-            }
-        }
-        ion.validate();
-        ions.push_back(std::move(ion));
-    }
-    gParams.num_ions = ions.size();
-
-    return ions;
-}
-
-// optional: simple colored output
-static std::string color_text(const std::string& text, const std::string& color) {
-    static const std::unordered_map<std::string, std::string> c = {
-        {"red", "\033[31m"}, {"green", "\033[32m"}, {"yellow", "\033[33m"}, {"reset", "\033[0m"}
-    };
-    auto it = c.find(color);
-    if (it == c.end()) return text;
-    return it->second + text + c.at("reset");
-}
-
-// map enum → string
-static std::string instrument_name(Instrument instr) {
-    switch (instr) {
-        case Instrument::LQIT:         return "LQIT";
-        case Instrument::IMS:          return "IMS";
-        case Instrument::Orbitrap:     return "Orbitrap";
-        case Instrument::QuadrupoleRF: return "Quadrupole";
-        case Instrument::TOF:          return "TOF";
-        default:                       return "Unknown";
-    }
-}
+// [REMOVED] color_text() and instrument_name() - replaced by EnumMapper in config system
 
 /**
  * @brief Prints a formatted summary of all instrument domains in TRACE.
@@ -194,17 +85,17 @@ void print_domain_summary(std::vector<InstrumentDomain>& domains) {
                 dom.fieldArray = load_field_array(dom.FA_file);
                 if (!dom.fieldArray.is_valid()) {
                     dom.fieldArrayLoaded = false;
-                    status = color_text("⚠ invalid", "yellow");
+                    status = "⚠ invalid";
                 } else {
                     dom.fieldArrayLoaded = true;
-                    status = color_text("✓ loaded", "green");
+                    status = "✓ loaded";
 
                     grid_info = std::to_string(dom.fieldArray.nx) + "×" +
                                 std::to_string(dom.fieldArray.ny) + "×" +
                                 std::to_string(dom.fieldArray.nz);
                 }
             } catch (const std::exception& e) {
-                status = color_text("⚠ error", "yellow");
+                status = "⚠ error";
                 dom.fieldArrayLoaded = false;
                 std::cerr << "Error loading PA field (" << dom.FA_file << "): " << e.what() << "\n";
             }
@@ -213,7 +104,7 @@ void print_domain_summary(std::vector<InstrumentDomain>& domains) {
         }
 
         std::cout << std::left << std::setw(6)  << dom.index
-                  << std::setw(15) << instrument_name(dom.instrument)
+                  << std::setw(15) << ICARION::config::EnumMapper::instrument_to_string(dom.instrument)
                   << std::setw(8)  << FA_file
                   << std::setw(12) << dom.RF.voltage_V
                   << std::setw(12) << dom.DC.axial_V
@@ -234,13 +125,13 @@ void print_domain_summary(std::vector<InstrumentDomain>& domains) {
  * @note Intended for human-readable console output; not for data export.
  *       Positions are printed in mm, velocities in m/s, and arrival times in µs.
  */
-void print_results(const SimulationResult& result, size_t max_nr_ions = 100) {
+void print_results(const std::vector<IonState>& ions, size_t max_nr_ions = 100) {
     std::ostringstream oss;
     oss << "Simulation complete.\n";
-    oss << "Number of ions: " << result.ions.size() << "\n";
+    oss << "Number of ions: " << ions.size() << "\n";
 
     size_t count = 0;
-    for (const auto& ion : result.ions) {
+    for (const auto& ion : ions) {
         if (count++ >= max_nr_ions)
             break;  
 
@@ -252,7 +143,7 @@ void print_results(const SimulationResult& result, size_t max_nr_ions = 100) {
         oss << "Arrival time: " << std::fixed << std::setprecision(6) << std::max(0.0, ion.t) * 1e6 << " µs\n";
     }
 
-    if (result.ions.size() > max_nr_ions) {
+    if (ions.size() > max_nr_ions) {
         oss << "... output truncated. Showing first " << max_nr_ions << " ions.\n";
     }
 

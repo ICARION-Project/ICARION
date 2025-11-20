@@ -12,33 +12,13 @@
 #include <vector>
 #include "core/param/paramUtils.h"
 #include "core/integrator/integrator.h"
-#include "core/types/SimulationResult.h"
+#include "core/types/IonState.h"
 #include "core/io/speciesLoader.h"
 
 namespace ICARION {
 namespace utils {
 
-/**
- * @brief Initialize ion ensemble from configuration
- * @param gParams Global parameters (ion count, species, positions)
- * @param speciesDB Species database with physical properties
- * @param domains Instrument domain configurations
- * @return Vector of initialized IonState objects
- * 
- * Initialization modes:
- * 1. From ion list file: Load positions, velocities, species from HDF5/CSV
- * 2. Random initialization: Generate ions with random positions in domain
- * 3. Single ion: Create one ion at specified position
- * 
- * Sets initial properties:
- * - Position and velocity from config or random
- * - Mass, charge, mobility, CCS from species database
- * - Domain index from position
- * - Birth time = 0 for initial ions
- */
-std::vector<IonState> init_ions(GlobalParams& gParams,
-                                const ICARION::io::SpeciesDatabase& speciesDB,
-                                const std::vector<InstrumentDomain>& domains);
+// [REMOVED] init_ions() - replaced by FullConfig::generate_ions() in config system
 
 /**
  * @brief Print instrument domain configuration summary
@@ -65,7 +45,7 @@ void print_domain_summary(std::vector<InstrumentDomain>& domains);
  * - Domain indices
  * - Species distribution
  */
-void print_results(const SimulationResult& result, size_t max_nr_ions);
+void print_results(const std::vector<IonState>& ions, size_t max_nr_ions);
 
 }  // namespace utils
 }  // namespace ICARION

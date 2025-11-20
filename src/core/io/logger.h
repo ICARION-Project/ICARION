@@ -30,7 +30,7 @@
 #include <vector>
 #include "core/param/paramUtils.h"
 #include "core/physics/reactions/reactionUtils.h"
-#include "core/types/SimulationResult.h"
+#include "core/types/IonState.h"
 #include "core/io/speciesLoader.h"
 
 namespace ICARION {
@@ -60,7 +60,7 @@ public:
     void log(const std::string& msg);
     
     /** @brief Write final simulation results and close log file */
-    void finalize(const SimulationResult& result, const std::string& output_file);
+    void finalize(const std::vector<IonState>& ions, const std::string& output_file);
 
 private:
     std::ofstream file_;

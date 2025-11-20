@@ -108,3 +108,22 @@ target_include_directories(test_database_integration
 )
 
 add_test(NAME DatabaseIntegration COMMAND test_database_integration)
+
+# Ion loader tests
+add_executable(test_ion_loader
+    test_ion_loader.cpp
+)
+
+target_link_libraries(test_ion_loader
+    PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+
+target_include_directories(test_ion_loader
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+add_test(NAME IonLoader COMMAND test_ion_loader)

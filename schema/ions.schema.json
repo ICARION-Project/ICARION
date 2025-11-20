@@ -1,0 +1,296 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://icarion.org/schemas/ions/v1.0.json",
+  "title": "ICARION Ion Initialization Schema",
+  "description": "Schema for ICARION ion initialization (v1.0). Defines per-species position boundaries and velocity distributions for flexible ion generation.",
+  "type": "object",
+  "oneOf": [
+    {
+      "required": ["species"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Optional title for documentation"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description for documentation"
+        },
+        "comment": {
+          "type": "string",
+          "description": "Optional comment for documentation"
+        },
+        "species": {
+          "type": "array",
+          "description": "Array of ion species configurations with independent position boundaries and velocity distributions",
+          "items": {
+            "$ref": "#/definitions/IonSpeciesConfig"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "required": ["from_file"],
+      "properties": {
+        "from_file": {
+          "type": "string",
+          "description": "Path to JSON file containing pre-generated ion cloud (array of ions with pos, vel, species, birth_time)",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "definitions": {
+    "IonSpeciesConfig": {
+      "type": "object",
+      "required": ["id", "count", "position", "velocity"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Species ID (must exist in species database)",
+          "pattern": "^[A-Za-z0-9+\\-_]+$",
+          "minLength": 1
+        },
+        "count": {
+          "type": "integer",
+          "description": "Number of ions to generate for this species",
+          "minimum": 1,
+          "maximum": 10000000
+        },
+        "comment": {
+          "type": "string",
+          "description": "Optional comment for documentation"
+        },
+        "position": {
+          "$ref": "#/definitions/PositionConfig"
+        },
+        "velocity": {
+          "$ref": "#/definitions/VelocityConfig"
+        }
+      }
+    },
+    "PositionConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "center"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "point"
+            },
+            "center": {
+              "$ref": "#/definitions/Vec3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "center", "std"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "gaussian"
+            },
+            "center": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "std": {
+              "$ref": "#/definitions/Vec3Positive"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "center", "radius"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "uniform_sphere"
+            },
+            "center": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "radius": {
+              "type": "number",
+              "description": "Sphere radius in meters",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "center", "radius", "length"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "uniform_cylinder"
+            },
+            "center": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "radius": {
+              "type": "number",
+              "description": "Cylinder radius in meters",
+              "exclusiveMinimum": 0
+            },
+            "length": {
+              "type": "number",
+              "description": "Cylinder length in meters (along z-axis)",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "min", "max"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "uniform_box"
+            },
+            "min": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "max": {
+              "$ref": "#/definitions/Vec3"
+            }
+          }
+        }
+      ]
+    },
+    "VelocityConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "fixed"
+            },
+            "value": {
+              "$ref": "#/definitions/Vec3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "temperature_K"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "thermal"
+            },
+            "temperature_K": {
+              "type": "number",
+              "description": "Temperature in Kelvin for Maxwell-Boltzmann distribution. Velocity directions are ALWAYS random (no drift).",
+              "exclusiveMinimum": 0,
+              "maximum": 100000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "energy_eV", "direction"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "kinetic"
+            },
+            "energy_eV": {
+              "type": "number",
+              "description": "Kinetic energy in electron volts",
+              "minimum": 0
+            },
+            "direction": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "spread_angle_deg": {
+              "type": "number",
+              "description": "Optional angular spread (cone half-angle) in degrees",
+              "minimum": 0,
+              "maximum": 180
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "mean", "std"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "gaussian"
+            },
+            "mean": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "std": {
+              "$ref": "#/definitions/Vec3Positive"
+            }
+          }
+        }
+      ]
+    },
+    "Vec3": {
+      "type": "array",
+      "description": "3D vector [x, y, z] in meters or m/s",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "Vec3Positive": {
+      "type": "array",
+      "description": "3D vector with positive components [x, y, z]",
+      "items": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      },
+      "minItems": 3,
+      "maxItems": 3
+    }
+  },
+  "examples": [
+    {
+      "species": [
+        {
+          "id": "H3O+",
+          "count": 1000,
+          "position": {
+            "type": "gaussian",
+            "center": [0.0, 0.0, 0.0],
+            "std": [0.001, 0.001, 0.001]
+          },
+          "velocity": {
+            "type": "thermal",
+            "temperature_K": 300
+          }
+        },
+        {
+          "id": "H5O2+",
+          "count": 500,
+          "position": {
+            "type": "uniform_sphere",
+            "center": [0.005, 0.0, 0.0],
+            "radius": 0.002
+          },
+          "velocity": {
+            "type": "kinetic",
+            "energy_eV": 0.1,
+            "direction": [0, 0, 1],
+            "spread_angle_deg": 10
+          }
+        }
+      ]
+    },
+    {
+      "from_file": "ion_clouds/my_cloud.json"
+    }
+  ]
+}

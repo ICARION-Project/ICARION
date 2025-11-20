@@ -10,10 +10,13 @@
 #include "DomainConfig.h"
 #include "SpeciesConfig.h"
 #include "ReactionConfig.h"
+#include "IonConfig.h"
+#include "core/types/IonState.h"
 #include <vector>
 #include <string>
 #include <stdexcept>
 #include <filesystem>
+#include <random>
 
 namespace ICARION::config {
 
@@ -35,11 +38,14 @@ struct FullConfig {
     // === Database/file paths ===
     std::string species_database_path = "";     ///< Species properties database (includes geometry data)
     std::string reaction_database_path = "";    ///< Reaction rates database
-    std::string ion_cloud_path = "";            ///< Initial ion cloud distribution
+    std::string ion_cloud_path = "";            ///< [DEPRECATED] Legacy ion cloud path - use ions instead
     
     // === Loaded databases (in-memory, populated after loading) ===
     SpeciesDatabase species_db;                 ///< Loaded species properties
     ReactionDatabase reaction_db;               ///< Loaded reactions
+    
+    // === Ion initialization ===
+    IonConfig ions;                             ///< Ion generation configuration
     
     // === Optional metadata ===
     std::string title = "";                     ///< Simulation title/description
@@ -54,6 +60,17 @@ struct FullConfig {
      * Must be called after config is loaded from JSON.
      */
     void load_databases(const std::filesystem::path& base_path);
+    
+    /**
+     * @brief Generate ions from configuration
+     * 
+     * @param rng Random number generator for stochastic distributions
+     * @return Generated ions with validation results
+     * 
+     * Generates ions based on the ions configuration. Falls back to
+     * legacy ion_cloud_path if ions config is not specified.
+     */
+    std::vector<IonState> generate_ions(std::mt19937& rng) const;
     
     /**
      * @brief Finalize all domains
@@ -106,15 +123,20 @@ struct FullConfig {
             result.add_error("Reactions enabled but no reactions loaded (check reaction_database path or global fallback)");
         }
         
-        // Ion cloud validation
-        // TODO: This should be an ERROR not a warning - simulation is invalid without ions!
-        //       Currently using warning to allow smoke tests to pass.
-        //       Need to either:
-        //       1. Add ion_cloud to all example configs OR
-        //       2. Make ConfigLoader skip validation in test mode OR
-        //       3. Create minimal test ion clouds for examples/
-        if (ion_cloud_path.empty()) {
-            result.add_warning("No ion cloud file specified - simulation will have no particles!");
+        // Ion configuration validation
+        if (!ions.is_valid() && ion_cloud_path.empty()) {
+            result.add_error("No ion configuration specified - simulation will have no particles!");
+        }
+        
+        // Validate species exist for ion config
+        if (ions.is_valid() && ions.from_file.has_value()) {
+            // Will be validated during ion generation
+        } else {
+            for (const auto& spec : ions.species) {
+                if (!species_db.has(spec.species_id)) {
+                    result.add_error("Ion species '" + spec.species_id + "' not found in species database");
+                }
+            }
         }
         
         // Throw if there are errors (maintains backwards compat with ConfigLoader)

@@ -257,6 +257,269 @@ python3 schema/validate_schema.py schema/reactions.schema.json data/reactions_da
 
 ---
 
+## Ion Initialization 
+
+ICARION provides flexible ion initialization with per-species position boundaries and velocity distributions.
+
+### Configuration Syntax
+
+Ion configuration can be specified in two ways:
+
+#### Option 1: Generate from Species List
+
+Each species can have its own spatial region (boundaries) and velocity distribution:
+
+```json
+{
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 1000,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0],
+          "std": [0.001, 0.001, 0.001]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300
+        }
+      }
+    ]
+  }
+}
+```
+
+#### Option 2: Load from Ion Cloud File
+
+```json
+{
+  "ions": {
+    "from_file": "ion_clouds/my_cloud.json"
+  }
+}
+```
+
+### Position Distributions
+
+Each species can be created in its own spatial region (boundaries):
+
+#### Point (Single Location)
+
+All ions at same position:
+
+```json
+"position": {
+  "type": "point",
+  "center": [0.0, 0.0, 0.0]  // [m]
+}
+```
+
+#### Gaussian (Normal Distribution)
+
+3D Gaussian distribution with independent standard deviations per axis:
+
+```json
+"position": {
+  "type": "gaussian",
+  "center": [0.0, 0.0, 0.0],         // Mean position [m]
+  "std": [0.001, 0.002, 0.003]       // Std dev per axis [m]
+}
+```
+
+#### Uniform Sphere
+
+Uniform distribution within a sphere:
+
+```json
+"position": {
+  "type": "uniform_sphere",
+  "center": [0.0, 0.0, 0.0],   // Sphere center [m]
+  "radius": 0.005              // Sphere radius [m]
+}
+```
+
+#### Uniform Cylinder
+
+Uniform distribution within a cylinder (aligned with z-axis):
+
+```json
+"position": {
+  "type": "uniform_cylinder",
+  "center": [0.0, 0.0, 0.0],   // Cylinder center [m]
+  "radius": 0.002,             // Radial extent [m]
+  "length": 0.01               // Axial extent (z-direction) [m]
+}
+```
+
+#### Uniform Box
+
+Uniform distribution within a rectangular box:
+
+```json
+"position": {
+  "type": "uniform_box",
+  "min": [-0.001, -0.001, 0.0],    // Min corner [m]
+  "max": [0.001, 0.001, 0.01]      // Max corner [m]
+}
+```
+
+### Velocity Distributions
+
+#### Fixed (All Ions Same Velocity)
+
+```json
+"velocity": {
+  "type": "fixed",
+  "value": [0.0, 0.0, 100.0]  // Velocity [m/s]
+}
+```
+
+#### Thermal (Maxwell-Boltzmann)
+
+Random directions sampled from Maxwell-Boltzmann distribution. **No directed drift** (always random):
+
+```json
+"velocity": {
+  "type": "thermal",
+  "temperature_K": 300  // Temperature [K]
+}
+```
+
+**Note:** For thermal distribution, velocity directions are **always random**. Use `kinetic` for directed velocities.
+
+#### Kinetic (Directed with Energy)
+
+Fixed kinetic energy in a specified direction, with optional angular spread:
+
+```json
+"velocity": {
+  "type": "kinetic",
+  "energy_eV": 0.1,              // Kinetic energy [eV]
+  "direction": [0, 0, 1],        // Direction vector (normalized automatically)
+  "spread_angle_deg": 10         // Optional: cone angle spread [degrees]
+}
+```
+
+#### Gaussian
+
+Gaussian distribution for each velocity component:
+
+```json
+"velocity": {
+  "type": "gaussian",
+  "mean": [0.0, 0.0, 100.0],     // Mean velocity [m/s]
+  "std": [10.0, 10.0, 20.0]      // Std dev per axis [m/s]
+}
+```
+
+### Multi-Species Example
+
+Different species in different spatial regions with different velocities:
+
+```json
+{
+  "species_database": "data/species_database_v1.json",
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 500,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0],
+          "std": [0.001, 0.001, 0.001]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300
+        }
+      },
+      {
+        "id": "H5O2+",
+        "count": 500,
+        "position": {
+          "type": "uniform_sphere",
+          "center": [0.005, 0.0, 0.0],
+          "radius": 0.002
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 350
+        }
+      },
+      {
+        "id": "O2-",
+        "count": 100,
+        "position": {
+          "type": "uniform_cylinder",
+          "center": [0.0, 0.0, 0.01],
+          "radius": 0.001,
+          "length": 0.005
+        },
+        "velocity": {
+          "type": "kinetic",
+          "energy_eV": 0.1,
+          "direction": [0, 0, 1],
+          "spread_angle_deg": 10
+        }
+      }
+    ]
+  }
+}
+```
+
+### Ion Cloud File Format
+
+For loading ions from file:
+
+```json
+{
+  "ions": [
+    {
+      "species": "H3O+",
+      "pos": [0.0, 0.0, 0.0],      // Position [m]
+      "vel": [0.0, 0.0, 100.0],    // Velocity [m/s]
+      "birth_time": 0.0            // Birth time [s]
+    },
+    {
+      "species": "H5O2+",
+      "pos": [0.001, 0.0, 0.0],
+      "vel": [10.0, 0.0, 50.0],
+      "birth_time": 0.0
+    }
+  ]
+}
+```
+
+**Note:** Species must exist in species database. Properties (mass, charge, mobility, CCS) are looked up automatically.
+
+### Validation
+
+Ion configuration is validated during loading:
+
+- Species IDs must exist in species database
+- Position/velocity parameters must be physically reasonable
+- Warnings for missing species or invalid configurations
+
+Validation errors are collected in `ValidationResult` (not thrown as exceptions).
+
+**Example validation output:**
+
+```
+✓ Generated 1100 ions from configuration
+  - 500 H3O+ ions (gaussian position, thermal velocity)
+  - 500 H5O2+ ions (sphere position, thermal velocity)
+  - 100 O2- ions (cylinder position, kinetic velocity)
+```
+
+**Example configs:**
+
+- `examples/ion_clouds/multi_species_example.json` - Multi-species with different boundaries
+
+---
+
 ## Required Fields
 
 ### Simulation Section
@@ -634,6 +897,14 @@ Use the global `simulation.integrator` as default, but override for specific dom
 **Error: Configuration validation failed**
 
 - Solution: Run `--validate-config` to see detailed error messages
+
+**Error: Species 'X+' not found in species database**
+
+- Solution: Add species 'X+' to the specified species database or check for typos.
+
+**Error: Could not open ion cloud JSON file:**
+
+- Solution: Verify the existence of the specified ion cloud and check the file path.
 
 ### Best Practices
 

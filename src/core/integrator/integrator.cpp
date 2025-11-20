@@ -245,9 +245,9 @@ void integrate_one_step(
  * @param[in]     reaction_list     Reaction list with rates/stoichiometry.
  * @param[in]     instrumentDomains Instrument domains with boundaries and solver info.
  * @param[in]     rk45              RK45 solver settings.
- * @return SimulationResult containing final ion states.
+ * @return std::vector<IonState> containing final ion states.
  */
-SimulationResult integrate_trajectory(std::vector<IonState>& ions, double t_start, double t_end, double dt,
+std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t_start, double t_end, double dt,
                            GlobalParams& gParams, 
                            const ICARION::io::SpeciesDatabase& speciesDB,
                            const std::vector<ReactionEntry>& reaction_list,
@@ -502,7 +502,7 @@ SimulationResult integrate_trajectory(std::vector<IonState>& ions, double t_star
     }
     if (logger)
         logger->log("Integration complete. Writing final data...");
-    return {ions};
+    return ions;
 }
 
 /**

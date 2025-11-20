@@ -68,9 +68,15 @@ FullConfig ConfigLoader::load_from_json(const Json::Value& root,
             root["reaction_database"].asString(), base_path);
     }
     
+    // Legacy ion_cloud path (deprecated, use "ions" instead)
     if (root.isMember("ion_cloud")) {
         config.ion_cloud_path = resolve_path(
             root["ion_cloud"].asString(), base_path);
+    }
+    
+    // Modern ion configuration
+    if (root.isMember("ions")) {
+        config.ions = parse_ion_config(root["ions"], base_path);
     }
     
     // Optional metadata
@@ -144,6 +150,134 @@ std::string ConfigLoader::resolve_path(const std::string& path,
     }
     
     return path;
+}
+
+IonConfig ConfigLoader::parse_ion_config(const Json::Value& json,
+                                         const std::filesystem::path& base_path) {
+    IonConfig config;
+    
+    // Option 1: Load from file
+    if (json.isMember("from_file")) {
+        config.from_file = resolve_path(json["from_file"].asString(), base_path);
+        return config;
+    }
+    
+    // Option 2: Generate from species list
+    if (json.isMember("species") && json["species"].isArray()) {
+        for (const auto& spec_json : json["species"]) {
+            IonSpeciesConfig spec;
+            
+            // Required fields
+            if (!spec_json.isMember("id") || !spec_json.isMember("count") ||
+                !spec_json.isMember("position") || !spec_json.isMember("velocity")) {
+                throw std::runtime_error("Ion species config missing required fields (id, count, position, velocity)");
+            }
+            
+            spec.species_id = spec_json["id"].asString();
+            spec.count = spec_json["count"].asInt();
+            
+            // Parse position distribution
+            spec.position = parse_position_config(spec_json["position"]);
+            
+            // Parse velocity distribution
+            spec.velocity = parse_velocity_config(spec_json["velocity"]);
+            
+            config.species.push_back(spec);
+        }
+    }
+    
+    return config;
+}
+
+PositionConfig ConfigLoader::parse_position_config(const Json::Value& json) {
+    PositionConfig config;
+    
+    if (!json.isMember("type")) {
+        throw std::runtime_error("Position config missing 'type' field");
+    }
+    
+    std::string type_str = json["type"].asString();
+    
+    if (type_str == "point") {
+        config.type = PositionDistribution::Point;
+        config.center = parse_vec3(json["center"]);
+    }
+    else if (type_str == "gaussian") {
+        config.type = PositionDistribution::Gaussian;
+        config.center = parse_vec3(json["center"]);
+        config.std_dev = parse_vec3(json["std"]);
+    }
+    else if (type_str == "uniform_sphere") {
+        config.type = PositionDistribution::UniformSphere;
+        config.center = parse_vec3(json["center"]);
+        config.radius = json["radius"].asDouble();
+    }
+    else if (type_str == "uniform_cylinder") {
+        config.type = PositionDistribution::UniformCylinder;
+        config.center = parse_vec3(json["center"]);
+        config.cylinder_radius = json["radius"].asDouble();
+        config.cylinder_length = json["length"].asDouble();
+    }
+    else if (type_str == "uniform_box") {
+        config.type = PositionDistribution::UniformBox;
+        config.box_min = parse_vec3(json["min"]);
+        config.box_max = parse_vec3(json["max"]);
+    }
+    else {
+        throw std::runtime_error("Unknown position distribution type: " + type_str);
+    }
+    
+    return config;
+}
+
+VelocityConfig ConfigLoader::parse_velocity_config(const Json::Value& json) {
+    VelocityConfig config;
+    
+    if (!json.isMember("type")) {
+        throw std::runtime_error("Velocity config missing 'type' field");
+    }
+    
+    std::string type_str = json["type"].asString();
+    
+    if (type_str == "fixed") {
+        config.type = VelocityDistribution::Fixed;
+        config.value = parse_vec3(json["value"]);
+    }
+    else if (type_str == "thermal") {
+        config.type = VelocityDistribution::Thermal;
+        config.temperature_K = json["temperature_K"].asDouble();
+    }
+    else if (type_str == "kinetic") {
+        config.type = VelocityDistribution::Kinetic;
+        config.energy_eV = json["energy_eV"].asDouble();
+        config.direction = parse_vec3(json["direction"]);
+        
+        if (json.isMember("spread_angle_deg")) {
+            config.spread_angle_deg = json["spread_angle_deg"].asDouble();
+        }
+    }
+    else if (type_str == "gaussian") {
+        config.type = VelocityDistribution::Gaussian;
+        config.mean = parse_vec3(json["mean"]);
+        config.std_dev = parse_vec3(json["std"]);
+    }
+    else {
+        throw std::runtime_error("Unknown velocity distribution type: " + type_str);
+    }
+    
+    return config;
+}
+
+Vec3 ConfigLoader::parse_vec3(const Json::Value& json) {
+    if (!json.isArray() || json.size() != 3) {
+        throw std::runtime_error("Vec3 must be array of 3 numbers");
+    }
+    
+    return Vec3(
+        json[0].asDouble(),
+        json[1].asDouble(),
+        json[2].asDouble()
+    );
 }
 
 } // namespace ICARION::config

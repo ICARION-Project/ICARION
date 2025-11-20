@@ -28,7 +28,6 @@
 
 #include "core/param/paramUtils.h"
 #include "core/physics/reactions/reactionUtils.h"
-#include "core/types/SimulationResult.h"
 #include "fieldsolver/io/SolverConfig.h"
 // Field provider abstraction (optional injected field source)
 #include "fieldsolver/utils/IFieldProvider.h"

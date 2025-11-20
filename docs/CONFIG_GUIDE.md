@@ -257,7 +257,7 @@ python3 schema/validate_schema.py schema/reactions.schema.json data/reactions_da
 
 ---
 
-## Ion Initialization (v1.0)
+## Ion Initialization 
 
 ICARION provides flexible ion initialization with per-species position boundaries and velocity distributions.
 
@@ -897,6 +897,14 @@ Use the global `simulation.integrator` as default, but override for specific dom
 **Error: Configuration validation failed**
 
 - Solution: Run `--validate-config` to see detailed error messages
+
+**Error: Species 'X+' not found in species database**
+
+- Solution: Add species 'X+' to the specified species database or check for typos.
+
+**Error: Could not open ion cloud JSON file:**
+
+- Solution: Verify the existence of the specified ion cloud and check the file path.
 
 ### Best Practices
 

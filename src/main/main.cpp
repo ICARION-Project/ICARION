@@ -363,8 +363,10 @@ int main(int argc, char* argv[]) {
             }
             
         } else {
-            // Normal initialization from ion cloud file
-            ions = ICARION::utils::init_ions(gParams, speciesDB, domains);
+            // Normal initialization from ion configuration
+            std::mt19937 rng(gParams.rng_seed);
+            ions = full_config.generate_ions(rng);
+            std::cout << "Generated " << ions.size() << " ions from configuration.\n";
         }
 
         // === 6. Initialize logger ===

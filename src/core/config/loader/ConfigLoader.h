@@ -46,6 +46,19 @@ private:
     // Helper: Resolve file paths relative to config file
     static std::string resolve_path(const std::string& path, 
                                     const std::filesystem::path& base_path);
+    
+    // Helper: Parse ion configuration
+    static IonConfig parse_ion_config(const Json::Value& json,
+                                      const std::filesystem::path& base_path);
+    
+    // Helper: Parse position distribution
+    static PositionConfig parse_position_config(const Json::Value& json);
+    
+    // Helper: Parse velocity distribution
+    static VelocityConfig parse_velocity_config(const Json::Value& json);
+    
+    // Helper: Parse Vec3 from JSON array
+    static Vec3 parse_vec3(const Json::Value& json);
 };
 
 } // namespace ICARION::config

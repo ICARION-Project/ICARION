@@ -4,6 +4,8 @@
 #include "FullConfig.h"
 #include "../loader/SpeciesLoader.h"
 #include "../loader/ReactionLoader.h"
+#include "../loader/IonLoader.h"
+#include "core/types/IonState.h"
 #include <iostream>
 
 namespace ICARION::config {
@@ -90,6 +92,46 @@ void FullConfig::load_databases(const std::filesystem::path& base_path) {
             std::cout << "[DatabaseLoader] No reaction database specified (optional)\n";
         }
     }
+}
+
+std::vector<IonState> FullConfig::generate_ions(std::mt19937& rng) const {
+    // Use new IonConfig if specified
+    if (ions.is_valid()) {
+        IonGenerationResult result = IonLoader::generate_ions(ions, species_db, rng);
+        
+        if (!result.validation.valid) {
+            std::cerr << "Ion generation validation failed:\n";
+            result.validation.print();
+            throw std::runtime_error("Ion generation failed - check species database and configuration");
+        }
+        
+        if (!result.validation.warnings.empty()) {
+            std::cout << "Warnings during ion generation:\n";
+            for (const auto& warning : result.validation.warnings) {
+                std::cout << "  ⚠  " << warning << "\n";
+            }
+        }
+        
+        return result.ions;
+    }
+    
+    // Legacy fallback: load from ion_cloud_path
+    if (!ion_cloud_path.empty()) {
+        std::cout << "[IonLoader] Loading ions from legacy path: " << ion_cloud_path << "\n";
+        
+        IonGenerationResult result = IonLoader::load_from_file(ion_cloud_path, species_db);
+        
+        if (!result.validation.valid) {
+            std::cerr << "Ion loading validation failed:\n";
+            result.validation.print();
+            throw std::runtime_error("Ion loading failed from " + ion_cloud_path);
+        }
+        
+        return result.ions;
+    }
+    
+    // No ion configuration
+    throw std::runtime_error("No ion configuration specified (neither 'ions' nor 'ion_cloud' field)");
 }
 
 } // namespace ICARION::config

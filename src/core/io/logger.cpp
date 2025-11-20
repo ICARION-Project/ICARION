@@ -26,6 +26,7 @@
 #include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <fstream>
 #include <unistd.h>
 #include <limits.h>
 
@@ -63,7 +64,9 @@ RunLogger::RunLogger(const std::string& output_file_base) {
     if (!file_.is_open()) throw std::runtime_error("Failed to create log file: " + filepath_);
 }
 
-// --- String helpers for enums ---
+// --- String helpers for legacy enums (ICARION::core namespace) ---
+// Note: These are kept for legacy GlobalParams/InstrumentDomain which use core:: enums
+// The new config system uses ICARION::config enums with EnumMapper
 static std::string solver_to_string(SolverType s) {
     switch (s) {
         case SolverType::RK4:    return "RK4";

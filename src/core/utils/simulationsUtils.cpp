@@ -30,6 +30,7 @@
  */
 
 #include "core/utils/simulationsUtils.h"
+#include "core/config/conversion/EnumMapper.h"
 #include <iomanip>
 #include <iostream>
 #include <vector>
@@ -42,49 +43,11 @@
 namespace ICARION {
 namespace utils {
 
-/**
- * @brief Initialize ion states from a JSON ion cloud file.
- *
- * @param[in,out] gParams Simulation parameters (updates num_ions).
- * @param[in] speciesDB Database of species properties for reference.
- * @param[in] domains Vector of instrument domains for domain assignment.
- * @return std::vector<IonState> Fully initialized ion states.
- *
- * @throws std::runtime_error if the ion cloud JSON file cannot be opened.
- *
- * @details
- * Each ion is assigned:
- * - Position and velocity from JSON.
- * - Species properties (mass, charge, mobility, CCS).
- * - Domain-specific environmental parameters (temperature, neutral mass,
- *   particle density, polarizability, gas velocity) based on position.
- * - Birth time (if provided) and "born" flag.
- */
 
 // [REMOVED] init_ions() function - replaced by FullConfig::generate_ions() in config system
 // See: src/core/config/types/FullConfig.h and src/core/config/loader/IonLoader.h
 
-// optional: simple colored output
-static std::string color_text(const std::string& text, const std::string& color) {
-    static const std::unordered_map<std::string, std::string> c = {
-        {"red", "\033[31m"}, {"green", "\033[32m"}, {"yellow", "\033[33m"}, {"reset", "\033[0m"}
-    };
-    auto it = c.find(color);
-    if (it == c.end()) return text;
-    return it->second + text + c.at("reset");
-}
-
-// map enum → string
-static std::string instrument_name(Instrument instr) {
-    switch (instr) {
-        case Instrument::LQIT:         return "LQIT";
-        case Instrument::IMS:          return "IMS";
-        case Instrument::Orbitrap:     return "Orbitrap";
-        case Instrument::QuadrupoleRF: return "Quadrupole";
-        case Instrument::TOF:          return "TOF";
-        default:                       return "Unknown";
-    }
-}
+// [REMOVED] color_text() and instrument_name() - replaced by EnumMapper in config system
 
 /**
  * @brief Prints a formatted summary of all instrument domains in TRACE.
@@ -122,17 +85,17 @@ void print_domain_summary(std::vector<InstrumentDomain>& domains) {
                 dom.fieldArray = load_field_array(dom.FA_file);
                 if (!dom.fieldArray.is_valid()) {
                     dom.fieldArrayLoaded = false;
-                    status = color_text("⚠ invalid", "yellow");
+                    status = "⚠ invalid";
                 } else {
                     dom.fieldArrayLoaded = true;
-                    status = color_text("✓ loaded", "green");
+                    status = "✓ loaded";
 
                     grid_info = std::to_string(dom.fieldArray.nx) + "×" +
                                 std::to_string(dom.fieldArray.ny) + "×" +
                                 std::to_string(dom.fieldArray.nz);
                 }
             } catch (const std::exception& e) {
-                status = color_text("⚠ error", "yellow");
+                status = "⚠ error";
                 dom.fieldArrayLoaded = false;
                 std::cerr << "Error loading PA field (" << dom.FA_file << "): " << e.what() << "\n";
             }
@@ -141,7 +104,7 @@ void print_domain_summary(std::vector<InstrumentDomain>& domains) {
         }
 
         std::cout << std::left << std::setw(6)  << dom.index
-                  << std::setw(15) << instrument_name(dom.instrument)
+                  << std::setw(15) << ICARION::config::EnumMapper::instrument_to_string(dom.instrument)
                   << std::setw(8)  << FA_file
                   << std::setw(12) << dom.RF.voltage_V
                   << std::setw(12) << dom.DC.axial_V

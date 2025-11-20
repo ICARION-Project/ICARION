@@ -23,14 +23,19 @@
 
 #include <string>
 #include <optional>
+#include <map>
+#include <vector>
 
 namespace ICARION {
 namespace cli {
 
 /**
  * @brief Command-line options for ICARION
+ * 
+ * Extended with logging, output control, and config overrides.
  */
 struct CLIOptions {
+    // === Core options ===
     std::string config_file;              ///< Path to JSON configuration file
     std::optional<unsigned int> seed;     ///< RNG seed override (--seed)
     bool dry_run{false};                  ///< Validate config only (--dry-run)
@@ -38,23 +43,31 @@ struct CLIOptions {
     bool show_help{false};                ///< Show help message (--help)
     bool show_version{false};             ///< Show version (--version)
     bool validate_config{false};          ///< Validate config and exit (--validate-config)
+    
+    // === Logging options (Phase 1: ACTIVE) ===
+    std::string log_level{"INFO"};        ///< Log level: DEBUG, INFO, WARN, ERROR
+    std::optional<std::string> log_file;  ///< Log to file instead of console
+    bool verbose{false};                  ///< Verbose mode (alias for --log-level DEBUG)
+    
+    // === Output control (Phase 1: ACTIVE) ===
+    std::optional<std::string> output_file;  ///< Override output HDF5 filename
+    std::optional<std::string> output_dir;   ///< Override output directory
+    
+    // === Config overrides (Phase 1: ACTIVE) ===
+    std::map<std::string, std::string> overrides;  ///< Config key-value overrides (--set)
+    
+    // === Performance/Debug (TODO - Phase 2) ===
+    bool benchmark{false};       ///< Print timing statistics (TODO)
+    bool profile{false};         ///< Enable profiling (TODO)
+    bool check_nan{false};       ///< Enable NaN/Inf checks (TODO)
 };
 
 /**
- * @brief Parse command-line arguments
+ * @brief Parse command-line arguments using cxxopts
  * 
  * @param argc Argument count
  * @param argv Argument vector
  * @return Parsed options
- * 
- * Supported flags:
- * - --help: Show usage information
- * - --version: Show ICARION version
- * - --seed N: Override RNG seed from config
- * - --dry-run: Validate configuration without running simulation
- * - --no-reactions: Disable chemical reactions
- * 
- * Positional argument: configuration file path
  */
 CLIOptions parse_arguments(int argc, char* argv[]);
 

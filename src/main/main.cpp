@@ -52,6 +52,7 @@
 // New config system (Phase 4)
 #include "core/config/loader/ConfigLoader.h"
 #include "core/config/adapter/LegacyAdapter.h"
+#include "core/config/utils/ConfigOverride.h"
 
 /**
  * @file ICARION.cpp
@@ -82,15 +83,28 @@ int main(int argc, char* argv[]) {
     // Parse command-line arguments
     ICARION::cli::CLIOptions opts = ICARION::cli::parse_arguments(argc, argv);
     
-    // Handle --help and --version
-    if (opts.show_help) {
-        ICARION::cli::print_help(argv[0]);
+    // Handle --help and --version (already printed by parser)
+    if (opts.show_help || opts.show_version) {
         return 0;
     }
-    if (opts.show_version) {
-        ICARION::cli::print_version();
-        return 0;
+    
+    // === Apply logging options (Phase 1) ===
+    if (opts.log_file.has_value()) {
+        // Redirect stdout/stderr to file
+        if (!std::freopen(opts.log_file.value().c_str(), "w", stdout)) {
+            std::cerr << "Warning: Failed to redirect stdout to " << opts.log_file.value() << "\n";
+        }
+        if (!std::freopen(opts.log_file.value().c_str(), "a", stderr)) {
+            std::cerr << "Warning: Failed to redirect stderr to " << opts.log_file.value() << "\n";
+        }
+        std::cout << "=== Logging to: " << opts.log_file.value() << " ===\n";
     }
+    
+    if (opts.verbose) {
+        std::cout << "=== Verbose mode enabled (log level: DEBUG) ===\n";
+    }
+    
+    std::cout << "Log level: " << opts.log_level << "\n";
 
     // === Handle --validate-config (Phase 4) ===
     if (opts.validate_config) {
@@ -142,17 +156,37 @@ int main(int argc, char* argv[]) {
         // === 1. Load configuration (new system with legacy adapter) ===
         // TODO: Remove LegacyAdapter once integrator/physics/IO are refactored
         auto full_config = ICARION::config::ConfigLoader::load(opts.config_file);
+        
+        // === Apply CLI overrides (Phase 1: --set support) ===
+        if (!opts.overrides.empty()) {
+            ICARION::config::ConfigOverride::apply(full_config, opts.overrides);
+            // Recompute derived values after overrides
+            full_config.finalize_all();
+        }
+        
+        // === Apply output overrides (Phase 1) ===
+        if (opts.output_file.has_value()) {
+            std::cout << "[CLI] Output file override: " << opts.output_file.value() << "\n";
+            full_config.output.trajectory_file = opts.output_file.value();
+        }
+        
+        if (opts.output_dir.has_value()) {
+            std::cout << "[CLI] Output directory override: " << opts.output_dir.value() << "\n";
+            full_config.output.folder = opts.output_dir.value();
+        }
+        
+        // Convert to legacy GlobalParams
         GlobalParams gParams = ICARION::config::LegacyAdapter::to_global_params(full_config);
         
         // Override RNG seed if --seed was provided
         if (opts.seed.has_value()) {
-            std::cout << "Overriding RNG seed from command line: " << opts.seed.value() << "\n";
+            std::cout << "[CLI] Overriding RNG seed: " << opts.seed.value() << "\n";
             gParams.rng_seed = opts.seed.value();
         }
         
         // Override reaction flag if --no-reactions was provided
         if (opts.no_reactions) {
-            std::cout << "Disabling reactions (--no-reactions)\n";
+            std::cout << "[CLI] Disabling reactions (--no-reactions)\n";
             gParams.enable_reactions = false;
         }
         

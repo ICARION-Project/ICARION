@@ -44,7 +44,7 @@
 #include "core/io/hdf5Writer.h"
 #include "core/param/paramUtils.h"
 #include "utils/cli_parser.h"  // CLI argument parser
-#include "core/utils/simulationsUtils.h"  // print_domain_summary, init_ions, print_results
+#include "core/utils/simulationsUtils.h"  // print_domain_summary, print_results
 #include "core/physics/reactions/reactionUtils.h"  // ReactionEntry struct only
 #include "core/io/fieldArrayLoader.h"
 #include "core/io/speciesLoader.h"  // io::SpeciesDatabase (temporary until Phase 5)

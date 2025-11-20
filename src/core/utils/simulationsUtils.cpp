@@ -61,80 +61,8 @@ namespace utils {
  * - Birth time (if provided) and "born" flag.
  */
 
-std::vector<IonState> init_ions(GlobalParams& gParams,
-                                const ICARION::io::SpeciesDatabase& speciesDB,
-                                const std::vector<InstrumentDomain>& domains) {
-    std::string   filename = gParams.ion_cloud_file;
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        throw std::runtime_error("Could not open ion cloud JSON file: " + filename);
-    }
-
-    Json::Value root;
-    file >> root;
-    file.close();
-
-    std::vector<IonState> ions;
-    const Json::Value     ionsArray = root["ions"];
-    ions.reserve(ionsArray.size());
-
-    for (const auto& ionNode : ionsArray) {
-        std::string species_name = ionNode["species"].asString();
-        
-        // NEW: Use SpeciesDatabase::has() and get()
-        if (!speciesDB.has(species_name)) {
-            std::cerr << "Warning: Species '" << species_name << "' not found in database, skipping ion\n";
-            continue;
-        }
-
-        const ICARION::io::Species& sp = speciesDB.get(species_name);
-
-        IonState ion;
-        ion.species_id              = sp.id;
-        ion.mass_kg                 = sp.mass_kg;
-        ion.reduced_mobility_cm2_Vs = sp.mobility_m2Vs * 1e4;  // Convert m²/Vs to cm²/Vs
-        ion.ion_charge_C            = sp.charge_C;
-        ion.CCS_m2                  = sp.CCS_m2;
-        ion.t = 0;
-        ion.pos = Vec3(ionNode["pos"][0].asDouble(), ionNode["pos"][1].asDouble(),
-                       ionNode["pos"][2].asDouble());
-
-        ion.vel = Vec3(ionNode["vel"][0].asDouble(), ionNode["vel"][1].asDouble(),
-                       ionNode["vel"][2].asDouble());
-
-        // optional birth time
-        if (ionNode.isMember("birth_time")) {
-            ion.birth_time_s = ionNode["birth_time"].asDouble();
-        } else {
-            ion.birth_time_s = 0.0;
-        }
-        ion.born = (ion.birth_time_s <= 0.0);
-
-        // Assign domain properties
-    ion.current_domain_index = -1; // default: outside all domains
-    // Debug prints removed to avoid excessive log spam during automated runs.
-    // If you need them, re-enable manually for local debugging.
-        for (size_t i = 0; i < domains.size(); ++i) {
-            bool inside = isInsideDomain(domains[i], ion.pos);
-            if (inside) {
-                ion.current_domain_index = static_cast<int>(i);
-                const InstrumentDomain& dom = domains[i];  
-
-                ion.domain_neutral_mass_kg           = dom.env.neutral_mass_kg;
-                ion.domain_particle_density_m3       = dom.env.particle_density_m_3;
-                ion.domain_neutral_polarizability_m3 = dom.env.neutral_polarizability_m3;
-                ion.domain_temperature_K             = dom.env.temperature_K;
-                ion.domain_gas_velocity_m_s          = dom.env.gas_velocity_m_s;  
-                break;
-            }
-        }
-        ion.validate();
-        ions.push_back(std::move(ion));
-    }
-    gParams.num_ions = ions.size();
-
-    return ions;
-}
+// [REMOVED] init_ions() function - replaced by FullConfig::generate_ions() in config system
+// See: src/core/config/types/FullConfig.h and src/core/config/loader/IonLoader.h
 
 // optional: simple colored output
 static std::string color_text(const std::string& text, const std::string& color) {

@@ -95,6 +95,14 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         ("profile", "[TODO] Enable profiling (requires profiler build)")
         ("check-nan", "[TODO] Enable NaN/Inf checks in integrator");
     
+    // === Information flags (Phase 1: ACTIVE) ===
+    parser.add_options("Information")
+        ("dump-build-info", "Show detailed build configuration and features")
+        ("dump-hdf5-schema", "Show HDF5 output schema documentation")
+        ("dump-config-schema", "Show path to JSON config schemas")
+        ("list-collision-models", "List available collision models")
+        ("list-integrators", "List available integrators");
+    
     // Parse
     cxxopts::ParseResult result;
     try {
@@ -107,7 +115,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     
     // === Handle --help and --version early ===
     if (result.count("help")) {
-        std::cout << parser.help({"Core", "Logging", "Output", "Advanced"}) << "\n";
+        std::cout << parser.help({"Core", "Logging", "Output", "Advanced", "Information"}) << "\n";
         std::cout << "\nExamples:\n";
         std::cout << "  icarion config.json\n";
         std::cout << "  icarion --verbose config.json\n";
@@ -123,6 +131,19 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     if (result.count("version")) {
         print_version();
         opts.show_version = true;
+        return opts;
+    }
+    
+    // === Handle information flags early (don't require config file) ===
+    opts.dump_build_info = result.count("dump-build-info") > 0;
+    opts.dump_hdf5_schema = result.count("dump-hdf5-schema") > 0;
+    opts.dump_config_schema = result.count("dump-config-schema") > 0;
+    opts.list_collision_models = result.count("list-collision-models") > 0;
+    opts.list_integrators = result.count("list-integrators") > 0;
+    
+    if (opts.dump_build_info || opts.dump_hdf5_schema || opts.dump_config_schema ||
+        opts.list_collision_models || opts.list_integrators) {
+        // Info flags don't require config file
         return opts;
     }
     
@@ -205,6 +226,195 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     }
     
     return opts;
+}
+
+void print_build_info() {
+    std::cout << "=== ICARION Build Information ===\n";
+    std::cout << "Version:           " << ICARION_VERSION << "\n";
+    std::cout << "Git Commit:        " << GIT_HASH << "\n";
+    std::cout << "Build Date:        " << __DATE__ << " " << __TIME__ << "\n";
+    
+#ifdef CMAKE_BUILD_TYPE
+    std::cout << "Build Type:        " << CMAKE_BUILD_TYPE << "\n";
+#else
+    std::cout << "Build Type:        Unknown\n";
+#endif
+    
+    std::cout << "\n=== Features ===\n";
+#ifdef USE_CUDA
+    std::cout << "GPU Acceleration:  Enabled (CUDA)\n";
+#else
+    std::cout << "GPU Acceleration:  Disabled\n";
+#endif
+
+#ifdef _OPENMP
+    std::cout << "OpenMP:            Enabled\n";
+#else
+    std::cout << "OpenMP:            Disabled\n";
+#endif
+
+#ifdef ICARION_BUILD_CORE_ONLY
+    std::cout << "Build Mode:        Core-Only (no FieldSolver)\n";
+#else
+    std::cout << "Build Mode:        Full (with FieldSolver & Optimizer)\n";
+#endif
+
+    std::cout << "\n=== Dependencies ===\n";
+    std::cout << "HDF5:              Available\n";
+    std::cout << "JsonCpp:           Available\n";
+    std::cout << "cxxopts:           3.1.1\n";
+    
+    std::cout << "\n=== Compiler ===\n";
+#if defined(__GNUC__) && !defined(__clang__)
+    std::cout << "Compiler:          GCC " << __GNUC__ << "." << __GNUC_MINOR__ << "." << __GNUC_PATCHLEVEL__ << "\n";
+#elif defined(__clang__)
+    std::cout << "Compiler:          Clang " << __clang_major__ << "." << __clang_minor__ << "." << __clang_patchlevel__ << "\n";
+#elif defined(_MSC_VER)
+    std::cout << "Compiler:          MSVC " << _MSC_VER << "\n";
+#else
+    std::cout << "Compiler:          Unknown\n";
+#endif
+    
+#if __cplusplus == 202002L
+    std::cout << "C++ Standard:      C++20\n";
+#elif __cplusplus == 201703L
+    std::cout << "C++ Standard:      C++17\n";
+#elif __cplusplus == 201402L
+    std::cout << "C++ Standard:      C++14\n";
+#else
+    std::cout << "C++ Standard:      " << __cplusplus << "\n";
+#endif
+    
+    std::cout << "\n=== Paths ===\n";
+    std::cout << "Schema Directory:  ./schema/\n";
+    std::cout << "Examples:          ./examples/\n";
+}
+
+void print_hdf5_schema() {
+    std::cout << R"(
+ICARION HDF5 Output Schema v1.0
+================================
+
+Structure:
+----------
+
+/metadata/
+  version         string      ICARION version
+  git_hash        string      Git commit hash
+  timestamp       string      ISO8601 timestamp (YYYY-MM-DDTHH:MM:SSZ)
+  rng_seed        int64       Random number generator seed
+  hostname        string      Machine hostname
+  username        string      Username
+  config_file     string      Path to configuration file
+
+/system_info/
+  os              string      Operating system
+  cpu_model       string      CPU model name
+  cpu_cores       int32       Number of CPU cores
+  memory_gb       float64     Total system memory [GB]
+
+/trajectory/
+  time            float64[N]      Time points [s]
+  position        float64[N,3]    Ion positions [x,y,z] [m]
+  velocity        float64[N,3]    Ion velocities [vx,vy,vz] [m/s]
+  species_id      int32[N]        Species identifier
+  active          bool[N]         Ion active flag (true=active, false=lost)
+  domain_index    int32[N]        Current domain index
+  ion_id          int32[N]        Unique ion identifier
+
+/species/<name>/
+  mass_kg         float64     Ion mass [kg]
+  charge_C        float64     Ion charge [C]
+  mobility_m2Vs   float64     Ion mobility [m²/(V·s)]
+  ccs_m2          float64     Collision cross-section [m²]
+
+/config/
+  full_config     string      Complete JSON configuration (serialized)
+
+/domains/
+  domain_<N>/
+    name          string      Domain name
+    instrument    string      Instrument type (IMS, LQIT, TOF, etc.)
+    length_m      float64     Domain length [m]
+    radius_m      float64     Domain radius [m]
+
+Notes:
+------
+  - N = number of time snapshots × number of ions
+  - All quantities in SI units unless specified
+  - Use h5dump, HDFView, or Python h5py to read files
+  - Trajectory data stored in chunked + compressed format
+
+Example (Python):
+-----------------
+  import h5py
+  with h5py.File('output.h5', 'r') as f:
+      time = f['/trajectory/time'][:]
+      pos = f['/trajectory/position'][:]
+      metadata = dict(f['/metadata'].attrs)
+
+For detailed documentation, see: docs/OUTPUT_SCHEMA.md
+)";
+}
+
+void print_config_schema() {
+    std::cout << "JSON Configuration Schemas:\n";
+    std::cout << "===========================\n\n";
+    std::cout << "Location: ./schema/\n\n";
+    std::cout << "Available schemas:\n";
+    std::cout << "  - icarion-config.schema.json    Main configuration schema\n";
+    std::cout << "  - simulation.schema.json        Simulation parameters\n";
+    std::cout << "  - physics.schema.json           Physics settings\n";
+    std::cout << "  - domain.schema.json            Domain configuration\n";
+    std::cout << "  - fields.schema.json            Field definitions\n";
+    std::cout << "  - environment.schema.json       Environment parameters\n";
+    std::cout << "  - geometry.schema.json          Geometry specification\n";
+    std::cout << "  - ions.schema.json              Ion initialization\n";
+    std::cout << "  - output.schema.json            Output configuration\n";
+    std::cout << "  - common-types.schema.json      Common type definitions\n";
+    std::cout << "\nValidation:\n";
+    std::cout << "  python schema/validator.py config.json\n";
+    std::cout << "\nDocumentation:\n";
+    std::cout << "  See: docs/CONFIG_GUIDE.md\n";
+    std::cout << "       docs/INPUT_SCHEMA.md\n";
+}
+
+void list_collision_models() {
+    std::cout << "Available Collision Models:\n";
+    std::cout << "===========================\n\n";
+    std::cout << "  NoCollisions   - No collision modeling (free flight)\n";
+    std::cout << "  HardSphere     - Hard sphere collisions (deterministic)\n";
+    std::cout << "  Langevin       - Langevin collisions (polarization)\n";
+    std::cout << "  Friction       - Frictional drag\n";
+    std::cout << "  HSS            - Hard sphere stochastical\n";
+    std::cout << "  EHSS           - Enhanced hard sphere statistical\n";
+    std::cout << "\nUsage:\n";
+    std::cout << "  In config:   \"collision_model\": \"EHSS\"\n";
+    std::cout << "  Via CLI:     --set physics.collision_model=EHSS\n";
+    std::cout << "\nDocumentation:\n";
+    std::cout << "  See: docs/COLLISION_MODELS.md (if exists)\n";
+}
+
+void list_integrators() {
+    std::cout << "Available Integrators:\n";
+    std::cout << "======================\n\n";
+    std::cout << "  RK4      - 4th-order Runge-Kutta (fixed timestep)\n";
+    std::cout << "           - Fast, deterministic\n";
+    std::cout << "           - Best for: Regular fields, known dynamics\n";
+    std::cout << "\n";
+    std::cout << "  RK45     - Adaptive Runge-Kutta (4/5 order)\n";
+    std::cout << "           - Variable timestep, error control\n";
+    std::cout << "           - Best for: Stiff systems, Orbitrap, varying dynamics\n";
+    std::cout << "\n";
+    std::cout << "  Boris    - Boris pusher (magnetic fields)\n";
+    std::cout << "           - Specialized for E×B fields\n";
+    std::cout << "           - Best for: ICR, magnetic confinement\n";
+    std::cout << "\nUsage:\n";
+    std::cout << "  In config:   \"integrator\": \"RK4\"\n";
+    std::cout << "  Via CLI:     --set simulation.integrator=RK45\n";
+    std::cout << "\nNotes:\n";
+    std::cout << "  - RK4 is default for most instrument types\n";
+    std::cout << "  - Can be overridden per-domain in config\n";
 }
 
 }  // namespace cli

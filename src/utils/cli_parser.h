@@ -60,6 +60,13 @@ struct CLIOptions {
     bool benchmark{false};       ///< Print timing statistics (TODO)
     bool profile{false};         ///< Enable profiling (TODO)
     bool check_nan{false};       ///< Enable NaN/Inf checks (TODO)
+    
+    // === Information flags (Phase 1: ACTIVE) ===
+    bool dump_build_info{false};      ///< Show detailed build information
+    bool dump_hdf5_schema{false};     ///< Show HDF5 output schema
+    bool dump_config_schema{false};   ///< Export JSON config schema
+    bool list_collision_models{false}; ///< List available collision models
+    bool list_integrators{false};     ///< List available integrators
 };
 
 /**
@@ -82,6 +89,31 @@ void print_help(const std::string& program_name);
  * @brief Print version information
  */
 void print_version();
+
+/**
+ * @brief Print detailed build information
+ */
+void print_build_info();
+
+/**
+ * @brief Print HDF5 output schema documentation
+ */
+void print_hdf5_schema();
+
+/**
+ * @brief Print JSON config schema (or path to schemas)
+ */
+void print_config_schema();
+
+/**
+ * @brief List available collision models
+ */
+void list_collision_models();
+
+/**
+ * @brief List available integrators
+ */
+void list_integrators();
 
 }  // namespace cli
 }  // namespace ICARION

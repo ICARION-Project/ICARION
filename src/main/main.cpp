@@ -88,6 +88,32 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     
+    // === Handle information flags (Phase 1) ===
+    if (opts.dump_build_info) {
+        ICARION::cli::print_build_info();
+        return 0;
+    }
+    
+    if (opts.dump_hdf5_schema) {
+        ICARION::cli::print_hdf5_schema();
+        return 0;
+    }
+    
+    if (opts.dump_config_schema) {
+        ICARION::cli::print_config_schema();
+        return 0;
+    }
+    
+    if (opts.list_collision_models) {
+        ICARION::cli::list_collision_models();
+        return 0;
+    }
+    
+    if (opts.list_integrators) {
+        ICARION::cli::list_integrators();
+        return 0;
+    }
+    
     // === Apply logging options (Phase 1) ===
     if (opts.log_file.has_value()) {
         // Redirect stdout/stderr to file

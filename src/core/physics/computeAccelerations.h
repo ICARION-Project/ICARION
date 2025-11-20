@@ -1,38 +1,24 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 /**
  * =====================================================================
  *
  *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
+ *   ------------------------------------------------
+ *   Modular framework for simulating ion trajectories in custom
+ *   electric fields and background gas environments.
  *
- *   @file        computeAccelerations.h
- *   @brief       Computes ion accelerations and updated velocities.
+ *   @file       computeAccelerations.h
+ *   @brief      Computes ion accelerations and updated velocities
  *
  *   @details
- *   Provides the function to calculate the time derivatives of an ion’s state
- *   vector for use in numerical integration (e.g., Runge-Kutta).
+ *   Defines functions to compute ion accelerations based on summed forces
+ *  from electric fields, space charge, and background gas interactions.
  *
- *   Acceleration contributions include:
- *   - Electric fields (DC, RF, AC, Orbitrap)
- *   - Collision damping (HardSphere, Langevin, Friction, EHSS, HSMC)
- *   - Background gas flow (adds to velocity)
- *
- *   Supports multiple instruments: LQIT, IMS, SIFDT-MS, Orbitrap, QuadrupoleRF, TOF.
- *
- *   @note
- *   Returned IonState contains updated velocity and acceleration.
- *   All units are SI; fields in V/m. Collision events and boundary checks
- *   are handled elsewhere.
- *
- *
- *   @date        2025-10-06
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
+ *   @date       2025-11-20
+ *   @version    1.0.0
+ *   @authors    ICARION Development Team
  *
  * =====================================================================
  */

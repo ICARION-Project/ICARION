@@ -45,6 +45,8 @@
 #include "integrator/rk45_settings.h"
 // Numerical safety configuration
 #include "core/utils/safety/numericalSafetyGuards.h"
+// Instrument type definitions
+#include "instrument/InstrumentTypes.h"
 
 // Forward declarations
 class FieldServer; // Phase 6.3 live field computation
@@ -55,7 +57,8 @@ namespace core {
 // -----------------------------
 // Allowed instruments, collision models and solvers
 // -----------------------------
-enum class Instrument { LQIT, SIFDT_MS, IMS, Orbitrap, QuadrupoleRF, TOF, FT_ICR, NoFixedInstrument, UnknownInstrument };
+// Use canonical InstrumentType from instrument namespace
+using Instrument = ICARION::instrument::InstrumentType;
 
 enum class CollisionModel { HardSphere, Langevin, Friction, EHSS, HSMC, NoCollisions, UnknownCollisionModel };
 

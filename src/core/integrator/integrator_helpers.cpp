@@ -87,7 +87,7 @@ void integrate_one_step(
 
     switch (dom.solver_type) {
         case SolverType::Boris: {
-            Vec3 E_field = (dom.instrument == Instrument::FT_ICR) ?
+            Vec3 E_field = (dom.instrument == Instrument::FTICR) ?
                 FTICRField(ion, dom.DC.radial_V, std::sqrt((dom.geom.length_m*dom.geom.length_m/8.0)+(dom.geom.radius_m*dom.geom.radius_m/4.0)), dom.geom.length_m)
                 : ElectricFieldVec(ion, dom, t_local);
             Vec3 B_field = MagneticFieldVec(ion, dom);

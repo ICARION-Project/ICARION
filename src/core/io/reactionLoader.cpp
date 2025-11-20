@@ -242,7 +242,10 @@ ReactionDatabase load_reactions(const std::string& filepath) {
         reaction.branching_ratio = j.get("branching_ratio", 1.0).asDouble();
         
         // Parse reaction type
-        std::string type_str = j.get("type", "unknown").asString();
+        std::string type_str = "unknown";
+        if (j.isMember("type") && j["type"].isString()) {
+            type_str = j["type"].asString();
+        }
         reaction.type = parse_reaction_type(type_str);
         
         // Parse reactants array

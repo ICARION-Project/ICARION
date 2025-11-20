@@ -115,7 +115,7 @@ void integrate_one_step(
             // --- Boris method for magnetic fields ---
             // Get electric and magnetic fields at current position
             Vec3 E_field;
-            if (dom.instrument == Instrument::FT_ICR) {
+            if (dom.instrument == Instrument::FTICR) {
                 if (!dom.B.enabled) {
                     throw std::runtime_error("FT-ICR simulation requires enabled magnetic field.");
                 }

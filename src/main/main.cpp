@@ -124,36 +124,6 @@ int main(int argc, char* argv[]) {
 
         Json::Value jRoot;
         file >> jRoot;
-        
-        // Map generator/global AC overrides into domain-level AC fields for
-        // backward compatibility with older sweep-generator output.
-        // Accept both `globalParams` and top-level flat keys.
-        if (jRoot.isMember("globalParams") && jRoot["globalParams"].isObject() && jRoot.isMember("domains") && jRoot["domains"].isArray() && jRoot["domains"].size() > 0) {
-            Json::Value& gp = jRoot["globalParams"];
-            Json::Value& dom0 = jRoot["domains"][0];
-            if (!dom0.isMember("AC")) dom0["AC"] = Json::Value(Json::objectValue);
-            Json::Value& ac = dom0["AC"];
-
-            // Map commonly used global keys produced by the sweep generator
-            if (gp.isMember("enable_ac_sweep") && !ac.isMember("enable_frequency_sweep"))
-                ac["enable_frequency_sweep"] = gp["enable_ac_sweep"];
-            if (gp.isMember("ac_start_freq_Hz") && !ac.isMember("ac_start_freq_Hz"))
-                ac["ac_start_freq_Hz"] = gp["ac_start_freq_Hz"];
-            if (gp.isMember("ac_sweep_slope_Hz_per_s") && !ac.isMember("ac_sweep_slope_Hz_per_s"))
-                ac["ac_sweep_slope_Hz_per_s"] = gp["ac_sweep_slope_Hz_per_s"];
-
-            // Also map voltage-related global overrides if present
-            if (gp.isMember("enable_voltage_sweep") && !ac.isMember("enable_voltage_sweep"))
-                ac["enable_voltage_sweep"] = gp["enable_voltage_sweep"];
-            if (gp.isMember("amplitude_slope_V_s") && !ac.isMember("amplitude_slope_V_s"))
-                ac["amplitude_slope_V_s"] = gp["amplitude_slope_V_s"];
-            if (gp.isMember("start_time_s") && !ac.isMember("start_time_s"))
-                ac["start_time_s"] = gp["start_time_s"];
-            if (gp.isMember("rise_time_s") && !ac.isMember("rise_time_s"))
-                ac["rise_time_s"] = gp["rise_time_s"];
-            if (gp.isMember("voltage_time_table") && !ac.isMember("voltage_time_table"))
-                ac["voltage_time_table"] = gp["voltage_time_table"];
-        }
 
         // === 3. Load instrument domains ===
         std::vector<InstrumentDomain> domains;

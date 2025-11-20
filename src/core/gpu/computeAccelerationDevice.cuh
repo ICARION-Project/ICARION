@@ -175,10 +175,9 @@ __device__ inline void compute_accelerations_device(double t,
             } break;
 
             // =====================================================
-            // IMS / SIFDT_MS
+            // IMS (Ion Mobility Spectrometry)
             // =====================================================
-            case IMS:
-            case SIFDT_MS: {
+            case IMS: {
                 // Axial DC
                 acc_total += DCField_device(y.pos, dom.DC.axial_V, dom.geom.length_m)
                              * (y.ion_charge_C / y.mass_kg);

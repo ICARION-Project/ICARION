@@ -150,7 +150,6 @@ static std::string color_text(const std::string& text, const std::string& color)
 static std::string instrument_name(Instrument instr) {
     switch (instr) {
         case Instrument::LQIT:         return "LQIT";
-        case Instrument::SIFDT_MS:     return "SIFDT";
         case Instrument::IMS:          return "IMS";
         case Instrument::Orbitrap:     return "Orbitrap";
         case Instrument::QuadrupoleRF: return "Quadrupole";

@@ -1,0 +1,586 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ICARION v1.0 Configuration (current code)",
+  "type": "object",
+  "description": "Configuration file format as used by the current ICARION core (main.cpp + paramUtils.cpp). This is a factual snapshot of the current implementation, not a design ideal.",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Optional human-readable title for the simulation run."
+    },
+
+    "species_database": {
+      "type": "string",
+      "description": "Path to the species database file (JSON / HDF5, depending on implementation). Used as primary source for species properties."
+    },
+
+    "reaction_database": {
+      "type": "string",
+      "description": "Path to reaction database file. Currently still used as legacy/backward-compatible reaction input."
+    },
+
+    "simulation": {
+      "type": "object",
+      "description": "Top-level simulation control block.",
+
+      "properties": {
+        "total_time_s": {
+          "type": "double",
+          "exclusiveMinimum": 0.0,
+          "default":1e-3,
+          "description": "Total physical simulation time in seconds."
+        },
+
+        "dt_s": {
+          "type": "double",
+          "exclusiveMinimum": 0.0,
+          "default":1e-9,
+          "description": "Base integration time step in seconds."
+        },
+
+        "write_interval": {
+          "type": "int",
+          "minimum": 1,
+          "default":100,
+          "description": "Interval (in steps) between trajectory output writes."
+        },
+
+        "integrator": {
+          "type": "string",
+          "description": "Choice of integrator algorithm.",
+          "enum": [
+            "RK4",
+            "RK45",
+            "Boris"
+          ],
+          "default":"RK4"
+        },
+
+        "enable_reactions": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable stochastic chemical reactions on CPU (used in integrator / SimulationEngine)."
+        },
+
+        "enable_space_charge": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable space-charge effects (currently only rudimentary support)."
+        },
+
+        "enable_gpu": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable GPU acceleration (where supported)."
+        },
+
+        "enable_openmp": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable OpenMP parallelization (CPU multi-threading)."
+        },
+
+        "rng_seed": {
+          "type": "uint64",
+          "default": 42,
+          "description": "Random number generator seed for stochastic processes."
+        },
+
+        "continue_from": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to existing trajectory file to continue simulation from."
+        },
+
+        "continue_from_s": {
+          "type": "double",
+          "exclusiveMinimum": 0.0,
+          "description": "Physical time (in seconds) to continue from in the existing trajectory file."
+        },
+
+        "auto_continue_if_active": {
+          "type": "boolean",
+          "default": false,
+          "description": "If continue_from is set, automatically continue from the end of the file if continue_from_s is not specified."
+        },
+
+        "rk45_settings": {
+          "type": "object",
+          "description": "Optional settings for adaptive RK45 integrator (when enabled in domains).",
+          "properties": {
+            "abs_tol": {
+              "type": "double",
+              "default": 1e-14,
+              "description": "Absolute tolerance for RK45 error control."
+            },
+            "rel_tol": {
+              "type": "double",
+              "default": 1e-12,
+              "description": "Relative tolerance for RK45 error control."
+            },
+            "dt_min": {
+              "type": "double",
+              "exclusiveMinimum": 0.0,
+              "default": 1e-12,
+              "description": "Minimum allowed adaptive timestep."
+            },
+            "safety": {
+              "type": "double",
+              "default": 0.84,
+              "description": "Safety factor for timestep adaptation."
+            },
+            "min_factor": {
+              "type": "double",
+              "default": 0.2,
+              "description": "Minimum factor to shrink timestep when error is large."
+            },
+            "max_factor": {
+              "type": "double",
+              "default": 2.0,
+              "description": "Maximum factor to increase timestep when error is small."
+            },
+            "max_rejects": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 1000,
+              "description": "Maximum number of consecutive rejected steps before aborting."
+            }
+          },
+          "additionalProperties": true
+        },
+
+        "numerical_safety": {
+          "type": "object",
+          "description": "Optional numerical safety guard configuration.",
+          "properties": {
+            "enable_nan_checks": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable NaN checks."
+            },
+            "enable_bounds_checks": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable bounds checks."
+            },
+            "enable_logging": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable logging of safety violations."
+            },
+            "throw_on_violation": {
+              "type": "boolean",
+              "default": true,
+              "description": "Throw exception on violation."
+            },
+            "attempt_recovery": {
+              "type": "boolean",
+              "default": false,
+              "description": "Attempt to recover from violations."
+            },
+            "max_position_m": {
+              "type": "double",
+              "default": 1.0,
+              "description": "Maximum allowed ion position magnitude in meters."
+            },
+            "max_velocity_ms": {
+              "type": "double",
+              "default": 1e6,
+              "description": "Maximum allowed ion speed in m/s."
+            },
+            "max_acceleration_ms2": {
+              "type": "double",
+              "default": 1e12,
+              "description": "Maximum allowed radial distance from origin in meters."
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "total_time_s",
+        "dt_s"
+      ],
+      "additionalProperties": true
+    },
+
+    "physics": {
+      "type": "object",
+      "description": "Global physics options (collision model & thermalization).",
+      "properties": {
+        "collision_model": {
+          "type": "string",
+          "description": "Collision model selector (current code supports friction-type and stochastic models).",
+          "enum": [
+            "none",
+            "NoCollisions",
+            "EHSS",
+            "HSMC",
+            "Langevin",
+            "Friction",
+            "HardSphere"
+          ]
+        },
+        "enable_ou_thermalization": {
+          "type": "boolean",
+          "description": "Enable global thermalization (e.g. Langevin/friction)."
+        },
+        "force_ou_for_stochastic": {
+          "type": "boolean",
+          "description": "Force Ornstein–Uhlenbeck style thermalization for stochastic models (where supported)."
+        }
+      },
+      "additionalProperties": true
+    },
+
+
+    "output": {
+      "type": "object",
+      "description": "Output options (HDF5 trajectory, log, etc.).",
+      "properties": {
+        "folder": {
+          "type": "string",
+          "default": "results",
+          "description": "Output folder for results."
+        },
+        "trajectory_file": {
+          "type": "string",
+          "default": "trajectories.h5",
+          "description": "Legacy/alternative key for trajectory filename (string)."
+        },
+        "print_progress": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable progress printing to console."
+        },
+      },
+      "additionalProperties": true
+    },
+
+    "domains": {
+      "type": "array",
+      "description": "List of instrument domains (multi-domain support).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Optional human-readable domain identifier."
+          },
+          "instrument": {
+            "type": "string",
+            "description": "Instrument type for this domain.",
+            "enum": [
+              "IMS",
+              "SIFDT_MS",
+              "LQIT",
+              "Orbitrap",
+              "QuadrupoleRF",
+              "TOF",
+              "FT_ICR",
+              "NoFixedInstrument"
+            ]
+          },
+
+          "geometry": {
+            "type": "object",
+            "description": "Geometric description of the domain in global coordinates.",
+            "properties": {
+              "origin_m": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Domain origin (x,y,z) in meters, global coordinate system."
+              },
+              "length_m": {
+                "type": "number",
+                "default": 0.0,
+                "description": "Axial length of the domain in meters."
+              },
+              "radius_m": {
+                "type": "number",
+                "default": 0.0,
+                "description": "Radial size (cylindrical radius) in meters."
+              },
+              "acc_length_m": {
+                "type": "number",
+                "default": 0.0,
+                "description": "Acceleration section length for TOF-like instruments [m]."
+              },
+              "radius_in_m": {
+                "type": "number",
+                "default": 0.0,
+                "description": "Inner radius for Orbitrap/hyperbolic geometries [m]."
+              },
+              "radius_out_m": {
+                "type": "number",
+                "default": 0.0,
+                "description": "Outer radius for Orbitrap/hyperbolic geometries [m]."
+              },
+              "radius_char_m": {
+                "type": "number",   
+                "default": 0.0,
+                "description": "Characteristic radius (Rm) for Orbitrap potential [m]."
+              },
+              "end_aperture_m": {
+                "type": "number",
+                "default": 1e-3,
+                "description": "End aperture radius for TOF instruments [m]."
+              }
+            },
+            "required": [
+              "origin_m",
+              "length_m"
+            ],
+            "additionalProperties": true
+          },
+
+          "env": {
+            "type": "object",
+            "description": "Background gas and environment for this domain.",
+            "properties": {
+              "pressure_Pa": {
+                "type": "number",
+                "default": 101325.0,
+                "description": "Gas pressure in Pascals."
+              },
+              "temperature_K": {
+                "type": "number",
+                "default": 300.00,
+                "description": "Gas temperature in Kelvin."
+              },
+              "gas_species": {
+                "type": "string",
+                "default": "He",
+                "description": "Background gas species identifier (e.g. \"N2\", \"He\").",
+                "enum": [
+                    "He",
+                    "N2",
+                    "O2",
+                    "Ar",
+                    "CO2",
+                    "Ne"
+                ]
+              },
+              "gas_velocity_m_s": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Background gas flow velocity vector (vx,vy,vz) in m/s."
+              }
+            },
+            "additionalProperties": true
+          },
+
+          "fields": {
+            "type": "object",
+            "description": "Field configuration for DC/RF/AC voltages and optional grid/field-array sources. This block is deliberately kept loose; see documentation for details.",
+            "properties": {
+              "field_arrays": {
+                "type": "array",
+                "description": "Optional list of precomputed field-array terms (1 V normalization).",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                      "default": "",
+                      "description": "Path to field-array file."
+                    },
+                    "scale_kind": {
+                      "type": "string",
+                      "description": "Scaling kind for this term.",
+                      "enum": [
+                        "Constant",
+                        "dc_axial",
+                        "dc_quad",
+                        "dc_radial",
+                        "rf"
+                      ]
+                    },
+                    "constant_V": {
+                      "type": "number",
+                      "default": 1.0,
+                      "description": "Constant scaling factor or RF gain multiplier."
+                    },
+                    "frequency_Hz": {
+                      "type": "number",
+                      "default": 0.0,
+                      "description": "Optional RF frequency override for this term (Hz)."
+                    },
+                    "phase_rad": {
+                      "type": "number",
+                      "default": 0.0,
+                      "description": "Additional phase offset for this RF term (rad)."
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "DC": {
+                "type": "object",
+                "description": "DC field parameters.",
+                "properties": {
+                  "DC_reduced_field_strength_Td": {
+                  "type": "number",
+                  "default": 0.0,
+                  "description": "Reduced electric field strength in Townsend (1 Td = 1e-21 V·m²)."
+                  },
+                  "DC_axial_voltage_V": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "Axial DC voltage [V] (maps to dom.DC.axial_V)."
+                  },
+                  "DC_radial_voltage_V": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "Radial DC voltage [V] (maps to dom.DC.radial_V)."
+                  },
+                  "DC_quad_voltage_V": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "Quadrupolar DC voltage [V] (maps to dom.DC.quad_V)."
+                  },
+                  "enable_DC_radial_sweep": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable radial DC voltage sweep."
+                  },
+                  "DC_radial_slope_V_s": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "Radial DC voltage sweep slope [V/s]."
+                  },
+                  "DC_radial_start_time_s": {
+                    "type": "number",   
+                    "default": 0.0,
+                    "description": "Radial DC voltage sweep start time [s]."
+                  },
+                  "DC_radial_rise_time_s": {
+                    "type": "number",   
+                    "default": 0.0,
+                    "description": "Radial DC voltage sweep rise time [s]."
+                  }
+                },
+                "additionalProperties": true
+              },
+              "RF": {
+                "type": "object",
+                "description": "RF field parameters.",
+                "properties": {
+                  "RF_voltage_V": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "RF amplitude in volts."
+                    },
+                    "RF_frequency_Hz": {
+                      "type": "number",
+                      "default": 0.0,
+                      "description": "RF frequency in Hz."
+                    },
+                    "RF_phase_rad": {
+                      "type": "number",
+                      "default": 0.0,
+                      "description": "RF phase offset in radians."
+                    }
+                },
+                "additionalProperties": true
+              },
+              "AC": {
+                "type": "object",
+                "description": "AC excitation field parameters.",
+                "properties": {
+                  "AC_voltage_V": {
+                  "type": "number",
+                  "default": 0.0,
+                  "description": "AC excitation amplitude in volts."
+                  },
+                  "AC_frequency_Hz": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "AC excitation frequency in Hz."
+                  },
+                  "enable_AC_voltage_sweep": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable AC voltage amplitude sweep."
+                  },
+                  "AC_amplitude_slope_V_s": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "AC voltage amplitude sweep slope in V/s."
+                  },
+                  "AC_start_time_s": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "AC voltage sweep start time in seconds."
+                  },
+                  "AC_rise_time_s": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "AC voltage rise time in seconds."
+                  },
+                  "enable_AC_frequency_sweep": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable AC frequency sweep."
+                  },
+                  "AC_start_freq_Hz": {
+                    "type": "number",
+                    "default": 0.0, 
+                    "description": "AC frequency sweep start frequency in Hz."
+                  },
+                  "AC_sweep_slope_Hz_per_s": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "AC frequency sweep slope in Hz/s."
+                  }
+                },
+                "additionalProperties": true
+              },
+              "B": {
+                  "type": "object",
+                  "description": "Magnetic field parameters.",
+                  "properties": { 
+                    "enabled_magnetic_field": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable magnetic field."
+                    },
+                    "field_strength_T": {
+                      "type": "Vec3",
+                      "default": [0.0, 0.0, 0.0],
+                      "description": "Magnetic field vector in Tesla (for FT-ICR etc.)."
+                    },
+                    "field_gradient_T_m": {
+                      "type": "Vec3",
+                      "default": [0.0, 0.0, 0.0],
+                      "description": "Magnetic field gradient vector in Tesla per meter."
+                    }
+                },
+              "additionalProperties": true
+              },
+            },
+            "additionalProperties": true
+            }
+        },
+        "required": [
+          "instrument",
+          "geometry",
+          "env"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+
+  "required": [
+    "simulation",
+    "physics",
+    "output",
+    "domains"
+  ],
+  "additionalProperties": true
+}

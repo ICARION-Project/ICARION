@@ -1,38 +1,28 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
 /**
  * =====================================================================
  *
- *   ICARION: A Modular Framework for Ion Collision and Reaction Integration
- * =====================================================================
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
+ *   Ion Collision And Reaction IntegratiON (ICARION)
+ *   ------------------------------------------------
+ *   Modular framework for simulating ion trajectories in custom
+ *   electric fields and background gas environments.
  *
- *   @file        computeAccelerations.cpp
- *   @brief       Computes ion accelerations and updated velocities.
+ *   @file       computeAccelerations.cpp
+ *   @brief      Computes ion accelerations and updated velocities
  *
  *   @details
- *   Provides the function to calculate the time derivatives of an ion’s state
- *   vector for use in numerical integration (e.g., Runge-Kutta).
+ *   Defines functions to compute ion accelerations based on summed forces
+ *  from electric fields, space charge, and background gas interactions.
  *
- *   Acceleration contributions include:
- *   - Electric fields (DC, RF, AC, Orbitrap)
- *   - Collision damping (HardSphere, Langevin, Friction, EHSS, HSMC)
- *   - Background gas flow (adds to velocity)
- *
- *   Supports multiple instruments: LQIT, IMS, SIFDT-MS, Orbitrap, QuadrupoleRF, TOF.
- *
- *   @note
- *   Returned IonState contains updated velocity and acceleration.
- *   All units are SI; fields in V/m. Collision events and boundary checks
- *   are handled elsewhere.
- *
- *
- *   @date        2025-10-06
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
+ *   @date       2025-11-20
+ *   @version    1.0.0
+ *   @authors    ICARION Development Team
  *
  * =====================================================================
  */
+
 
 #include "computeAccelerations.h"
 //#include "core/physics/spacecharge/spaceChargeForces.h"  // Space charge force calculations
@@ -235,7 +225,6 @@ IonState compute_accelerations(double t, const IonState& y, const GlobalParams& 
                 break;
 
             case Instrument::IMS:
-            case Instrument::SIFDT_MS:
                 // Axial DC field
                 fieldModules.push_back([&dom](const IonState& ion, double t) {
                     return DCField(ion, dom.DC.axial_V, dom.geom.length_m);
@@ -297,7 +286,7 @@ IonState compute_accelerations(double t, const IonState& y, const GlobalParams& 
                 }
                 break;
             
-            case Instrument::FT_ICR:
+            case Instrument::FTICR:
 
                 fieldModules.push_back([&dom](const IonState& ion, double t) {
                     // calculate characteristic distance d

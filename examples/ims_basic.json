@@ -1,0 +1,80 @@
+{
+  "description": "Ion mobility spectrometry with reactions in air",
+  "simulation": {
+    "total_time_s": 5e-4,
+    "time_step_s": 1e-8,
+    "write_interval": 1000,
+    "integrator": "RK4",
+    "enable_gpu": true,
+    "enable_reactions": false,
+    "enable_space_charge": false,
+    "rng_seed": 123
+  },
+  "physics": {
+    "collision_model": "HSMC",
+    "enable_thermalization": false
+  },
+  "output": {
+    "folder": "../results/ims",
+    "trajectory_file": "ims_trajectories.h5",
+    "save_trajectories": true,
+    "save_reactions": true,
+    "print_progress": true
+  },
+  "domains": [
+    {
+      "name": "drift_region",
+      "instrument": "IMS",
+      "geometry": {
+        "length_m": 0.05,
+        "radius_m": 0.015
+      },
+      "environment": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 200.0,
+        "gas_species": "He",
+        "gas_flow_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "field_strength_Td": 10.0,
+          "axial_voltage_V": 0.0
+        }
+      }
+    },
+    {
+      "name": "detection_region",
+      "instrument": "IMS",
+      "geometry": {
+        "length_m": 0.01,
+        "radius_m": 0.015
+      },
+      "environment": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 200.0,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "field_strength_Td": 10.0
+        }
+      },
+      "boundary_conditions": {
+        "exit": "detect"
+      }
+    }
+  ],
+  "ions": {
+    "initial_distribution": "examples/ims_basic_ion_cloud.json",
+    "species": "H3O+",
+    "count": 10
+  },
+  "species_database": "data/species_database.json",
+  "analytes": [
+    {
+      "name": "pentanal",
+      "concentration_ppb": 10.0,
+      "reaction_rate_cm3_s": 3e-9
+    }
+  ]
+}

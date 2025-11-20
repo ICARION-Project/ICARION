@@ -118,15 +118,15 @@ GlobalParams load_global_params(const std::string& filename) {
 
     // --- Load simulation parameters ---
     // Time parameters
-    if (!sim.isMember("total_time_s") && !sim.isMember("time_step_s")) {
-        throw std::runtime_error("Missing required time parameters: 'total_time_s' and 'time_step_s' in 'simulation' section");
+    if (!sim.isMember("total_time_s") && !sim.isMember("dt_s")) {
+        throw std::runtime_error("Missing required time parameters: 'total_time_s' and 'dt_s' in 'simulation' section");
     }
     
     double total_time_s = getDouble(sim, "total_time_s", 1e-3, "simulation");
-    g.dt_s = getDouble(sim, "time_step_s", 1e-9, "simulation");
+    g.dt_s = getDouble(sim, "dt_s", 1e-9, "simulation");
     
     if (g.dt_s <= 0.0) {
-        throw std::runtime_error("time_step_s must be positive, got: " + std::to_string(g.dt_s));
+        throw std::runtime_error("dt_s must be positive, got: " + std::to_string(g.dt_s));
     }
     if (total_time_s <= 0.0) {
         throw std::runtime_error("total_time_s must be positive, got: " + std::to_string(total_time_s));
@@ -152,8 +152,8 @@ GlobalParams load_global_params(const std::string& filename) {
     // Store for later use with domains (will be applied in load_single_domain)
     
     // GPU and parallelization
-    g.enable_gpu = getBool(sim, "use_gpu", false, "simulation");
-    g.parallelization = getBool(sim, "use_openmp", false, "simulation");
+    g.enable_gpu = getBool(sim, "enable_gpu", false, "simulation");
+    g.parallelization = getBool(sim, "enable_openmp", false, "simulation");
     
     // RNG seed
     g.rng_seed = getInt(sim, "rng_seed", 42, "simulation");
@@ -225,13 +225,13 @@ GlobalParams load_global_params(const std::string& filename) {
     std::transform(collision_str.begin(), collision_str.end(), collision_str.begin(), 
                    [](unsigned char c){ return std::tolower(c); });
     
-    if (collision_str == "ehss") g.collisionModel = CollisionModel::EHSS;
-    else if (collision_str == "hsmc") g.collisionModel = CollisionModel::HSMC;
-    else if (collision_str == "friction") g.collisionModel = CollisionModel::Friction;
-    else if (collision_str == "langevin") g.collisionModel = CollisionModel::Langevin;
-    else if (collision_str == "hardsphere" || collision_str == "hard_sphere") 
+    if (collision_str == "ehss" || collision_str == "EHSS") g.collisionModel = CollisionModel::EHSS;
+    else if (collision_str == "hsmc" || collision_str == "HSMC" || collision_str == "hss" || collision_str == "HSS") g.collisionModel = CollisionModel::HSMC;
+    else if (collision_str == "friction" || collision_str == "Friction") g.collisionModel = CollisionModel::Friction;
+    else if (collision_str == "langevin" || collision_str == "Langevin") g.collisionModel = CollisionModel::Langevin;
+    else if (collision_str == "hardsphere" || collision_str == "hard_sphere" || collision_str == "HardSphere" || collision_str == "Hard_Sphere") 
         g.collisionModel = CollisionModel::HardSphere;
-    else if (collision_str == "nocollisions" || collision_str == "none") 
+    else if (collision_str == "nocollisions" || collision_str == "none" || collision_str == "NoCollisions" || collision_str == "No_Collisions") 
         g.collisionModel = CollisionModel::NoCollisions;
     else {
         throw std::runtime_error("Unknown collision model: '" + collision_str + 
@@ -239,7 +239,7 @@ GlobalParams load_global_params(const std::string& filename) {
     }
     
     // Thermalization
-    g.enable_ou_thermalization = getBool(phys, "enable_thermalization", false, "physics");
+    g.enable_ou_thermalization = getBool(phys, "enable_ou_thermalization", false, "physics");
     g.force_ou_for_stochastic_models = getBool(phys, "force_ou_for_stochastic", false, "physics");
     
     // --- Load output parameters ---
@@ -255,10 +255,10 @@ GlobalParams load_global_params(const std::string& filename) {
     g.print_results = getBool(out, "print_progress", false, "output");
     
     // --- Load database files ---
-    // NEW input system: species_database (preferred)
+    // species input system: species_database 
     g.species_database_file = getString(root, "species_database", "", "root");
     
-    // OLD input system: reaction_database (backward compatibility)
+    // reaction input system: reaction_database 
     g.reaction_file = getString(root, "reaction_database", "reactions.json", "root");
     
     if (root.isMember("species_database")) {
@@ -274,6 +274,7 @@ GlobalParams load_global_params(const std::string& filename) {
         }
     }
     
+    //LEGACY: should be defined in the species database now! -> REMOVE LATER
     g.geometry_file = getString(root, "geometry_file", "", "root");
 
     // If geometry_file not specified, try to find a standard 'geometry.json'
@@ -334,7 +335,6 @@ std::unordered_map<Instrument, std::vector<std::string>> required_params{
     {Instrument::TOF,        {"DC.axial_V", "geom.acc_length_m", "geom.length_m", "geom.radius_m"}},
     {Instrument::LQIT,       {"RF.voltage_V", "RF.frequency_Hz", "DC.axial_V", "geom.radius_m", "geom.length_m"}},
     {Instrument::Orbitrap,   {"geom.radius_in_m", "geom.radius_out_m", "geom.radius_char_m", "DC.radial_V"}},
-    {Instrument::SIFDT_MS,   {"DC.EN_Td", "geom.length_m", "geom.radius_m"}},
     {Instrument::IMS,        {"DC.EN_Td", "geom.length_m", "geom.radius_m"}},
     {Instrument::QuadrupoleRF, {"RF.voltage_V", "RF.frequency_Hz", "geom.radius_m", "geom.length_m"}}
 };
@@ -453,13 +453,13 @@ InstrumentDomain load_single_domain(const Json::Value& j) {
 
     // --- Identify instrument type ---
     std::string instr_str = j["instrument"].asString();
-    if (instr_str == "LQIT") dom.instrument = Instrument::LQIT;
-    else if (instr_str == "SIFDT-MS" || instr_str == "SIFDT_MS") dom.instrument = Instrument::SIFDT_MS;
-    else if (instr_str == "IMS") dom.instrument = Instrument::IMS;
-    else if (instr_str == "Quadrupole" || instr_str == "QuadrupoleRF") dom.instrument = Instrument::QuadrupoleRF;
-    else if (instr_str == "TOF") dom.instrument = Instrument::TOF;
-    else if (instr_str == "Orbitrap") dom.instrument = Instrument::Orbitrap;
-    else if (instr_str == "FT-ICR" || instr_str == "FT_ICR") dom.instrument = Instrument::FT_ICR;
+    if (instr_str == "LQIT" || instr_str == "lqit") dom.instrument = Instrument::LQIT;
+    else if (instr_str == "IMS" || instr_str == "ims" || instr_str == "SIFDT-MS" || instr_str == "SIFDT_MS" || instr_str == "sifdt-ms" || instr_str == "sifdt_ms") dom.instrument = Instrument::IMS;
+    else if (instr_str == "Quadrupole" || instr_str == "QuadrupoleRF" || instr_str == "quadrupole" || instr_str == "quadrupoleRF") dom.instrument = Instrument::QuadrupoleRF;
+    else if (instr_str == "TOF" || instr_str == "tof") dom.instrument = Instrument::TOF;
+    else if (instr_str == "Orbitrap" || instr_str == "orbitrap") dom.instrument = Instrument::Orbitrap;
+    else if (instr_str == "FT-ICR" || instr_str == "FT_ICR" || instr_str == "ft-icr" || instr_str == "ft_icr") dom.instrument = Instrument::FTICR;
+    else if (instr_str == "NoFixedInstrument" || instr_str == "nofixedinstrument" || instr_str == "No_Fixed_Instrument") dom.instrument = Instrument::NoFixedInstrument;
     else {
         throw std::runtime_error("Unknown instrument type: '" + instr_str + "'. Valid types: LQIT, SIFDT-MS, IMS, Quadrupole, TOF, Orbitrap, FT-ICR");
     }
@@ -472,7 +472,7 @@ InstrumentDomain load_single_domain(const Json::Value& j) {
     dom.geom.radius_out_m = getDouble(jGeom, "radius_out_m", 0.0, "geometry");
     dom.geom.radius_char_m = getDouble(jGeom, "radius_char_m", 0.0, "geometry");
     dom.geom.acc_length_m = getDouble(jGeom, "acc_length_m", 0.0, "geometry");
-    dom.geom.end_aperture_m = getDouble(jGeom, "end_aperture_mm", 1.0, "geometry") / 1000.0;
+    dom.geom.end_aperture_m = getDouble(jGeom, "end_aperture_m", 1.0, "geometry");
 
     // Optional origin transform
     if (jGeom.isMember("origin_m") && jGeom["origin_m"].isArray() && jGeom["origin_m"].size() == 3) {
@@ -527,10 +527,22 @@ InstrumentDomain load_single_domain(const Json::Value& j) {
         dom.env.neutral_mass_kg = MOLAR_MASS_N2_KG;
         dom.env.neutral_polarizability_m3 = POLARIZABILITY_N2_SI;
     } 
+    else if (gas == "Ar" || gas == "argon" || gas == "Argon") {
+        dom.env.neutral_mass_kg = MOLAR_MASS_AR_KG;
+        dom.env.neutral_polarizability_m3 = POLARIZABILITY_AR_SI;
+    } 
+    else if (gas == "CO2" || gas == "carbon_dioxide" || gas == "Carbon_Dioxide") {
+        dom.env.neutral_mass_kg = MOLAR_MASS_CO2_KG;
+        dom.env.neutral_polarizability_m3 = POLARIZABILITY_CO2_SI;
+    } 
+    else if (gas == "Ne" || gas == "neon" || gas == "Neon") {
+        dom.env.neutral_mass_kg = MOLAR_MASS_NE_KG;
+        dom.env.neutral_polarizability_m3 = POLARIZABILITY_NE_SI;
+    }
     else if (gas == "Air" || gas == "air") {
-        // Air approximation (mainly N2)
-        dom.env.neutral_mass_kg = MOLAR_MASS_N2_KG;
-        dom.env.neutral_polarizability_m3 = POLARIZABILITY_N2_SI;
+        // Effective properties for air (approx. 78% N2, 21% O2, 1% Ar)
+        dom.env.neutral_mass_kg = 0.78 * MOLAR_MASS_N2_KG + 0.21 * MOLAR_MASS_O2_KG + 0.01 * MOLAR_MASS_AR_KG;
+        dom.env.neutral_polarizability_m3 = 0.78 * POLARIZABILITY_N2_SI + 0.21 * POLARIZABILITY_O2_SI + 0.01 * POLARIZABILITY_AR_SI;
     }
     else {
         throw std::runtime_error("Unknown gas species: '" + gas + "'. Valid options: He, N2, Air");
@@ -545,37 +557,37 @@ InstrumentDomain load_single_domain(const Json::Value& j) {
     // DC voltages
     if (fieldsSection && fieldsSection->isMember("DC")) {
         const auto& jDC = (*fieldsSection)["DC"];
-        dom.DC.EN_Td = getDouble(jDC, "field_strength_Td", 0.0, "fields.DC");
+        dom.DC.EN_Td = getDouble(jDC, "DC_reduced_field_strength_Td", 0.0, "fields.DC");
         dom.DC.EN_Vm2 = dom.DC.EN_Td * 1e-21;
         
         if (dom.DC.EN_Vm2 != 0.0) {
             dom.DC.axial_V = dom.DC.EN_Vm2 * dom.env.particle_density_m_3 * dom.geom.length_m;
         } else {
-            dom.DC.axial_V = getDouble(jDC, "axial_voltage_V", 0.0, "fields.DC");
+            dom.DC.axial_V = getDouble(jDC, "DC_axial_voltage_V", 0.0, "fields.DC");
         }
         
-        dom.DC.quad_V = getDouble(jDC, "quad_voltage_V", 0.0, "fields.DC");
-        dom.DC.radial_V = getDouble(jDC, "radial_voltage_V", 0.0, "fields.DC");
-        dom.DC.enable_radial_voltage_sweep = getBool(jDC, "enable_radial_sweep", false, "fields.DC");
-        dom.DC.radial_slope_V_s = getDouble(jDC, "radial_slope_V_s", 0.0, "fields.DC");
-        dom.DC.radial_start_time_s = getDouble(jDC, "radial_start_time_s", 0.0, "fields.DC");
-        dom.DC.radial_rise_time_s = getDouble(jDC, "radial_rise_time_s", 0.0, "fields.DC");
+        dom.DC.quad_V = getDouble(jDC, "DC_quad_voltage_V", 0.0, "fields.DC");
+        dom.DC.radial_V = getDouble(jDC, "DC_radial_voltage_V", 0.0, "fields.DC");
+        dom.DC.enable_radial_voltage_sweep = getBool(jDC, "enable_DC_radial_sweep", false, "fields.DC");
+        dom.DC.radial_slope_V_s = getDouble(jDC, "DC_radial_slope_V_s", 0.0, "fields.DC");
+        dom.DC.radial_start_time_s = getDouble(jDC, "DC_radial_start_time_s", 0.0, "fields.DC");
+        dom.DC.radial_rise_time_s = getDouble(jDC, "DC_radial_rise_time_s", 0.0, "fields.DC");
     }
 
     // RF voltages
     if (fieldsSection && fieldsSection->isMember("RF")) {
         const auto& jRF = (*fieldsSection)["RF"];
-        dom.RF.voltage_V = getDouble(jRF, "voltage_V", 0.0, "fields.RF");
-        dom.RF.frequency_Hz = getDouble(jRF, "frequency_Hz", 0.0, "fields.RF");
+        dom.RF.voltage_V = getDouble(jRF, "RF_voltage_V", 0.0, "fields.RF");
+        dom.RF.frequency_Hz = getDouble(jRF, "RF_frequency_Hz", 0.0, "fields.RF");
         dom.RF.angular_frequency_rad_s = dom.RF.frequency_Hz * 2.0 * M_PI;
-        dom.RF.phase_rad = getDouble(jRF, "phase_rad", 0.0, "fields.RF");
+        dom.RF.phase_rad = getDouble(jRF, "RF_phase_rad", 0.0, "fields.RF");
     }
 
     // AC voltages
     if (fieldsSection && fieldsSection->isMember("AC")) {
         const auto& jAC = (*fieldsSection)["AC"];
-        dom.AC.voltage_V = getDouble(jAC, "voltage_V", 0.0, "fields.AC");
-        dom.AC.frequency_Hz = getDouble(jAC, "frequency_Hz", 0.0, "fields.AC");
+        dom.AC.voltage_V = getDouble(jAC, "AC_voltage_V", 0.0, "fields.AC");
+        dom.AC.frequency_Hz = getDouble(jAC, "AC_frequency_Hz", 0.0, "fields.AC");
         
         if (dom.AC.voltage_V != 0.0 && dom.AC.frequency_Hz == 0.0) {
             std::cerr << "Warning: AC voltage set but frequency is zero. Using pseudopotential approximation (m/z = 100).\n";
@@ -588,13 +600,13 @@ InstrumentDomain load_single_domain(const Json::Value& j) {
         }
         
         dom.AC.angular_frequency_rad_s = dom.AC.frequency_Hz * 2.0 * M_PI;
-        dom.AC.enable_voltage_sweep = getBool(jAC, "enable_voltage_sweep", false, "fields.AC");
-        dom.AC.amplitude_slope_V_s = getDouble(jAC, "amplitude_slope_V_s", 0.0, "fields.AC");
-        dom.AC.start_time_s = getDouble(jAC, "start_time_s", 0.0, "fields.AC");
-        dom.AC.rise_time_s = getDouble(jAC, "rise_time_s", 0.0, "fields.AC");
-        dom.AC.enable_frequency_sweep = getBool(jAC, "enable_frequency_sweep", false, "fields.AC");
-        dom.AC.ac_start_freq_Hz = getDouble(jAC, "ac_start_freq_Hz", dom.AC.frequency_Hz, "fields.AC");
-        dom.AC.ac_sweep_slope_Hz_per_s = getDouble(jAC, "ac_sweep_slope_Hz_per_s", 0.0, "fields.AC");
+        dom.AC.enable_voltage_sweep = getBool(jAC, "enable_AC_voltage_sweep", false, "fields.AC");
+        dom.AC.amplitude_slope_V_s = getDouble(jAC, "AC_amplitude_slope_V_s", 0.0, "fields.AC");
+        dom.AC.start_time_s = getDouble(jAC, "AC_start_time_s", 0.0, "fields.AC");
+        dom.AC.rise_time_s = getDouble(jAC, "AC_rise_time_s", 0.0, "fields.AC");
+        dom.AC.enable_frequency_sweep = getBool(jAC, "enable_AC_frequency_sweep", false, "fields.AC");
+        dom.AC.ac_start_freq_Hz = getDouble(jAC, "AC_start_freq_Hz", dom.AC.frequency_Hz, "fields.AC");
+        dom.AC.ac_sweep_slope_Hz_per_s = getDouble(jAC, "AC_sweep_slope_Hz_per_s", 0.0, "fields.AC");
 
         // Voltage time table
         if (jAC.isMember("voltage_time_table") && jAC["voltage_time_table"].isArray()) {
@@ -614,7 +626,7 @@ InstrumentDomain load_single_domain(const Json::Value& j) {
     // Magnetic field
     if (fieldsSection && fieldsSection->isMember("B")) {
         const auto& jB = (*fieldsSection)["B"];
-        dom.B.enabled = getBool(jB, "enabled", false, "fields.B");
+        dom.B.enabled = getBool(jB, "enabled_magnetic_field", false, "fields.B");
         
         if (jB.isMember("field_strength_T") && jB["field_strength_T"].isArray() && jB["field_strength_T"].size() == 3) {
             dom.B.field_strength_T = Vec3{

@@ -21,22 +21,28 @@ const double STP_TEMP     = 273.15;  // STP temperature in K
 const double STP_PRESSURE = 101325;  // STP pressure in Pa
 
 // Particle-specific constants:
-// The mass of a Helium atom evaluated from its atomic mass (4.002602 amu).
 const double MOLAR_MASS_HE_KG = 4.002602 * AMU_TO_KG;
-// The mass of a Nitrogen molecule (N₂), approximately 28.0134 amu.
+const double MOLAR_MASS_AR_KG = 39.948 * AMU_TO_KG;
+const double MOLAR_MASS_CO2_KG = 44.0095 * AMU_TO_KG;
+const double MOLAR_MASS_NE_KG = 20.1797 * AMU_TO_KG;
 const double MOLAR_MASS_N2_KG = 28.0134 * AMU_TO_KG;
+const double MOLAR_MASS_O2_KG = 31.9988 * AMU_TO_KG;
 
-// Polarizabilities (approximate values in SI units, i.e. cubic meters)
-// The polarizability of Helium (~0.205 × 10⁻³⁰ m³).
-const double POLARIZABILITY_HE_SI = 0.205e-30;
-// The polarizability of Nitrogen (~1.74 × 10⁻³⁰ m³).
-const double POLARIZABILITY_N2_SI = 1.74e-30;
+// Polarizabilities (approximate values in cubic meters)
+const double POLARIZABILITY_HE_SI = 0.195e-30;  //DOI: 10.1088/0953-4075/43/20/202001
+const double POLARIZABILITY_AR_SI = 1.596e-30;  //DOI: 10.1088/0953-4075/43/20/202001
+const double POLARIZABILITY_CO2_SI = 2.612e-30; //DOI: 10.1063/1.45874
+const double POLARIZABILITY_NE_SI = 0.352e-30;  //DOI: 10.1088/0953-4075/43/20/202001
+const double POLARIZABILITY_N2_SI = 1.74e-30;   //DOI: 10.1063/1.431821
+const double POLARIZABILITY_O2_SI = 1.567e-30;  //DOI: 10.1098/rspa.1966.0244
 
 // Hard-sphere radii for EHSS collision model (meters)
-// Helium radius: LJ sigma = 2.556 Å, radius = sigma/2 ≈ 1.278 Å = 1.278e-10 m
-const double RADIUS_HE_M = 1.278e-10;
-// Nitrogen (N2) radius: LJ sigma = 3.64 Å, radius = sigma/2 ≈ 1.82 Å = 1.82e-10 m
-const double RADIUS_N2_M = 1.82e-10;
+const double RADIUS_HE_M = 1.3e-10;   //ISBN 0470029048
+const double RADIUS_AR_M = 1.70e-10;  //ISBN 0471099856
+const double RADIUS_CO2_M = 1.65e-10; //ISBN 3319010956
+const double RADIUS_NE_M = 1.38e-10;  //ISBN 0471099856
+const double RADIUS_N2_M = 1.82e-10;  //ISBN 3319010956
+const double RADIUS_O2_M = 1.73e-10;  //ISBN 3319010956
 
 // Define instrument constants
 const double EJECTION_SLIT_LENGTH_Z = 20e-3;

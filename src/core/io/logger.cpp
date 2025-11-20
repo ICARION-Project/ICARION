@@ -88,10 +88,9 @@ static std::string collision_model_to_string(CollisionModel c) {
 
 static std::string instrument_to_string(Instrument i) {
     switch (i) {
-        case Instrument::FT_ICR:   return "FT-ICR";
+        case Instrument::FTICR:   return "FT-ICR";
         case Instrument::Orbitrap: return "Orbitrap";
         case Instrument::LQIT:     return "LQIT";
-        case Instrument::SIFDT_MS:    return "SIFDT-MS";
         case Instrument::IMS:    return "IMS";
         case Instrument::QuadrupoleRF: return "Quadrupole";
         case Instrument::TOF:     return "TOF";

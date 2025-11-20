@@ -120,7 +120,7 @@
         "FTICR",
         "NoFixedInstrument"
       ],
-      "description": "Instrument type identifier (case-sensitive, aliases supported)"
+      "description": "Instrument type identifier (case-insensitive in parser, use canonical names in JSON)"
     },
     
     "collision_model": {

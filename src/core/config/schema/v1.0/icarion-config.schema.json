@@ -11,14 +11,19 @@
       "description": "Optional human-readable title for the simulation run"
     },
     
-    "species_database": {
+    "species_database_path": {
       "type": "string",
       "description": "Path to the species database file (JSON/HDF5)"
     },
     
-    "reaction_database": {
+    "reaction_database_path": {
       "type": "string",
       "description": "Path to reaction database file"
+    },
+    
+    "ion_cloud_path": {
+      "type": "string",
+      "description": "Path to initial ion cloud distribution file (HDF5)"
     },
     
     "simulation": {

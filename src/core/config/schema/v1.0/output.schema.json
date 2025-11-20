@@ -8,8 +8,8 @@
   "properties": {
     "folder": {
       "type": "string",
-      "default": "results",
-      "description": "Output folder for results"
+      "default": "./results",
+      "description": "Output folder for results (relative or absolute path)"
     },
     
     "trajectory_file": {

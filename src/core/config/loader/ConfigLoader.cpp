@@ -48,10 +48,10 @@ FullConfig ConfigLoader::load_from_json(const Json::Value& root,
         throw std::runtime_error("Missing required 'output' section in config");
     }
     
-    // Load domains
+    // Load domains with global integrator as fallback
     if (root.isMember("domains") && root["domains"].isArray()) {
         for (const auto& domain_json : root["domains"]) {
-            config.domains.push_back(DomainConfigLoader::load(domain_json));
+            config.domains.push_back(DomainConfigLoader::load(domain_json, config.simulation.integrator));
         }
     } else {
         throw std::runtime_error("Missing or invalid 'domains' array in config");

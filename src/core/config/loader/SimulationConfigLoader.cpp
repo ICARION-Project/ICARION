@@ -9,9 +9,17 @@ namespace ICARION::config {
 SimulationConfig SimulationConfigLoader::load(const Json::Value& json) {
     SimulationConfig config;
     
-    // Time parameters
-    config.total_time_s = get_double(json, "total_time_s", 1e-3);
-    config.dt_s = get_double(json, "dt_s", 1e-9);
+    // Time parameters - REQUIRED fields
+    if (!json.isMember("total_time_s") || !json["total_time_s"].isNumeric()) {
+        throw std::runtime_error("Missing required field 'total_time_s' in simulation config");
+    }
+    config.total_time_s = json["total_time_s"].asDouble();
+    
+    if (!json.isMember("dt_s") || !json["dt_s"].isNumeric()) {
+        throw std::runtime_error("Missing required field 'dt_s' in simulation config");
+    }
+    config.dt_s = json["dt_s"].asDouble();
+    
     config.write_interval = get_int(json, "write_interval", 100);
     
     // Integrator

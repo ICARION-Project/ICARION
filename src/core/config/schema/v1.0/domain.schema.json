@@ -16,6 +16,12 @@
       "description": "Instrument type for this domain"
     },
     
+    "integrator": {
+      "$ref": "common-types.schema.json#/$defs/solver_type",
+      "default": "RK4",
+      "description": "Integrator for this domain (overrides global simulation.integrator)"
+    },
+    
     "geometry": {
       "$ref": "geometry.schema.json",
       "description": "Geometric description of the domain"

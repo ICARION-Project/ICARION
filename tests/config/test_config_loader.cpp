@@ -12,8 +12,8 @@ using namespace ICARION::config;
 using Catch::Approx;
 
 namespace {
-    std::string create_temp_config(const std::string& content) {
-        std::string path = "/tmp/icarion_test_config.json";
+    std::string create_temp_config(const std::string& content, const std::string& suffix = "") {
+        std::string path = "/tmp/icarion_test_config" + suffix + ".json";
         std::ofstream file(path);
         file << content;
         file.close();
@@ -28,10 +28,10 @@ namespace {
 TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
     std::string config = R"({
         "simulation": {
-            "timestep_ns": 1.0,
-            "max_time_ns": 1000.0,
-            "integrator": "rk45",
-            "output_interval": 100
+            "dt_s": 1e-9,
+            "total_time_s": 1e-6,
+            "integrator": "RK4",
+            "write_interval": 100
         },
         "physics": {
             "collision_model": "NoCollisions"
@@ -40,7 +40,26 @@ TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
             "folder": "./output",
             "trajectory_file": "test.h5"
         },
-        "domains": []
+        "domains": [
+            {
+                "name": "test_domain",
+                "domain_index": 0,
+                "instrument": "IMS",
+                "solver": "rk45",
+                "geometry": {
+                    "length_m": 0.1,
+                    "radius_m": 0.01
+                },
+                "environment": {
+                    "pressure_Pa": 101325.0,
+                    "temperature_K": 300.0,
+                    "gas_species": "He"
+                },
+                "fields": {
+                    "dc": {"axial_V": 0.0}
+                }
+            }
+        ]
     })";
     
     std::string path = create_temp_config(config);
@@ -49,20 +68,21 @@ TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
     REQUIRE(cfg.simulation.dt_s == Approx(1e-9));
     REQUIRE(cfg.physics.collision_model == CollisionModel::NoCollisions);
     REQUIRE(cfg.output.folder == "./output");
+    REQUIRE(cfg.domains.size() == 1);
 }
 
 TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domains]") {
     std::string config = R"({
         "simulation": {
-            "timestep_ns": 0.5,
-            "max_time_ns": 2000.0,
-            "integrator": "rk45",
-            "output_interval": 200,
-            "random_seed": 12345
+            "dt_s": 5e-10,
+            "total_time_s": 2e-6,
+            "integrator": "RK4",
+            "write_interval": 200,
+            "rng_seed": 12345
         },
         "physics": {
             "collision_model": "EHSS",
-            "enable_reactions": true,
+            "enable_reactions": false,
             "enable_space_charge": false
         },
         "output": {
@@ -72,6 +92,7 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
         },
         "domains": [
             {
+                "name": "drift_region",
                 "domain_index": 0,
                 "instrument": "IMS",
                 "solver": "rk45",
@@ -87,17 +108,18 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
                     "gas_velocity_m_s": [0.0, 0.0, 0.0]
                 },
                 "fields": {
-                    "dc": {
+                    "DC": {
                         "axial_V": 250.0,
                         "EN_Td": 10.0
                     },
-                    "rf": {
+                    "RF": {
                         "voltage_V": 0.0,
                         "frequency_MHz": 0.0
                     }
                 }
             },
             {
+                "name": "tof_region",
                 "domain_index": 1,
                 "instrument": "TOF",
                 "solver": "rk4",
@@ -113,7 +135,7 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
                     "gas_velocity_m_s": [0.0, 0.0, 0.0]
                 },
                 "fields": {
-                    "dc": {
+                    "DC": {
                         "axial_V": 5000.0,
                         "EN_Td": 0.0
                     }
@@ -122,16 +144,16 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
         ]
     })";
     
-    std::string path = create_temp_config(config);
+    std::string path = create_temp_config(config, "_two_domains");
     FullConfig cfg = ConfigLoader::load(path);
     
     // Simulation
-    REQUIRE(cfg.simulation.dt_s == Approx(0.5e-9));
+    REQUIRE(cfg.simulation.dt_s == Approx(5e-10));
     REQUIRE(cfg.simulation.rng_seed == 12345);
     
     // Physics
     REQUIRE(cfg.physics.collision_model == CollisionModel::EHSS);
-    REQUIRE(cfg.physics.enable_reactions);
+    REQUIRE_FALSE(cfg.physics.enable_reactions);
     REQUIRE_FALSE(cfg.physics.enable_space_charge);
     
     // Output
@@ -171,4 +193,56 @@ TEST_CASE("ConfigLoader handles file not found", "[config][loader]") {
         ConfigLoader::load("/nonexistent/file.json"),
         std::runtime_error
     );
+}
+
+TEST_CASE("ConfigLoader requires dt_s and total_time_s", "[config][loader][validation]") {
+    // Missing dt_s
+    std::string config_no_dt = R"({
+        "simulation": {
+            "total_time_s": 1e-3
+        },
+        "physics": {
+            "collision_model": "HSD"
+        },
+        "output": {
+            "folder": "./output",
+            "trajectory_file": "test.h5"
+        },
+        "domains": [
+            {
+                "name": "test",
+                "instrument": "IMS",
+                "geometry": { "length_m": 0.1, "radius_m": 0.01, "origin_m": [0,0,0] },
+                "environment": { "pressure_Pa": 101325, "temperature_K": 300, "gas_species": "He" }
+            }
+        ]
+    })";
+    
+    std::string path_no_dt = create_temp_config(config_no_dt, "_no_dt");
+    REQUIRE_THROWS_AS(ConfigLoader::load(path_no_dt), std::runtime_error);
+    
+    // Missing total_time_s
+    std::string config_no_time = R"({
+        "simulation": {
+            "dt_s": 1e-9
+        },
+        "physics": {
+            "collision_model": "HSD"
+        },
+        "output": {
+            "folder": "./output",
+            "trajectory_file": "test.h5"
+        },
+        "domains": [
+            {
+                "name": "test",
+                "instrument": "IMS",
+                "geometry": { "length_m": 0.1, "radius_m": 0.01, "origin_m": [0,0,0] },
+                "environment": { "pressure_Pa": 101325, "temperature_K": 300, "gas_species": "He" }
+            }
+        ]
+    })";
+    
+    std::string path_no_time = create_temp_config(config_no_time, "_no_time");
+    REQUIRE_THROWS_AS(ConfigLoader::load(path_no_time), std::runtime_error);
 }

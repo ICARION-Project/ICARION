@@ -8,6 +8,7 @@
   "properties": {
     "collision_model": {
       "$ref": "common-types.schema.json#/$defs/collision_model",
+      "default": "NoCollisions",
       "description": "Collision model selector"
     },
     
@@ -24,6 +25,6 @@
     }
   },
   
-  "required": ["collision_model"],
+  "required": [],
   "additionalProperties": false
 }

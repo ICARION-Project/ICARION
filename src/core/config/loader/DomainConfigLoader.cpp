@@ -7,7 +7,7 @@
 
 namespace ICARION::config {
 
-DomainConfig DomainConfigLoader::load(const Json::Value& json) {
+DomainConfig DomainConfigLoader::load(const Json::Value& json, const std::string& default_integrator) {
     DomainConfig config;
     
     // === Identification ===
@@ -47,11 +47,12 @@ DomainConfig DomainConfigLoader::load(const Json::Value& json) {
     // Fields are optional (e.g., pure drift with only gas flow)
     
     // === Solver ===
+    // Use domain-specific integrator if provided, otherwise fall back to global simulation.integrator
+    std::string solver_str = default_integrator;  // Start with global default
     if (json.isMember("integrator") && json["integrator"].isString()) {
-        std::string solver_str = json["integrator"].asString();
-        config.solver = EnumMapper::parse_solver(solver_str);
+        solver_str = json["integrator"].asString();  // Override with domain-specific
     }
-    // else: uses default RK4
+    config.solver = EnumMapper::parse_solver(solver_str);
     
     // === Coordinate transforms (future/multi-domain) ===
     // For now, keep identity transforms

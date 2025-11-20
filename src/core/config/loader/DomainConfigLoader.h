@@ -21,9 +21,10 @@ public:
      * @brief Load single domain from JSON object
      * 
      * @param json JSON object for one domain
+     * @param default_integrator Fallback integrator from simulation.integrator (default: "RK4")
      * @return DomainConfig Parsed domain configuration
      */
-    static DomainConfig load(const Json::Value& json);
+    static DomainConfig load(const Json::Value& json, const std::string& default_integrator = "RK4");
     
 private:
     // Sub-loaders

@@ -5,6 +5,7 @@
 #define ICARION_CONFIG_GEOMETRY_CONFIG_H
 
 #include "core/utils/mathUtils.h"
+#include "../validation/ValidationResult.h"
 #include <stdexcept>
 
 namespace ICARION::config {
@@ -48,6 +49,7 @@ struct GeometryConfig {
     void compute_bounds() {
         // Basic cylindrical bounding box
         // For more complex geometries, this can be overridden
+        // must be changed for Orbitrap! #todo
         double r = (radius_m > 0.0) ? radius_m : 
                    (radius_out_m > 0.0) ? radius_out_m : 0.01;
         double l = (length_m > 0.0) ? length_m : 0.01;
@@ -58,29 +60,31 @@ struct GeometryConfig {
     
     /**
      * @brief Validate geometry parameters
-     * 
-     * @throws std::runtime_error if invalid
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
+        
         if (length_m < 0.0) {
-            throw std::runtime_error("Geometry length_m cannot be negative");
+            result.add_error("Geometry length_m cannot be negative");
         }
         if (radius_m < 0.0) {
-            throw std::runtime_error("Geometry radius_m cannot be negative");
+            result.add_error("Geometry radius_m cannot be negative");
         }
         if (radius_in_m < 0.0) {
-            throw std::runtime_error("Geometry radius_in_m cannot be negative");
+            result.add_error("Geometry radius_in_m cannot be negative");
         }
         if (radius_out_m < 0.0) {
-            throw std::runtime_error("Geometry radius_out_m cannot be negative");
+            result.add_error("Geometry radius_out_m cannot be negative");
         }
         
         // Orbitrap consistency check
         if (radius_in_m > 0.0 && radius_out_m > 0.0) {
             if (radius_in_m >= radius_out_m) {
-                throw std::runtime_error("Orbitrap: radius_in_m must be < radius_out_m");
+                result.add_error("Orbitrap: radius_in_m must be < radius_out_m");
             }
         }
+        
+        return result;
     }
 };
 

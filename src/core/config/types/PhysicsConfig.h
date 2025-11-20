@@ -5,6 +5,7 @@
 #define ICARION_CONFIG_PHYSICS_CONFIG_H
 
 #include "PhysicsEnums.h"
+#include "../validation/ValidationResult.h"
 #include <stdexcept>
 
 namespace ICARION::config {
@@ -29,17 +30,18 @@ struct PhysicsConfig {
     
     /**
      * @brief Validate physics configuration
-     * 
-     * @throws std::runtime_error if invalid
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
         
         // OU thermalization with stochastic models might be redundant
         if (force_ou_for_stochastic && 
             (collision_model == CollisionModel::HSS || 
              collision_model == CollisionModel::EHSS)) {
-            throw std::runtime_error("force_ou_for_stochastic cannot be true when using stochastic collision models (HSS or EHSS)");
+            result.add_error("force_ou_for_stochastic cannot be true when using stochastic collision models (HSS or EHSS)");
         }
+        
+        return result;
     }
 };
 

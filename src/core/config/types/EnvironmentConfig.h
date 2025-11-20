@@ -6,6 +6,7 @@
 
 #include "core/utils/mathUtils.h"
 #include "utils/constants.h"
+#include "../validation/ValidationResult.h"
 #include <string>
 #include <cmath>
 #include <stdexcept>
@@ -103,25 +104,27 @@ struct EnvironmentConfig {
     
     /**
      * @brief Validate environment parameters
-     * 
-     * @throws std::runtime_error if invalid
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
+        
         if (pressure_Pa <= 0.0) {
-            throw std::runtime_error("Pressure must be positive");
+            result.add_error("Pressure must be positive");
         }
         if (temperature_K <= 0.0) {
-            throw std::runtime_error("Temperature must be positive");
+            result.add_error("Temperature must be positive");
         }
         if (temperature_K < 1.0) {
-            throw std::runtime_error("Temperature unrealistically low (< 1 K)");
+            result.add_warning("Temperature unrealistically low (< 1 K)");
         }
         if (temperature_K > 10000.0) {
-            throw std::runtime_error("Temperature unrealistically high (> 10000 K)");
+            result.add_warning("Temperature unrealistically high (> 10000 K)");
         }
         if (gas_species.empty()) {
-            throw std::runtime_error("Gas species cannot be empty");
+            result.add_error("Gas species cannot be empty");
         }
+        
+        return result;
     }
 };
 

@@ -75,33 +75,35 @@ struct DomainConfig {
      * Prints warnings for unusual but potentially valid configurations
      * (e.g., LQIT without RF, IMS without drift field for SIFT-like simulations).
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
+        
         // Hard errors (blocking)
         if (name.empty()) {
-            throw std::runtime_error("Domain name cannot be empty");
+            result.add_error("Domain name cannot be empty");
         }
         
         if (instrument == Instrument::UnknownInstrument) {
-            throw std::runtime_error("Domain '" + name + "' has unknown instrument type");
+            result.add_error("Domain '" + name + "' has unknown instrument type");
         }
         
         // Validate sub-components
-        geometry.validate();
-        environment.validate();
-        fields.validate();
+        result.merge(geometry.validate());
+        result.merge(environment.validate());
+        result.merge(fields.validate());
         
         // Instrument-specific validation (warnings only for missing typical fields)
         switch (instrument) {
             case Instrument::LQIT:
                 if (fields.rf.voltage_V == 0.0 && fields.rf.frequency_Hz == 0.0) {
-                    std::cout << "[WARN] LQIT domain '" << name << "' has no RF field. "
-                              << "This is unusual but may be intentional for testing." << std::endl;
+                    result.add_warning("LQIT domain '" + name + "' has no RF field. "
+                                      "This is unusual but may be intentional for testing.");
                 }
                 break;
                 
             case Instrument::Orbitrap:
                 if (geometry.radius_in_m == 0.0 || geometry.radius_out_m == 0.0) {
-                    throw std::runtime_error("Orbitrap domain '" + name + "' missing inner/outer radius");
+                    result.add_error("Orbitrap domain '" + name + "' missing inner/outer radius");
                 }
                 break;
                 
@@ -110,15 +112,15 @@ struct DomainConfig {
                     (fields.magnetic.field_strength_T.x == 0.0 && 
                      fields.magnetic.field_strength_T.y == 0.0 && 
                      fields.magnetic.field_strength_T.z == 0.0)) {
-                    std::cout << "[WARN] FT-ICR domain '" << name << "' has no/zero magnetic field. "
-                              << "Cyclotron motion will not occur." << std::endl;
+                    result.add_warning("FT-ICR domain '" + name + "' has no/zero magnetic field. "
+                                      "Cyclotron motion will not occur.");
                 }
                 break;
                 
             case Instrument::IMS:
                 if (fields.dc.EN_Td == 0.0 && fields.dc.axial_V == 0.0) {
-                    std::cout << "[WARN] IMS domain '" << name << "' has no drift field. "
-                              << "Ion transport may rely solely on gas flow (e.g., SIFT mode)." << std::endl;
+                    result.add_warning("IMS domain '" + name + "' has no drift field. "
+                                      "Ion transport may rely solely on gas flow (e.g., SIFT mode).");
                 }
                 break;
                 
@@ -126,6 +128,8 @@ struct DomainConfig {
                 // Other instruments: no specific requirements
                 break;
         }
+        
+        return result;
     }
 };
 

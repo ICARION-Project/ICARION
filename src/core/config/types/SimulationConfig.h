@@ -4,6 +4,7 @@
 #ifndef ICARION_CONFIG_SIMULATION_CONFIG_H
 #define ICARION_CONFIG_SIMULATION_CONFIG_H
 
+#include "../validation/ValidationResult.h"
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -66,23 +67,25 @@ struct SimulationConfig {
     }
     
     /**
-     * @brief Validate configuration parameters
-     * 
-     * @throws std::runtime_error if invalid
+     * @brief Validate simulation parameters
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
+        
         if (dt_s <= 0.0) {
-            throw std::runtime_error("dt_s must be positive");
+            result.add_error("dt_s must be positive");
         }
         if (total_time_s <= 0.0) {
-            throw std::runtime_error("total_time_s must be positive");
+            result.add_error("total_time_s must be positive");
         }
         if (write_interval <= 0) {
-            throw std::runtime_error("write_interval must be positive");
+            result.add_error("write_interval must be positive");
         }
         if (dt_s > total_time_s) {
-            throw std::runtime_error("dt_s exceeds total_time_s");
+            result.add_error("dt_s exceeds total_time_s");
         }
+        
+        return result;
     }
 };
 

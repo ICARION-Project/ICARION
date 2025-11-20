@@ -88,9 +88,23 @@ int main(int argc, char* argv[]) {
             std::cout << std::endl;
         }
         
-        // Validate (skip for smoke test - ion cloud check too strict)
+        // Validate
         std::cout << "--- Validation ---" << std::endl;
-        std::cout << "  (Skipped full validation for smoke test)" << std::endl;
+        try {
+            auto validation = config.validate();
+            if (validation.valid) {
+                std::cout << "  ✓ Configuration is valid" << std::endl;
+            }
+            if (!validation.warnings.empty()) {
+                std::cout << "  Warnings:" << std::endl;
+                for (const auto& warn : validation.warnings) {
+                    std::cout << "    ⚠ " << warn << std::endl;
+                }
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "  ✗ Validation failed: " << e.what() << std::endl;
+            return 1;
+        }
         
         std::cout << std::endl << "=== Test completed successfully ===" << std::endl;
         return 0;

@@ -5,6 +5,7 @@
 #define ICARION_CONFIG_FIELDS_CONFIG_H
 
 #include "core/utils/mathUtils.h"
+#include "../validation/ValidationResult.h"
 #include <vector>
 #include <string>
 #include <cmath>
@@ -37,9 +38,11 @@ struct DCFieldConfig {
     /**
      * @brief Validate DC field configuration
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
         // No hard constraints - DC fields can be zero or negative
         // Field strength and voltage are alternatives (both can be specified)
+        return result;
     }
 };
 
@@ -66,16 +69,20 @@ struct RFFieldConfig {
     /**
      * @brief Validate RF field configuration
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
+        
         if (voltage_V < 0.0) {
-            throw std::runtime_error("RF voltage cannot be negative");
+            result.add_error("RF voltage cannot be negative");
         }
         if (frequency_Hz < 0.0) {
-            throw std::runtime_error("RF frequency cannot be negative");
+            result.add_error("RF frequency cannot be negative");
         }
         if (voltage_V > 0.0 && frequency_Hz == 0.0) {
-            throw std::runtime_error("RF voltage specified but frequency is zero");
+            result.add_error("RF voltage specified but frequency is zero");
         }
+        
+        return result;
     }
 };
 
@@ -121,27 +128,29 @@ struct ACFieldConfig {
     /**
      * @brief Validate AC field configuration
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
+        
         if (voltage_V < 0.0) {
-            throw std::runtime_error("AC voltage cannot be negative");
+            result.add_error("AC voltage cannot be negative");
         }
         if (frequency_Hz < 0.0) {
-            throw std::runtime_error("AC frequency cannot be negative");
+            result.add_error("AC frequency cannot be negative");
         }
         
         // Sweep validation
         if (enable_voltage_sweep) {
             if (rise_time_s <= 0.0) {
-                throw std::runtime_error("AC voltage sweep rise_time_s must be positive");
+                result.add_error("AC voltage sweep rise_time_s must be positive");
             }
             if (start_time_s < 0.0) {
-                throw std::runtime_error("AC voltage sweep start_time_s cannot be negative");
+                result.add_error("AC voltage sweep start_time_s cannot be negative");
             }
         }
         
         if (enable_frequency_sweep) {
             if (frequency_start_Hz < 0.0) {
-                throw std::runtime_error("AC frequency sweep start frequency cannot be negative");
+                result.add_error("AC frequency sweep start frequency cannot be negative");
             }
         }
         
@@ -149,10 +158,12 @@ struct ACFieldConfig {
         if (!voltage_time_table.empty()) {
             for (size_t i = 1; i < voltage_time_table.size(); ++i) {
                 if (voltage_time_table[i].first <= voltage_time_table[i-1].first) {
-                    throw std::runtime_error("AC voltage_time_table must be sorted by time");
+                    result.add_error("AC voltage_time_table must be sorted by time");
                 }
             }
         }
+        
+        return result;
     }
 };
 
@@ -169,7 +180,9 @@ struct MagneticFieldConfig {
     /**
      * @brief Validate magnetic field configuration
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
+        
         // No hard constraints - B can be arbitrary
         if (enabled) {
             double B_mag = std::sqrt(
@@ -178,9 +191,11 @@ struct MagneticFieldConfig {
                 field_strength_T.z * field_strength_T.z
             );
             if (B_mag > 100.0) {
-                throw std::runtime_error("Magnetic field > 100 T seems unrealistic");
+                result.add_warning("Magnetic field > 100 T seems unrealistic");
             }
         }
+        
+        return result;
     }
 };
 
@@ -228,21 +243,25 @@ struct FieldsConfig {
     /**
      * @brief Validate complete fields configuration
      */
-    void validate() const {
-        dc.validate();
-        rf.validate();
-        ac.validate();
-        magnetic.validate();
+    ValidationResult validate() const {
+        ValidationResult result;
+        
+        result.merge(dc.validate());
+        result.merge(rf.validate());
+        result.merge(ac.validate());
+        result.merge(magnetic.validate());
         
         // Field array validation
         for (const auto& term : field_array_terms) {
             if (term.file.empty()) {
-                throw std::runtime_error("Field array term has empty file path");
+                result.add_error("Field array term has empty file path");
             }
             if (term.kind == FieldArrayTerm::ScaleKind::RF && term.frequency_Hz < 0.0) {
-                throw std::runtime_error("Field array RF term has negative frequency");
+                result.add_error("Field array RF term has negative frequency");
             }
         }
+        
+        return result;
     }
     
     /**

@@ -4,6 +4,7 @@
 #ifndef ICARION_CONFIG_OUTPUT_CONFIG_H
 #define ICARION_CONFIG_OUTPUT_CONFIG_H
 
+#include "../validation/ValidationResult.h"
 #include <string>
 #include <stdexcept>
 
@@ -30,16 +31,18 @@ struct OutputConfig {
     
     /**
      * @brief Validate output configuration
-     * 
-     * @throws std::runtime_error if invalid
      */
-    void validate() const {
+    ValidationResult validate() const {
+        ValidationResult result;
+        
         if (folder.empty()) {
-            throw std::runtime_error("Output folder cannot be empty");
+            result.add_error("Output folder cannot be empty");
         }
         if (trajectory_file.empty()) {
-            throw std::runtime_error("Trajectory file name cannot be empty");
+            result.add_error("Trajectory file name cannot be empty");
         }
+        
+        return result;
     }
 };
 

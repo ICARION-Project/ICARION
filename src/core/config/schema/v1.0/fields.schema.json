@@ -46,42 +46,42 @@
       "type": "object",
       "description": "DC field parameters",
       "properties": {
-        "DC_reduced_field_strength_Td": {
+        "EN_Td": {
           "$ref": "common-types.schema.json#/$defs/reduced_field_strength",
           "default": 0.0,
           "description": "Reduced electric field strength in Townsend (1 Td = 10^-21 V·m²)"
         },
-        "DC_axial_voltage_V": {
+        "axial_V": {
           "$ref": "common-types.schema.json#/$defs/voltage",
           "default": 0.0,
           "description": "Axial DC voltage [V]"
         },
-        "DC_radial_voltage_V": {
+        "radial_V": {
           "$ref": "common-types.schema.json#/$defs/voltage",
           "default": 0.0,
           "description": "Radial DC voltage [V]"
         },
-        "DC_quad_voltage_V": {
+        "quad_V": {
           "$ref": "common-types.schema.json#/$defs/voltage",
           "default": 0.0,
           "description": "Quadrupolar DC voltage [V]"
         },
-        "enable_DC_radial_sweep": {
+        "enable_radial_sweep": {
           "type": "boolean",
           "default": false,
           "description": "Enable radial DC voltage sweep"
         },
-        "DC_radial_slope_V_s": {
+        "radial_slope_V_s": {
           "type": "number",
           "default": 0.0,
           "description": "Radial DC voltage sweep slope [V/s]"
         },
-        "DC_radial_start_time_s": {
+        "radial_start_time_s": {
           "$ref": "common-types.schema.json#/$defs/time_non_negative",
           "default": 0.0,
           "description": "Radial DC voltage sweep start time [s]"
         },
-        "DC_radial_rise_time_s": {
+        "radial_rise_time_s": {
           "$ref": "common-types.schema.json#/$defs/time_non_negative",
           "default": 0.0,
           "description": "Radial DC voltage sweep rise time [s]"
@@ -94,17 +94,17 @@
       "type": "object",
       "description": "RF field parameters",
       "properties": {
-        "RF_voltage_V": {
+        "voltage_V": {
           "$ref": "common-types.schema.json#/$defs/voltage",
           "default": 0.0,
           "description": "RF amplitude in volts [V]"
         },
-        "RF_frequency_Hz": {
+        "frequency_Hz": {
           "$ref": "common-types.schema.json#/$defs/frequency",
           "default": 0.0,
           "description": "RF frequency in Hz"
         },
-        "RF_phase_rad": {
+        "phase_rad": {
           "$ref": "common-types.schema.json#/$defs/phase",
           "default": 0.0,
           "description": "RF phase offset in radians"
@@ -117,47 +117,47 @@
       "type": "object",
       "description": "AC excitation field parameters",
       "properties": {
-        "AC_voltage_V": {
+        "voltage_V": {
           "$ref": "common-types.schema.json#/$defs/voltage",
           "default": 0.0,
           "description": "AC excitation amplitude in volts [V]"
         },
-        "AC_frequency_Hz": {
+        "frequency_Hz": {
           "$ref": "common-types.schema.json#/$defs/frequency",
           "default": 0.0,
           "description": "AC excitation frequency in Hz"
         },
-        "enable_AC_voltage_sweep": {
+        "enable_voltage_sweep": {
           "type": "boolean",
           "default": false,
           "description": "Enable AC voltage amplitude sweep"
         },
-        "AC_amplitude_slope_V_s": {
+        "amplitude_slope_V_s": {
           "type": "number",
           "default": 0.0,
           "description": "AC voltage amplitude sweep slope in V/s"
         },
-        "AC_start_time_s": {
+        "start_time_s": {
           "$ref": "common-types.schema.json#/$defs/time_non_negative",
           "default": 0.0,
           "description": "AC voltage sweep start time in seconds"
         },
-        "AC_rise_time_s": {
+        "rise_time_s": {
           "$ref": "common-types.schema.json#/$defs/time_non_negative",
           "default": 0.0,
           "description": "AC voltage rise time in seconds"
         },
-        "enable_AC_frequency_sweep": {
+        "enable_frequency_sweep": {
           "type": "boolean",
           "default": false,
           "description": "Enable AC frequency sweep"
         },
-        "AC_start_freq_Hz": {
+        "start_freq_Hz": {
           "$ref": "common-types.schema.json#/$defs/frequency",
           "default": 0.0,
           "description": "AC frequency sweep start frequency in Hz"
         },
-        "AC_sweep_slope_Hz_per_s": {
+        "sweep_slope_Hz_per_s": {
           "type": "number",
           "default": 0.0,
           "description": "AC frequency sweep slope in Hz/s"

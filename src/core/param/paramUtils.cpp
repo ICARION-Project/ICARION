@@ -557,37 +557,37 @@ InstrumentDomain load_single_domain(const Json::Value& j) {
     // DC voltages
     if (fieldsSection && fieldsSection->isMember("DC")) {
         const auto& jDC = (*fieldsSection)["DC"];
-        dom.DC.EN_Td = getDouble(jDC, "DC_reduced_field_strength_Td", 0.0, "fields.DC");
+        dom.DC.EN_Td = getDouble(jDC, "EN_Td", 0.0, "fields.DC");
         dom.DC.EN_Vm2 = dom.DC.EN_Td * 1e-21;
         
         if (dom.DC.EN_Vm2 != 0.0) {
             dom.DC.axial_V = dom.DC.EN_Vm2 * dom.env.particle_density_m_3 * dom.geom.length_m;
         } else {
-            dom.DC.axial_V = getDouble(jDC, "DC_axial_voltage_V", 0.0, "fields.DC");
+            dom.DC.axial_V = getDouble(jDC, "axial_V", 0.0, "fields.DC");
         }
         
-        dom.DC.quad_V = getDouble(jDC, "DC_quad_voltage_V", 0.0, "fields.DC");
-        dom.DC.radial_V = getDouble(jDC, "DC_radial_voltage_V", 0.0, "fields.DC");
-        dom.DC.enable_radial_voltage_sweep = getBool(jDC, "enable_DC_radial_sweep", false, "fields.DC");
-        dom.DC.radial_slope_V_s = getDouble(jDC, "DC_radial_slope_V_s", 0.0, "fields.DC");
-        dom.DC.radial_start_time_s = getDouble(jDC, "DC_radial_start_time_s", 0.0, "fields.DC");
-        dom.DC.radial_rise_time_s = getDouble(jDC, "DC_radial_rise_time_s", 0.0, "fields.DC");
+        dom.DC.quad_V = getDouble(jDC, "quad_V", 0.0, "fields.DC");
+        dom.DC.radial_V = getDouble(jDC, "radial_V", 0.0, "fields.DC");
+        dom.DC.enable_radial_voltage_sweep = getBool(jDC, "enable_radial_sweep", false, "fields.DC");
+        dom.DC.radial_slope_V_s = getDouble(jDC, "radial_slope_V_s", 0.0, "fields.DC");
+        dom.DC.radial_start_time_s = getDouble(jDC, "radial_start_time_s", 0.0, "fields.DC");
+        dom.DC.radial_rise_time_s = getDouble(jDC, "radial_rise_time_s", 0.0, "fields.DC");
     }
 
     // RF voltages
     if (fieldsSection && fieldsSection->isMember("RF")) {
         const auto& jRF = (*fieldsSection)["RF"];
-        dom.RF.voltage_V = getDouble(jRF, "RF_voltage_V", 0.0, "fields.RF");
-        dom.RF.frequency_Hz = getDouble(jRF, "RF_frequency_Hz", 0.0, "fields.RF");
+        dom.RF.voltage_V = getDouble(jRF, "voltage_V", 0.0, "fields.RF");
+        dom.RF.frequency_Hz = getDouble(jRF, "frequency_Hz", 0.0, "fields.RF");
         dom.RF.angular_frequency_rad_s = dom.RF.frequency_Hz * 2.0 * M_PI;
-        dom.RF.phase_rad = getDouble(jRF, "RF_phase_rad", 0.0, "fields.RF");
+        dom.RF.phase_rad = getDouble(jRF, "phase_rad", 0.0, "fields.RF");
     }
 
     // AC voltages
     if (fieldsSection && fieldsSection->isMember("AC")) {
         const auto& jAC = (*fieldsSection)["AC"];
-        dom.AC.voltage_V = getDouble(jAC, "AC_voltage_V", 0.0, "fields.AC");
-        dom.AC.frequency_Hz = getDouble(jAC, "AC_frequency_Hz", 0.0, "fields.AC");
+        dom.AC.voltage_V = getDouble(jAC, "voltage_V", 0.0, "fields.AC");
+        dom.AC.frequency_Hz = getDouble(jAC, "frequency_Hz", 0.0, "fields.AC");
         
         if (dom.AC.voltage_V != 0.0 && dom.AC.frequency_Hz == 0.0) {
             std::cerr << "Warning: AC voltage set but frequency is zero. Using pseudopotential approximation (m/z = 100).\n";
@@ -600,13 +600,13 @@ InstrumentDomain load_single_domain(const Json::Value& j) {
         }
         
         dom.AC.angular_frequency_rad_s = dom.AC.frequency_Hz * 2.0 * M_PI;
-        dom.AC.enable_voltage_sweep = getBool(jAC, "enable_AC_voltage_sweep", false, "fields.AC");
-        dom.AC.amplitude_slope_V_s = getDouble(jAC, "AC_amplitude_slope_V_s", 0.0, "fields.AC");
-        dom.AC.start_time_s = getDouble(jAC, "AC_start_time_s", 0.0, "fields.AC");
-        dom.AC.rise_time_s = getDouble(jAC, "AC_rise_time_s", 0.0, "fields.AC");
-        dom.AC.enable_frequency_sweep = getBool(jAC, "enable_AC_frequency_sweep", false, "fields.AC");
-        dom.AC.ac_start_freq_Hz = getDouble(jAC, "AC_start_freq_Hz", dom.AC.frequency_Hz, "fields.AC");
-        dom.AC.ac_sweep_slope_Hz_per_s = getDouble(jAC, "AC_sweep_slope_Hz_per_s", 0.0, "fields.AC");
+        dom.AC.enable_voltage_sweep = getBool(jAC, "enable_voltage_sweep", false, "fields.AC");
+        dom.AC.amplitude_slope_V_s = getDouble(jAC, "amplitude_slope_V_s", 0.0, "fields.AC");
+        dom.AC.start_time_s = getDouble(jAC, "start_time_s", 0.0, "fields.AC");
+        dom.AC.rise_time_s = getDouble(jAC, "rise_time_s", 0.0, "fields.AC");
+        dom.AC.enable_frequency_sweep = getBool(jAC, "enable_frequency_sweep", false, "fields.AC");
+        dom.AC.ac_start_freq_Hz = getDouble(jAC, "start_freq_Hz", dom.AC.frequency_Hz, "fields.AC");
+        dom.AC.ac_sweep_slope_Hz_per_s = getDouble(jAC, "sweep_slope_Hz_per_s", 0.0, "fields.AC");
 
         // Voltage time table
         if (jAC.isMember("voltage_time_table") && jAC["voltage_time_table"].isArray()) {

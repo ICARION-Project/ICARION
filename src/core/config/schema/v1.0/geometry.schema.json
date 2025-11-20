@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/geometry.schema.json",
+  "title": "ICARION Domain Geometry Configuration",
+  "description": "Geometric description of instrument domain in global coordinates",
+  "type": "object",
+  
+  "properties": {
+    "origin_m": {
+      "$ref": "common-types.schema.json#/$defs/vec3",
+      "description": "Domain origin (x, y, z) in meters, global coordinate system"
+    },
+    
+    "length_m": {
+      "$ref": "common-types.schema.json#/$defs/length",
+      "default": 0.0,
+      "description": "Axial length of the domain in meters"
+    },
+    
+    "radius_m": {
+      "$ref": "common-types.schema.json#/$defs/length",
+      "default": 0.0,
+      "description": "Radial size (cylindrical radius) in meters"
+    },
+    
+    "acc_length_m": {
+      "$ref": "common-types.schema.json#/$defs/length",
+      "default": 0.0,
+      "description": "Acceleration section length for TOF-like instruments [m]"
+    },
+    
+    "radius_in_m": {
+      "$ref": "common-types.schema.json#/$defs/length",
+      "default": 0.0,
+      "description": "Inner radius for Orbitrap/hyperbolic geometries [m]"
+    },
+    
+    "radius_out_m": {
+      "$ref": "common-types.schema.json#/$defs/length",
+      "default": 0.0,
+      "description": "Outer radius for Orbitrap/hyperbolic geometries [m]"
+    },
+    
+    "radius_char_m": {
+      "$ref": "common-types.schema.json#/$defs/length",
+      "default": 0.0,
+      "description": "Characteristic radius (Rm) for Orbitrap potential [m]"
+    },
+    
+    "end_aperture_m": {
+      "$ref": "common-types.schema.json#/$defs/length_positive",
+      "default": 1e-3,
+      "description": "End aperture radius for TOF instruments [m]"
+    }
+  },
+  
+  "required": ["origin_m", "length_m"],
+  "additionalProperties": false
+}

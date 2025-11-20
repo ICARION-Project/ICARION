@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/icarion-config.schema.json",
+  "title": "ICARION v1.0 Configuration",
+  "description": "Complete configuration schema for ICARION ion trajectory simulations",
+  "type": "object",
+  
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Optional human-readable title for the simulation run"
+    },
+    
+    "species_database": {
+      "type": "string",
+      "description": "Path to the species database file (JSON/HDF5)"
+    },
+    
+    "reaction_database": {
+      "type": "string",
+      "description": "Path to reaction database file"
+    },
+    
+    "simulation": {
+      "$ref": "simulation.schema.json",
+      "description": "Simulation control parameters"
+    },
+    
+    "physics": {
+      "$ref": "physics.schema.json",
+      "description": "Global physics options"
+    },
+    
+    "output": {
+      "$ref": "output.schema.json",
+      "description": "Output file and logging configuration"
+    },
+    
+    "domains": {
+      "type": "array",
+      "description": "List of instrument domains (multi-domain support)",
+      "items": {
+        "$ref": "domain.schema.json"
+      },
+      "minItems": 1
+    }
+  },
+  
+  "required": ["simulation", "physics", "output", "domains"],
+  "additionalProperties": false
+}

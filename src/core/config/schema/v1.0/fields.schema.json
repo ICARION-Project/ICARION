@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/fields.schema.json",
+  "title": "ICARION Domain Fields Configuration",
+  "description": "Electric and magnetic field configuration for domain",
+  "type": "object",
+  
+  "properties": {
+    "field_arrays": {
+      "type": "array",
+      "description": "Optional list of precomputed field-array terms (1 V normalization)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Path to field-array file"
+          },
+          "scale_kind": {
+            "type": "string",
+            "enum": ["Constant", "dc_axial", "dc_quad", "dc_radial", "rf"],
+            "description": "Scaling kind for this field term"
+          },
+          "constant_V": {
+            "$ref": "common-types.schema.json#/$defs/voltage",
+            "default": 1.0,
+            "description": "Constant scaling factor or RF gain multiplier [V]"
+          },
+          "frequency_Hz": {
+            "$ref": "common-types.schema.json#/$defs/frequency",
+            "default": 0.0,
+            "description": "Optional RF frequency override for this term [Hz]"
+          },
+          "phase_rad": {
+            "$ref": "common-types.schema.json#/$defs/phase",
+            "default": 0.0,
+            "description": "Additional phase offset for this RF term [rad]"
+          }
+        },
+        "required": ["file", "scale_kind"],
+        "additionalProperties": false
+      }
+    },
+    
+    "DC": {
+      "type": "object",
+      "description": "DC field parameters",
+      "properties": {
+        "DC_reduced_field_strength_Td": {
+          "$ref": "common-types.schema.json#/$defs/reduced_field_strength",
+          "default": 0.0,
+          "description": "Reduced electric field strength in Townsend (1 Td = 10^-21 V·m²)"
+        },
+        "DC_axial_voltage_V": {
+          "$ref": "common-types.schema.json#/$defs/voltage",
+          "default": 0.0,
+          "description": "Axial DC voltage [V]"
+        },
+        "DC_radial_voltage_V": {
+          "$ref": "common-types.schema.json#/$defs/voltage",
+          "default": 0.0,
+          "description": "Radial DC voltage [V]"
+        },
+        "DC_quad_voltage_V": {
+          "$ref": "common-types.schema.json#/$defs/voltage",
+          "default": 0.0,
+          "description": "Quadrupolar DC voltage [V]"
+        },
+        "enable_DC_radial_sweep": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable radial DC voltage sweep"
+        },
+        "DC_radial_slope_V_s": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Radial DC voltage sweep slope [V/s]"
+        },
+        "DC_radial_start_time_s": {
+          "$ref": "common-types.schema.json#/$defs/time_non_negative",
+          "default": 0.0,
+          "description": "Radial DC voltage sweep start time [s]"
+        },
+        "DC_radial_rise_time_s": {
+          "$ref": "common-types.schema.json#/$defs/time_non_negative",
+          "default": 0.0,
+          "description": "Radial DC voltage sweep rise time [s]"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "RF": {
+      "type": "object",
+      "description": "RF field parameters",
+      "properties": {
+        "RF_voltage_V": {
+          "$ref": "common-types.schema.json#/$defs/voltage",
+          "default": 0.0,
+          "description": "RF amplitude in volts [V]"
+        },
+        "RF_frequency_Hz": {
+          "$ref": "common-types.schema.json#/$defs/frequency",
+          "default": 0.0,
+          "description": "RF frequency in Hz"
+        },
+        "RF_phase_rad": {
+          "$ref": "common-types.schema.json#/$defs/phase",
+          "default": 0.0,
+          "description": "RF phase offset in radians"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "AC": {
+      "type": "object",
+      "description": "AC excitation field parameters",
+      "properties": {
+        "AC_voltage_V": {
+          "$ref": "common-types.schema.json#/$defs/voltage",
+          "default": 0.0,
+          "description": "AC excitation amplitude in volts [V]"
+        },
+        "AC_frequency_Hz": {
+          "$ref": "common-types.schema.json#/$defs/frequency",
+          "default": 0.0,
+          "description": "AC excitation frequency in Hz"
+        },
+        "enable_AC_voltage_sweep": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable AC voltage amplitude sweep"
+        },
+        "AC_amplitude_slope_V_s": {
+          "type": "number",
+          "default": 0.0,
+          "description": "AC voltage amplitude sweep slope in V/s"
+        },
+        "AC_start_time_s": {
+          "$ref": "common-types.schema.json#/$defs/time_non_negative",
+          "default": 0.0,
+          "description": "AC voltage sweep start time in seconds"
+        },
+        "AC_rise_time_s": {
+          "$ref": "common-types.schema.json#/$defs/time_non_negative",
+          "default": 0.0,
+          "description": "AC voltage rise time in seconds"
+        },
+        "enable_AC_frequency_sweep": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable AC frequency sweep"
+        },
+        "AC_start_freq_Hz": {
+          "$ref": "common-types.schema.json#/$defs/frequency",
+          "default": 0.0,
+          "description": "AC frequency sweep start frequency in Hz"
+        },
+        "AC_sweep_slope_Hz_per_s": {
+          "type": "number",
+          "default": 0.0,
+          "description": "AC frequency sweep slope in Hz/s"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "B": {
+      "type": "object",
+      "description": "Magnetic field parameters",
+      "properties": {
+        "enabled_magnetic_field": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable magnetic field"
+        },
+        "field_strength_T": {
+          "$ref": "common-types.schema.json#/$defs/magnetic_field_vector",
+          "default": [0.0, 0.0, 0.0],
+          "description": "Magnetic field vector in Tesla (for FT-ICR etc.)"
+        },
+        "field_gradient_T_m": {
+          "$ref": "common-types.schema.json#/$defs/magnetic_field_gradient_vector",
+          "default": [0.0, 0.0, 0.0],
+          "description": "Magnetic field gradient vector in Tesla per meter"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  
+  "additionalProperties": false
+}

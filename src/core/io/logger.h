@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
+/**
+ * =====================================================================
+ *
+ *   Ion Collision And Reaction IntegratiON (ICARION)
+ *   -------------------------------------
+ *   A modular C++ framework for simulating ion trajectories 
+ *   in user-defined electric fields and background gas environments.
+ *
+ *   @file        logger.h
+ *   @brief       Logs simulation parameters.
+ *
+ *   @details
+ *   Provides functions to log simulation parameters separated by 
+ *   global and instrument domain settings. Supports runtime appends.
+ *
+ *
+ *   @date        2025-10-16
+ *   @version     0.1
+ *   @author      Christoph Schäfer
+ *   @license     MIT License
+ *
+ * =====================================================================
+ */
+#pragma once
+#include <fstream>
+#include <string>
+#include <vector>
+#include "core/param/paramUtils.h"
+#include "core/physics/reactions/reactionUtils.h"
+#include "core/types/SimulationResult.h"
+#include "core/io/speciesLoader.h"
+
+namespace ICARION {
+namespace io {
+
+/**
+ * @brief Simulation run logger for parameter documentation and timestamping
+ * 
+ * Logs simulation configuration, ion states, and final results to text file.
+ */
+class RunLogger {
+public:
+    explicit RunLogger(const std::string& output_file_base);
+    
+    /** @brief Write header banner and timestamp */
+    void writeHeader();
+    
+    /** @brief Write global parameters, initial ion states, species DB, and reactions */
+    void writeGlobalParams(const GlobalParams& gParams, const std::vector<IonState>& ions,
+                           const ICARION::io::SpeciesDatabase& speciesDB,
+                           const std::vector<ReactionEntry>& reaction_list);
+    
+    /** @brief Write instrument domain configurations */
+    void writeInstrumentDomains(const std::vector<InstrumentDomain>& domains);
+    
+    /** @brief Log arbitrary message with timestamp */
+    void log(const std::string& msg);
+    
+    /** @brief Write final simulation results and close log file */
+    void finalize(const SimulationResult& result, const std::string& output_file);
+
+private:
+    std::ofstream file_;
+    std::string filepath_;
+    std::string timestamp() const;
+};
+
+/**
+ * @brief Lightweight debug logger writing to stderr
+ * @param msg Message to log
+ * 
+ * Used by core computation modules for debugging output.
+ * Currently forwards to stderr; may be routed to RunLogger in future.
+ */
+void debug_log(const std::string& msg);
+
+}  // namespace io
+}  // namespace ICARION

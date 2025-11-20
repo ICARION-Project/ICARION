@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
+/**
+ * =====================================================================
+ *
+ *   Ion Collision And Reaction IntegratiON (ICARION)
+ *   -------------------------------------
+ *   Core field sampling utilities
+ *
+ *   @file        fieldSampling.h
+ *   @brief       Field interpolation and sampling functions
+ *
+ *   @details
+ * Provides trilinear interpolation for electric fields on structured grids.
+ * Used by both pre-computed field arrays (Core-only) and live FieldServer
+ * (Full build with fieldsolver).
+ *
+ *   @date        2025-11-10
+ *   @version     1.0.0
+ *   @author      Christoph Schäfer
+ *   @license     MIT License
+ *
+ * =====================================================================
+ */
+
+#pragma once
+
+#include <vector>
+#include <chrono>
+
+namespace ICARION {
+namespace fields {
+
+/**
+ * @brief Simple 3D vector for field representation
+ */
+struct Vec3d {
+    double x{0.0};
+    double y{0.0};
+    double z{0.0};
+    
+    Vec3d() = default;
+    Vec3d(double x_, double y_, double z_) : x(x_), y(y_), z(z_) {}
+};
+
+/**
+ * @brief Structured 3D grid for field arrays
+ */
+struct Grid3DSnapshot {
+    int nx{0}, ny{0}, nz{0};
+    double dx{1.0}, dy{1.0}, dz{1.0};
+    Vec3d origin{0.0, 0.0, 0.0};
+    
+    // Flattened field arrays of size nx*ny*nz
+    std::vector<double> Ex, Ey, Ez;
+};
+
+/**
+ * @brief Field snapshot with metadata
+ */
+struct FieldSnapshot {
+    Grid3DSnapshot grid;
+    std::chrono::steady_clock::time_point timestamp;
+    int version{0};
+};
+
+/**
+ * @brief Sample electric field using trilinear interpolation
+ * 
+ * @param snapshot Field snapshot containing grid data
+ * @param pos Position to sample at (in meters)
+ * @return Interpolated field E(pos) in V/m
+ * 
+ * Uses trilinear interpolation between the 8 nearest grid points.
+ * Clamps to grid bounds if position is outside.
+ */
+Vec3d sample_field(const FieldSnapshot& snapshot, const Vec3d& pos);
+
+}  // namespace fields
+}  // namespace ICARION

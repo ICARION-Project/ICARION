@@ -67,13 +67,17 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     parser.add_options("Core")
         ("h,help", "Show this help message and exit")
         ("v,version", "Show version information and exit")
-        ("c,config", "Path to JSON configuration file", 
+        ("config", "Path to JSON configuration file", 
          cxxopts::value<std::string>(), "FILE")
         ("seed", "Override RNG seed from config (for reproducibility)", 
          cxxopts::value<unsigned int>(), "N")
         ("dry-run", "Validate configuration without running simulation")
         ("validate-config", "Validate config file and display warnings/errors")
         ("no-reactions", "Disable chemical reactions (collisions only)");
+    
+    // Configure positional arguments (allows: icarion config.json)
+    parser.parse_positional({"config"});
+    parser.positional_help("<config.json>");
     
     // === Logging options (Phase 1: ACTIVE) ===
     parser.add_options("Logging")
@@ -93,10 +97,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     // === Config overrides (Phase 1: ACTIVE) ===
     parser.add_options("Advanced")
         ("set", "Override config value (e.g., --set simulation.dt_s=1e-10)", 
-         cxxopts::value<std::vector<std::string>>(), "KEY=VALUE")
-        ("benchmark", "[TODO] Print timing statistics for each simulation phase")
-        ("profile", "[TODO] Enable profiling (requires profiler build)")
-        ("check-nan", "[TODO] Enable NaN/Inf checks in integrator");
+         cxxopts::value<std::vector<std::string>>(), "KEY=VALUE");
     
     // === Information flags (Phase 1: ACTIVE) ===
     parser.add_options("Information")
@@ -157,19 +158,15 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     }
     
     // === Parse core options ===
-    if (result.count("config")) {
-        opts.config_file = result["config"].as<std::string>();
-    } else {
-        // Try positional argument (first non-flag argument)
-        if (result.unmatched().size() > 0) {
-            opts.config_file = result.unmatched()[0];
-        } else {
-            std::cerr << "Error: Missing configuration file\n";
-            std::cerr << "Usage: icarion [OPTIONS] <config.json>\n";
-            std::cerr << "Use --help for more information\n";
-            std::exit(1);
-        }
+    // Config file is required (either as --config FILE or positional)
+    if (!result.count("config")) {
+        std::cerr << "Error: Missing configuration file\n";
+        std::cerr << "Usage: icarion [OPTIONS] <config.json>\n";
+        std::cerr << "Use --help for more information\n";
+        std::exit(1);
     }
+    
+    opts.config_file = result["config"].as<std::string>();
     
     if (result.count("seed")) {
         opts.seed = result["seed"].as<unsigned int>();
@@ -223,15 +220,6 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
             std::string value = override.substr(eq_pos + 1);
             opts.overrides[key] = value;
         }
-    }
-    
-    // === Parse performance/debug flags (Phase 2: TODO) ===
-    opts.benchmark = result.count("benchmark") > 0;
-    opts.profile = result.count("profile") > 0;
-    opts.check_nan = result.count("check-nan") > 0;
-    
-    if (opts.benchmark || opts.profile || opts.check_nan) {
-        std::cerr << "Warning: Performance/debug flags are not yet implemented (TODO Phase 2)\n";
     }
     
     return opts;

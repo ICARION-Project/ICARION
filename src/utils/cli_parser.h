@@ -56,11 +56,6 @@ struct CLIOptions {
     // === Config overrides (Phase 1: ACTIVE) ===
     std::map<std::string, std::string> overrides;  ///< Config key-value overrides (--set)
     
-    // === Performance/Debug (TODO - Phase 2) ===
-    bool benchmark{false};       ///< Print timing statistics (TODO)
-    bool profile{false};         ///< Enable profiling (TODO)
-    bool check_nan{false};       ///< Enable NaN/Inf checks (TODO)
-    
     // === Information flags (Phase 1: ACTIVE) ===
     bool dump_build_info{false};      ///< Show detailed build information
     bool dump_hdf5_schema{false};     ///< Show HDF5 output schema

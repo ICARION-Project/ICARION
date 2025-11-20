@@ -34,11 +34,11 @@ struct PhysicsConfig {
      */
     void validate() const {
         
-        // OU thermalization with stochastic models is redundant
+        // OU thermalization with stochastic models might be redundant
         if (force_ou_for_stochastic && 
-            (collision_model == CollisionModel::HSMC || 
+            (collision_model == CollisionModel::HSS || 
              collision_model == CollisionModel::EHSS)) {
-            throw std::runtime_error("force_ou_for_stochastic cannot be true when using stochastic collision models (HSMC or EHSS)");
+            throw std::runtime_error("force_ou_for_stochastic cannot be true when using stochastic collision models (HSS or EHSS)");
         }
     }
 };

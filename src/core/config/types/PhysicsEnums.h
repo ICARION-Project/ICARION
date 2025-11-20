@@ -13,11 +13,11 @@ namespace ICARION::config {
  */
 enum class CollisionModel {
     NoCollisions,       ///< No collisions (vacuum)
-    HardSphere,         ///< Hard-sphere collision model
+    HSD,                ///< Hard-Sphere Deterministic
     Langevin,           ///< Langevin collision model (polarization-limited)
     Friction,           ///< Friction force model
     EHSS,               ///< Energy-dependent hard-sphere scattering
-    HSMC,               ///< Hard-sphere Monte Carlo
+    HSS,                ///< Hard-Sphere Stochastic (spherical scattering)
     UnknownCollisionModel  ///< Invalid/unknown model
 };
 

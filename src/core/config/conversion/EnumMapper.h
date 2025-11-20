@@ -71,11 +71,14 @@ public:
             {"nocollisions", CollisionModel::NoCollisions},
             {"vacuum", CollisionModel::NoCollisions},
             {"ehss", CollisionModel::EHSS},
-            {"hsmc", CollisionModel::HSMC},
+            {"hss", CollisionModel::HSS},
+            {"hsmc", CollisionModel::HSS},  // Legacy alias
             {"langevin", CollisionModel::Langevin},
             {"friction", CollisionModel::Friction},
-            {"hardsphere", CollisionModel::HardSphere},
-            {"hs", CollisionModel::HardSphere}
+            {"hsd", CollisionModel::HSD},
+            {"hardsphere", CollisionModel::HSD},  // Legacy alias
+            {"hard-sphere", CollisionModel::HSD},  // Legacy alias
+            {"hs", CollisionModel::HSD}  // Legacy alias
         };
         
         std::string lower = to_lower(str);
@@ -142,11 +145,11 @@ public:
     static std::string collision_model_to_string(CollisionModel model) {
         switch (model) {
             case CollisionModel::NoCollisions: return "NoCollisions";
-            case CollisionModel::HardSphere: return "HardSphere";
+            case CollisionModel::HSD: return "HSD";
             case CollisionModel::Langevin: return "Langevin";
             case CollisionModel::Friction: return "Friction";
             case CollisionModel::EHSS: return "EHSS";
-            case CollisionModel::HSMC: return "HSMC";
+            case CollisionModel::HSS: return "HSS";
             case CollisionModel::UnknownCollisionModel: return "Unknown";
             default: return "Unknown";
         }

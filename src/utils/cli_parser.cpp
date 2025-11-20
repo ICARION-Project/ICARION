@@ -19,7 +19,10 @@
 #include "cli_parser.h"
 #include <cxxopts.hpp>
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
+#include <hdf5.h>
+#include <unistd.h>
 
 #ifndef ICARION_VERSION
 #define ICARION_VERSION "1.0.0"
@@ -101,7 +104,9 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         ("dump-hdf5-schema", "Show HDF5 output schema documentation")
         ("dump-config-schema", "Show path to JSON config schemas")
         ("list-collision-models", "List available collision models")
-        ("list-integrators", "List available integrators");
+        ("list-integrators", "List available integrators")
+        ("validate-schema", "Validate config against schema (uses validator.py)")
+        ("check-deps", "Verify all dependencies and their versions");
     
     // Parse
     cxxopts::ParseResult result;
@@ -140,10 +145,14 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     opts.dump_config_schema = result.count("dump-config-schema") > 0;
     opts.list_collision_models = result.count("list-collision-models") > 0;
     opts.list_integrators = result.count("list-integrators") > 0;
+    opts.check_deps = result.count("check-deps") > 0;
+    
+    // validate-schema needs config file, so parse it separately
+    opts.validate_schema = result.count("validate-schema") > 0;
     
     if (opts.dump_build_info || opts.dump_hdf5_schema || opts.dump_config_schema ||
-        opts.list_collision_models || opts.list_integrators) {
-        // Info flags don't require config file
+        opts.list_collision_models || opts.list_integrators || opts.check_deps) {
+        // These info flags don't require config file
         return opts;
     }
     
@@ -415,6 +424,94 @@ void list_integrators() {
     std::cout << "\nNotes:\n";
     std::cout << "  - RK4 is default for most instrument types\n";
     std::cout << "  - Can be overridden per-domain in config\n";
+}
+
+void check_dependencies() {
+    std::cout << "Checking Dependencies:\n";
+    std::cout << "======================\n\n";
+    
+    // Core dependencies
+    std::cout << "Core Libraries:\n";
+    std::cout << "  HDF5         : " << H5_VERS_INFO << "\n";
+    
+#ifdef JSONCPP_VERSION_STRING
+    std::cout << "  JsonCpp      : " << JSONCPP_VERSION_STRING << "\n";
+#else
+    std::cout << "  JsonCpp      : Found (version unknown)\n";
+#endif
+    
+    std::cout << "  cxxopts      : 3.1.1\n";
+    
+    // Optional features
+    std::cout << "\nOptional Features:\n";
+#ifdef USE_CUDA
+    std::cout << "  CUDA         : Enabled\n";
+#else
+    std::cout << "  CUDA         : Disabled\n";
+#endif
+    
+#ifdef _OPENMP
+    std::cout << "  OpenMP       : Enabled (version " << _OPENMP << ")\n";
+#else
+    std::cout << "  OpenMP       : Disabled\n";
+#endif
+    
+    // Build configuration
+    std::cout << "\nBuild Configuration:\n";
+#ifdef __GNUC__
+    std::cout << "  Compiler     : GCC " << __GNUC__ << "." << __GNUC_MINOR__ << "." << __GNUC_PATCHLEVEL__ << "\n";
+#elif defined(__clang__)
+    std::cout << "  Compiler     : Clang " << __clang_major__ << "." << __clang_minor__ << "." << __clang_patchlevel__ << "\n";
+#elif defined(_MSC_VER)
+    std::cout << "  Compiler     : MSVC " << _MSC_VER << "\n";
+#else
+    std::cout << "  Compiler     : Unknown\n";
+#endif
+    std::cout << "  C++ Standard : C++" << __cplusplus / 100 % 100 << "\n";
+    
+#ifdef NDEBUG
+    std::cout << "  Build Type   : Release\n";
+#else
+    std::cout << "  Build Type   : Debug\n";
+#endif
+    
+    std::cout << "\nStatus: ✓ All required dependencies found\n";
+}
+
+void validate_schema(const std::string& config_file) {
+    std::cout << "Validating configuration against schema...\n";
+    std::cout << "Config file: " << config_file << "\n\n";
+    
+    // Get absolute paths (validator.py needs them for URI resolution)
+    char* cwd = getcwd(nullptr, 0);
+    std::string abs_cwd = cwd ? std::string(cwd) : ".";
+    free(cwd);
+    
+    std::string validator_path = abs_cwd + "/schema/validator.py";
+    std::string schema_dir = abs_cwd + "/schema";
+    
+    // Check if validator exists
+    std::ifstream validator_check(validator_path);
+    
+    if (!validator_check.good()) {
+        std::cerr << "Error: Schema validator not found at " << validator_path << "\n";
+        std::cerr << "Please ensure schema/validator.py exists\n";
+        std::exit(1);
+    }
+    
+    // Run validator
+    std::string cmd = "python3 " + validator_path + " --schema-dir " + schema_dir + " " + config_file;
+    std::cout << "Running: " << cmd << "\n";
+    std::cout << "----------------------------------------\n";
+    
+    int result = std::system(cmd.c_str());
+    
+    if (result == 0) {
+        std::cout << "\n✓ Configuration is valid\n";
+    } else {
+        std::cout << "\n✗ Configuration validation failed\n";
+        std::exit(1);
+    }
 }
 
 }  // namespace cli

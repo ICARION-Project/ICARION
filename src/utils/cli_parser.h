@@ -67,6 +67,8 @@ struct CLIOptions {
     bool dump_config_schema{false};   ///< Export JSON config schema
     bool list_collision_models{false}; ///< List available collision models
     bool list_integrators{false};     ///< List available integrators
+    bool validate_schema{false};      ///< Validate config against schema using validator.py
+    bool check_deps{false};           ///< Verify all dependencies and versions
 };
 
 /**
@@ -114,6 +116,16 @@ void list_collision_models();
  * @brief List available integrators
  */
 void list_integrators();
+
+/**
+ * @brief Validate config file against JSON schema
+ */
+void validate_schema(const std::string& config_file);
+
+/**
+ * @brief Check all dependencies and their versions
+ */
+void check_dependencies();
 
 }  // namespace cli
 }  // namespace ICARION

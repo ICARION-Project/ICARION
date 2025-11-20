@@ -114,6 +114,16 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     
+    if (opts.check_deps) {
+        ICARION::cli::check_dependencies();
+        return 0;
+    }
+    
+    if (opts.validate_schema) {
+        ICARION::cli::validate_schema(opts.config_file);
+        return 0;
+    }
+    
     // === Apply logging options (Phase 1) ===
     if (opts.log_file.has_value()) {
         // Redirect stdout/stderr to file

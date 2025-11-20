@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://icarion.org/schemas/ions/v1.0.json",
+  "$id": "https://icarion.io/schemas/v1.0/ions.schema.json",
   "title": "ICARION Ion Initialization Schema",
   "description": "Schema for ICARION ion initialization (v1.0). Defines per-species position boundaries and velocity distributions for flexible ion generation.",
   "type": "object",

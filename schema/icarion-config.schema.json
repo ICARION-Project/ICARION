@@ -41,6 +41,11 @@
       "description": "Output file and logging configuration"
     },
     
+    "ions": {
+      "$ref": "ions.schema.json",
+      "description": "Ion initialization configuration (optional, alternative to ion_cloud_path)"
+    },
+    
     "domains": {
       "type": "array",
       "description": "List of instrument domains (multi-domain support)",

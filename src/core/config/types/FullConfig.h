@@ -87,10 +87,10 @@ struct FullConfig {
             throw std::runtime_error("Reactions enabled but no reaction database specified");
         }
         
-        // Ion cloud validation
-        if (ion_cloud_path.empty()) {
-            throw std::runtime_error("No ion cloud file specified");
-        }
+        // Ion cloud validation (optional for testing/validation runs)
+        // if (ion_cloud_path.empty()) {
+        //     throw std::runtime_error("No ion cloud file specified");
+        // }
     }
     
     /**

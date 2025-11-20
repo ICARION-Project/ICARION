@@ -37,6 +37,7 @@ struct CLIOptions {
     bool no_reactions{false};             ///< Disable reactions (--no-reactions)
     bool show_help{false};                ///< Show help message (--help)
     bool show_version{false};             ///< Show version (--version)
+    bool validate_config{false};          ///< Validate config and exit (--validate-config)
 };
 
 /**

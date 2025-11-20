@@ -47,6 +47,7 @@ void print_help(const std::string& program_name) {
     std::cout << "  --seed N             Override RNG seed from config (for reproducibility)\n";
     std::cout << "  --dry-run            Validate configuration without running simulation\n";
     std::cout << "  --no-reactions       Disable chemical reactions (collisions only)\n";
+    std::cout << "  --validate-config    Validate config file and display warnings/errors\n";
     std::cout << "\n";
     std::cout << "Examples:\n";
     std::cout << "  " << program_name << " params.json\n";
@@ -103,6 +104,9 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         }
         else if (arg == "--no-reactions") {
             opts.no_reactions = true;
+        }
+        else if (arg == "--validate-config") {
+            opts.validate_config = true;
         }
         else if (arg[0] == '-') {
             std::cerr << "Error: Unknown option '" << arg << "'\n";

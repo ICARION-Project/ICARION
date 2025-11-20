@@ -48,6 +48,10 @@
 #include "core/physics/reactions/reactionUtils.h"
 #include "core/io/fieldArrayLoader.h"
 #include "core/io/speciesLoader.h"
+
+// New config system (Phase 4)
+#include "core/config/loader/ConfigLoader.h"
+#include "core/config/adapter/LegacyAdapter.h"
 #include "core/io/reactionLoader.h"
 
 /**
@@ -89,19 +93,57 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    try {
-        // === 1. Load global parameters ===
-        GlobalParams gParams = load_global_params(opts.config_file);
+    // === Handle --validate-config (Phase 4) ===
+    if (opts.validate_config) {
+        std::cout << "=== ICARION Configuration Validation ===" << std::endl;
+        std::cout << "Config file: " << opts.config_file << std::endl << std::endl;
         
-        // Read full configuration JSON for metadata
-        std::string config_json;
-        std::ifstream config_file(opts.config_file);
-        if (config_file.is_open()) {
-            std::stringstream buffer;
-            buffer << config_file.rdbuf();
-            config_json = buffer.str();
-            config_file.close();
+        try {
+            // Load config using new system
+            auto config = ICARION::config::ConfigLoader::load(opts.config_file);
+            
+            // Validate (already done in load(), but we want to show results)
+            auto validation = config.validate();
+            
+            std::cout << "--- Validation Results ---" << std::endl;
+            if (validation.valid && validation.warnings.empty()) {
+                std::cout << "✓ Configuration is valid (no warnings)" << std::endl;
+                return 0;
+            }
+            
+            if (validation.valid) {
+                std::cout << "✓ Configuration is valid (with warnings)" << std::endl;
+            } else {
+                std::cout << "✗ Configuration has errors" << std::endl;
+            }
+            
+            if (!validation.warnings.empty()) {
+                std::cout << std::endl << "Warnings:" << std::endl;
+                for (const auto& warn : validation.warnings) {
+                    std::cout << "  ⚠  " << warn << std::endl;
+                }
+            }
+            
+            if (!validation.errors.empty()) {
+                std::cout << std::endl << "Errors:" << std::endl;
+                for (const auto& err : validation.errors) {
+                    std::cout << "  ✗  " << err << std::endl;
+                }
+            }
+            
+            return validation.valid ? 0 : 1;
+            
+        } catch (const std::exception& e) {
+            std::cerr << "✗ Configuration validation failed: " << e.what() << std::endl;
+            return 1;
         }
+    }
+
+    try {
+        // === 1. Load configuration (new system with legacy adapter) ===
+        // TODO: Remove LegacyAdapter once integrator/physics/IO are refactored
+        auto full_config = ICARION::config::ConfigLoader::load(opts.config_file);
+        GlobalParams gParams = ICARION::config::LegacyAdapter::to_global_params(full_config);
         
         // Override RNG seed if --seed was provided
         if (opts.seed.has_value()) {
@@ -114,43 +156,39 @@ int main(int argc, char* argv[]) {
             std::cout << "Disabling reactions (--no-reactions)\n";
             gParams.enable_reactions = false;
         }
+        
+        // Read full configuration JSON string for metadata/logging
+        std::string config_json;
+        std::ifstream config_file(opts.config_file);
+        if (config_file.is_open()) {
+            std::stringstream buffer;
+            buffer << config_file.rdbuf();
+            config_json = buffer.str();
+            config_file.close();
+        }
 
-        // === 2. Parse full JSON configuration ===
-        std::ifstream file(opts.config_file);
-        if (!file) {
-            std::cerr << "Could not open JSON file: " << opts.config_file << "\n";
-            return 1;
-        }   
-
-        Json::Value jRoot;
-        file >> jRoot;
-
-        // === 3. Load instrument domains ===
-        std::vector<InstrumentDomain> domains;
-        const auto& domains_array = jRoot["domains"];
-        for (Json::ArrayIndex i = 0; i < domains_array.size(); ++i) {
-            const auto& jDom = domains_array[i];
-            InstrumentDomain dom = load_single_domain(jDom); 
+        // === 3. Load instrument domains (via legacy adapter) ===
+        std::vector<InstrumentDomain> domains = ICARION::config::LegacyAdapter::to_instrument_domains(full_config);
+        
+        // Load field arrays (if specified)
+        for (auto& dom : domains) {
             if (!dom.FA_file.empty()) {
                 dom.fieldArray = load_field_array(dom.FA_file);
-                dom.fieldArrayLoaded = true;
-                    dom.fieldArrayLoaded = dom.fieldArray.is_valid();
+                dom.fieldArrayLoaded = dom.fieldArray.is_valid();
             }
-                if (!dom.FA_terms.empty()) {
-                    size_t ok = 0;
-                    for (auto& t : dom.FA_terms) {
-                        try {
-                            t.field = load_field_array(t.file);
-                            t.loaded = t.field.is_valid();
-                            if (t.loaded) ok++;
-                        } catch (...) {
-                            t.loaded = false;
-                        }
+            if (!dom.FA_terms.empty()) {
+                size_t ok = 0;
+                for (auto& t : dom.FA_terms) {
+                    try {
+                        t.field = load_field_array(t.file);
+                        t.loaded = t.field.is_valid();
+                        if (t.loaded) ok++;
+                    } catch (...) {
+                        t.loaded = false;
                     }
-                    dom.fieldArrayLoaded = (ok == dom.FA_terms.size() && ok > 0) || dom.fieldArrayLoaded;
                 }
-            dom.index = static_cast<int>(i);                  
-            domains.push_back(dom);
+                dom.fieldArrayLoaded = (ok == dom.FA_terms.size() && ok > 0) || dom.fieldArrayLoaded;
+            }
         }
         std::cout << "Loaded " << domains.size() << " instrument domains.\n";
         ICARION::utils::print_domain_summary(domains);

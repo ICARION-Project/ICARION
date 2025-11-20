@@ -1,0 +1,46 @@
+{
+  "species": {
+    "H3O+": {
+      "mass_amu": 19.02,
+      "charge": 1,
+      "mobility_cm2Vs": 2.8,
+      "CCS_A2": 11.0,
+      "name": "Hydronium ion",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory"
+    },
+    "H5O2+": {
+      "mass_amu": 37.03,
+      "charge": 1,
+      "mobility_cm2Vs": 2.1,
+      "CCS_A2": 14.5,
+      "name": "Protonated water dimer"
+    },
+    "O2-": {
+      "mass_amu": 31.998,
+      "charge": -1,
+      "mobility_cm2Vs": 2.3,
+      "CCS_A2": 13.2,
+      "name": "Superoxide ion"
+    },
+    "H2O": {
+      "mass_amu": 18.015,
+      "charge": 0,
+      "polarizability_A3": 1.45,
+      "name": "Water"
+    },
+    "He": {
+      "mass_amu": 4.003,
+      "charge": 0,
+      "polarizability_A3": 0.205,
+      "name": "Helium"
+    },
+    "N2": {
+      "mass_amu": 28.014,
+      "charge": 0,
+      "polarizability_A3": 1.74,
+      "name": "Nitrogen"
+    }
+  }
+}

@@ -591,7 +591,7 @@ InstrumentDomain load_single_domain(const Json::Value& j) {
         
         if (dom.AC.voltage_V != 0.0 && dom.AC.frequency_Hz == 0.0) {
             std::cerr << "Warning: AC voltage set but frequency is zero. Using pseudopotential approximation (m/z = 100).\n";
-            double q_param = 4.0 * ELECTRON_CHARGE * dom.AC.voltage_V / 
+            double q_param = 4.0 * ELEM_CHARGE_C * dom.AC.voltage_V / 
                             (100.0 * AMU_TO_KG * dom.geom.radius_m * dom.geom.radius_m * 
                              dom.RF.angular_frequency_rad_s * dom.RF.angular_frequency_rad_s);
             double beta = std::sqrt(0.5 * q_param * q_param);

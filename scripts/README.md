@@ -35,27 +35,32 @@ python3 src/core/config/schema/validator.py my_config.json
 ### Usage Examples
 
 #### 1. Generate IMS Configuration
+
 ```bash
 python3 scripts/create_config.py --template ims --output configs/my_ims_run.json
 ```
 
 #### 2. Interactive Mode (Advanced)
+
 ```bash
 python3 scripts/create_config.py --interactive --output configs/custom.json
 ```
+
 Follow the prompts to customize:
+
 - Simulation time and timestep
 - Collision model
 - Number of domains
 - Field configurations
 
 #### 3. Customize Template Parameters
+
 ```bash
 python3 scripts/create_config.py \
     --template ims \
     --total-time 1e-3 \
     --timestep 1e-9 \
-    --collision-model HSMC \
+    --collision-model HSS \
     --output configs/my_config.json
 ```
 
@@ -87,15 +92,17 @@ Template customization:
 ### Generated Config Features
 
 All generated configs include:
-- ✅ Valid JSON Schema v1.0 format
-- ✅ Sensible default parameters
-- ✅ Inline comments (via `"_comment"` fields)
-- ✅ Ready for validation and simulation
-- ✅ Documented field descriptions
+
+- Valid JSON Schema v1.0 format
+- Reasonable default parameters
+- Inline comments (via `"_comment"` fields)
+- Ready for validation and simulation
+- Documented field descriptions
 
 ### Workflow Integration
 
 **Recommended workflow:**
+
 ```bash
 # 1. Create config from template
 python3 scripts/create_config.py --template ims --output my_sim.json
@@ -114,6 +121,7 @@ python3 src/core/config/schema/validator.py my_sim.json
 ### Validation Features
 
 The script automatically checks:
+
 - Required fields present
 - Valid enum values
 - Positive values for physical quantities

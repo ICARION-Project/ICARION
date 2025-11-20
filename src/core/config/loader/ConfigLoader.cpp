@@ -84,11 +84,16 @@ FullConfig ConfigLoader::load_from_json(const Json::Value& root,
     // Finalize all domains (compute derived quantities)
     config.finalize_all();
     
+    // Load databases (species, reactions) if paths specified
+    config.load_databases(base_path);
+    
     // Validate complete configuration
     config.validate();
     
     std::cout << "[ConfigLoader] Loaded configuration: " 
-              << config.domains.size() << " domains" << std::endl;
+              << config.domains.size() << " domains, "
+              << config.species_db.size() << " species, "
+              << config.reaction_db.size() << " reactions" << std::endl;
     
     return config;
 }

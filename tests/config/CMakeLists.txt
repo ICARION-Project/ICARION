@@ -38,3 +38,73 @@ target_include_directories(test_legacy_adapter
 )
 
 add_test(NAME LegacyAdapter COMMAND test_legacy_adapter)
+
+# Species and Reaction loader smoke tests
+add_executable(test_species_loader_smoke
+    test_species_loader.cpp
+)
+
+target_link_libraries(test_species_loader_smoke
+    PRIVATE
+    icarion_core
+)
+
+target_include_directories(test_species_loader_smoke
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+add_test(NAME SpeciesLoaderSmoke COMMAND test_species_loader_smoke)
+
+# Species loader unit tests
+add_executable(test_species_loader_unit
+    test_species_loader_unit.cpp
+)
+
+target_link_libraries(test_species_loader_unit
+    PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+
+target_include_directories(test_species_loader_unit
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+add_test(NAME SpeciesLoaderUnit COMMAND test_species_loader_unit)
+
+# Reaction loader unit tests
+add_executable(test_reaction_loader_unit
+    test_reaction_loader_unit.cpp
+)
+
+target_link_libraries(test_reaction_loader_unit
+    PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+
+target_include_directories(test_reaction_loader_unit
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+add_test(NAME ReactionLoaderUnit COMMAND test_reaction_loader_unit)
+
+# Database integration test (ConfigLoader with species/reactions)
+add_executable(test_database_integration
+    test_database_integration.cpp
+)
+
+target_link_libraries(test_database_integration
+    PRIVATE
+    icarion_core
+)
+
+target_include_directories(test_database_integration
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+add_test(NAME DatabaseIntegration COMMAND test_database_integration)

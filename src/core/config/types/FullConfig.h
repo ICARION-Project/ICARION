@@ -8,9 +8,12 @@
 #include "PhysicsConfig.h"
 #include "OutputConfig.h"
 #include "DomainConfig.h"
+#include "SpeciesConfig.h"
+#include "ReactionConfig.h"
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <filesystem>
 
 namespace ICARION::config {
 
@@ -34,9 +37,23 @@ struct FullConfig {
     std::string reaction_database_path = "";    ///< Reaction rates database
     std::string ion_cloud_path = "";            ///< Initial ion cloud distribution
     
+    // === Loaded databases (in-memory, populated after loading) ===
+    SpeciesDatabase species_db;                 ///< Loaded species properties
+    ReactionDatabase reaction_db;               ///< Loaded reactions
+    
     // === Optional metadata ===
     std::string title = "";                     ///< Simulation title/description
     std::string config_file_path = "";          ///< Path to loaded config file (for reference)
+    
+    /**
+     * @brief Load databases from specified paths
+     * 
+     * @param base_path Base directory for resolving relative paths
+     * 
+     * Loads species and reaction databases if paths are specified.
+     * Must be called after config is loaded from JSON.
+     */
+    void load_databases(const std::filesystem::path& base_path);
     
     /**
      * @brief Finalize all domains
@@ -85,8 +102,8 @@ struct FullConfig {
         }
         
         // Physics validation
-        if (physics.enable_reactions && reaction_database_path.empty()) {
-            result.add_error("Reactions enabled but no reaction database specified");
+        if (physics.enable_reactions && reaction_db.size() == 0) {
+            result.add_error("Reactions enabled but no reactions loaded (check reaction_database path or global fallback)");
         }
         
         // Ion cloud validation

@@ -94,7 +94,7 @@ Json::Value make_ims_config(bool enable_gpu) {
 }
 
 double compute_expected_mobility(double total_time_s, double mass_amu) {
-    const double charge_C = ELECTRON_CHARGE;
+    const double charge_C = ELEM_CHARGE_C;
     const double mass_kg = mass_amu * AMU_TO_KG;
     return 0.5 * charge_C * total_time_s / mass_kg;
 }

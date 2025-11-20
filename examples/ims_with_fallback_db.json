@@ -1,0 +1,41 @@
+{
+  "title": "IMS with Auto-Loaded Global Databases (Fallback Demo)",
+  "simulation": {
+    "integrator": "rk4",
+    "dt_s": 1e-9,
+    "total_time_s": 1e-4,
+    "write_interval": 100
+  },
+  "physics": {
+    "collision_model": "hs",
+    "enable_spacecharge": false,
+    "enable_reactions": true,
+    "enable_diffusion": true
+  },
+  "output": {
+    "trajectory_file": "ims_fallback_trajectory.h5",
+    "format": "hdf5",
+    "compress": true
+  },
+  "ion_cloud": "ion_clouds/default_cloud.json",
+  "domains": [
+    {
+      "name": "drift_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.1,
+        "radius_m": 0.02
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 101325.0,
+        "gas": "N2"
+      },
+      "efield": {
+        "mode": "uniform",
+        "uniform_field_Vm": [500.0, 0.0, 0.0]
+      }
+    }
+  ]
+}

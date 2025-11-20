@@ -179,7 +179,7 @@ SpeciesDatabase load_species(const std::string& filepath) {
         species.mass_u = j["mass_u"].asDouble();
         species.mass_kg = species.mass_u * AMU_TO_KG;
         species.charge_e = j["charge_e"].asDouble();
-        species.charge_C = species.charge_e * ELECTRON_CHARGE;
+        species.charge_C = species.charge_e * ELEM_CHARGE_C;
         
         // Optional fields
         species.CCS_m2 = j.get("CCS_m2", 0.0).asDouble();

@@ -73,7 +73,7 @@ double Reaction::effective_rate_constant(double temperature_K) const {
     }
     
     // Arrhenius equation: k(T) = k0 * exp(-Ea / (kB * T))
-    double Ea_J = activation_energy_eV * ELECTRON_CHARGE;  // Convert eV to J
+    double Ea_J = activation_energy_eV * ELEM_CHARGE_C;  // Convert eV to J
     double exponent = -Ea_J / (BOLTZMANN_CONSTANT * temperature_K);
     return rate_constant_SI * std::exp(exponent);
 }

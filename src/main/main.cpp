@@ -271,7 +271,7 @@ int main(int argc, char* argv[]) {
                 new_species.mass_kg = old_species.mass_kg;
                 new_species.mass_u = old_species.mass_kg / AMU_TO_KG;
                 new_species.charge_C = old_species.charge;
-                new_species.charge_e = old_species.charge / ELECTRON_CHARGE;
+                new_species.charge_e = old_species.charge / ELEM_CHARGE_C;
                 new_species.mobility_m2Vs = old_species.mobility;
                 new_species.CCS_m2 = old_species.CCS;
                 speciesDB.add(new_species);

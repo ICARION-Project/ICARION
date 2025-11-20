@@ -105,7 +105,7 @@ public:
      * @return Energy [J]
      */
     static constexpr double eV_to_J(double eV) {
-        return eV * ELECTRON_CHARGE;
+        return eV * ELEM_CHARGE_C;
     }
     
     /**
@@ -115,7 +115,7 @@ public:
      * @return Energy [eV]
      */
     static constexpr double J_to_eV(double J) {
-        return J / ELECTRON_CHARGE;
+        return J / ELEM_CHARGE_C;
     }
     
     // === Temperature ===

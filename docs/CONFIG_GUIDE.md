@@ -84,11 +84,176 @@ ICARION uses a hierarchical JSON configuration with four main sections:
 ```json
 {
   "title": "My Simulation",                          // Human-readable description
-  "species_database_path": "data/species.json",      // Path to species database
-  "reaction_database_path": "data/reactions.json",   // Path to reaction database
-  "ion_cloud_path": "data/initial_cloud.h5"          // Path to initial ion distribution
+  "species_database": "data/species_database_v1.json",  // Species properties database (optional)
+  "reaction_database": "data/reactions_database_v1.json", // Reaction rates database (optional)
+  "ion_cloud": "data/initial_cloud.h5"               // Initial ion distribution
 }
 ```
+
+**Note on Database Paths:**
+
+- Both `species_database` and `reaction_database` are **optional**
+- If not specified, ICARION will automatically search for global fallback databases:
+  - `data/species_database_v1.json` (global species database)
+  - `data/reactions_database_v1.json` (global reactions database)
+- The fallback search starts from the config file's directory and searches up to 5 levels
+- A log message `ℹ No [species/reaction] database specified, using global fallback: ...` indicates fallback usage
+- If no database is found (neither specified nor fallback), databases remain empty (which is valid for simulations without reactions)
+
+---
+
+## Species and Reaction Databases (v1.0)
+
+ICARION supports external databases for species properties and reaction rates.
+
+### Species Database
+
+Species databases define physical properties of ions and neutrals in user-friendly units:
+
+```json
+{
+  "species": {
+    "H3O+": {
+      "name": "Hydronium ion",
+      "mass_amu": 19.02,
+      "charge": 1,
+      "mobility_cm2Vs": 2.8,
+      "CCS_A2": 11.0,
+      "reference_temperature_K": 300.0,
+      "reference_pressure_Pa": 101325.0,
+      "ccs_method": "trajectory"
+    },
+    "H2O": {
+      "name": "Water",
+      "mass_amu": 18.015,
+      "charge": 0,
+      "polarizability_A3": 1.47
+    }
+  }
+}
+```
+
+**Required fields:**
+
+- `mass_amu`: Molecular mass in atomic mass units
+- `charge`: Charge state (integer: -2, -1, 0, +1, +2, ...)
+
+**Optional fields (ions):**
+
+- `mobility_cm2Vs`: Reduced ion mobility at STP [cm²/(V·s)]
+- `CCS_A2`: Collision cross-section [Ų]
+
+**Optional fields (neutrals):**
+
+- `polarizability_A3`: Electric polarizability [ų]
+
+**Optional metadata:**
+
+- `name`: Human-readable name
+- `geometry_file`: Path to molecular geometry (e.g., .xyz, .pdb, required for EHSS)
+- `reference_temperature_K`: Temperature for mobility/CCS measurements (just for reproducibility)
+- `reference_pressure_Pa`: Pressure for mobility measurements (just for reproducibility)
+- `ccs_method`: Method used to determine CCS (`"trajectory"`, `"projection"`, etc., for reproducibility)
+
+**Unit conversions:** ICARION automatically converts to SI internally:
+
+- `mass_amu` → kg (× 1.66054e-27)
+- `charge` → C (× 1.60218e-19)
+- `mobility_cm2Vs` → m²/(V·s) (× 1e-4)
+- `CCS_A2` → m² (× 1e-20)
+- `polarizability_A3` → m³ (× 1e-30)
+
+### Reaction Database
+
+Reaction databases define ion-molecule reactions with concentration-dependent rates:
+
+```json
+{
+  "reactions": [
+    {
+      "id": "rxn_001_h3o_to_h5o2",
+      "reactant": "H3O+",
+      "product": "H5O2+",
+      "rate_constant_m3s": 3.5e-9,
+      "order": [
+        {
+          "species": "H2O",
+          "exponent": 1,
+          "concentration_m3": 2.5e25
+        }
+      ],
+      "description": "Proton transfer from H3O+ to water cluster",
+      "reference": "Smith et al., J. Chem. Phys. (2020)",
+      "temperature_K": 300.0
+    }
+  ]
+}
+```
+
+**Required fields:**
+
+- `id`: Unique reaction identifier
+- `reactant`: Species ID (must exist in species database)
+- `product`: Species ID (must exist in species database)
+- `rate_constant_m3s`: Base rate constant [m³/s]
+
+**Optional fields:**
+
+- `order`: Array of concentration-dependent terms
+  - `species`: Species ID for concentration dependence
+  - `exponent`: Concentration exponent (allowed: 0, 1, or 2)
+  - `concentration_m3`: Fixed concentration [m⁻³] for pseudo-first-order
+- `description`: Human-readable description
+- `reference`: Literature reference
+- `temperature_K`: Temperature at which rate was measured
+
+**Effective rate calculation:**
+
+The effective rate includes concentration dependencies:
+```
+k_eff = k * [S₁]^n₁ * [S₂]^n₂ * ...
+```
+
+### Using Databases in Configs
+
+**Enable species database:**
+
+```json
+{
+  "species_database": "data/species_database_v1.json",
+  "domains": [ ... ]
+}
+```
+
+**Enable reactions:**
+
+```json
+{
+  "species_database": "data/species_database_v1.json",
+  "reaction_database": "data/reactions_database_v1.json",
+  "physics": {
+    "enable_reactions": true
+  }
+}
+```
+
+**Path resolution:** Paths can be:
+
+- Absolute: `/absolute/path/to/database.json`
+- Relative to config file: `../data/species.json`
+- Relative to working directory: `data/species.json`
+
+**Schema validation:** Use provided JSON schemas to validate databases:
+
+```bash
+python3 schema/validate_schema.py schema/species.schema.json data/species_database_v1.json
+python3 schema/validate_schema.py schema/reactions.schema.json data/reactions_database_v1.json
+```
+
+**Example configs:**
+
+- `examples/ims_with_species_db.json` - IMS with species database
+- `examples/reaction_demo.json` - Ion-molecule reactions
 
 ---
 
@@ -109,6 +274,7 @@ ICARION uses a hierarchical JSON configuration with four main sections:
 ```
 
 **Available Integrators:**
+
 - `"RK4"` - 4th order Runge-Kutta (default, stable)
 - `"RK45"` - Runge-Kutta-Fehlberg (adaptive step size)
 - `"Boris"` - Boris integrator (for strong magnetic fields)

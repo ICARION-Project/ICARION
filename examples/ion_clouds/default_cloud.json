@@ -1,0 +1,10 @@
+[
+  {
+    "species_id": "H3O+",
+    "mass_amu": 19.02,
+    "charge": 1,
+    "position_m": [0.001, 0.0, 0.0],
+    "velocity_ms": [0.0, 0.0, 0.0],
+    "count": 1000
+  }
+]

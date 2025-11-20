@@ -777,7 +777,7 @@ std::vector<IonState> load_final_state_from_HDF5(const std::string& filename) {
             ion.species_id = species_ptrs[i];
             
             // Charge from mass (simple heuristic, could be improved)
-            ion.ion_charge_C = ELECTRON_CHARGE;
+            ion.ion_charge_C = ELEM_CHARGE_C;
             
             ions.push_back(ion);
         }

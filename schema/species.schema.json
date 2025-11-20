@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://icarion.org/schemas/species/v1.0.json",
+  "title": "ICARION Species Database Schema",
+  "description": "Schema for ICARION species database (v1.0). Defines ion and neutral species properties with user-friendly units.",
+  "type": "object",
+  "required": ["species"],
+  "additionalProperties": false,
+  "properties": {
+    "species": {
+      "type": "object",
+      "description": "Dictionary of species keyed by species_id",
+      "patternProperties": {
+        "^[A-Za-z0-9+\\-_]+$": {
+          "type": "object",
+          "required": ["mass_amu", "charge"],
+          "additionalProperties": false,
+          "properties": {
+            "mass_amu": {
+              "type": "number",
+              "description": "Mass in atomic mass units (amu)",
+              "exclusiveMinimum": 0
+            },
+            "charge": {
+              "type": "integer",
+              "description": "Electric charge in elementary charge units (e)",
+              "minimum": -10,
+              "maximum": 10
+            },
+            "name": {
+              "type": "string",
+              "description": "Optional human-readable name of the species",
+              "minLength": 1
+            },
+            "mobility_cm2Vs": {
+              "type": "number",
+              "description": "Reduced ion mobility in cm²/(V·s) at reference conditions",
+              "exclusiveMinimum": 0
+            },
+            "CCS_A2": {
+              "type": "number",
+              "description": "Collision cross section in Ų (Angstrom²)",
+              "exclusiveMinimum": 0
+            },
+            "polarizability_A3": {
+              "type": "number",
+              "description": "Polarizability in ų (Angstrom³)",
+              "exclusiveMinimum": 0
+            },
+            "geometry_file": {
+              "type": "string",
+              "description": "Optional path to geometry file (e.g., .xyz, .pdb)",
+              "minLength": 1
+            },
+            "reference_temperature_K": {
+              "type": "number",
+              "description": "Reference temperature in Kelvin for mobility/CCS measurements",
+              "exclusiveMinimum": 0
+            },
+            "reference_pressure_Pa": {
+              "type": "number",
+              "description": "Reference pressure in Pascal for mobility measurements",
+              "exclusiveMinimum": 0
+            },
+            "ccs_method": {
+              "type": "string",
+              "description": "Method used to determine CCS (e.g., 'trajectory', 'experimental', 'projection')",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "minProperties": 1
+    }
+  },
+  "examples": [
+    {
+      "species": {
+        "H3O+": {
+          "name": "Hydronium ion",
+          "mass_amu": 19.02,
+          "charge": 1,
+          "mobility_cm2Vs": 2.8,
+          "CCS_A2": 11.0,
+          "reference_temperature_K": 300.0,
+          "reference_pressure_Pa": 101325.0,
+          "ccs_method": "trajectory"
+        },
+        "H2O": {
+          "name": "Water",
+          "mass_amu": 18.015,
+          "charge": 0,
+          "polarizability_A3": 1.47
+        }
+      }
+    }
+  ]
+}

@@ -84,7 +84,7 @@ std::unordered_map<std::string, Species> load_speciesDB(
         double mass_amu = sp["mass_amu"].get<double>();
         s.mass_kg       = mass_amu * AMU_TO_KG;
         s.mobility      = sp["mobility"].get<double>();
-        s.charge        = sp["charge"].get<int>() * ELECTRON_CHARGE;
+        s.charge        = sp["charge"].get<int>() * ELEM_CHARGE_C;
         s.CCS           = 3.0 / 16.0 / LOSCHMIDT_CONSTANT * s.charge *
                 std::sqrt(2.0 * M_PI /
                           (BOLTZMANN_CONSTANT * temperature_K *

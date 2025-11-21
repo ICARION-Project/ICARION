@@ -314,142 +314,175 @@ Hierarchical Structure:
 -----------------------
 
 /metadata/
-  /config/                      # Simulation configuration
+  /config/
     format_version      string      Config format version
+    config_json         string      Full FullConfig as JSON (TODO: serializer)
     dt_s                float64     Timestep [s]
     total_time_s        float64     Total simulation time [s]
-    integrator          string      Solver (RK4, RK45, etc.)
+    total_steps         int32       Number of integration steps
+    write_interval      int32       Output write interval
+    integrator          string      Solver type (RK4, RK45, Leapfrog, etc.)
     collision_model     string      Collision model (EHSS, HSMC, etc.)
+    enable_reactions    bool        Chemical reactions enabled?
+    enable_space_charge bool        Space charge enabled?
+    enable_gpu          bool        GPU acceleration enabled?
   
-  /reproducibility/             # Full reproducibility metadata
-    global_seed         uint32      RNG seed
+  /reproducibility/
+    global_seed         uint32      RNG seed for reproducibility
+    rng_algorithm       string      RNG type (std::mt19937_64)
+    seed_scheme         string      Seeding strategy description
     git_hash            string      Git commit hash
-    git_dirty           bool        Uncommitted changes?
+    git_dirty           bool        Uncommitted changes in repo?
+    code_version        string      ICARION version
+    build_type          string      Release or Debug
     compiler_cxx        string      Compiler version
-    build_type          string      Release/Debug
-    /input_hash/                    # SHA256 file hashes
-      config_sha256     string      Config file hash
+    build_info          string      Build information string
+    openmp_threads      int32       OpenMP thread count (if enabled)
+    cuda_version        string      CUDA version (if GPU enabled)
+    /input_hash/
+      config_sha256     string      SHA256 hash of config file
+      species_db_sha256 string      SHA256 hash of species DB (N/A if embedded)
+      reaction_db_sha256 string     SHA256 hash of reaction DB (N/A if embedded)
   
-  /system/                      # Execution environment
+  /system/
     hostname            string      Machine hostname
-    os                  string      Operating system
-    cpu_model           string      CPU model
-    cpu_cores           int32       CPU cores
-    memory_gb           float64     System memory [GB]
-    timestamp           string      ISO8601 start time
+    username            string      Username
+    os                  string      Operating system + release
+    kernel              string      Kernel version
+    cpu_model           string      CPU model name
+    cpu_cores           int32       Number of CPU cores
+    memory_gb           float64     Total system memory [GB]
+    gpu_model           string      GPU model (if CUDA enabled)
+    gpu_memory_gb       float64     GPU memory [GB] (if CUDA enabled)
+    driver_version      string      GPU driver version (if CUDA enabled)
+    timestamp           string      ISO8601 simulation start time (UTC)
   
-  /species/                     # Tabular species data (pandas-compatible)
-    names               string[N]   Species names
+  /species/                         # Tabular format (pandas-compatible)
+    names               string[N]   Species names (variable-length strings)
     mass_kg             float64[N]  Masses [kg]
     charge_C            float64[N]  Charges [C]
-    mobility_m2Vs       float64[N]  Mobilities [m²/(V·s)]
-    CCS_m2              float64[N]  Cross sections [m²]
+    mobility_m2Vs       float64[N]  Reduced mobilities [m²/(V·s)]
+    ccs_m2              float64[N]  Collision cross sections [m²]
   
-  /reactions/                   # Reaction definitions (if enabled)
-    id                  string[R]   Reaction IDs
-    reactant_1          string[R]   First reactant
-    product_1           string[R]   Product
-    rate_constant_m3s   float64[R]  Rate [m³/s]
+  /reactions/                       # Tabular format (if reactions enabled)
+    id                  string[R]   Reaction identifiers
+    reactant_1          string[R]   First reactant species name
+    reactant_2          string[R]   Second reactant (empty if unimolecular)
+    product_1           string[R]   First product species name
+    rate_constant_m3s   float64[R]  Rate constant [m³/s]
+    type                int32[R]    Reaction type enum (2=two-body)
   
-  /completion/                  # Written at simulation end
-    success             bool        Completed?
-    final_time_s        float64     Final time [s]
-    active_ions         int32       Active ions
+  /completion/                      # Written at simulation end
+    success             bool        Simulation completed successfully?
+    final_time_s        float64     Final time reached [s]
+    active_ions         int32       Number of active ions at completion
+    completion_timestamp string     ISO8601 completion time (UTC)
 
-/trajectory/                    # Time-series data (chunked + GZIP compressed)
-  time                  float64[T]      Time points [s]
-  positions             float64[T,N,3]  Positions [m] (x,y,z)
-  velocities            float64[T,N,3]  Velocities [m/s]
-  species_ids           string[T,N]     Species per ion
-  domain_indices        int32[T,N]      Domain index per ion
+/trajectory/                        # Time-series data (chunked, compressed)
+  time                  float64[T]      Time snapshots [s]
+  positions             float64[T×N×3]  Ion positions [m] (x,y,z)
+  velocities            float64[T×N×3]  Ion velocities [m/s] (vx,vy,vz)
+  species_ids           string[T×N]     Species name per ion per timestep
+  domain_indices        int32[T×N]      Domain index per ion per timestep
 
-/ions/                          # Initial conditions
-  initial_species_id    string[N]       Initial species
-  initial_pos_x/y/z     float64[N]      Initial position [m]
-  initial_vel_x/y/z     float64[N]      Initial velocity [m/s]
-  birth_time_s          float64[N]      Birth time [s]
+/ions/                              # Per-ion initial conditions
+  initial_species_id    string[N]       Initial species name
+  initial_pos_x         float64[N]      Initial x position [m]
+  initial_pos_y         float64[N]      Initial y position [m]
+  initial_pos_z         float64[N]      Initial z position [m]
+  initial_vel_x         float64[N]      Initial x velocity [m/s]
+  initial_vel_y         float64[N]      Initial y velocity [m/s]
+  initial_vel_z         float64[N]      Initial z velocity [m/s]
+  birth_time_s          float64[N]      Ion birth time [s]
+  charge_C              float64[N]      Ion charge [C]
 
-/domains/                       # Per-domain hierarchy
+/domains/                           # Per-domain configuration hierarchy
   /domain_0/
     name                string      Domain name
-    instrument          string      Instrument (IMS, TOF, etc.)
+    instrument          string      Instrument type (IMS, TOF, LQIT, Orbitrap, etc.)
+    solver              string      Solver type (RK4, RK45, Leapfrog, etc.)
+    domain_index        int32       Domain index
     /geometry/
-      length_m          float64     Length [m]
-      radius_m          float64     Radius [m]
+      length_m          float64     Domain length [m]
+      radius_m          float64     Inner radius [m]
+      radius_in_m       float64     Inner radius (for LQIT) [m]
+      radius_out_m      float64     Outer radius (for LQIT) [m]
+      origin_m          float64[3]  Origin position [m] (x,y,z)
     /environment/
-      pressure_Pa       float64     Pressure [Pa]
+      pressure_Pa       float64     Gas pressure [Pa]
       temperature_K     float64     Temperature [K]
-      gas_species       string      Gas type
+      gas_species       string      Neutral gas species (N2, He, etc.)
+      particle_density_m3 float64   Number density [m⁻³]
+      mean_thermal_velocity_ms float64 Mean thermal velocity [m/s]
+      gas_velocity_ms   float64[3]  Gas flow velocity [m/s] (x,y,z)
     /fields/
       /dc/
-        axial_V         float64     DC voltage [V]
+        axial_V         float64     DC drift voltage [V]
+        EN_Td           float64     Reduced electric field [Td]
+        quad_V          float64     Quadrupole DC voltage [V] (LQIT)
       /rf/
         voltage_V       float64     RF amplitude [V]
         frequency_Hz    float64     RF frequency [Hz]
+        phase_rad       float64     RF phase [rad]
+      /ac/
+        voltage_V       float64     AC amplitude [V] (LQIT)
+        frequency_Hz    float64     AC frequency [Hz]
+  /domain_1/
+    ...
+  /domain_N/
+    ...
 
-Data Properties:
-----------------
-- Chunked storage: [100 × N × 3] for efficient appending
-- GZIP compression: Level 6 (~3-5× reduction)
-- Variable-length strings: For species/reaction IDs
-- SI units: All physical quantities
-- ISO8601 timestamps: UTC (YYYY-MM-DDTHH:MM:SSZ)
+Storage Properties:
+-------------------
+- Chunked storage: Trajectory datasets use [100 × N × 3] chunks for efficient appending
+- GZIP compression: Level 6 applied to trajectory data (~3-5× size reduction)
+- Unlimited dimensions: Time dimension is extendable (H5S_UNLIMITED)
+- Variable-length strings: For species names, reaction IDs, and text fields
+- SI units: All physical quantities use SI base units
+- ISO8601 timestamps: UTC timezone (YYYY-MM-DDTHH:MM:SSZ format)
+- Row-major order: C/Python convention (not Fortran)
 
-Python Access:
---------------
-import h5py
-import pandas as pd
-
-with h5py.File('icarion_output.h5', 'r') as f:
-    # Configuration
-    dt = f['/metadata/config/dt_s'][()]
-    git_hash = f['/metadata/reproducibility/git_hash'][()].decode()
-    
-    # Species as DataFrame
-    species = pd.DataFrame({
-        'name': f['/metadata/species/names'][:].astype(str),
-        'mass_kg': f['/metadata/species/mass_kg'][:],
-        'mobility': f['/metadata/species/mobility_m2Vs'][:]
-    })
-    
-    # Trajectory (memory-mapped)
-    time = f['/trajectory/time'][:]
-    pos = f['/trajectory/positions'][:]  # [T × N × 3]
-    
-    # Final positions
-    final_x = pos[-1, :, 0]
-    print(f"Final x: min={final_x.min():.3e} m, max={final_x.max():.3e} m")
+Python Access Examples:
+------------------------
+See docs/HDF5_OUTPUT_STRUCTURE.md for complete Python examples with h5py and pandas.
 
 Reproducibility Verification:
 ------------------------------
-import hashlib, h5py
+See docs/HDF5_OUTPUT_STRUCTURE.md for Python code to verify SHA256 hashes.
 
-def verify_config_hash(h5_path, config_path):
-    with h5py.File(h5_path, 'r') as f:
-        stored = f['/metadata/reproducibility/input_hash/config_sha256'][()].decode()
-    
-    with open(config_path, 'rb') as f:
-        computed = hashlib.sha256(f.read()).hexdigest()
-    
-    if stored == computed:
-        print("✓ Config verified - unchanged")
-    else:
-        print("✗ Config modified!")
+MATLAB Access:
+--------------
+MATLAB R2020a+ has native HDF5 support via h5read() and h5info().
+See docs/HDF5_OUTPUT_STRUCTURE.md for MATLAB examples.
 
 Full Documentation:
 -------------------
-- Format spec: docs/HDF5_OUTPUT_STRUCTURE.md
-- API reference: src/core/io/hdf5Writer_v2.h
-- Examples: tests/io/test_hdf5_writer_v2.cpp
+- Detailed format specification: docs/HDF5_OUTPUT_STRUCTURE.md
+- C++ API reference: src/core/io/hdf5Writer_v2.h
+- Test examples and usage: tests/io/test_hdf5_writer_v2.cpp
+- Migration plan: tmp/HDF5_REFACTORING_PLAN.md
 
 Compatibility:
 --------------
-- HDF5: 1.10.0+
-- Python h5py: 2.10.0+
-- MATLAB: R2020a+
-- Julia HDF5.jl: 0.15.0+
+- HDF5 C library 1.10.0+
+- Python h5py 2.10.0+, pandas 1.0.0+
+- MATLAB R2020a+
+- Julia HDF5.jl 0.15.0+
 
-Legacy Format (< v2.0): Not supported - re-run simulations
+Command-Line Tools:
+-------------------
+View file structure:     h5ls -r icarion_output.h5
+Dump structure:          h5dump -H icarion_output.h5
+View specific dataset:   h5dump -d /trajectory/positions icarion_output.h5
+Get compression info:    h5stat icarion_output.h5
+
+Notes:
+------
+- Legacy format (v1.0) is not supported - please re-run old simulations
+- Trajectory append functionality requires integrator refactoring (Phase 2)
+- SHA256 hashing is implemented for config files, species/reaction DBs are embedded
+- All physical quantities use SI base units (meters, seconds, kilograms, etc.)
+- Timestamps are in UTC timezone for international collaboration
 
 )";
 }

@@ -43,7 +43,7 @@
 #include "core/io/hdf5Writer.h"
 #include "core/param/paramUtils.h"
 #include "utils/cli_parser.h"  // CLI argument parser
-#include "core/log/Logger.h"  // New structured logging
+#include "core/log/Logger.h"  // Structured logging
 #include "core/utils/simulationsUtils.h"  // print_domain_summary, print_results
 #include "core/physics/reactions/reactionUtils.h"  // ReactionEntry struct only
 #include "core/io/fieldArrayLoader.h"
@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
     ICARION::log::Logger::main()->info("Git commit: {}", GIT_HASH);
     ICARION::log::Logger::main()->info("Config file: {}", opts.config_file);
     
-    // === Handle information flags (Phase 1) ===
+    // === Handle information flags ===
     if (opts.dump_build_info) {
         ICARION::cli::print_build_info();
         return 0;
@@ -138,27 +138,15 @@ int main(int argc, char* argv[]) {
     }
     
     // === Apply logging options (Phase 1) ===
-    if (opts.log_file.has_value()) {
-        // Redirect stdout/stderr to file
-        if (!std::freopen(opts.log_file.value().c_str(), "w", stdout)) {
-            std::cerr << "Warning: Failed to redirect stdout to " << opts.log_file.value() << "\n";
-        }
-        if (!std::freopen(opts.log_file.value().c_str(), "a", stderr)) {
-            std::cerr << "Warning: Failed to redirect stderr to " << opts.log_file.value() << "\n";
-        }
-        std::cout << "=== Logging to: " << opts.log_file.value() << " ===\n";
-    }
-    
-    if (opts.verbose) {
-        std::cout << "=== Verbose mode enabled (log level: DEBUG) ===\n";
-    }
-    
-    std::cout << "Log level: " << opts.log_level << "\n";
+    // Note: Logger system handles file output via spdlog, no freopen needed
+    // Old file redirection code removed (replaced by Logger::init with --log-file)
 
     // === Handle --validate-config (Phase 4) ===
     if (opts.validate_config) {
-        std::cout << "=== ICARION Configuration Validation ===" << std::endl;
-        std::cout << "Config file: " << opts.config_file << std::endl << std::endl;
+        using ICARION::log::Logger;
+        
+        Logger::main()->info("=== ICARION Configuration Validation ===");
+        Logger::main()->info("Config file: {}", opts.config_file);
         
         try {
             // Load config using new system
@@ -167,36 +155,36 @@ int main(int argc, char* argv[]) {
             // Validate (already done in load(), but we want to show results)
             auto validation = config.validate();
             
-            std::cout << "--- Validation Results ---" << std::endl;
+            Logger::main()->info("--- Validation Results ---");
             if (validation.valid && validation.warnings.empty()) {
-                std::cout << "✓ Configuration is valid (no warnings)" << std::endl;
+                Logger::main()->info("✓ Configuration is valid (no warnings)");
                 return 0;
             }
             
             if (validation.valid) {
-                std::cout << "✓ Configuration is valid (with warnings)" << std::endl;
+                Logger::main()->info("✓ Configuration is valid (with warnings)");
             } else {
-                std::cout << "✗ Configuration has errors" << std::endl;
+                Logger::main()->error("✗ Configuration has errors");
             }
             
             if (!validation.warnings.empty()) {
-                std::cout << std::endl << "Warnings:" << std::endl;
+                Logger::main()->warn("Warnings:");
                 for (const auto& warn : validation.warnings) {
-                    std::cout << "  ⚠  " << warn << std::endl;
+                    Logger::main()->warn("  ⚠  {}", warn);
                 }
             }
             
             if (!validation.errors.empty()) {
-                std::cout << std::endl << "Errors:" << std::endl;
+                Logger::main()->error("Errors:");
                 for (const auto& err : validation.errors) {
-                    std::cout << "  ✗  " << err << std::endl;
+                    Logger::main()->error("  ✗  {}", err);
                 }
             }
             
             return validation.valid ? 0 : 1;
             
         } catch (const std::exception& e) {
-            std::cerr << "✗ Configuration validation failed: " << e.what() << std::endl;
+            Logger::main()->error("✗ Configuration validation failed: {}", e.what());
             return 1;
         }
     }
@@ -290,44 +278,50 @@ int main(int argc, char* argv[]) {
         if (config_log.is_open()) {
             config_log << config_json;
             config_log.close();
-            std::cout << "✓ Input configuration saved to: " << config_log_path << "\n";
+            ICARION::log::Logger::main()->info("✓ Input configuration saved to: {}", config_log_path);
         } else {
-            std::cerr << "Warning: Could not save input configuration to " << config_log_path << "\n";
+            ICARION::log::Logger::main()->warn("Could not save input configuration to {}", config_log_path);
         }
         
         // === Print simulation parameters summary ===
-        std::cout << "\n=== Simulation Parameters Summary ===\n";
-        std::cout << "Timestep:        " << gParams.dt_s * 1e9 << " ns\n";
-        std::cout << "Total steps:     " << gParams.sim_time_steps << "\n";
-        std::cout << "Max time:        " << (gParams.dt_s * gParams.sim_time_steps * 1e6) << " µs\n";
-        std::cout << "Write interval:  " << gParams.write_interval << "\n";
-        std::cout << "Collision model: ";
+        using ICARION::log::Logger;
+        
+        Logger::main()->info("");
+        Logger::main()->info("=== Simulation Parameters Summary ===");
+        Logger::main()->info("Timestep:        {} ns", gParams.dt_s * 1e9);
+        Logger::main()->info("Total steps:     {}", gParams.sim_time_steps);
+        Logger::main()->info("Max time:        {} µs", gParams.dt_s * gParams.sim_time_steps * 1e6);
+        Logger::main()->info("Write interval:  {}", gParams.write_interval);
+        
+        std::string collision_model;
         switch (gParams.collisionModel) {
-            case ICARION::core::CollisionModel::NoCollisions: std::cout << "NoCollisions"; break;
-            case ICARION::core::CollisionModel::HardSphere: std::cout << "HardSphere"; break;
-            case ICARION::core::CollisionModel::Langevin: std::cout << "Langevin"; break;
-            case ICARION::core::CollisionModel::Friction: std::cout << "Friction"; break;
-            case ICARION::core::CollisionModel::EHSS: std::cout << "EHSS"; break;
-            case ICARION::core::CollisionModel::HSMC: std::cout << "HSMC"; break;
-            default: std::cout << "Unknown"; break;
+            case ICARION::core::CollisionModel::NoCollisions: collision_model = "NoCollisions"; break;
+            case ICARION::core::CollisionModel::HardSphere: collision_model = "HardSphere"; break;
+            case ICARION::core::CollisionModel::Langevin: collision_model = "Langevin"; break;
+            case ICARION::core::CollisionModel::Friction: collision_model = "Friction"; break;
+            case ICARION::core::CollisionModel::EHSS: collision_model = "EHSS"; break;
+            case ICARION::core::CollisionModel::HSMC: collision_model = "HSMC"; break;
+            default: collision_model = "Unknown"; break;
         }
-        std::cout << "\n";
-        std::cout << "Reactions:       " << (gParams.enable_reactions ? "enabled" : "disabled") << "\n";
-        std::cout << "Space charge:    " << (gParams.enable_space_charge ? "enabled" : "disabled") << "\n";
-        std::cout << "GPU:             " << (gParams.enable_gpu ? "enabled" : "disabled") << "\n";
-        std::cout << "OpenMP:          " << (gParams.parallelization ? "enabled" : "disabled") << "\n";
-        std::cout << "RNG seed:        " << gParams.rng_seed << "\n";
-        std::cout << "Output file:     " << gParams.output_file << "\n";
-        std::cout << "=====================================\n\n";
+        Logger::main()->info("Collision model: {}", collision_model);
+        Logger::main()->info("Reactions:       {}", gParams.enable_reactions ? "enabled" : "disabled");
+        Logger::main()->info("Space charge:    {}", gParams.enable_space_charge ? "enabled" : "disabled");
+        Logger::main()->info("GPU:             {}", gParams.enable_gpu ? "enabled" : "disabled");
+        Logger::main()->info("OpenMP:          {}", gParams.parallelization ? "enabled" : "disabled");
+        Logger::main()->info("RNG seed:        {}", gParams.rng_seed);
+        Logger::main()->info("Output file:     {}", gParams.output_file);
+        Logger::main()->info("=====================================");
+        Logger::main()->info("");
 
         run_guard_check_global(gParams);
 
         // === 4. Load physical models ===
         // Species and reactions are ALREADY loaded in full_config by ConfigLoader!
         // (ConfigLoader calls full_config.load_databases() automatically)
-        std::cout << "\n=== Physical Models ===\n";
-        ICARION::log::Logger::config()->info("Species loaded: {}", full_config.species_db.size());
-        ICARION::log::Logger::config()->info("Reactions loaded: {}", full_config.reaction_db.size());
+        Logger::main()->info("");
+        Logger::main()->info("=== Physical Models ===");
+        Logger::config()->info("Species loaded: {}", full_config.species_db.size());
+        Logger::config()->info("Reactions loaded: {}", full_config.reaction_db.size());
         
         // --- Convert species for integrator (temporary until Phase 5) ---
         ICARION::io::SpeciesDatabase speciesDB;
@@ -366,8 +360,7 @@ int main(int argc, char* argv[]) {
             for (const auto& rxn : full_config.reaction_db.reactions) {
                 // Validate: single-reactant → single-product only
                 if (rxn.reactant.empty() || rxn.product.empty()) {
-                    std::cerr << "Warning: Skipping reaction '" << rxn.id 
-                              << "' - missing reactant or product\n";
+                    Logger::config()->warn("Skipping reaction '{}' - missing reactant or product", rxn.id);
                     skipped++;
                     continue;
                 }
@@ -390,28 +383,30 @@ int main(int argc, char* argv[]) {
                 reaction_list.push_back(entry);
             }
             
-            std::cout << "✓ " << reaction_list.size() << " reactions converted for integrator";
             if (skipped > 0) {
-                std::cout << " (" << skipped << " skipped)";
+                Logger::config()->info("✓ {} reactions converted for integrator ({} skipped)", reaction_list.size(), skipped);
+            } else {
+                Logger::config()->info("✓ {} reactions converted for integrator", reaction_list.size());
             }
-            std::cout << "\n";
             
         } else if (!gParams.enable_reactions) {
-            std::cout << "ℹ  Reactions disabled (enable_reactions=false)\n";
+            Logger::config()->info("ℹ Reactions disabled (enable_reactions=false)");
         } else {
             ICARION::log::Logger::config()->info("No reactions loaded");
         }
 
         // === Dry-run mode: Validate configuration and exit ===
         if (opts.dry_run) {
-            std::cout << "\n=== Dry-run mode: Configuration validation ===\n";
-            ICARION::log::Logger::config()->info("JSON configuration loaded successfully");
-            ICARION::log::Logger::config()->info("Species database loaded: {} species", speciesDB.size());
-            ICARION::log::Logger::config()->info("Reactions loaded: {} reactions", reaction_list.size());
-            std::cout << "✓ Domains configured: " << domains.size() << " domain(s)\n";
-            std::cout << "✓ RNG seed: " << gParams.rng_seed << "\n";
-            std::cout << "✓ Output file: " << gParams.output_file << "\n";
-            std::cout << "\nConfiguration valid. Exiting without running simulation.\n";
+            Logger::main()->info("");
+            Logger::main()->info("=== Dry-run mode: Configuration validation ===");
+            Logger::config()->info("JSON configuration loaded successfully");
+            Logger::config()->info("Species database loaded: {} species", speciesDB.size());
+            Logger::config()->info("Reactions loaded: {} reactions", reaction_list.size());
+            Logger::main()->info("✓ Domains configured: {} domain(s)", domains.size());
+            Logger::main()->info("✓ RNG seed: {}", gParams.rng_seed);
+            Logger::main()->info("✓ Output file: {}", gParams.output_file);
+            Logger::main()->info("");
+            Logger::main()->info("Configuration valid. Exiting without running simulation.");
             return 0;
         }
 

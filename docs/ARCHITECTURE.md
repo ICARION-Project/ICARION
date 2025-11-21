@@ -346,7 +346,7 @@ Provides shared data for force computation (avoids duplicate lookups):
 ```cpp
 struct ForceContext {
     const IFieldProvider* field_provider;       ///< Field evaluator (electric/magnetic)
-    const config::DomainConfig& domain;         ///< Simulation domain parameters
+    const config::DomainConfig* domain;         ///< Simulation domain parameters
     const std::vector<IonState>& all_ions;      ///< All ions (for space charge)
     double temperature_K;                       ///< Gas temperature [K]
     double pressure_Pa;                         ///< Gas pressure [Pa]
@@ -753,7 +753,7 @@ tests/
 - **Integration**: 12 assertions / 4 tests
 
 **Total**: 199 assertions / 47 tests (100% passing)
-
+*Note: Test counts increase as development continues. Run `ctest` for current status.*
 ---
 
 **Document Status:** Living document, updated with each architectural change.

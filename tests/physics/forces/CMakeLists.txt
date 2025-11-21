@@ -46,3 +46,25 @@ add_test(NAME ElectricFieldForce COMMAND test_electric_field_force)
 set_tests_properties(ElectricFieldForce PROPERTIES
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+
+# Test: MagneticFieldForce + DampingForce
+add_executable(test_magnetic_damping_forces
+    test_magnetic_damping_forces.cpp
+)
+
+target_link_libraries(test_magnetic_damping_forces
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_magnetic_damping_forces
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+add_test(NAME MagneticDampingForces COMMAND test_magnetic_damping_forces)
+set_tests_properties(MagneticDampingForces PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)

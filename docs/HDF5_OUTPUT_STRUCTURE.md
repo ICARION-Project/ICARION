@@ -1,6 +1,6 @@
 # HDF5 Output Structure
 
-**Version:** 2.0 (FullConfig-based)  
+**Version:** 1.0 (FullConfig-based)  
 **Last Updated:** 2025-11-21  
 **Status:** Implemented
 

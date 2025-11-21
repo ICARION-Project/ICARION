@@ -59,6 +59,8 @@ file(GLOB_RECURSE ICARION_IO_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/log/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/log/*.h"
 )
+# Exclude legacy configuration loader (replaced by ConfigLoader)
+list(FILTER ICARION_IO_SRC EXCLUDE REGEX "configurationLoader\\.cpp$")
 
 # Config
 file(GLOB_RECURSE ICARION_CONFIG_SRC

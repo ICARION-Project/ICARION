@@ -5,7 +5,7 @@
 
 #include "hdf5Writer_v2.h"
 #include "core/log/Logger.h"
-#include "core/config/utils/EnumMapper.h"
+#include "core/config/conversion/EnumMapper.h"
 #include <chrono>
 #include <fstream>
 #include <sstream>
@@ -74,10 +74,191 @@ void HDF5Writer::append_trajectory(
     double time,
     const std::vector<IonState>& ions
 ) {
-    // TODO: Implement trajectory appending
-    // This will reuse logic from legacy hdf5Writer.cpp append_to_HDF5()
-    // but write to /trajectory/ group instead of root level
-    log::Logger::hdf5()->warn("append_trajectory not yet implemented");
+    if (ions.empty()) {
+        log::Logger::hdf5()->warn("Skipping trajectory append - no ions");
+        return;
+    }
+    
+    try {
+        H5::H5File file(filename, H5F_ACC_RDWR);
+        H5::Group traj_group = file.openGroup("/trajectory");
+        
+        const size_t n_ions = ions.size();
+        
+        // Flatten ion data
+        std::vector<double> positions, velocities;
+        std::vector<int> domain_indices;
+        std::vector<const char*> species_ids;
+        
+        positions.reserve(n_ions * 3);
+        velocities.reserve(n_ions * 3);
+        domain_indices.reserve(n_ions);
+        species_ids.reserve(n_ions);
+        
+        for (const auto& ion : ions) {
+            positions.push_back(ion.pos.x);
+            positions.push_back(ion.pos.y);
+            positions.push_back(ion.pos.z);
+            
+            velocities.push_back(ion.vel.x);
+            velocities.push_back(ion.vel.y);
+            velocities.push_back(ion.vel.z);
+            
+            domain_indices.push_back(ion.domain_index);
+            species_ids.push_back(ion.species_id.c_str());
+        }
+        
+        // Helper lambda for creating or extending datasets
+        auto append_1d = [&](const std::string& name, const void* data, H5::PredType type, size_t count) {
+            H5::DataSet dataset;
+            if (traj_group.nameExists(name)) {
+                // Open existing dataset and extend
+                dataset = traj_group.openDataSet(name);
+                H5::DataSpace filespace = dataset.getSpace();
+                hsize_t old_dim = filespace.getSimpleExtentNpoints();
+                hsize_t new_dim = old_dim + count;
+                dataset.extend(&new_dim);
+                
+                filespace = dataset.getSpace();
+                hsize_t start[1] = {old_dim};
+                hsize_t write_count[1] = {count};
+                H5::DataSpace memspace(1, write_count);
+                filespace.selectHyperslab(H5S_SELECT_SET, write_count, start);
+                dataset.write(data, type, memspace, filespace);
+                
+            } else {
+                // Create new dataset with chunking and compression
+                hsize_t dims[1] = {count};
+                hsize_t max_dims[1] = {H5S_UNLIMITED};
+                H5::DataSpace space(1, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[1] = {std::min(count, size_t(1000))};
+                plist.setChunk(1, chunk);
+                plist.setDeflate(6);  // GZIP compression level 6
+                dataset = traj_group.createDataSet(name, type, space, plist);
+                dataset.write(data, type);
+            }
+        };
+        
+        auto append_2d = [&](const std::string& name, const void* data, H5::PredType type, 
+                             size_t dim0, size_t dim1) {
+            H5::DataSet dataset;
+            if (traj_group.nameExists(name)) {
+                // Open and extend
+                dataset = traj_group.openDataSet(name);
+                H5::DataSpace filespace = dataset.getSpace();
+                hsize_t old_dims[2];
+                filespace.getSimpleExtentDims(old_dims);
+                
+                hsize_t new_dims[2] = {old_dims[0] + dim0, old_dims[1]};
+                dataset.extend(new_dims);
+                
+                filespace = dataset.getSpace();
+                hsize_t start[2] = {old_dims[0], 0};
+                hsize_t count[2] = {dim0, dim1};
+                H5::DataSpace memspace(2, count);
+                filespace.selectHyperslab(H5S_SELECT_SET, count, start);
+                dataset.write(data, type, memspace, filespace);
+                
+            } else {
+                // Create new
+                hsize_t dims[2] = {dim0, dim1};
+                hsize_t max_dims[2] = {H5S_UNLIMITED, dim1};
+                H5::DataSpace space(2, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[2] = {std::min(dim0, size_t(100)), dim1};
+                plist.setChunk(2, chunk);
+                plist.setDeflate(6);
+                dataset = traj_group.createDataSet(name, type, space, plist);
+                dataset.write(data, type);
+            }
+        };
+        
+        auto append_3d = [&](const std::string& name, const std::vector<double>& data, 
+                             size_t dim0, size_t dim1, size_t dim2) {
+            H5::DataSet dataset;
+            if (traj_group.nameExists(name)) {
+                // Open and extend
+                dataset = traj_group.openDataSet(name);
+                H5::DataSpace filespace = dataset.getSpace();
+                hsize_t old_dims[3];
+                filespace.getSimpleExtentDims(old_dims);
+                
+                hsize_t new_dims[3] = {old_dims[0] + dim0, old_dims[1], old_dims[2]};
+                dataset.extend(new_dims);
+                
+                filespace = dataset.getSpace();
+                hsize_t start[3] = {old_dims[0], 0, 0};
+                hsize_t count[3] = {dim0, dim1, dim2};
+                H5::DataSpace memspace(3, count);
+                filespace.selectHyperslab(H5S_SELECT_SET, count, start);
+                dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE, memspace, filespace);
+                
+            } else {
+                // Create new
+                hsize_t dims[3] = {dim0, dim1, dim2};
+                hsize_t max_dims[3] = {H5S_UNLIMITED, dim1, dim2};
+                H5::DataSpace space(3, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[3] = {std::min(dim0, size_t(100)), dim1, dim2};
+                plist.setChunk(3, chunk);
+                plist.setDeflate(6);
+                dataset = traj_group.createDataSet(name, H5::PredType::NATIVE_DOUBLE, space, plist);
+                dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE);
+            }
+        };
+        
+        // Write time (1D scalar)
+        append_1d("time", &time, H5::PredType::NATIVE_DOUBLE, 1);
+        
+        // Write positions (3D: [1 × N × 3])
+        append_3d("positions", positions, 1, n_ions, 3);
+        
+        // Write velocities (3D: [1 × N × 3])
+        append_3d("velocities", velocities, 1, n_ions, 3);
+        
+        // Write domain indices (2D: [1 × N])
+        append_2d("domain_indices", domain_indices.data(), H5::PredType::NATIVE_INT, 1, n_ions);
+        
+        // Write species IDs (2D strings: [1 × N])
+        H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+        H5::DataSet dataset_species;
+        if (traj_group.nameExists("species_ids")) {
+            dataset_species = traj_group.openDataSet("species_ids");
+            H5::DataSpace filespace = dataset_species.getSpace();
+            hsize_t old_dims[2];
+            filespace.getSimpleExtentDims(old_dims);
+            
+            hsize_t new_dims[2] = {old_dims[0] + 1, old_dims[1]};
+            dataset_species.extend(new_dims);
+            
+            filespace = dataset_species.getSpace();
+            hsize_t start[2] = {old_dims[0], 0};
+            hsize_t count[2] = {1, n_ions};
+            H5::DataSpace memspace(2, count);
+            filespace.selectHyperslab(H5S_SELECT_SET, count, start);
+            dataset_species.write(species_ids.data(), str_type, memspace, filespace);
+            
+        } else {
+            hsize_t dims[2] = {1, n_ions};
+            hsize_t max_dims[2] = {H5S_UNLIMITED, n_ions};
+            H5::DataSpace space(2, dims, max_dims);
+            H5::DSetCreatPropList plist;
+            hsize_t chunk[2] = {100, n_ions};
+            plist.setChunk(2, chunk);
+            plist.setDeflate(6);
+            dataset_species = traj_group.createDataSet("species_ids", str_type, space, plist);
+            dataset_species.write(species_ids.data(), str_type);
+        }
+        
+        // Flush to disk
+        H5Fflush(file.getId(), H5F_SCOPE_GLOBAL);
+        file.close();
+        
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to append trajectory: {}", e.getCDetailMsg());
+        throw;
+    }
 }
 
 void HDF5Writer::finalize(

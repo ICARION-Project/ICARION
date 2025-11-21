@@ -48,6 +48,16 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+
+namespace {
+    // Helper to ensure .h5 extension is added only once
+    std::string ensure_h5_extension(const std::string& path) {
+        if (path.size() >= 3 && path.substr(path.size() - 3) == ".h5") {
+            return path;  // Already has .h5 extension
+        }
+        return path + ".h5";
+    }
+}
 #include <sys/types.h>
 #include <cstring>
 #include <cstdio>
@@ -258,7 +268,7 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
     const bool do_hdf5 = !gParams.output_file.empty();
     std::string filename;
     if (do_hdf5) {
-        filename = gParams.output_file + ".h5";
+        filename = ensure_h5_extension(gParams.output_file);
         H5::H5File file(filename, H5F_ACC_TRUNC);
         ICARION::io::write_params_to_HDF5(file, gParams, instrumentDomains);
         

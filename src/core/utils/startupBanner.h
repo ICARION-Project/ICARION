@@ -246,7 +246,12 @@ inline void print_completion_summary(
     std::cout << "────────────────────────────────────────────────────────────────────────────\n";
     std::cout << "\n";
     std::cout << " Output\n\n";
-    std::cout << "   Trajectory:       " << output_file << ".h5";
+    // Ensure .h5 extension is only shown once
+    std::string output_display = output_file;
+    if (output_display.size() < 3 || output_display.substr(output_display.size() - 3) != ".h5") {
+        output_display += ".h5";
+    }
+    std::cout << "   Trajectory:       " << output_display;
     if (file_size_mb > 0) {
         std::cout << " (" << std::setprecision(1) << file_size_mb << " MB)";
     }

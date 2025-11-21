@@ -79,6 +79,12 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CUDAConfig.cmake)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
 # ─────────────────────────────────────────────────────────────────────
+# Testing (must be at top level for CTest to work)
+# ─────────────────────────────────────────────────────────────────────
+
+enable_testing()
+
+# ─────────────────────────────────────────────────────────────────────
 # Build Subdirectories
 # ─────────────────────────────────────────────────────────────────────
 

@@ -533,7 +533,12 @@ int main(int argc, char* argv[]) {
             // See: docs/HDF5_OUTPUT_STRUCTURE.md for format specification
             // See: tests/io/test_hdf5_writer_v2.cpp for usage examples
             
-            H5::H5File hdf5_file(gParams.output_file + ".h5", H5F_ACC_RDWR);
+            // Ensure .h5 extension is only added once
+            std::string hdf5_path = gParams.output_file;
+            if (hdf5_path.size() < 3 || hdf5_path.substr(hdf5_path.size() - 3) != ".h5") {
+                hdf5_path += ".h5";
+            }
+            H5::H5File hdf5_file(hdf5_path, H5F_ACC_RDWR);
             bool simulation_complete = (active_count == 0);  // All ions exited/deactivated
             
             // Get git hash at compile time if available
@@ -565,7 +570,12 @@ int main(int argc, char* argv[]) {
         
         double elapsed_s = std::chrono::duration<double>(end - start).count();
         ICARION::log::Logger::main()->info("Simulation completed in {:.3f} s CPU time", elapsed_s);
-        ICARION::log::Logger::main()->info("Output file: {}.h5", gParams.output_file);
+        // Ensure .h5 extension is only shown once
+        std::string output_display = gParams.output_file;
+        if (output_display.size() < 3 || output_display.substr(output_display.size() - 3) != ".h5") {
+            output_display += ".h5";
+        }
+        ICARION::log::Logger::main()->info("Output file: {}", output_display);
         
         // Print completion summary (only for text format)
         if (opts.log_format == "text") {
@@ -573,7 +583,11 @@ int main(int argc, char* argv[]) {
             
             // Get file size
             double file_size_mb = 0.0;
-            std::ifstream file(gParams.output_file + ".h5", std::ios::binary | std::ios::ate);
+            std::string file_path = gParams.output_file;
+            if (file_path.size() < 3 || file_path.substr(file_path.size() - 3) != ".h5") {
+                file_path += ".h5";
+            }
+            std::ifstream file(file_path, std::ios::binary | std::ios::ate);
             if (file) {
                 file_size_mb = file.tellg() / (1024.0 * 1024.0);
             }

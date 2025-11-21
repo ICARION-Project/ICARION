@@ -10,7 +10,7 @@ int main() {
     try {
         // Load species
         std::cout << "=== Loading Species Database ===\n";
-        auto species_db = SpeciesLoader::load("../../../data/species_database_v1.json");
+        auto species_db = SpeciesLoader::load("../data/species_database_v1.json");
         
         std::cout << "\nLoaded " << species_db.size() << " species:\n";
         for (const auto& [id, props] : species_db.species) {
@@ -29,8 +29,8 @@ int main() {
         }
         
         // Load reactions
-        std::cout << "\n=== Loading Reaction Database ===\n";
-        auto reaction_db = ReactionLoader::load("../../../data/reactions_database_v1.json", &species_db);
+        std::cout << "\n=== Loading Reactions Database ===\n";
+        auto reaction_db = ReactionLoader::load("../data/reactions_database_v1.json", &species_db);
         
         std::cout << "\nLoaded " << reaction_db.size() << " reactions:\n";
         for (const auto& rxn : reaction_db.reactions) {

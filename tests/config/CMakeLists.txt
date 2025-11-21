@@ -55,6 +55,9 @@ target_include_directories(test_species_loader_smoke
 )
 
 add_test(NAME SpeciesLoaderSmoke COMMAND test_species_loader_smoke)
+set_tests_properties(SpeciesLoaderSmoke PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 
 # Species loader unit tests
 add_executable(test_species_loader_unit

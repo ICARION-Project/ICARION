@@ -10,14 +10,13 @@
  */
 
 #include "core/physics/collisions/EHSSCollisionHandler.h"
+#include "core/physics/collisions/geometryUtils.h"  // Phase 2E: SSOT geometry loading
 #include "core/types/IonState.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "utils/constants.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include <cmath>
-#include <fstream>
-#include <json/json.h>
 
 using namespace ICARION::physics;
 using namespace ICARION::config;
@@ -36,50 +35,11 @@ double thermal_energy_eV(double T_K) {
     return (1.5 * BOLTZMANN_CONSTANT * T_K) / ELEM_CHARGE_C;
 }
 
-// Helper: Load H3O+ geometry from JSON file
+// Helper: Load H3O+ geometry using SSOT utility (Phase 2E)
 GeometryMap load_h3o_geometry() {
-    std::ifstream file("../data/molecules/H3O+.json");
-    if (!file.is_open()) {
-        // Fallback: simple spherical geometry
-        GeometryMap geometry;
-        geometry["H3O+"] = GeometryData{
-            {{0.0, 0.0, 0.0}},
-            {1.65e-10}  // ~1.65 Angstrom radius
-        };
-        return geometry;
-    }
-    
-    Json::Value root;
-    Json::CharReaderBuilder builder;
-    std::string errs;
-    if (!Json::parseFromStream(builder, file, &root, &errs)) {
-        // Parse failed, use fallback
-        GeometryMap geometry;
-        geometry["H3O+"] = GeometryData{{{0.0, 0.0, 0.0}}, {1.65e-10}};
-        return geometry;
-    }
-    
-    // Extract atoms from JSON
-    const Json::Value& atoms = root["molecule"]["atoms"];
-    std::vector<Vec3> positions;
-    std::vector<double> radii;
-    
-    for (const auto& atom : atoms) {
-        // Positions are in Angstroms, convert to meters
-        Vec3 pos;
-        pos.x = atom["pos"][0].asDouble() * 1e-10;
-        pos.y = atom["pos"][1].asDouble() * 1e-10;
-        pos.z = atom["pos"][2].asDouble() * 1e-10;
-        positions.push_back(pos);
-        
-        // Use LJ sigma as radius (convert from m to m)
-        double radius = atom["LJ_sigma_m"].asDouble();
-        radii.push_back(radius);
-    }
-    
-    GeometryMap geometry;
-    geometry["H3O+"] = GeometryData{positions, radii};
-    return geometry;
+    // SSOT: Use centralized geometry loading
+    // Path relative to build/tests/physics/collisions/
+    return ICARION::physics::load_geometry_map({"H3O+"}, "../../../../data/molecules");
 }
 
 TEST_CASE("EHSSCollisionHandler: Thermalization of H3O+", "[collision][ehss][thermalization]") {

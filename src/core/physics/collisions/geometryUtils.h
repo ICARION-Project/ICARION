@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
+/**
+ * @file geometryUtils.h
+ * @brief Utility functions for molecular geometry conversion
+ * 
+ * SSOT: Single place to convert io::Molecule → GeometryData for collision handlers
+ */
+
+#pragma once
+
+#include "EHSSCollisionHandler.h"  // GeometryData, GeometryMap
+#include "core/io/moleculeLoader.h"
+#include <string>
+#include <unordered_set>
+
+namespace ICARION::physics {
+
+/**
+ * @brief Convert Molecule to GeometryData for collision handler
+ * 
+ * @param molecule Molecule loaded from JSON via io::load_molecule()
+ * @return GeometryData pair of (atom centers [m], atom radii [m])
+ * 
+ * **SSOT:** Conversion logic defined ONCE
+ * 
+ * **Usage:**
+ * ```cpp
+ * auto molecule = io::load_molecule("H3O+.json");
+ * GeometryData geom = convert_molecule_to_geometry(molecule);
+ * ```
+ */
+inline GeometryData convert_molecule_to_geometry(const io::Molecule& molecule) {
+    std::vector<Vec3> centers;
+    std::vector<double> radii;
+    
+    centers.reserve(molecule.atoms.size());
+    radii.reserve(molecule.atoms.size());
+    
+    for (const auto& atom : molecule.atoms) {
+        // NOTE: MoleculeLoader already converts JSON positions (Å) to SI units (m)
+        // in atom.pos_m, so no further conversion needed here.
+        centers.push_back(atom.pos_m);
+        
+        radii.push_back(0.5 * atom.LJ_sigma_m); // LJ sigma → hard-sphere radius [m]
+    }
+    
+    return GeometryData{std::move(centers), std::move(radii)};
+}
+
+/**
+ * @brief Load geometry for multiple species from molecule file(s)
+ * 
+ * @param species_ids Set of species to load (e.g., {"H3O+", "NH4+"})
+ * @param geometry_file Path to single JSON file or directory containing <species>.json
+ * @return GeometryMap with loaded geometries
+ * 
+ * **Behavior:**
+ * - If geometry_file is a single file: Loads all species from that file
+ * - If geometry_file is directory: Loads each species from <dir>/<species_id>.json
+ * - Missing species: Returns empty GeometryData (handler will fallback to CCS)
+ * 
+ * **SSOT:** Uses io::load_molecule() + convert_molecule_to_geometry()
+ * 
+ * **Usage:**
+ * ```cpp
+ * auto geometry_map = load_geometry_map({"H3O+", "N2"}, "molecules/");
+ * auto handler = std::make_unique<EHSSCollisionHandler>(geometry_map);
+ * ```
+ */
+GeometryMap load_geometry_map(
+    const std::unordered_set<std::string>& species_ids,
+    const std::string& geometry_file
+);
+
+} // namespace ICARION::physics

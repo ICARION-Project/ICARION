@@ -69,11 +69,19 @@ private:
 };
 
 /**
- * @brief Lightweight debug logger writing to stderr
+ * @brief Debug logger respecting log level configuration
  * @param msg Message to log
  * 
- * Used by core computation modules for debugging output.
- * Currently forwards to stderr; may be routed to RunLogger in future.
+ * Used by core computation modules for debugging output (e.g., geometry loading,
+ * collision handler creation). Only outputs when log level is DEBUG.
+ * 
+ * **Usage:** Enable with `--verbose` or `--log-level DEBUG` CLI flags.
+ * 
+ * **Example:**
+ * ```bash
+ * icarion --verbose config.json        # Shows debug output
+ * icarion --log-level INFO config.json # Hides debug output (default)
+ * ```
  */
 void debug_log(const std::string& msg);
 

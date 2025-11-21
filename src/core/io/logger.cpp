@@ -23,6 +23,7 @@
  */
 #include "core/io/logger.h"
 #include "core/io/speciesLoader.h"
+#include "core/log/Logger.h"  // For structured logging in debug_log()
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -255,9 +256,17 @@ void RunLogger::finalize(const std::vector<IonState>& ions, const std::string& o
     std::cout << "Log written to " << filepath_ << std::endl;
 }
 
-// Simple runtime debug logger (defines the free function declared in logger.h)
+// Runtime debug logger - respects log level configuration
+// Only outputs when log level is DEBUG (e.g., --verbose or --log-level DEBUG)
 void debug_log(const std::string& msg) {
-    std::cerr << msg << std::endl;
+    // Use structured logger if initialized, otherwise fall back to stderr
+    auto logger = ICARION::log::Logger::main();
+    if (logger) {
+        logger->debug("{}", msg);
+    } else {
+        // Fallback for early initialization (before Logger::init())
+        std::cerr << "[DEBUG] " << msg << std::endl;
+    }
 }
 
 }  // namespace io

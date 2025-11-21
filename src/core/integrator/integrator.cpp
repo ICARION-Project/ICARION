@@ -38,9 +38,8 @@
 // Collision system refactored in Phase 2
 #include "core/physics/collisions/CollisionHandlerFactory.h"
 #include "core/physics/collisions/ICollisionHandler.h"
-#include "core/physics/collisions/EHSSCollisionHandler.h"  // for GeometryMap/GeometryData types
+#include "core/physics/collisions/geometryUtils.h"  // SSOT for geometry loading & conversion
 #include "core/config/types/EnvironmentConfig.h"
-#include "core/io/moleculeLoader.h"  // SSOT for molecular geometry loading
 
 
 #include <algorithm>
@@ -324,43 +323,22 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
     // Create collision handler using factory (Phase 2D refactor)
     std::unique_ptr<ICARION::physics::ICollisionHandler> collision_handler;
     if (gParams.collisionModel != CollisionModel::Friction) {
-        // Load geometry map for EHSS if needed
+        // Load geometry map for EHSS if needed (Phase 2E: SSOT)
         ICARION::physics::GeometryMap geometry_map;
         if (gParams.collisionModel == CollisionModel::EHSS && !gParams.geometry_file.empty()) {
+            // Extract unique species IDs from ions
+            std::unordered_set<std::string> species_ids;
             for (const auto& ion : ions) {
-                const std::string& sp_id = ion.species_id;
-                if (geometry_map.find(sp_id) == geometry_map.end()) {
-                    try {
-                        // SSOT: Use MoleculeLoader to load geometry
-                        auto molecule = ICARION::io::load_molecule(gParams.geometry_file);
-                        
-                        // Convert Molecule to GeometryData (centers, radii)
-                        std::vector<Vec3> centers;
-                        std::vector<double> radii;
-                        for (const auto& atom : molecule.atoms) {
-                            centers.push_back(atom.pos_m);
-                            radii.push_back(0.5 * atom.LJ_sigma_m);  // LJ sigma → radius
-                        }
-                        
-                        geometry_map[sp_id] = std::make_pair(std::move(centers), std::move(radii));
-                        
-                        if (logger) {
-                            std::ostringstream msg;
-                            msg << "Loaded geometry for species '" << sp_id 
-                                << "' with " << molecule.atoms.size() << " atoms";
-                            logger->log(msg.str());
-                        }
-                    } catch (const std::exception& e) {
-                        if (logger) {
-                            std::ostringstream warn;
-                            warn << "Warning: could not load geometry for species '" << sp_id
-                                 << "': " << e.what() << " — using CCS from ion state";
-                            logger->log(warn.str());
-                        }
-                        // Empty geometry will fallback to CCS in handler
-                        geometry_map[sp_id] = std::make_pair(std::vector<Vec3>{}, std::vector<double>{});
-                    }
-                }
+                species_ids.insert(ion.species_id);
+            }
+            
+            // SSOT: Use central geometry loading utility (Phase 2E)
+            geometry_map = ICARION::physics::load_geometry_map(species_ids, gParams.geometry_file);
+            
+            if (logger && !geometry_map.empty()) {
+                std::ostringstream msg;
+                msg << "Loaded geometry for " << geometry_map.size() << " species";
+                logger->log(msg.str());
             }
         }
         

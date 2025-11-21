@@ -61,24 +61,30 @@ inline GeometryData convert_molecule_to_geometry(const io::Molecule& molecule) {
  * 
  * @param species_ids Set of species to load (e.g., {"H3O+", "NH4+"})
  * @param geometry_file Path to single JSON file or directory containing <species>.json
+ * @param strict_mode If true, throw on load failure; if false (default), return empty geometry
  * @return GeometryMap with loaded geometries
  * 
  * **Behavior:**
  * - If geometry_file is a single file: Loads all species from that file
  * - If geometry_file is directory: Loads each species from <dir>/<species_id>.json
- * - Missing species: Returns empty GeometryData (handler will fallback to CCS)
+ * - Missing species (strict_mode=false): Returns empty GeometryData (handler will fallback to CCS)
+ * - Missing species (strict_mode=true): Throws std::runtime_error
  * 
  * **SSOT:** Uses io::load_molecule() + convert_molecule_to_geometry()
  * 
  * **Usage:**
  * ```cpp
+ * // Silent fallback (default)
  * auto geometry_map = load_geometry_map({"H3O+", "N2"}, "molecules/");
- * auto handler = std::make_unique<EHSSCollisionHandler>(geometry_map);
+ * 
+ * // Strict mode (throw on error)
+ * auto geometry_map = load_geometry_map({"H3O+", "N2"}, "molecules/", true);
  * ```
  */
 GeometryMap load_geometry_map(
     const std::unordered_set<std::string>& species_ids,
-    const std::string& geometry_file
+    const std::string& geometry_file,
+    bool strict_mode = false
 );
 
 } // namespace ICARION::physics

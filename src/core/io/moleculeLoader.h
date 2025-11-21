@@ -48,15 +48,17 @@ namespace io {
  * Contains position, mass, charge, and Lennard-Jones parameters.
  * Typically derived from DFT calculations.
  * 
- * **Note:** JSON input positions are in Angström [Å], but stored in SI units [m].
- * The loader automatically converts 1 Å = 1e-10 m.
+ * **Unit Conventions:**
+ * - JSON input: positions and LJ_sigma in Angström [Å]
+ * - Struct storage: positions and LJ_sigma in SI units [m]
+ * - Conversion: 1 Å = 1e-10 m (applied automatically by loader)
  */
 struct Atom {
     std::string element;          ///< Element symbol (e.g., "C", "H", "O", "N")
-    Vec3 pos_m;                   ///< Position in molecule coordinate system [m] (converted from Å)
+    Vec3 pos_m;                   ///< Position in molecule coordinate system [m] (JSON: Å)
     double mass_u;                ///< Atomic mass [u]
     double partial_charge_e;      ///< Partial charge [elementary charges]
-    double LJ_sigma_m;            ///< Lennard-Jones sigma parameter [m]
+    double LJ_sigma_m;            ///< Lennard-Jones sigma parameter [m] (JSON: Å)
     double LJ_epsilon_eV;         ///< Lennard-Jones epsilon parameter [eV]
     
     /**

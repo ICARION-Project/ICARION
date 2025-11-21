@@ -50,3 +50,29 @@ target_include_directories(test_ou_collision_handler PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 add_test(NAME OUCollisionHandler COMMAND test_ou_collision_handler)
+
+# Test: Geometry Utils (conversion, loading)
+add_executable(test_geometry_utils test_geometry_utils.cpp)
+target_link_libraries(test_geometry_utils PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_geometry_utils PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME GeometryUtils COMMAND test_geometry_utils)
+
+# Diagnostic: Energy distribution analysis
+add_executable(test_collision_energy_diagnostic test_collision_energy_diagnostic.cpp)
+target_link_libraries(test_collision_energy_diagnostic PRIVATE
+    icarion_core
+)
+target_include_directories(test_collision_energy_diagnostic PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(test_collision_energy_diagnostic PRIVATE OpenMP::OpenMP_CXX)
+endif()

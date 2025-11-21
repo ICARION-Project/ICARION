@@ -195,8 +195,8 @@ Molecule load_molecule(const std::string& filepath) {
             pos[2].asDouble() * ANGSTROM_TO_M
         };
         
-        // Optional LJ parameters
-        atom.LJ_sigma_m = atom_json.get("LJ_sigma_m", 0.0).asDouble();
+        // Optional LJ parameters (JSON in Ångström, convert to meters)
+        atom.LJ_sigma_m = atom_json.get("LJ_sigma_angstrom", 0.0).asDouble() * ANGSTROM_TO_M;
         atom.LJ_epsilon_eV = atom_json.get("LJ_epsilon_eV", 0.0).asDouble();
         
         mol.atoms.push_back(atom);

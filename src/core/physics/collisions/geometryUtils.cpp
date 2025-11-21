@@ -10,7 +10,8 @@ namespace ICARION::physics {
 
 GeometryMap load_geometry_map(
     const std::unordered_set<std::string>& species_ids,
-    const std::string& geometry_file
+    const std::string& geometry_file,
+    bool strict_mode
 ) {
     GeometryMap geometry_map;
     
@@ -44,19 +45,22 @@ GeometryMap load_geometry_map(
                 );
                 geometry_map[species_id] = std::move(geom);
             } else {
-                io::debug_log(
-                    "[GeometryUtils] Empty geometry for species '" + species_id + 
-                    "' - will fallback to CCS"
-                );
+                std::string msg = "Empty geometry for species '" + species_id + "'";
+                if (strict_mode) {
+                    throw std::runtime_error("[GeometryUtils] " + msg);
+                }
+                io::debug_log("[GeometryUtils] " + msg + " - will fallback to CCS");
                 // Empty geometry signals fallback
                 geometry_map[species_id] = GeometryData{{}, {}};
             }
             
         } catch (const std::exception& e) {
-            io::debug_log(
-                "[GeometryUtils] Failed to load geometry for species '" + species_id + 
-                "': " + std::string(e.what()) + " - will fallback to CCS"
-            );
+            std::string msg = "Failed to load geometry for species '" + species_id + 
+                            "': " + std::string(e.what());
+            if (strict_mode) {
+                throw std::runtime_error("[GeometryUtils] " + msg);
+            }
+            io::debug_log("[GeometryUtils] " + msg + " - will fallback to CCS");
             // Insert empty geometry (signals fallback)
             geometry_map[species_id] = GeometryData{{}, {}};
         }

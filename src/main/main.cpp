@@ -89,12 +89,10 @@ int main(int argc, char* argv[]) {
     }
     
     // === Initialize logging FIRST (before any other operations) ===
-    bool json_logs = false;  // TODO: Add --log-format flag in future
     ICARION::log::Logger::init(
         opts.log_level,
         opts.log_file.value_or(""),
-        json_logs
-    );
+        opts.log_format);
     
     // Log startup information
     ICARION::log::Logger::main()->info("ICARION v{} starting", ICARION_VERSION);

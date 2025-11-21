@@ -85,6 +85,8 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
          cxxopts::value<std::string>()->default_value("INFO"), "LEVEL")
         ("log-file", "Write logs to FILE instead of console", 
          cxxopts::value<std::string>(), "FILE")
+        ("log-format", "Log output format: text or json [default: text]",
+         cxxopts::value<std::string>()->default_value("text"), "FORMAT")
         ("verbose", "Enable verbose output (alias for --log-level DEBUG)");
     
     // === Output options (Phase 1: ACTIVE) ===
@@ -194,6 +196,18 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     
     if (result.count("log-file")) {
         opts.log_file = result["log-file"].as<std::string>();
+    }
+    
+    if (result.count("log-format")) {
+        opts.log_format = result["log-format"].as<std::string>();
+        
+        // Validate log format
+        if (opts.log_format != "text" && opts.log_format != "json") {
+            // Note: Logger not yet initialized at this point, use stderr
+            std::cerr << "Error: Invalid log format '" << opts.log_format << "'\n";
+            std::cerr << "Valid options: text, json\n";
+            std::exit(1);
+        }
     }
     
     if (result.count("verbose")) {

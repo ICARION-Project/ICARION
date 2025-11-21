@@ -37,11 +37,14 @@ std::vector<spdlog::sink_ptr> Logger::sinks_;
 void Logger::init(
     const std::string& level,
     const std::string& log_file,
-    bool json_format,
+    const std::string& format,
     size_t max_file_size_mb
 ) {
     // Parse log level
     current_level_ = parse_level(level);
+    
+    // Parse format (text or json)
+    bool json_format = (format == "json");
     
     // Clear existing sinks and loggers
     sinks_.clear();
@@ -100,8 +103,9 @@ void Logger::init(
     spdlog::flush_every(std::chrono::seconds(3));
     
     // Log initialization message
-    get("main")->info("ICARION Logging initialized (level: {}{})", 
-                      level, 
+    get("main")->info("ICARION Logging initialized (level: {}, format: {}{})", 
+                      level,
+                      json_format ? "json" : "text",
                       log_file.empty() ? "" : ", file: " + log_file);
 }
 

@@ -47,6 +47,7 @@ struct CLIOptions {
     // === Logging options (Phase 1: ACTIVE) ===
     std::string log_level{"INFO"};        ///< Log level: DEBUG, INFO, WARN, ERROR
     std::optional<std::string> log_file;  ///< Log to file instead of console
+    std::string log_format{"text"};       ///< Log format: text or json
     bool verbose{false};                  ///< Verbose mode (alias for --log-level DEBUG)
     
     // === Output control (Phase 1: ACTIVE) ===

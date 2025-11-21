@@ -68,7 +68,7 @@ public:
      * 
      * @param level Log level: "DEBUG", "INFO", "WARN", "ERROR"
      * @param log_file Path to log file (empty = console only)
-     * @param json_format Enable JSON structured logs (default: false)
+     * @param format Log format: "text" or "json" (default: "text")
      * @param max_file_size_mb Rotate log files after this size (default: 50 MB)
      * 
      * Call this once at program startup, before any logging.
@@ -76,7 +76,7 @@ public:
     static void init(
         const std::string& level = "INFO",
         const std::string& log_file = "",
-        bool json_format = false,
+        const std::string& format = "text",
         size_t max_file_size_mb = 50
     );
     

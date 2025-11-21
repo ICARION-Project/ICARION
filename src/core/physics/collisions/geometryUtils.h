@@ -32,6 +32,13 @@ namespace ICARION::physics {
  * ```
  */
 inline GeometryData convert_molecule_to_geometry(const io::Molecule& molecule) {
+    // Conversion factor from Lennard-Jones sigma to hard-sphere radius
+    // Physical basis: LJ potential V(r) = 4ε[(σ/r)¹² - (σ/r)⁶]
+    // At r=σ, V(σ)=0 (zero-crossing), defining the "contact distance"
+    // Hard-sphere model approximates this as sphere with radius r_HS = σ/2
+    // Reference: Hirschfelder et al., "Molecular Theory of Gases and Liquids" (1954)
+    constexpr double LJ_SIGMA_TO_HS_RADIUS = 0.5;
+    
     std::vector<Vec3> centers;
     std::vector<double> radii;
     
@@ -43,7 +50,7 @@ inline GeometryData convert_molecule_to_geometry(const io::Molecule& molecule) {
         // in atom.pos_m, so no further conversion needed here.
         centers.push_back(atom.pos_m);
         
-        radii.push_back(0.5 * atom.LJ_sigma_m); // LJ sigma → hard-sphere radius [m]
+        radii.push_back(LJ_SIGMA_TO_HS_RADIUS * atom.LJ_sigma_m);
     }
     
     return GeometryData{std::move(centers), std::move(radii)};

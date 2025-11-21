@@ -41,7 +41,6 @@
  *   @see         types/IonState.h
  *   @see         physics/ionMotion.h
  *   @see         physics/eventFunctions.h
- *   @see         physics/geometryReader.h
  *   @see         reactionUtils/reactionUtils.h
  *   @see         constants.h
  *   @see         io/hdf5Writer.h
@@ -89,7 +88,6 @@
  *   @see         types/IonState.h
  *   @see         physics/ionMotion.h
  *   @see         physics/eventFunctions.h
- *   @see         physics/geometryReader.h
  *   @see         reactionUtils/reactionUtils.h
  *   @see         constants.h
  *   @see         io/hdf5Writer.h
@@ -106,7 +104,6 @@
 #include "core/param/paramUtils.h"
 
 #include "core/physics/collisions/collisionHelpers.h"
-#include "core/physics/geometryReader.h"
 #include "core/physics/computeAccelerations.h"
 
 #include "core/io/hdf5Writer.h"

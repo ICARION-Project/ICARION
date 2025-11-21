@@ -45,6 +45,7 @@
 
 #include "integrator/integrator.h"
 #include "core/io/hdf5Writer.h"
+#include "core/io/hdf5Writer_v2.h"  // Modern HDF5 writer (future replacement)
 #include "core/param/paramUtils.h"
 #include "utils/cli_parser.h"  // CLI argument parser
 #include "core/log/Logger.h"  // Structured logging
@@ -490,6 +491,48 @@ int main(int argc, char* argv[]) {
         }
         
         try {
+            // === Legacy HDF5 API (write_simulation_metadata) ===
+            // TODO: Replace with HDF5Writer::finalize() once integrator is refactored
+            //
+            // Future API with HDF5Writer v2:
+            // ------------------------------
+            // The new HDF5Writer v2 provides a clean API with proper metadata:
+            // 
+            // 1. At simulation start (replace write_params_to_HDF5):
+            //    std::string git_hash = GIT_HASH;  // From CMake
+            //    std::string build_info = "gcc " + __VERSION__;
+            //    ICARION::io::HDF5Writer::create_file(
+            //        gParams.output_file + ".h5", 
+            //        full_config,  // FullConfig with all metadata
+            //        ions,         // Initial ion states
+            //        git_hash,     // Reproducibility
+            //        build_info    // Compiler info
+            //    );
+            //
+            // 2. During simulation (replace append_to_HDF5):
+            //    ICARION::io::HDF5Writer::append_trajectory(
+            //        gParams.output_file + ".h5",
+            //        current_time,
+            //        ions  // Current ion states
+            //    );
+            //
+            // 3. At completion (NEW - replaces write_simulation_metadata):
+            //    ICARION::io::HDF5Writer::finalize(
+            //        gParams.output_file + ".h5",
+            //        simulation_complete,
+            //        t_end,
+            //        active_count
+            //    );
+            //
+            // This eliminates trajectory_buffer complexity and provides:
+            // - Complete reproducibility metadata (git hash, RNG seed, compiler)
+            // - Tabular species/reaction data (pandas-compatible)
+            // - Hierarchical domain configuration
+            // - Proper HDF5 v2.0 format with compression
+            //
+            // See: docs/HDF5_OUTPUT_STRUCTURE.md for format specification
+            // See: tests/io/test_hdf5_writer_v2.cpp for usage examples
+            
             H5::H5File hdf5_file(gParams.output_file + ".h5", H5F_ACC_RDWR);
             bool simulation_complete = (active_count == 0);  // All ions exited/deactivated
             

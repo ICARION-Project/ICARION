@@ -21,6 +21,14 @@
  *
  *   Each function returns a force vector divided by the ion mass (acceleration).
  *
+ *   ⚠️ **DEPRECATED (Phase 2B - November 2025):**
+ *   This file duplicates logic already implemented in `DampingForce`.
+ *   Used by legacy `compute_accelerations()` until Phase 4 migration.
+ *   
+ *   **New code should use:**
+ *   - `ForceRegistry` + `DampingForce` (for deterministic models)
+ *   - `ICollisionHandler` (for stochastic models - EHSS/HSS)
+ *
  *   @date        2025-11-10
  *   @version     1.0.0
  *

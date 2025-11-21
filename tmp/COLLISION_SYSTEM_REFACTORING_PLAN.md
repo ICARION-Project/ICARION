@@ -150,20 +150,28 @@ tests/physics/collisions/
 
 ---
 
-### **Phase 2B: Delete Duplicate Damping Code (1 day)**
+### **Phase 2B: Mark Duplicate Damping Code as Deprecated (1 day)** ✅ MODIFIED
 
-**Goal:** Remove duplicate force definitions (already in `DampingForce`)
+**Goal:** Document duplicate force definitions (will be removed in Phase 4)
+
+**Why not delete now?**
+- `defineCollisionForces.cpp` is used by legacy `compute_accelerations()` 
+- `compute_accelerations()` is heavily used in current integrator (20+ call sites)
+- Cannot delete until Phase 4 (Integrator Refactor) replaces it with `ForceRegistry`
 
 **Tasks:**
-1. ❌ **DELETE** `src/core/physics/collisions/defineCollisionForces.cpp`
-2. ❌ **DELETE** `src/core/physics/collisions/defineCollisionForces.h`
-3. ✅ Verify `DampingForce` covers all cases (Friction, Langevin, HardSphere)
-4. ✅ Update CMakeLists.txt to remove deleted files
-5. ✅ Verify no other files reference deleted headers
+1. ✅ Add deprecation warnings to `defineCollisionForces.{h,cpp}`
+2. ✅ Document that HardSphere/Langevin/Friction are duplicated in `DampingForce`
+3. ✅ Add deprecation warning to `compute_accelerations()` 
+4. ✅ Explain migration path: `compute_accelerations()` → `ForceRegistry`
+5. ✅ Verify build still works
 
-**Rationale:** These functions duplicate `DampingForce::compute()` logic (SSOT violation!)
+**Rationale:** 
+- Keeps legacy code functional during migration
+- Documents technical debt for future cleanup
+- Prevents new code from using deprecated functions
 
-**Commit:** `refactor: Remove duplicate damping force definitions (use DampingForce)`
+**Commit:** `refactor: Mark duplicate collision forces as deprecated (Phase 4 cleanup)`
 
 ---
 

@@ -187,7 +187,7 @@ TEST_CASE("HSSCollisionHandler: Thermalization from high energy", "[collision][h
     INFO("Thermal KE: " << KE_thermal_eV << " eV");
     
     REQUIRE(KE_final_avg_eV < KE_initial_avg_eV);  // Energy decreased
-    REQUIRE(KE_final_avg_eV == Approx(KE_thermal_eV).margin(0.1 * KE_thermal_eV));  // TODO: Physics investigation
+    REQUIRE(KE_final_avg_eV == Approx(KE_thermal_eV).margin(0.1 * KE_thermal_eV));  
 }
 
 TEST_CASE("HSSCollisionHandler: Isotropic velocity distribution", "[collision][hss][thermalization]") {

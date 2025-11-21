@@ -63,6 +63,18 @@ target_include_directories(test_geometry_utils PRIVATE
 )
 add_test(NAME GeometryUtils COMMAND test_geometry_utils)
 
+# Test: Energy conservation in collision models
+add_executable(test_collision_energy_conservation test_collision_energy_conservation.cpp)
+target_link_libraries(test_collision_energy_conservation PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_collision_energy_conservation PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME CollisionEnergyConservation COMMAND test_collision_energy_conservation)
+
 # Diagnostic: Energy distribution analysis
 add_executable(test_collision_energy_diagnostic test_collision_energy_diagnostic.cpp)
 target_link_libraries(test_collision_energy_diagnostic PRIVATE
@@ -76,3 +88,41 @@ find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(test_collision_energy_diagnostic PRIVATE OpenMP::OpenMP_CXX)
 endif()
+
+# Diagnostic: Thermalization convergence (time evolution)
+add_executable(test_thermalization_convergence test_thermalization_convergence.cpp)
+target_link_libraries(test_thermalization_convergence PRIVATE
+    icarion_core
+)
+target_include_directories(test_thermalization_convergence PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(test_thermalization_convergence PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
+# Test: Temperature scaling validation
+add_executable(test_temperature_scaling test_temperature_scaling.cpp)
+target_link_libraries(test_temperature_scaling PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_temperature_scaling PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(test_temperature_scaling PRIVATE OpenMP::OpenMP_CXX)
+endif()
+add_test(NAME TemperatureScaling COMMAND test_temperature_scaling)
+
+# Diagnostic: Realistic energy transfer with sampled neutrals
+add_executable(test_realistic_transfer test_realistic_transfer.cpp)
+target_link_libraries(test_realistic_transfer PRIVATE icarion_core)
+target_include_directories(test_realistic_transfer PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)

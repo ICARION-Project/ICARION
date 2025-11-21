@@ -29,26 +29,9 @@ bool HSSCollisionHandler::handle_collision(
     // Use stored effective cross-section
     const double sigma_eff = ion.CCS_m2;
     
-    // Compute relative velocity
-    const Vec3 v_rel = ion.vel - v_gas;
-    const double v_rel_mag = norm(v_rel);
-    
-    if (v_rel_mag < 1e-10 || sigma_eff <= 0.0) {
-        return false;  // Ion stationary or invalid CCS
+    if (sigma_eff <= 0.0) {
+        return false;  // Invalid CCS
     }
-    
-    // Collision probability (exponential distribution of free path)
-    // P = 1 - exp(-n·σ·v_rel·dt)
-    const double P = 1.0 - std::exp(-n * sigma_eff * v_rel_mag * dt);
-    
-    // Check if collision occurs
-    if (rng.uniform01() >= P) {
-        return false;  // No collision
-    }
-    
-    // ===================================================================
-    // COLLISION OCCURRED - Apply isotropic hard-sphere scattering
-    // ===================================================================
     
     // Setup EHSS parameters for collision helper
     EHSSParams p;
@@ -64,8 +47,30 @@ bool HSSCollisionHandler::handle_collision(
     p.sigma_eff = sigma_eff;
     p.Rn = std::sqrt(sigma_eff / M_PI);  // Effective neutral radius from CCS
     
-    // Sample neutral velocity from Maxwell-Boltzmann distribution
+    // Sample neutral velocity from Maxwell-Boltzmann distribution FIRST
     const Vec3 v_neutral = sample_neutral_velocity(p, rng);
+    
+    // Compute relative velocity with the ACTUAL neutral we sampled
+    const Vec3 v_rel = ion.vel - v_neutral;
+    const double v_rel_mag = norm(v_rel);
+    
+    if (v_rel_mag < 1e-10) {
+        return false;  // Ion stationary relative to neutral
+    }
+    
+    // Collision probability (exponential distribution of free path)
+    // P = 1 - exp(-n·σ·v_rel·dt)
+    const double P = 1.0 - std::exp(-n * sigma_eff * v_rel_mag * dt);
+    
+    // Check if collision occurs
+    if (rng.uniform01() >= P) {
+        return false;  // No collision
+    }
+    
+    // ===================================================================
+    // COLLISION OCCURRED - Apply isotropic hard-sphere scattering
+    // Use the SAME neutral we already sampled for consistency!
+    // ==================================================================="
     
     // Apply isotropic hard-sphere collision
     const Vec3 v_post = collide_hs_cpu(

@@ -40,28 +40,7 @@ bool EHSSCollisionHandler::handle_collision(
     // Compute effective CCS from geometry (or fallback to ion.CCS_m2)
     const double sigma_eff = compute_effective_ccs(ion, neutral_radius);
     
-    // Compute relative velocity
-    const Vec3 v_rel = ion.vel - v_gas;
-    const double v_rel_mag = norm(v_rel);
-    
-    if (v_rel_mag < 1e-10) {
-        return false;  // Ion stationary relative to gas
-    }
-    
-    // Collision probability (exponential distribution of free path)
-    // P = 1 - exp(-n·σ·v_rel·dt)
-    const double P = 1.0 - std::exp(-n * sigma_eff * v_rel_mag * dt);
-    
-    // Check if collision occurs
-    if (rng.uniform01() >= P) {
-        return false;  // No collision
-    }
-    
-    // ===================================================================
-    // COLLISION OCCURRED - Apply EHSS momentum transfer
-    // ===================================================================
-    
-    // Sample neutral velocity from Maxwell-Boltzmann distribution
+    // Setup EHSS parameters for collision helpers
     EHSSParams p;
     p.n = n;
     p.dt = dt;
@@ -75,7 +54,30 @@ bool EHSSCollisionHandler::handle_collision(
     p.Rn = neutral_radius;
     p.sigma_eff = sigma_eff;
     
+    // Sample neutral velocity from Maxwell-Boltzmann distribution FIRST
     const Vec3 v_neutral = sample_neutral_velocity(p, rng);
+    
+    // Compute relative velocity with the ACTUAL neutral we sampled
+    const Vec3 v_rel = ion.vel - v_neutral;
+    const double v_rel_mag = norm(v_rel);
+    
+    if (v_rel_mag < 1e-10) {
+        return false;  // Ion stationary relative to neutral
+    }
+    
+    // Collision probability (exponential distribution of free path)
+    // P = 1 - exp(-n·σ·v_rel·dt)
+    const double P = 1.0 - std::exp(-n * sigma_eff * v_rel_mag * dt);
+    
+    // Check if collision occurs
+    if (rng.uniform01() >= P) {
+        return false;  // No collision
+    }
+    
+    // ===================================================================
+    // COLLISION OCCURRED - Apply EHSS momentum transfer
+    // Use the SAME neutral we already sampled for consistency!
+    // ==================================================================="
     
     // Try to find geometry for this species
     auto it = geometry_map_.find(ion.species_id);

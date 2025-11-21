@@ -1,0 +1,29 @@
+UpdateCTestConfiguration  from :/home/chsch95/ICARION/build/DartConfiguration.tcl
+UpdateCTestConfiguration  from :/home/chsch95/ICARION/build/DartConfiguration.tcl
+Test project /home/chsch95/ICARION/build
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 16
+    Start 16: EHSSCollisionHandler
+
+16: Test command: /home/chsch95/ICARION/build/tests/physics/collisions/test_ehss_collision_handler
+16: Working Directory: /home/chsch95/ICARION/build/tests/physics/collisions
+16: Test timeout computed to be: 10000000
+16: Randomness seeded to: 190783832
+16: Loaded molecule 'H3O+' with 4 atoms (mass: 19.023 u, charge: 1 e)
+16: Loaded molecule 'H3O+' with 4 atoms (mass: 19.023 u, charge: 1 e)
+16: ===============================================================================
+16: All tests passed (5 assertions in 2 test cases)
+16: 
+1/1 Test #16: EHSSCollisionHandler .............   Passed    2.94 sec
+
+The following tests passed:
+	EHSSCollisionHandler
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   2.94 sec

@@ -53,7 +53,7 @@ TEST_CASE("EHSSCollisionHandler: Thermalization of H3O+", "[collision][ehss][the
     // Environment: He at 300 K, 10000 Pa (high pressure for fast thermalization)
     EnvironmentConfig env;
     env.temperature_K = T_K;
-    env.pressure_Pa = 10000.0;
+    env.pressure_Pa = 2000.0;
     env.gas_species = "N2";
     env.gas_velocity_m_s = Vec3{0.0, 0.0, 0.0};
     env.compute_derived_properties();

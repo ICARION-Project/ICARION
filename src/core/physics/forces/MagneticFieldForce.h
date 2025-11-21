@@ -24,8 +24,19 @@ class IFieldProvider;
 namespace ICARION {
 namespace physics {
 
+// ============================================================================
+// ⚠️ DEPRECATED: MagneticFieldParams violates SSOT principle!
+// ============================================================================
+// This struct duplicates parameters from FullConfig → DomainConfig → FieldsConfig → MagneticFieldConfig.
+// 
+// **TODO (Phase 2):** Replace with direct DomainConfig.fields.magnetic reference.
+// **KEPT FOR NOW:** To avoid breaking changes during Phase 1.
+// ============================================================================
+
 /**
  * @brief Parameters for analytical magnetic field configuration
+ * 
+ * @deprecated Violates SSOT. Use DomainConfig.fields.magnetic directly in Phase 2.
  */
 struct MagneticFieldParams {
     Vec3 uniform_field_T = {0.0, 0.0, 0.0};     ///< Uniform B-field [Tesla]

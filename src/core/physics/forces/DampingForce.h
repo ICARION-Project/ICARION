@@ -47,8 +47,20 @@ enum class DampingModel {
     Friction    ///< Mobility-based friction
 };
 
+// ============================================================================
+// ⚠️ DEPRECATED: DampingParams violates SSOT principle!
+// ============================================================================
+// This struct duplicates parameters from FullConfig → DomainConfig → EnvironmentConfig.
+// 
+// **TODO (Phase 2):** Replace with direct EnvironmentConfig reference:
+//   DampingForce(const EnvironmentConfig& env, DampingModel model)
+// **KEPT FOR NOW:** To avoid breaking changes during Phase 1.
+// ============================================================================
+
 /**
  * @brief Parameters for damping force calculation
+ * 
+ * @deprecated Violates SSOT. Use EnvironmentConfig directly in Phase 2.
  * 
  * Contains collision parameters needed to compute damping coefficient γ.
  * Different models use different subsets of these parameters.

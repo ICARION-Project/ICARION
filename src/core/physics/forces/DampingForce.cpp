@@ -127,9 +127,9 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             const double cs = M_PI * q * std::sqrt(alpha / (epsilon_factor * m_reduced)) / v_mag;
             
             // Collision frequency
-            const double freq = gas_density * cs * v_th * m_neutral / (m_neutral + m_ion);
+            const double gamma = gas_density * cs * v_th * m_neutral / (m_neutral + m_ion);
             
-            return freq;  // γ = ν_Langevin [1/s]
+            return gamma;  // γ = ν_Langevin [1/s]
         }
         
         case DampingModel::Friction: {

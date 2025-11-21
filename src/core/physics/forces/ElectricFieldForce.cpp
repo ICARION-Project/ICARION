@@ -1,6 +1,25 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
+// ⚠️ DEPRECATION WARNING: Parameter Duplication (SSOT Violation)
+// ===============================================================
+// This implementation uses AnalyticalFieldParams which duplicates parameters
+// already defined in DomainConfig (the single source of truth in FullConfig).
+//
+// WHY THIS IS BAD:
+//   - Same parameter can have different values in different places
+//   - Changes in FullConfig don't automatically propagate here
+//   - Violates Single Source of Truth (SSOT) principle
+//
+// TODO (Phase 2):
+//   Replace constructor with: ElectricFieldForce(const DomainConfig& domain, ...)
+//   - Use domain.fields.dc_field, domain.fields.rf_field, etc. directly
+//   - Remove AnalyticalFieldParams struct entirely
+//   - See DampingForce.h for similar SSOT violation pattern
+//
+// KEPT FOR NOW: To avoid breaking tests during Phase 1 force system refactor
+// ===============================================================
+
 #include "ElectricFieldForce.h"
 #include "core/utils/mathUtils.h"
 #include "fieldsolver/utils/IFieldProvider.h"

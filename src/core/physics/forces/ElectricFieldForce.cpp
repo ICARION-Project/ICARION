@@ -121,7 +121,11 @@ Vec3 ElectricFieldForce::compute_analytical_field(const IonState& ion, double t)
 // Quadrupolar RF field: E_x = (U_DC + U_RF·cos(ωt)) · 2x/r₀²
 //                        E_y = -(U_DC + U_RF·cos(ωt)) · 2y/r₀²
 //                        E_z = 0 (radial confinement only)
-// Optional DC axial field for axial confinement.
+// 
+// DC endcap confinement (axial):
+//   - Linear restoring field in outer 10% of trap length
+//   - E_z ∝ distance from edge (pushes ions inward from both sides)
+//   - Approximation for DC endcap potentials on both trap ends
 // ----------------------------------------------------------------------------
 Vec3 ElectricFieldForce::compute_lqit_field(const IonState& ion, double t) const {
     Vec3 E_total{0.0, 0.0, 0.0};
@@ -137,18 +141,38 @@ Vec3 ElectricFieldForce::compute_lqit_field(const IonState& ion, double t) const
         E_total.y = -2.0 * ion.pos.y * U_eff / r0_sq;
     }
     
-    // DC axial field (if present)
+    // DC endcap field (axial confinement)
+    // Linear restoring field in outer 10% of trap length
+    // Approximates DC endcap potentials pushing ions inward from both sides
     if (std::fabs(analytical_params_.dc_axial_voltage_V) > 1e-12) {
-        E_total.z = analytical_params_.dc_axial_voltage_V / analytical_params_.length_m;
+        const double L = analytical_params_.length_m;
+        const double z = ion.pos.z;
+        const double edge_region = 0.1 * L;  // Outer 10%
+        
+        double E_z = 0.0;
+        
+        // Left endcap region (z < 0.1*L): E_z increases from 0 to max as z → 0
+        if (z < edge_region) {
+            // E_z > 0 (pushes right, away from left endcap)
+            E_z = analytical_params_.dc_axial_voltage_V * (edge_region - z) / (edge_region * L);
+        }
+        // Right endcap region (z > 0.9*L): E_z decreases from 0 to -max as z → L
+        else if (z > L - edge_region) {
+            // E_z < 0 (pushes left, away from right endcap)
+            E_z = -analytical_params_.dc_axial_voltage_V * (z - (L - edge_region)) / (edge_region * L);
+        }
+        // Central region: field-free (E_z = 0)
+        
+        E_total.z = E_z;
     }
     
-    // AC field (resonant excitation, if present)
+    // AC field (resonant excitation): FIXED in x-direction for v1.0
+    // Multi-domain rotation handling deferred to v1.1+
     if (std::fabs(analytical_params_.ac_voltage_V) > 1e-12) {
         const double omega_ac = 2.0 * M_PI * analytical_params_.ac_frequency_Hz;
-        const Vec3 dir_unit = normalize(analytical_params_.ac_direction);
         const double mag = (analytical_params_.ac_voltage_V / analytical_params_.radius_m) 
                          * std::cos(omega_ac * t);
-        E_total = E_total + dir_unit * mag;
+        E_total.x += mag;  // Fixed x-direction
     }
     
     return E_total;
@@ -237,10 +261,9 @@ Vec3 ElectricFieldForce::compute_orbitrap_field(const IonState& ion) const {
 }
 
 // ----------------------------------------------------------------------------
-// QuadrupoleRF: Generic Quadrupole RF (includes SLIM)
+// QuadrupoleRF: Generic Quadrupole RF 
 // ----------------------------------------------------------------------------
 // Same as LQIT but may have different typical parameters.
-// SLIM uses lower frequencies and traveling waves (not yet implemented).
 // ----------------------------------------------------------------------------
 Vec3 ElectricFieldForce::compute_quadrupole_rf_field(const IonState& ion, double t) const {
     // Identical to LQIT for now

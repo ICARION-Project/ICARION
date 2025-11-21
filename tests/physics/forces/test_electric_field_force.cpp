@@ -280,19 +280,61 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
         REQUIRE(F.x == Approx(ELEM_CHARGE_C * E_x));
     }
     
-    SECTION("LQIT with axial DC field") {
+    SECTION("LQIT with DC endcap field") {
         AnalyticalFieldParams params_axial = params;
-        params_axial.dc_axial_voltage_V = 500.0;  // 500 V axial
-        params_axial.length_m = 0.1;  // 10 cm
+        params_axial.dc_axial_voltage_V = 500.0;  // 500 V endcap potential
+        params_axial.length_m = 0.1;  // 10 cm trap
         
         ElectricFieldForce force_axial(params_axial);
-        
-        IonState ion = make_test_ion(0.0, 0.0, 0.05);
         ForceContext ctx;
-        Vec3 F = force_axial.compute(ion, 0.0, ctx);
         
-        // Should have axial component: E_z = 500/0.1 = 5000 V/m
-        REQUIRE(F.z == Approx(ELEM_CHARGE_C * 5000.0));
+        // Test center region: should be field-free
+        IonState ion_center = make_test_ion(0.0, 0.0, 0.05);  // z = L/2 (center)
+        Vec3 F_center = force_axial.compute(ion_center, 0.0, ctx);
+        REQUIRE(std::fabs(F_center.z) < 1e-20);  // No field in center
+        
+        // Test left endcap (z < 0.1*L): should push right (E_z > 0)
+        IonState ion_left = make_test_ion(0.0, 0.0, 0.005);  // z = 5 mm (in left 10%)
+        Vec3 F_left = force_axial.compute(ion_left, 0.0, ctx);
+        REQUIRE(F_left.z > 0.0);  // Pushes away from left endcap
+        
+        // Test right endcap (z > 0.9*L): should push left (E_z < 0)
+        IonState ion_right = make_test_ion(0.0, 0.0, 0.095);  // z = 95 mm (in right 10%)
+        Vec3 F_right = force_axial.compute(ion_right, 0.0, ctx);
+        REQUIRE(F_right.z < 0.0);  // Pushes away from right endcap
+    }
+    
+    SECTION("LQIT with AC field (fixed x-direction for v1.0)") {
+        AnalyticalFieldParams params_ac;
+        params_ac.instrument_type = InstrumentType::LQIT;
+        params_ac.radius_m = 0.005;
+        params_ac.length_m = 0.1;
+        params_ac.rf_voltage_V = 0.0;  // No RF for clean AC test
+        params_ac.ac_voltage_V = 100.0;  // 100 V AC
+        params_ac.ac_frequency_Hz = 5e5;  // 500 kHz
+        
+        ElectricFieldForce force_ac(params_ac);
+        
+        IonState ion = make_test_ion(0.0, 0.0, 0.05);  // x=0 to isolate AC field
+        ForceContext ctx;
+        
+        // At t=0: cos(0) = 1, AC field should be maximum in +x direction
+        Vec3 F0 = force_ac.compute(ion, 0.0, ctx);
+        double expected_E_ac = params_ac.ac_voltage_V / params_ac.radius_m;
+        REQUIRE(F0.x == Approx(ELEM_CHARGE_C * expected_E_ac));
+        
+        // At t=T/4: cos(ωt) = 0, AC field should be zero
+        double T = 1.0 / params_ac.ac_frequency_Hz;
+        Vec3 F_quarter = force_ac.compute(ion, T / 4.0, ctx);
+        REQUIRE(std::fabs(F_quarter.x) < 1e-18);
+        
+        // At t=T/2: cos(ωt) = -1, AC field should be reversed
+        Vec3 F_half = force_ac.compute(ion, T / 2.0, ctx);
+        REQUIRE(F_half.x == Approx(-F0.x));
+        
+        // Verify oscillation in x-direction only (no y or z component)
+        REQUIRE(std::fabs(F0.y) < 1e-20);
+        REQUIRE(std::fabs(F0.z) < 1e-20);
     }
 }
 

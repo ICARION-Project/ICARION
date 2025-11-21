@@ -50,7 +50,7 @@ struct AnalyticalFieldParams {
     // AC field (resonant excitation)
     double ac_voltage_V = 0.0;           ///< AC amplitude [V]
     double ac_frequency_Hz = 0.0;        ///< AC frequency [Hz]
-    Vec3 ac_direction = {1.0, 0.0, 0.0}; ///< AC field direction (normalized internally)
+    Vec3 ac_direction = {1.0, 0.0, 0.0}; ///< AC field direction (DEPRECATED: always x for v1.0)
     
     // Orbitrap-specific
     double orbitrap_k = 0.0;             ///< Field curvature [V/m²]

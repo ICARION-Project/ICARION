@@ -7,10 +7,10 @@
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
 
-namespace ICARION::physics {
-
-// Forward declarations
+// Forward declaration (IFieldProvider is in global namespace)
 class IFieldProvider;
+
+namespace ICARION::physics {
 
 namespace config {
     struct DomainConfig;
@@ -50,7 +50,7 @@ struct ForceContext {
      * 
      * @see IFieldProvider for field sampling interface
      */
-    const IFieldProvider* field_provider = nullptr;
+    const ::IFieldProvider* field_provider = nullptr;
     
     // =========================================================================
     // Domain Configuration (geometry, instrument type, field parameters)

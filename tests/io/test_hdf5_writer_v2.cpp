@@ -457,3 +457,178 @@ TEST_CASE("HDF5Writer v2 handles empty reaction database", "[hdf5][io]") {
     // (Implementation detail - may or may not create group for empty database)
     file.close();
 }
+
+TEST_CASE("HDF5Writer v2 writes reaction metadata correctly", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    // Enable reactions and add test reaction
+    config.physics.enable_reactions = true;
+    
+    config::Reaction rxn;
+    rxn.id = "charge_transfer_1";
+    rxn.reactant = "H3O+";
+    rxn.product = "NO2+";
+    rxn.rate_constant_m3s = 1.5e-15;
+    config.reaction_db.reactions.push_back(rxn);
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    
+    // Check reactions metadata exists
+    REQUIRE(file.nameExists("/metadata/reactions"));
+    H5::Group rxn_group = file.openGroup("/metadata/reactions");
+    
+    // Check reaction ID
+    H5::DataSet ds_ids = rxn_group.openDataSet("id");
+    H5::DataSpace space = ds_ids.getSpace();
+    hsize_t dims[1];
+    space.getSimpleExtentDims(dims);
+    REQUIRE(dims[0] == 1);  // 1 reaction
+    
+    // Check rate constant
+    H5::DataSet ds_rate = rxn_group.openDataSet("rate_constant_m3s");
+    std::vector<double> rates(1);
+    ds_rate.read(rates.data(), H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(rates[0] == Approx(1.5e-15));
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 writes multiple domains correctly", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    // Add second domain
+    config::DomainConfig domain2;
+    domain2.name = "drift_region_2";
+    domain2.instrument = config::Instrument::TOF;
+    domain2.solver = config::SolverType::RK45;
+    domain2.domain_index = 1;
+    domain2.geometry.length_m = 0.2;
+    domain2.geometry.radius_m = 0.015;
+    domain2.environment.pressure_Pa = 100.0;
+    domain2.environment.temperature_K = 320.0;
+    domain2.environment.gas_species = "He";
+    config.domains.push_back(domain2);
+    
+    // Add third domain
+    config::DomainConfig domain3;
+    domain3.name = "detector";
+    domain3.instrument = config::Instrument::NoFixedInstrument;
+    domain3.solver = config::SolverType::RK4;
+    domain3.domain_index = 2;
+    domain3.geometry.length_m = 0.05;
+    domain3.geometry.radius_m = 0.02;
+    domain3.environment.pressure_Pa = 1e-3;
+    domain3.environment.temperature_K = 300.0;
+    domain3.environment.gas_species = "Vacuum";
+    config.domains.push_back(domain3);
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    
+    // Check all domain groups exist
+    REQUIRE(file.nameExists("/domains/domain_0"));
+    REQUIRE(file.nameExists("/domains/domain_1"));
+    REQUIRE(file.nameExists("/domains/domain_2"));
+    
+    // Verify domain 1 details
+    H5::Group dom1 = file.openGroup("/domains/domain_1");
+    H5::DataSet ds_name = dom1.openDataSet("name");
+    H5::StrType str_type = ds_name.getStrType();
+    std::string name;
+    ds_name.read(name, str_type);
+    REQUIRE(name == "drift_region_2");
+    
+    H5::DataSet ds_instr = dom1.openDataSet("instrument");
+    std::string instrument;
+    ds_instr.read(instrument, str_type);
+    REQUIRE(instrument == "TOF");
+    
+    // Verify domain 2 geometry
+    H5::Group dom2 = file.openGroup("/domains/domain_2");
+    H5::Group geom2 = dom2.openGroup("geometry");
+    H5::DataSet ds_length = geom2.openDataSet("length_m");
+    double length;
+    ds_length.read(&length, H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(length == Approx(0.05));
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 writes system metadata correctly", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "abc123", "gcc 11.4.0");
+    
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    H5::Group system = file.openGroup("/metadata/system");
+    
+    // Check hostname exists
+    REQUIRE(file.nameExists("/metadata/system/hostname"));
+    H5::DataSet ds_host = system.openDataSet("hostname");
+    H5::StrType str_type = ds_host.getStrType();
+    std::string hostname;
+    ds_host.read(hostname, str_type);
+    REQUIRE(hostname.length() > 0);
+    
+    // Check OS information exists
+    REQUIRE(file.nameExists("/metadata/system/os"));
+    REQUIRE(file.nameExists("/metadata/system/cpu_model"));
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 handles large ion ensembles", "[hdf5][io][performance]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    
+    // Create large ensemble (1000 ions)
+    std::vector<core::IonState> ions;
+    ions.reserve(1000);
+    
+    for (int i = 0; i < 1000; ++i) {
+        core::IonState ion;
+        ion.species_id = (i % 3 == 0) ? "H3O+" : "NO2+";
+        ion.pos = core::Vec3(0.001 * i, 0.0001 * i, 0.00001 * i);
+        ion.vel = core::Vec3(100 + i * 0.1, 10, 0);
+        ion.mass_kg = 19.02 * 1.66e-27;
+        ion.ion_charge_C = 1.602e-19;
+        ion.birth_time_s = 0.0;
+        ion.current_domain_index = 0;
+        ion.active = true;
+        ions.push_back(ion);
+    }
+    
+    // Should handle large ensemble without issues
+    REQUIRE_NOTHROW(io::HDF5Writer::create_file(test_file, config, ions, "test", "test"));
+    
+    // Append trajectory snapshots
+    for (int step = 0; step < 5; ++step) {
+        for (auto& ion : ions) {
+            ion.pos.x += 0.0001;
+        }
+        REQUIRE_NOTHROW(io::HDF5Writer::append_trajectory(test_file, step * 1e-9, ions));
+    }
+    
+    // Verify data integrity
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    H5::Group traj = file.openGroup("/trajectory");
+    
+    H5::DataSet ds_pos = traj.openDataSet("positions");
+    H5::DataSpace space = ds_pos.getSpace();
+    hsize_t dims[3];
+    space.getSimpleExtentDims(dims);
+    REQUIRE(dims[0] == 5);     // 5 timesteps
+    REQUIRE(dims[1] == 1000);  // 1000 ions
+    REQUIRE(dims[2] == 3);     // x,y,z
+    
+    file.close();
+}

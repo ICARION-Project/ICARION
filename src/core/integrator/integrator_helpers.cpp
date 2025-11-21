@@ -291,121 +291,13 @@ void integrate_one_step(
     global_ion_counter++;
 }
 
-void load_geometry(const std::string& filename, const std::string& targetName,
-                   std::vector<Vec3>& h_centers, std::vector<double>& h_radii, double& ccs_mobcal) {
-    auto molecules = read_geometry_file(filename, targetName);
-    if (molecules.empty()) throw std::runtime_error("No molecules found in geometry file");
-    const auto& mol = molecules[0];
-    h_centers.clear(); h_radii.clear();
-    ccs_mobcal = mol.has_CCS ? mol.CCS_m2 : 0.0;
-    for (const auto& atom : mol.atoms) {
-        h_centers.push_back({atom.posx_m, atom.posy_m, atom.posz_m});
-        double radius_m = get_vdw_radius_m_with_fallback(atom.type, atom.LJ_sigma_m);
-        h_radii.push_back(radius_m);
-    }
-}
+// NOTE: load_geometry() and compute_CCS_from_geometry() removed in Phase 2D refactor
+// Geometry loading now in src/core/physics/collisions/utils.{h,cpp}
+// See load_geometry_from_file() and MolecularGeometry struct
 
-inline double compute_CCS_from_geometry(const std::vector<Vec3>& centers,
-                                        const std::vector<double>& radii,
-                                        double neutral_radius_m,
-                                        int n_samples) {
-    if (centers.empty()) return 0.0;
-    std::mt19937 rng(12345);
-    std::uniform_real_distribution<double> uniform(0.0, 1.0);
-    double ccs_sum = 0.0;
-    for (int sample = 0; sample < n_samples; ++sample) {
-        double theta = std::acos(2.0 * uniform(rng) - 1.0);
-        double phi = 2.0 * M_PI * uniform(rng);
-        Vec3 collision_axis;
-        collision_axis.x = std::sin(theta) * std::cos(phi);
-        collision_axis.y = std::sin(theta) * std::sin(phi);
-        collision_axis.z = std::cos(theta);
-        double max_proj_radius = 0.0;
-        for (size_t i = 0; i < centers.size(); ++i) {
-            Vec3 r = centers[i];
-            double proj_along_axis = r.x * collision_axis.x + r.y * collision_axis.y + r.z * collision_axis.z;
-            Vec3 r_perp;
-            r_perp.x = r.x - proj_along_axis * collision_axis.x;
-            r_perp.y = r.y - proj_along_axis * collision_axis.y;
-            r_perp.z = r.z - proj_along_axis * collision_axis.z;
-            double r_perp_mag = std::sqrt(r_perp.x*r_perp.x + r_perp.y*r_perp.y + r_perp.z*r_perp.z);
-            double proj_radius = r_perp_mag + radii[i];
-            if (proj_radius > max_proj_radius) max_proj_radius = proj_radius;
-        }
-        double R_eff = max_proj_radius + neutral_radius_m;
-        ccs_sum += M_PI * R_eff * R_eff;
-    }
-    return ccs_sum / n_samples;
-}
-
-void handle_collision(IonState& y, EhssRng& rng, double dt, const GlobalParams& gParams,
-                      double neutral_radius_m,
-                      const std::unordered_map<std::string, std::pair<std::vector<Vec3>, std::vector<double>>>& geometry_map,
-                      const std::unordered_map<std::string, double>& mobcal_ccs_map) {
-    EHSSParams ep{};
-    ep.n = y.domain_particle_density_m3;
-    ep.dt = dt; ep.mi = y.mass_kg; ep.mn = y.domain_neutral_mass_kg; ep.kB = BOLTZMANN_CONSTANT; ep.Tn = y.domain_temperature_K;
-    if (gParams.collisionModel == CollisionModel::EHSS) {
-        auto it = mobcal_ccs_map.find(y.species_id);
-        if (it != mobcal_ccs_map.end()) ep.sigma_eff = it->second;
-        else {
-            auto git = geometry_map.find(y.species_id);
-            if (git != geometry_map.end()) ep.sigma_eff = compute_CCS_from_geometry(git->second.first, git->second.second, neutral_radius_m);
-            else ep.sigma_eff = y.CCS_m2;
-        }
-    } else ep.sigma_eff = y.CCS_m2;
-    ep.ubx = y.domain_gas_velocity_m_s.x; ep.uby = y.domain_gas_velocity_m_s.y; ep.ubz = y.domain_gas_velocity_m_s.z; ep.Rn = neutral_radius_m;
-    Vec3 v_neutral = sample_neutral_velocity(ep, rng);
-    Vec3 v_ion = y.vel; double v_rel = norm(v_ion - v_neutral);
-    double P = 1.0 - std::exp(-ep.n * ep.sigma_eff * v_rel * ep.dt);
-    // Diagnostic: emit limited debug info for first few collisions to help triage thermalization
-    static std::mutex collision_log_mutex;
-    static std::atomic<int> collision_log_count{0};
-    static bool collision_log_header_written = false;
-    int log_idx = collision_log_count.fetch_add(1);
-    if (log_idx < 5000) {
-        std::ostringstream ss;
-        ss << "[CollisionDebug] species=" << y.species_id
-           << " n=" << ep.n << " sigma_eff=" << ep.sigma_eff
-           << " v_rel=" << v_rel << " dt=" << ep.dt << " P=" << P;
-        ICARION::io::debug_log(ss.str());
-        // also print to stdout to ensure visibility in test runs
-        std::cout << ss.str() << std::endl;
-    }
-
-    // Use an explicit uniform draw so we can record it (may change RNG sequence)
-    double u_draw = rng.uniform01();
-    bool collided = (u_draw < P);
-    if (log_idx < 5000) {
-        // thread-safe append to CSV in the output directory indicated by gParams.output_file
-        std::string base = gParams.output_file.empty() ? std::string("collision_debug") : gParams.output_file + "_collision_debug";
-        pid_t pid = getpid();
-        std::ostringstream fname;
-        fname << base << "_" << pid << ".csv";
-        std::lock_guard<std::mutex> lock(collision_log_mutex);
-        std::ofstream ofs(fname.str(), std::ios::app);
-        if (ofs.is_open()) {
-            if (!collision_log_header_written) {
-                ofs << "time_s,species,n,sigma_eff_m2,v_rel_m_s,dt_s,P,draw,collided,thread_id\n";
-                collision_log_header_written = true;
-            }
-            std::ostringstream row;
-            row.setf(std::ios::scientific);
-            row << ep.dt << "," << y.species_id << "," << ep.n << "," << ep.sigma_eff << "," << v_rel << "," << ep.dt << "," << P << "," << u_draw << "," << (collided?1:0) << "," << std::this_thread::get_id() << "\n";
-            ofs << row.str();
-            ofs.close();
-        }
-    }
-
-    if (collided) {
-        if (gParams.collisionModel == CollisionModel::EHSS) {
-            const auto& [h_centers, h_radii] = geometry_map.at(y.species_id);
-            y.vel = collide_ehss_cpu_geometry_given_neutral(v_ion, v_neutral, ep, h_centers, h_radii, rng);
-        } else if (gParams.collisionModel == CollisionModel::HSS) {
-            y.vel = collide_hs_cpu(v_ion, v_neutral, ep, rng);
-        }
-    }
-}
+// NOTE: handle_collision() removed in Phase 2D refactor
+// Collision handling now delegated to ICollisionHandler implementations
+// See CollisionHandlerFactory and handler->handle_collision() in integrate_trajectory()
 
 void handle_reaction(IonState& y, EhssRng& rng, double dt, const GlobalParams& gParams,
                      const std::unordered_map<std::string, Species>& speciesDB,

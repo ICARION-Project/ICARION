@@ -35,6 +35,13 @@
 // Field server: Core-only uses shim, full build uses fieldsolver
 #include "fieldsolver/utils/field_update_api.h"
 
+// Collision system refactored in Phase 2
+#include "core/physics/collisions/CollisionHandlerFactory.h"
+#include "core/physics/collisions/ICollisionHandler.h"
+#include "core/physics/collisions/EHSSCollisionHandler.h"  // for GeometryMap/GeometryData types
+#include "core/config/types/EnvironmentConfig.h"
+#include "core/io/moleculeLoader.h"  // SSOT for molecular geometry loading
+
 
 #include <algorithm>
 #include <cmath>
@@ -314,34 +321,87 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
         logger->log(msg.str());
     }
 
-    // Load geometry if stochastic collisions are used and a geometry file is provided
-    std::unordered_map<std::string, std::pair<std::vector<Vec3>, std::vector<double>>> geometry_map;
-    if ((gParams.collisionModel == CollisionModel::EHSS ||
-         gParams.collisionModel == CollisionModel::HSS) && !gParams.geometry_file.empty()) {
-        for (const auto& ion : ions) {
-            const std::string& sp_id = ion.species_id;
-            if (geometry_map.find(sp_id) == geometry_map.end()) {
-                std::vector<Vec3> centers;
-                std::vector<double> radii;
-                try {
-                    load_geometry(gParams.geometry_file, sp_id, centers, radii);
-                    geometry_map[sp_id] = {std::move(centers), std::move(radii)};
-                } catch (const std::exception& e) {
-                    // If geometry cannot be loaded, warn and fall back to HSS-like behavior
-                    if (logger) {
-                        std::ostringstream warn;
-                        warn << "Warning: could not load geometry for species '" << sp_id
-                             << "' from file '" << gParams.geometry_file << "': " << e.what()
-                             << " — falling back to HSS assumptions.";
-                        logger->log(warn.str());
+    // Create collision handler using factory (Phase 2D refactor)
+    std::unique_ptr<ICARION::physics::ICollisionHandler> collision_handler;
+    if (gParams.collisionModel != CollisionModel::Friction) {
+        // Load geometry map for EHSS if needed
+        ICARION::physics::GeometryMap geometry_map;
+        if (gParams.collisionModel == CollisionModel::EHSS && !gParams.geometry_file.empty()) {
+            for (const auto& ion : ions) {
+                const std::string& sp_id = ion.species_id;
+                if (geometry_map.find(sp_id) == geometry_map.end()) {
+                    try {
+                        // SSOT: Use MoleculeLoader to load geometry
+                        auto molecule = ICARION::io::load_molecule(gParams.geometry_file);
+                        
+                        // Convert Molecule to GeometryData (centers, radii)
+                        std::vector<Vec3> centers;
+                        std::vector<double> radii;
+                        for (const auto& atom : molecule.atoms) {
+                            centers.push_back(atom.pos_m);
+                            radii.push_back(0.5 * atom.LJ_sigma_m);  // LJ sigma → radius
+                        }
+                        
+                        geometry_map[sp_id] = std::make_pair(std::move(centers), std::move(radii));
+                        
+                        if (logger) {
+                            std::ostringstream msg;
+                            msg << "Loaded geometry for species '" << sp_id 
+                                << "' with " << molecule.atoms.size() << " atoms";
+                            logger->log(msg.str());
+                        }
+                    } catch (const std::exception& e) {
+                        if (logger) {
+                            std::ostringstream warn;
+                            warn << "Warning: could not load geometry for species '" << sp_id
+                                 << "': " << e.what() << " — using CCS from ion state";
+                            logger->log(warn.str());
+                        }
+                        // Empty geometry will fallback to CCS in handler
+                        geometry_map[sp_id] = std::make_pair(std::vector<Vec3>{}, std::vector<double>{});
                     }
-                    geometry_map[sp_id] = {std::vector<Vec3>(), std::vector<double>()};
                 }
             }
         }
+        
+        // Create PhysicsConfig from GlobalParams
+        ICARION::config::PhysicsConfig physics_config;
+        // Convert core::CollisionModel to config::CollisionModel
+        switch (gParams.collisionModel) {
+            case ICARION::core::CollisionModel::NoCollisions:
+                physics_config.collision_model = ICARION::config::CollisionModel::NoCollisions;
+                break;
+            case ICARION::core::CollisionModel::EHSS:
+                physics_config.collision_model = ICARION::config::CollisionModel::EHSS;
+                break;
+            case ICARION::core::CollisionModel::HSS:
+                physics_config.collision_model = ICARION::config::CollisionModel::HSS;
+                break;
+            case ICARION::core::CollisionModel::Langevin:
+                physics_config.collision_model = ICARION::config::CollisionModel::Langevin;
+                break;
+            case ICARION::core::CollisionModel::Friction:
+                physics_config.collision_model = ICARION::config::CollisionModel::Friction;
+                break;
+            case ICARION::core::CollisionModel::HardSphere:
+                physics_config.collision_model = ICARION::config::CollisionModel::HSD;
+                break;
+            default:
+                physics_config.collision_model = ICARION::config::CollisionModel::UnknownCollisionModel;
+        }
+        physics_config.enable_reactions = gParams.enable_reactions;
+        
+        // Create handler from factory
+        collision_handler = ICARION::physics::CollisionHandlerFactory::create(
+            physics_config, &geometry_map);
+        
         if (logger) {
             std::ostringstream msg;
-            msg << "geometry_map populated with " << geometry_map.size() << " species entries";
+            msg << "Collision handler created: model=" 
+                << static_cast<int>(gParams.collisionModel);
+            if (!geometry_map.empty()) {
+                msg << ", loaded geometry for " << geometry_map.size() << " species";
+            }
             logger->log(msg.str());
         }
     }
@@ -438,7 +498,17 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
                 y_loc.vel = dom.rotation_global_to_local * y.vel;
                 
                 // Collision and reaction physics 
-                handle_collision(y_loc, local_rng, y.dt, gParams, geometry_map);
+                if (collision_handler) {
+                    // Build environment config from domain and ion state
+                    ICARION::config::EnvironmentConfig env;
+                    env.temperature_K = y_loc.domain_temperature_K;
+                    env.pressure_Pa = y_loc.domain_particle_density_m3 * BOLTZMANN_CONSTANT * y_loc.domain_temperature_K;
+                    env.gas_species = "He";  // TODO: Get from domain or ion state
+                    env.gas_velocity_m_s = y_loc.domain_gas_velocity_m_s;
+                    env.compute_derived_properties();
+                    
+                    collision_handler->handle_collision(y_loc, y.dt, local_rng, env);
+                }
                 handle_reaction(y_loc, local_rng, y.dt, gParams, speciesDB, reaction_list);
                 Vec3 pos_before = y_loc.pos;
                 integrate_one_step(y_loc, gParams, dom, speciesDB, reaction_list, local_rng, rk45, ions);
@@ -621,116 +691,13 @@ void rk45_dp_step(double t, const IonState& y, double h, const GlobalParams& gPa
  *
  * @note This function only reads the first matching molecule from the file.
  */
-void load_geometry(const std::string& filename, const std::string& targetName,
-                   std::vector<Vec3>& h_centers, std::vector<double>& h_radii) {
-    auto molecules = read_geometry_file(filename, targetName);
-    if (molecules.empty()) {
-        throw std::runtime_error("No molecules found in geometry file");
-    }
+// NOTE: load_geometry() removed in Phase 2D refactor
+// Geometry loading now done via load_geometry_from_file() in CollisionHandlerFactory
+// See src/core/physics/collisions/utils.h -> SSOT Violation?
 
-    const auto& mol = molecules[0];
-
-    h_centers.clear();
-    h_radii.clear();
-
-    for (const auto& atom : mol.atoms) {
-        h_centers.push_back({atom.posx_m, atom.posy_m, atom.posz_m});
-        h_radii.push_back(0.5 * atom.LJ_sigma_m);
-    }
-}
-
-/**
- * @brief Update ion velocity due to collisions with neutral gas molecules.
- *
- * Determines whether a collision occurs for a given ion during the current 
- * timestep and updates its velocity. Supports EHSS (Extended Hard Sphere 
- * Scattering) and HSS (Hard Sphere Stochastic) models.
- *
- * @param[in,out] y           Ion state to update (velocity may change).
- * @param[in,out] rng         Random number generator for reproducibility.
- * @param[in]     dt          Current timestep [s].
- * @param[in]     gParams     Simulation parameters (collision model, density, temperature, etc.).
- * @param[in]     geometry_map Map from species ID to EHSS geometry (atom centers and radii).
- *
- * @note
- * - EHSS collisions use precomputed molecular geometry.
- * - HSS treats ions as simple hard spheres.
- * - Collision probability: P = 1 - exp(-n * sigma_eff * v_rel * dt)
- */
-void handle_collision(IonState& y, EhssRng& rng, double dt, const GlobalParams& gParams,
-                      const std::unordered_map<std::string, std::pair<std::vector<Vec3>, std::vector<double>>>& geometry_map) {
-    // Deterministic friction model: no stochastic collision processing needed
-    if (gParams.collisionModel == CollisionModel::Friction) {
-        return;
-    }
-    EHSSParams ep{};
-    ep.n = y.domain_particle_density_m3;
-    ep.dt = dt;
-    ep.mi = y.mass_kg;
-    ep.mn = y.domain_neutral_mass_kg;
-    ep.kB = BOLTZMANN_CONSTANT;
-    ep.Tn = y.domain_temperature_K;
-    ep.sigma_eff = y.CCS_m2;
-    ep.ubx = y.domain_gas_velocity_m_s.x;
-    ep.uby = y.domain_gas_velocity_m_s.y;
-    ep.ubz = y.domain_gas_velocity_m_s.z;
-    Vec3 v_neutral = sample_neutral_velocity(ep, rng);
-    Vec3 v_ion = y.vel;
-    double v_rel = norm(v_ion - v_neutral);
-    double P = 1.0 - std::exp(-ep.n * ep.sigma_eff * v_rel * ep.dt);
-
-    // Diagnostic: write per-collision parameters to an absolute /tmp CSV for triage
-    // Limit writes to first 5000 events to avoid excessive IO
-    static int collision_log_idx = 0;
-    static std::mutex collision_log_mutex;
-    const int collision_log_limit = 5000;
-    const pid_t mypid = getpid();
-    std::string csv_path = std::string("/tmp/numeric_model_collision_debug_") + std::to_string(mypid) + ".csv";
-    double u_draw = rng.uniform01();
-    if (collision_log_idx < collision_log_limit) {
-        // Use a POSIX open+write with O_APPEND to be robust across threads/processes
-        std::lock_guard<std::mutex> lock(collision_log_mutex);
-        static bool announced = false;
-        if (!announced) {
-            // Print the absolute path so test harnesses can find the file
-            std::cerr << "[collision-debug] csv_path=" << csv_path << "\n";
-            announced = true;
-        }
-        // Ensure header exists (try to create with O_CREAT | O_EXCL, fallback to append)
-        int fd = open(csv_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
-        if (fd != -1) {
-            // If file was just created and is empty, write header first
-            struct stat st;
-            if (fstat(fd, &st) == 0 && st.st_size == 0) {
-                const char* header = "n,sigma_eff,v_rel,dt,P,draw,collided\n";
-                write(fd, header, strlen(header));
-            }
-            // Compose the row into a small buffer to avoid multiple syscalls
-            char buf[256];
-            int len = snprintf(buf, sizeof(buf), "%g,%g,%g,%g,%g,%g,%d\n",
-                               ep.n, ep.sigma_eff, v_rel, ep.dt, P, u_draw, (u_draw < P) ? 1 : 0);
-            if (len > 0) write(fd, buf, static_cast<size_t>(len));
-            close(fd);
-        }
-        ++collision_log_idx;
-    }
-
-    if (u_draw < P) {
-        if (gParams.collisionModel == CollisionModel::EHSS) {
-            auto it = geometry_map.find(y.species_id);
-            if (it != geometry_map.end() && !it->second.first.empty() && !it->second.second.empty()) {
-                const auto& h_centers = it->second.first;
-                const auto& h_radii   = it->second.second;
-                y.vel = collide_ehss_cpu_geometry_given_neutral(v_ion, v_neutral, ep, h_centers, h_radii, rng);
-            } else {
-                // Fallback to HSS collision if EHSS geometry is unavailable
-                y.vel = collide_hs_cpu(v_ion, v_neutral, ep, rng);
-            }
-        } else if (gParams.collisionModel == CollisionModel::HSS) {
-            y.vel = collide_hs_cpu(v_ion, v_neutral, ep, rng);
-        }
-    }
-}
+// NOTE: handle_collision() removed in Phase 2D refactor
+// Collision handling now done via CollisionHandlerFactory and ICollisionHandler interface
+// See CollisionHandlerFactory::create() and handler->handle_collision() in integrate_trajectory()
 
 /**
  * @brief Apply stochastic chemical reactions to an ion.

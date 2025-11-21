@@ -114,6 +114,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     try {
         result = parser.parse(argc, argv);
     } catch (const cxxopts::exceptions::exception& e) {
+        // Note: Logger not yet initialized at this point, use stderr
         std::cerr << "Error parsing arguments: " << e.what() << "\n";
         std::cerr << "Use --help for usage information\n";
         std::exit(1);
@@ -160,6 +161,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     // === Parse core options ===
     // Config file is required (either as --config FILE or positional)
     if (!result.count("config")) {
+        // Note: Logger not yet initialized at this point, use stderr
         std::cerr << "Error: Missing configuration file\n";
         std::cerr << "Usage: icarion [OPTIONS] <config.json>\n";
         std::cerr << "Use --help for more information\n";
@@ -183,6 +185,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         // Validate log level
         if (opts.log_level != "DEBUG" && opts.log_level != "INFO" &&
             opts.log_level != "WARN" && opts.log_level != "ERROR") {
+            // Note: Logger not yet initialized at this point, use stderr
             std::cerr << "Error: Invalid log level '" << opts.log_level << "'\n";
             std::cerr << "Valid options: DEBUG, INFO, WARN, ERROR\n";
             std::exit(1);
@@ -213,6 +216,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         for (const auto& override : overrides) {
             size_t eq_pos = override.find('=');
             if (eq_pos == std::string::npos) {
+                // Note: Logger not yet initialized at this point, use stderr
                 std::cerr << "Error: Invalid --set format (expected KEY=VALUE): " << override << "\n";
                 std::exit(1);
             }

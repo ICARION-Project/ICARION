@@ -640,11 +640,20 @@ TEST_CASE("HDF5Writer v2 SHA256 hashing with ConfigLoader integration", "[hdf5][
     
     // Create a real config file
     std::string config_path = "/tmp/test_sha256_config.json";
+    // Create a simple ion cloud file first
+    std::string ion_cloud_path = "/tmp/test_ion_cloud.json";
+    std::ofstream ion_file(ion_cloud_path);
+    ion_file << R"({"ions": [
+        {"species": "test", "mass": 100, "charge": 1, "pos": [0,0,0], "vel": [0,0,0]}
+    ]})";
+    ion_file.close();
+    
     std::ofstream ofs(config_path);
     ofs << R"({
         "simulation": {"dt_s": 1e-9, "total_time_s": 1e-6, "integrator": "RK4", "write_interval": 100},
         "physics": {"collision_model": "NoCollisions"},
         "output": {"folder": "./output", "trajectory_file": "test.h5"},
+        "ion_cloud": "/tmp/test_ion_cloud.json",
         "domains": [{
             "name": "test_domain",
             "domain_index": 0,
@@ -692,4 +701,5 @@ TEST_CASE("HDF5Writer v2 SHA256 hashing with ConfigLoader integration", "[hdf5][
     
     // Cleanup
     std::filesystem::remove(config_path);
+    std::filesystem::remove(ion_cloud_path);
 }

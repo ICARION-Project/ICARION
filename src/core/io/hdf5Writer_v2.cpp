@@ -1,0 +1,590 @@
+/**
+ * @file hdf5Writer_v2.cpp
+ * @brief Implementation of modern HDF5 writer using FullConfig
+ */
+
+#include "hdf5Writer_v2.h"
+#include "core/log/Logger.h"
+#include "core/config/utils/EnumMapper.h"
+#include <chrono>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+#ifdef ICARION_ENABLE_CUDA
+#include <cuda_runtime.h>
+#endif
+
+#include <sys/utsname.h>
+#include <unistd.h>
+
+namespace ICARION::io {
+
+// ====================================================================
+// Public API
+// ====================================================================
+
+void HDF5Writer::create_file(
+    const std::string& filename,
+    const config::FullConfig& config,
+    const std::vector<IonState>& ions,
+    const std::string& git_hash,
+    const std::string& build_info
+) {
+    log::Logger::hdf5()->info("Creating HDF5 file: {}", filename);
+    
+    try {
+        // Create file (overwrite if exists)
+        H5::H5File file(filename, H5F_ACC_TRUNC);
+        
+        // Write metadata
+        write_config_metadata(file, config);
+        write_reproducibility_metadata(file, config, git_hash, build_info);
+        write_system_metadata(file);
+        write_species_metadata(file, config.species_db);
+        
+        if (config.physics.enable_reactions && !config.reaction_db.reactions.empty()) {
+            write_reactions_metadata(file, config.reaction_db);
+        }
+        
+        // Write domains
+        write_domains(file, config.domains);
+        
+        // Write ion metadata
+        write_ion_metadata(file, ions);
+        
+        // Create /trajectory/ group (datasets created on first append)
+        file.createGroup("/trajectory");
+        
+        file.close();
+        log::Logger::hdf5()->info("HDF5 file created successfully");
+        
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to create HDF5 file: {}", e.getCDetailMsg());
+        throw;
+    }
+}
+
+void HDF5Writer::append_trajectory(
+    const std::string& filename,
+    double time,
+    const std::vector<IonState>& ions
+) {
+    // TODO: Implement trajectory appending
+    // This will reuse logic from legacy hdf5Writer.cpp append_to_HDF5()
+    // but write to /trajectory/ group instead of root level
+    log::Logger::hdf5()->warn("append_trajectory not yet implemented");
+}
+
+void HDF5Writer::finalize(
+    const std::string& filename,
+    bool success,
+    double final_time,
+    size_t active_ions
+) {
+    try {
+        H5::H5File file(filename, H5F_ACC_RDWR);
+        H5::Group meta = file.openGroup("/metadata");
+        
+        // Create completion subgroup
+        H5::Group completion = meta.createGroup("completion");
+        
+        write_scalar(completion, "success", success);
+        write_scalar(completion, "final_time_s", final_time);
+        write_scalar(completion, "active_ions", static_cast<int>(active_ions));
+        
+        // Timestamp
+        auto now = std::chrono::system_clock::now();
+        time_t now_time = std::chrono::system_clock::to_time_t(now);
+        char timestamp_buf[64];
+        strftime(timestamp_buf, sizeof(timestamp_buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now_time));
+        write_string(completion, "completion_timestamp", timestamp_buf);
+        
+        file.close();
+        log::Logger::hdf5()->info("HDF5 file finalized");
+        
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to finalize HDF5 file: {}", e.getCDetailMsg());
+        throw;
+    }
+}
+
+// ====================================================================
+// Metadata Writers
+// ====================================================================
+
+void HDF5Writer::write_config_metadata(
+    H5::H5File& file,
+    const config::FullConfig& config
+) {
+    H5::Group meta = file.createGroup("/metadata");
+    H5::Group cfg_group = meta.createGroup("config");
+    
+    // === Write format version ===
+    write_string(cfg_group, "format_version", "2.0.0");
+    
+    // === Write key parameters as datasets (for quick access) ===
+    write_scalar(cfg_group, "dt_s", config.simulation.dt_s);
+    write_scalar(cfg_group, "total_time_s", config.simulation.total_time_s);
+    write_scalar(cfg_group, "total_steps", static_cast<int>(config.simulation.total_steps));
+    write_scalar(cfg_group, "write_interval", config.simulation.write_interval);
+    
+    write_string(cfg_group, "integrator", config::EnumMapper::solver_to_string(config.simulation.integrator));
+    write_string(cfg_group, "collision_model", config::EnumMapper::collision_model_to_string(config.physics.collision_model));
+    
+    write_scalar(cfg_group, "enable_reactions", config.physics.enable_reactions);
+    write_scalar(cfg_group, "enable_space_charge", config.physics.enable_space_charge);
+    write_scalar(cfg_group, "enable_gpu", config.simulation.enable_gpu);
+    
+    write_string(cfg_group, "output_file", config.output.trajectory_file);
+    
+    log::Logger::hdf5()->debug("Wrote config metadata");
+}
+
+void HDF5Writer::write_reproducibility_metadata(
+    H5::H5File& file,
+    const config::FullConfig& config,
+    const std::string& git_hash,
+    const std::string& build_info
+) {
+    H5::Group repro = file.openGroup("/metadata").createGroup("reproducibility");
+    
+    // === RNG ===
+    write_scalar(repro, "global_seed", config.simulation.rng_seed);
+    write_string(repro, "rng_algorithm", "std::mt19937_64");
+    write_string(repro, "seed_scheme", "global_seed + ion_index");
+    
+    // === Git info ===
+    write_string(repro, "git_hash", git_hash);
+    
+    #ifdef GIT_DIRTY
+        write_scalar(repro, "git_dirty", true);
+    #else
+        write_scalar(repro, "git_dirty", false);
+    #endif
+    
+    #ifdef ICARION_VERSION
+        write_string(repro, "code_version", ICARION_VERSION);
+    #else
+        write_string(repro, "code_version", "unknown");
+    #endif
+    
+    // === Build info ===
+    #ifdef NDEBUG
+        write_string(repro, "build_type", "Release");
+    #else
+        write_string(repro, "build_type", "Debug");
+    #endif
+    
+    write_string(repro, "compiler_cxx", __VERSION__);
+    write_string(repro, "build_info", build_info);
+    
+    #ifdef ICARION_ENABLE_CUDA
+        write_string(repro, "cuda_version", 
+                     std::to_string(CUDART_VERSION / 1000) + "." + 
+                     std::to_string((CUDART_VERSION % 100) / 10));
+    #endif
+    
+    // === Execution ===
+    #ifdef _OPENMP
+        write_scalar(repro, "openmp_threads", omp_get_max_threads());
+    #endif
+    
+    // === Input file hashes (TODO: implement SHA256) ===
+    H5::Group hash_group = repro.createGroup("input_hash");
+    write_string(hash_group, "config_sha256", "TODO");
+    write_string(hash_group, "species_db_sha256", "TODO");
+    write_string(hash_group, "reaction_db_sha256", "TODO");
+    
+    log::Logger::hdf5()->debug("Wrote reproducibility metadata");
+}
+
+void HDF5Writer::write_system_metadata(H5::H5File& file) {
+    H5::Group sys = file.openGroup("/metadata").createGroup("system");
+    
+    // === Hostname ===
+    char hostname[256];
+    gethostname(hostname, sizeof(hostname));
+    write_string(sys, "hostname", hostname);
+    
+    // === Username ===
+    char* username = getenv("USER");
+    if (username) {
+        write_string(sys, "username", username);
+    }
+    
+    // === OS ===
+    struct utsname sys_info;
+    uname(&sys_info);
+    write_string(sys, "os", std::string(sys_info.sysname) + " " + sys_info.release);
+    write_string(sys, "kernel", sys_info.version);
+    
+    // === CPU ===
+    std::ifstream cpuinfo("/proc/cpuinfo");
+    if (cpuinfo) {
+        std::string line, cpu_model;
+        int cpu_cores = 0;
+        while (std::getline(cpuinfo, line)) {
+            if (line.find("model name") != std::string::npos && cpu_model.empty()) {
+                cpu_model = line.substr(line.find(":") + 2);
+            }
+            if (line.find("processor") != std::string::npos) {
+                cpu_cores++;
+            }
+        }
+        write_string(sys, "cpu_model", cpu_model);
+        write_scalar(sys, "cpu_cores", cpu_cores);
+    }
+    
+    // === Memory ===
+    std::ifstream meminfo("/proc/meminfo");
+    if (meminfo) {
+        std::string line;
+        long mem_total_kb = 0;
+        while (std::getline(meminfo, line)) {
+            if (line.find("MemTotal:") == 0) {
+                std::istringstream(line.substr(10)) >> mem_total_kb;
+                break;
+            }
+        }
+        if (mem_total_kb > 0) {
+            write_scalar(sys, "memory_gb", mem_total_kb / 1024.0 / 1024.0);
+        }
+    }
+    
+    // === GPU ===
+    #ifdef ICARION_ENABLE_CUDA
+        int device_count;
+        cudaGetDeviceCount(&device_count);
+        if (device_count > 0) {
+            cudaDeviceProp prop;
+            cudaGetDeviceProperties(&prop, 0);
+            write_string(sys, "gpu_model", prop.name);
+            write_scalar(sys, "gpu_memory_gb", prop.totalGlobalMem / 1024.0 / 1024.0 / 1024.0);
+            
+            int driver_version;
+            cudaDriverGetVersion(&driver_version);
+            write_string(sys, "driver_version", 
+                         std::to_string(driver_version / 1000) + "." + 
+                         std::to_string((driver_version % 100) / 10));
+        }
+    #endif
+    
+    // === Timestamp (ISO 8601) ===
+    auto now = std::chrono::system_clock::now();
+    time_t now_time = std::chrono::system_clock::to_time_t(now);
+    char timestamp_buf[64];
+    strftime(timestamp_buf, sizeof(timestamp_buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now_time));
+    write_string(sys, "timestamp", timestamp_buf);
+    
+    log::Logger::hdf5()->debug("Wrote system metadata");
+}
+
+void HDF5Writer::write_species_metadata(
+    H5::H5File& file,
+    const config::SpeciesDatabase& species_db
+) {
+    if (species_db.size() == 0) {
+        log::Logger::hdf5()->warn("No species in database - skipping species metadata");
+        return;
+    }
+    
+    H5::Group species_group = file.openGroup("/metadata").createGroup("species");
+    
+    size_t n = species_db.size();
+    
+    // Collect data into arrays
+    std::vector<std::string> names;
+    std::vector<double> masses_kg;
+    std::vector<double> charges_C;
+    std::vector<double> mobilities_m2Vs;
+    std::vector<double> ccs_m2;
+    
+    names.reserve(n);
+    masses_kg.reserve(n);
+    charges_C.reserve(n);
+    mobilities_m2Vs.reserve(n);
+    ccs_m2.reserve(n);
+    
+    for (const auto& [name, species] : species_db.species) {
+        names.push_back(name);
+        masses_kg.push_back(species.mass_kg);
+        charges_C.push_back(species.charge_C);
+        mobilities_m2Vs.push_back(species.reduced_mobility_m2Vs);
+        ccs_m2.push_back(species.ccs_m2);
+    }
+    
+    // === Write as datasets (tabular format) ===
+    hsize_t dims[1] = {n};
+    H5::DataSpace space(1, dims);
+    
+    // Names (variable-length strings)
+    H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+    H5::DataSet ds_names = species_group.createDataSet("names", str_type, space);
+    std::vector<const char*> name_ptrs;
+    for (const auto& name : names) {
+        name_ptrs.push_back(name.c_str());
+    }
+    ds_names.write(name_ptrs.data(), str_type);
+    
+    // Numeric data
+    write_array(species_group, "mass_kg", masses_kg);
+    write_array(species_group, "charge_C", charges_C);
+    write_array(species_group, "mobility_m2Vs", mobilities_m2Vs);
+    write_array(species_group, "ccs_m2", ccs_m2);
+    
+    log::Logger::hdf5()->debug("Wrote {} species to metadata", n);
+}
+
+void HDF5Writer::write_reactions_metadata(
+    H5::H5File& file,
+    const config::ReactionDatabase& reaction_db
+) {
+    if (reaction_db.reactions.empty()) {
+        return;
+    }
+    
+    H5::Group rxn_group = file.openGroup("/metadata").createGroup("reactions");
+    
+    size_t n = reaction_db.reactions.size();
+    
+    // Collect data
+    std::vector<std::string> ids;
+    std::vector<std::string> reactant_1;
+    std::vector<std::string> reactant_2;
+    std::vector<std::string> product_1;
+    std::vector<double> rate_constants;
+    std::vector<int> types;
+    
+    for (const auto& rxn : reaction_db.reactions) {
+        ids.push_back(rxn.id);
+        reactant_1.push_back(rxn.reactant.empty() ? "" : rxn.reactant[0]);
+        reactant_2.push_back(rxn.reactant.size() > 1 ? rxn.reactant[1] : "");
+        product_1.push_back(rxn.product.empty() ? "" : rxn.product[0]);
+        rate_constants.push_back(rxn.rate_constant);
+        types.push_back(static_cast<int>(rxn.type));
+    }
+    
+    // Write datasets
+    hsize_t dims[1] = {n};
+    H5::DataSpace space(1, dims);
+    H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+    
+    // Helper lambda for string arrays
+    auto write_str_array = [&](const std::string& name, const std::vector<std::string>& data) {
+        H5::DataSet ds = rxn_group.createDataSet(name, str_type, space);
+        std::vector<const char*> ptrs;
+        for (const auto& s : data) ptrs.push_back(s.c_str());
+        ds.write(ptrs.data(), str_type);
+    };
+    
+    write_str_array("id", ids);
+    write_str_array("reactant_1", reactant_1);
+    write_str_array("reactant_2", reactant_2);
+    write_str_array("product_1", product_1);
+    
+    write_array(rxn_group, "rate_constant_m3s", rate_constants);
+    
+    H5::DataSet ds_type = rxn_group.createDataSet("type", H5::PredType::NATIVE_INT, space);
+    ds_type.write(types.data(), H5::PredType::NATIVE_INT);
+    
+    log::Logger::hdf5()->debug("Wrote {} reactions to metadata", n);
+}
+
+// ====================================================================
+// Domain Writers
+// ====================================================================
+
+void HDF5Writer::write_domains(
+    H5::H5File& file,
+    const std::vector<config::DomainConfig>& domains
+) {
+    H5::Group domains_group = file.createGroup("/domains");
+    
+    for (size_t i = 0; i < domains.size(); ++i) {
+        write_domain(domains_group, domains[i], i);
+    }
+    
+    log::Logger::hdf5()->debug("Wrote {} domains", domains.size());
+}
+
+void HDF5Writer::write_domain(
+    H5::Group& parent,
+    const config::DomainConfig& domain,
+    size_t index
+) {
+    std::string group_name = "domain_" + std::to_string(index);
+    H5::Group dom_group = parent.createGroup(group_name);
+    
+    // === Identification ===
+    write_string(dom_group, "name", domain.name);
+    write_string(dom_group, "instrument", config::EnumMapper::instrument_to_string(domain.instrument));
+    write_string(dom_group, "solver", config::EnumMapper::solver_to_string(domain.solver));
+    
+    // === Geometry ===
+    H5::Group geom = dom_group.createGroup("geometry");
+    write_scalar(geom, "length_m", domain.geometry.length_m);
+    write_scalar(geom, "radius_m", domain.geometry.radius_m);
+    write_scalar(geom, "radius_in_m", domain.geometry.radius_in_m);
+    write_scalar(geom, "radius_out_m", domain.geometry.radius_out_m);
+    write_vec3(geom, "origin_m", domain.geometry.origin_m);
+    
+    // === Environment ===
+    H5::Group env = dom_group.createGroup("environment");
+    write_scalar(env, "pressure_Pa", domain.environment.pressure_Pa);
+    write_scalar(env, "temperature_K", domain.environment.temperature_K);
+    write_string(env, "gas_species", domain.environment.gas_species);
+    write_scalar(env, "particle_density_m3", domain.environment.particle_density_m_3);
+    write_scalar(env, "mean_thermal_velocity_ms", domain.environment.mean_thermal_velocity_m_s);
+    write_vec3(env, "gas_velocity_ms", domain.environment.gas_velocity_m_s);
+    
+    // === Fields ===
+    H5::Group fields = dom_group.createGroup("fields");
+    
+    // DC
+    H5::Group dc = fields.createGroup("dc");
+    write_scalar(dc, "axial_V", domain.fields.dc.axial_V);
+    write_scalar(dc, "EN_Td", domain.fields.dc.EN_Td);
+    write_scalar(dc, "quad_V", domain.fields.dc.quad_V);
+    
+    // RF
+    H5::Group rf = fields.createGroup("rf");
+    write_scalar(rf, "voltage_V", domain.fields.rf.voltage_V);
+    write_scalar(rf, "frequency_Hz", domain.fields.rf.frequency_Hz);
+    write_scalar(rf, "phase_rad", domain.fields.rf.phase_rad);
+    
+    // AC
+    H5::Group ac = fields.createGroup("ac");
+    write_scalar(ac, "voltage_V", domain.fields.ac.voltage_V);
+    write_scalar(ac, "frequency_Hz", domain.fields.ac.frequency_Hz);
+}
+
+// ====================================================================
+// Ion Metadata
+// ====================================================================
+
+void HDF5Writer::write_ion_metadata(
+    H5::H5File& file,
+    const std::vector<IonState>& ions
+) {
+    if (ions.empty()) {
+        log::Logger::hdf5()->warn("No ions - skipping ion metadata");
+        return;
+    }
+    
+    H5::Group ion_group = file.createGroup("/ions");
+    
+    size_t n = ions.size();
+    
+    // Collect initial conditions
+    std::vector<std::string> species_ids;
+    std::vector<double> initial_pos_x, initial_pos_y, initial_pos_z;
+    std::vector<double> initial_vel_x, initial_vel_y, initial_vel_z;
+    std::vector<double> birth_times;
+    std::vector<double> charges;
+    
+    species_ids.reserve(n);
+    initial_pos_x.reserve(n);
+    initial_pos_y.reserve(n);
+    initial_pos_z.reserve(n);
+    initial_vel_x.reserve(n);
+    initial_vel_y.reserve(n);
+    initial_vel_z.reserve(n);
+    birth_times.reserve(n);
+    charges.reserve(n);
+    
+    for (const auto& ion : ions) {
+        species_ids.push_back(ion.species_id);
+        initial_pos_x.push_back(ion.pos.x);
+        initial_pos_y.push_back(ion.pos.y);
+        initial_pos_z.push_back(ion.pos.z);
+        initial_vel_x.push_back(ion.vel.x);
+        initial_vel_y.push_back(ion.vel.y);
+        initial_vel_z.push_back(ion.vel.z);
+        birth_times.push_back(ion.birth_time_s);
+        charges.push_back(ion.charge_C);
+    }
+    
+    // Write datasets
+    hsize_t dims[1] = {n};
+    H5::DataSpace space(1, dims);
+    
+    // Species IDs (strings)
+    H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+    H5::DataSet ds_species = ion_group.createDataSet("initial_species_id", str_type, space);
+    std::vector<const char*> species_ptrs;
+    for (const auto& s : species_ids) species_ptrs.push_back(s.c_str());
+    ds_species.write(species_ptrs.data(), str_type);
+    
+    // Positions
+    write_array(ion_group, "initial_pos_x", initial_pos_x);
+    write_array(ion_group, "initial_pos_y", initial_pos_y);
+    write_array(ion_group, "initial_pos_z", initial_pos_z);
+    
+    // Velocities
+    write_array(ion_group, "initial_vel_x", initial_vel_x);
+    write_array(ion_group, "initial_vel_y", initial_vel_y);
+    write_array(ion_group, "initial_vel_z", initial_vel_z);
+    
+    // Other
+    write_array(ion_group, "birth_time_s", birth_times);
+    write_array(ion_group, "charge_C", charges);
+    
+    log::Logger::hdf5()->debug("Wrote metadata for {} ions", n);
+}
+
+// ====================================================================
+// Helper Functions
+// ====================================================================
+
+void HDF5Writer::write_scalar(H5::Group& group, const std::string& name, double value) {
+    H5::DataSpace space(H5S_SCALAR);
+    H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_DOUBLE, space);
+    dataset.write(&value, H5::PredType::NATIVE_DOUBLE);
+}
+
+void HDF5Writer::write_scalar(H5::Group& group, const std::string& name, int value) {
+    H5::DataSpace space(H5S_SCALAR);
+    H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_INT, space);
+    dataset.write(&value, H5::PredType::NATIVE_INT);
+}
+
+void HDF5Writer::write_scalar(H5::Group& group, const std::string& name, unsigned int value) {
+    H5::DataSpace space(H5S_SCALAR);
+    H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_UINT, space);
+    dataset.write(&value, H5::PredType::NATIVE_UINT);
+}
+
+void HDF5Writer::write_scalar(H5::Group& group, const std::string& name, bool value) {
+    H5::DataSpace space(H5S_SCALAR);
+    H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_HBOOL, space);
+    hbool_t hval = value ? 1 : 0;
+    dataset.write(&hval, H5::PredType::NATIVE_HBOOL);
+}
+
+void HDF5Writer::write_string(H5::Group& group, const std::string& name, const std::string& value) {
+    H5::StrType str_type(H5::PredType::C_S1, value.size() + 1);
+    H5::DataSpace space(H5S_SCALAR);
+    H5::DataSet dataset = group.createDataSet(name, str_type, space);
+    dataset.write(value.c_str(), str_type);
+}
+
+void HDF5Writer::write_array(H5::Group& group, const std::string& name, const std::vector<double>& data) {
+    if (data.empty()) return;
+    
+    hsize_t dims[1] = {data.size()};
+    H5::DataSpace space(1, dims);
+    H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_DOUBLE, space);
+    dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE);
+}
+
+void HDF5Writer::write_vec3(H5::Group& group, const std::string& name, const Vec3& vec) {
+    std::vector<double> data = {vec.x, vec.y, vec.z};
+    write_array(group, name, data);
+}
+
+} // namespace ICARION::io

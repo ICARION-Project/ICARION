@@ -1,0 +1,178 @@
+/**
+ * @file hdf5Writer_v2.h
+ * @brief Modern HDF5 writer using FullConfig
+ * 
+ * Clean implementation based on new configuration system.
+ * No legacy GlobalParams support.
+ * 
+ * @see docs/HDF5_OUTPUT_STRUCTURE.md for file format specification
+ */
+
+#pragma once
+
+#include "core/config/types/FullConfig.h"
+#include "core/types/IonState.h"
+#include <H5Cpp.h>
+#include <vector>
+#include <string>
+
+namespace ICARION::io {
+
+/**
+ * @brief Modern HDF5 writer for FullConfig-based simulations
+ * 
+ * Creates HDF5 files with the following structure:
+ * - /metadata/          Configuration, reproducibility, system info
+ * - /trajectory/        Time-series data (positions, velocities, etc.)
+ * - /ions/              Per-ion metadata (initial conditions)
+ * - /domains/           Domain configurations
+ */
+class HDF5Writer {
+public:
+    /**
+     * @brief Create HDF5 file and write metadata
+     * 
+     * @param filename Output HDF5 file path
+     * @param config Complete configuration
+     * @param ions Initial ion states
+     * @param git_hash Git commit hash
+     * @param build_info Compiler/build information
+     * 
+     * Creates file structure and writes all metadata groups.
+     * Trajectory data is written later via append_trajectory().
+     */
+    static void create_file(
+        const std::string& filename,
+        const config::FullConfig& config,
+        const std::vector<IonState>& ions,
+        const std::string& git_hash,
+        const std::string& build_info
+    );
+    
+    /**
+     * @brief Append trajectory snapshot
+     * 
+     * @param filename HDF5 file to append to
+     * @param time Current simulation time [s]
+     * @param ions Current ion states
+     * 
+     * Appends one timestep to trajectory datasets.
+     */
+    static void append_trajectory(
+        const std::string& filename,
+        double time,
+        const std::vector<IonState>& ions
+    );
+    
+    /**
+     * @brief Write simulation completion metadata
+     * 
+     * @param filename HDF5 file
+     * @param success Simulation completed successfully?
+     * @param final_time Final simulation time [s]
+     * @param active_ions Number of active ions at end
+     */
+    static void finalize(
+        const std::string& filename,
+        bool success,
+        double final_time,
+        size_t active_ions
+    );
+
+private:
+    // === Metadata writers ===
+    
+    /**
+     * @brief Write /metadata/config/
+     * 
+     * Stores complete FullConfig as JSON string + key parameters as datasets
+     */
+    static void write_config_metadata(
+        H5::H5File& file,
+        const config::FullConfig& config
+    );
+    
+    /**
+     * @brief Write /metadata/reproducibility/
+     * 
+     * Git hash, RNG seed, compiler version, build flags
+     */
+    static void write_reproducibility_metadata(
+        H5::H5File& file,
+        const config::FullConfig& config,
+        const std::string& git_hash,
+        const std::string& build_info
+    );
+    
+    /**
+     * @brief Write /metadata/system/
+     * 
+     * Hostname, OS, CPU, GPU, memory, timestamp
+     */
+    static void write_system_metadata(H5::H5File& file);
+    
+    /**
+     * @brief Write /metadata/species/
+     * 
+     * Tabular format: names, masses, charges, mobilities, CCS
+     */
+    static void write_species_metadata(
+        H5::H5File& file,
+        const config::SpeciesDatabase& species_db
+    );
+    
+    /**
+     * @brief Write /metadata/reactions/
+     * 
+     * Tabular format: reactants, products, rate constants
+     */
+    static void write_reactions_metadata(
+        H5::H5File& file,
+        const config::ReactionDatabase& reaction_db
+    );
+    
+    // === Domain writers ===
+    
+    /**
+     * @brief Write /domains/ hierarchy
+     * 
+     * One group per domain with geometry, environment, fields
+     */
+    static void write_domains(
+        H5::H5File& file,
+        const std::vector<config::DomainConfig>& domains
+    );
+    
+    /**
+     * @brief Write single domain group
+     */
+    static void write_domain(
+        H5::Group& parent,
+        const config::DomainConfig& domain,
+        size_t index
+    );
+    
+    // === Ion metadata ===
+    
+    /**
+     * @brief Write /ions/ initial conditions
+     * 
+     * Per-ion metadata: species, initial pos/vel, birth time
+     */
+    static void write_ion_metadata(
+        H5::H5File& file,
+        const std::vector<IonState>& ions
+    );
+    
+    // === Helpers ===
+    
+    static void write_scalar(H5::Group& group, const std::string& name, double value);
+    static void write_scalar(H5::Group& group, const std::string& name, int value);
+    static void write_scalar(H5::Group& group, const std::string& name, unsigned int value);
+    static void write_scalar(H5::Group& group, const std::string& name, bool value);
+    static void write_string(H5::Group& group, const std::string& name, const std::string& value);
+    static void write_array(H5::Group& group, const std::string& name, const std::vector<double>& data);
+    static void write_vec3(H5::Group& group, const std::string& name, const Vec3& vec);
+};
+
+} // namespace ICARION::io

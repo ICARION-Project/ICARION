@@ -69,7 +69,7 @@ TEMPLATES = {
                 "rng_seed": 42
             },
             "physics": {
-                "collision_model": "HSMC"
+                "collision_model": "HSS"
             },
             "output": {
                 "folder": "./results/ims",
@@ -169,7 +169,7 @@ TEMPLATES = {
                 "enable_gpu": True
             },
             "physics": {
-                "collision_model": "HSMC"
+                "collision_model": "HSS"
             },
             "output": {
                 "folder": "./results/lqit",

@@ -83,7 +83,7 @@ Template customization:
   --timestep FLOAT      Integration timestep [s]
   --integrator {RK4,RK45,Boris}
                         Integrator choice
-  --collision-model {NoCollisions,HSD,HSMC,EHSS,SDS}
+  --collision-model {NoCollisions,HSD,HSS,EHSS,SDS}
                         Collision model
   --enable-gpu          Enable GPU acceleration
   --output-folder PATH  Output directory

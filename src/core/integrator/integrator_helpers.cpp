@@ -1,4 +1,5 @@
 #include "core/integrator/integrator_helpers.h"
+#include "core/log/Logger.h"
 #include "fieldsolver/utils/field_update_api.h"
 #include <cmath>
 #include <random>
@@ -128,7 +129,7 @@ void integrate_one_step(
             if (!ICARION::safety::check_ion_safety(ion, safety_config, "Boris integration", 
                                                    global_step_counter, global_ion_counter)) {
                 ICARION_SAFETY_MARK_VIOLATION();
-                std::cerr << "WARNING: Invalid ion state detected after Boris integration" << std::endl;
+                ICARION::log::Logger::integrator()->warn("Invalid ion state detected after Boris integration");
             }
             
             break;
@@ -183,12 +184,12 @@ void integrate_one_step(
             if (!ICARION::safety::check_ion_safety(ion, safety_config, "RK4 integration", 
                                                    global_step_counter, global_ion_counter)) {
                 ICARION_SAFETY_MARK_VIOLATION();
-                std::cerr << "WARNING: Invalid ion state detected after RK4 integration" << std::endl;
+                ICARION::log::Logger::integrator()->warn("Invalid ion state detected after RK4 integration");
             }
             if (!ICARION::safety::check_ion_safety(ion, safety_config, "RK4 integration", 
                                                    global_step_counter, global_ion_counter)) {
                 // Ion state is invalid - this should have thrown an exception if configured
-                std::cerr << "WARNING: Invalid ion state detected after RK4 integration" << std::endl;
+                ICARION::log::Logger::integrator()->warn("Invalid ion state detected after RK4 integration");
             }
             
             break;
@@ -239,7 +240,7 @@ void integrate_one_step(
                                                           "RK45 accepted step " + std::to_string(rk45_substeps), 
                                                           global_step_counter, global_ion_counter)) {
                         ICARION_SAFETY_MARK_VIOLATION();
-                        std::cerr << "WARNING: Invalid state after RK45 accepted step" << std::endl;
+                        ICARION::log::Logger::integrator()->warn("Invalid state after RK45 accepted step");
                     }
                 } else {
                     // Step rejected - log for analysis
@@ -280,7 +281,7 @@ void integrate_one_step(
             if (!ICARION::safety::check_ion_safety(ion, safety_config, "RK45 completion", 
                                                    global_step_counter, global_ion_counter)) {
                 ICARION_SAFETY_MARK_VIOLATION();
-                std::cerr << "WARNING: Invalid ion state after RK45 completion" << std::endl;
+                ICARION::log::Logger::integrator()->warn("Invalid ion state after RK45 completion");
             }
             
             break;

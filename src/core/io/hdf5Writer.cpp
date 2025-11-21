@@ -25,6 +25,7 @@
  */
 
 #include "core/io/hdf5Writer.h"
+#include "core/log/Logger.h"
 #include "utils/constants.h"
 #include <iostream>
 #include <string>
@@ -270,15 +271,15 @@ void append_to_HDF5(const std::string& filename,
 
     // Safety check: cannot write empty trajectory
     if (n_ions == 0 || n_new_times == 0) {
-        std::cerr << "Warning: Skipping HDF5 write - empty trajectory buffer (n_ions=" 
-                  << n_ions << ", n_times=" << n_new_times << ")\n";
+        ICARION::log::Logger::hdf5()->warn("Skipping HDF5 write - empty trajectory buffer (n_ions={}, n_times={})", 
+                                             n_ions, n_new_times);
         file.close();
         return;
     }
 
     // --- Write species metadata on first write ---
     if (!file_exists && !trajectory_buffer.empty() && !trajectory_buffer[0].empty()) {
-        std::cout << "[DEBUG] Calling write_species_metadata with " << trajectory_buffer[0].size() << " ions\n";
+        ICARION::log::Logger::hdf5()->debug("Calling write_species_metadata with {} ions", trajectory_buffer[0].size());
         write_species_metadata(file, trajectory_buffer[0]);
     }
 
@@ -463,8 +464,10 @@ void append_to_HDF5(const std::string& filename,
  * by avoiding redundant storage of these values at every timestep.
  */
 void write_species_metadata(H5::H5File& file, const std::vector<IonState>& ions) {
+    using ICARION::log::Logger;
+    
     if (ions.empty()) {
-        std::cerr << "Warning: write_species_metadata called with empty ion vector\n";
+        Logger::hdf5()->warn("write_species_metadata called with empty ion vector");
         return;
     }
     
@@ -477,7 +480,7 @@ void write_species_metadata(H5::H5File& file, const std::vector<IonState>& ions)
     }
     
     if (unique_species.empty()) {
-        std::cerr << "Warning: No unique species found in ion vector\n";
+        Logger::hdf5()->warn("No unique species found in ion vector");
         return;
     }
     
@@ -554,11 +557,11 @@ void write_species_metadata(H5::H5File& file, const std::vector<IonState>& ions)
         species_group.close();
         metadata_group.close();
         
-        std::cout << "✓ Wrote metadata for " << n_species << " species to /metadata/species\n";
+        Logger::hdf5()->info("Wrote metadata for {} species to /metadata/species", n_species);
     } catch (const H5::Exception& e) {
-        std::cerr << "HDF5 Error in write_species_metadata: " << e.getDetailMsg() << "\n";
+        Logger::hdf5()->error("HDF5 Error in write_species_metadata: {}", e.getDetailMsg());
     } catch (const std::exception& e) {
-        std::cerr << "Error in write_species_metadata: " << e.what() << "\n";
+        Logger::hdf5()->error("Error in write_species_metadata: {}", e.what());
     }
 }
 
@@ -789,11 +792,11 @@ std::vector<IonState> load_final_state_from_HDF5(const std::string& filename) {
         
         file.close();
         
-        std::cout << "Loaded " << ions.size() << " ions from " << filename << "\n";
+        ICARION::log::Logger::hdf5()->info("Loaded {} ions from {}", ions.size(), filename);
         size_t active_count = std::count_if(ions.begin(), ions.end(), 
                                            [](const IonState& i){ return i.active; });
-        std::cout << "  Active ions: " << active_count << " ("
-                  << (100.0 * active_count / ions.size()) << "%)\n";
+        ICARION::log::Logger::hdf5()->info("  Active ions: {} ({:.1f}%)", 
+                                            active_count, 100.0 * active_count / ions.size());
         
     } catch (const std::exception& e) {
         throw std::runtime_error("Failed to load HDF5 state: " + std::string(e.what()));

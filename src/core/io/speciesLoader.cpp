@@ -18,6 +18,7 @@
  */
 
 #include "core/io/speciesLoader.h"
+#include "core/log/Logger.h"
 
 #include <fstream>
 #include <iostream>
@@ -199,7 +200,7 @@ SpeciesDatabase load_species(const std::string& filepath) {
         db.add(species);
     }
     
-    std::cout << "Loaded " << db.size() << " species from " << filepath << "\n";
+    ICARION::log::Logger::config()->info("Loaded {} species from {}", db.size(), filepath);
     
     return db;
 }

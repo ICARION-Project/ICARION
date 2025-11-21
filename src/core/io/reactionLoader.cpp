@@ -18,6 +18,7 @@
  */
 
 #include "core/io/reactionLoader.h"
+#include "core/log/Logger.h"
 
 #include <fstream>
 #include <iostream>
@@ -284,7 +285,7 @@ ReactionDatabase load_reactions(const std::string& filepath) {
         db.add(reaction);
     }
     
-    std::cout << "Loaded " << db.size() << " reactions from " << filepath << "\n";
+    ICARION::log::Logger::config()->info("Loaded {} reactions from {}", db.size(), filepath);
     
     return db;
 }

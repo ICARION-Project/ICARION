@@ -31,6 +31,7 @@
 
 #include "core/utils/simulationsUtils.h"
 #include "core/config/conversion/EnumMapper.h"
+#include "core/log/Logger.h"
 #include <iomanip>
 #include <iostream>
 #include <vector>
@@ -63,16 +64,12 @@ namespace utils {
  * @param domains Vector of instrument domains (modified in place if PA_field loaded)
  */
 void print_domain_summary(std::vector<InstrumentDomain>& domains) {
+    using ICARION::log::Logger;
 
-    std::cout << "\n=== Instrument Domains Loaded ===\n";
-    std::cout << std::left << std::setw(6) << "Idx"
-              << std::setw(15) << "Instrument"
-              << std::setw(8) << "PA"
-              << std::setw(12) << "RF_V [V]"
-              << std::setw(12) << "DC_V [V]"
-              << std::setw(20) << "Status" 
-              << std::setw(20) << "Grid Info" << "\n";
-    std::cout << std::string(85, '-') << "\n";
+    Logger::main()->info("=== Instrument Domains Loaded ===");
+    Logger::main()->info("{:<6} {:<15} {:<8} {:<12} {:<12} {:<20} {:<20}", 
+                         "Idx", "Instrument", "PA", "RF_V [V]", "DC_V [V]", "Status", "Grid Info");
+    Logger::main()->info("{}", std::string(85, '-'));
 
     for (auto& dom : domains) {
         std::string FA_file = dom.FA_file.empty() ? "—" : "yes";
@@ -97,23 +94,23 @@ void print_domain_summary(std::vector<InstrumentDomain>& domains) {
             } catch (const std::exception& e) {
                 status = "⚠ error";
                 dom.fieldArrayLoaded = false;
-                std::cerr << "Error loading PA field (" << dom.FA_file << "): " << e.what() << "\n";
+                Logger::config()->error("Error loading PA field ({}): {}", dom.FA_file, e.what());
             }
         } else {
             dom.fieldArrayLoaded = false;
         }
 
-        std::cout << std::left << std::setw(6)  << dom.index
-                  << std::setw(15) << ICARION::config::EnumMapper::instrument_to_string(dom.instrument)
-                  << std::setw(8)  << FA_file
-                  << std::setw(12) << dom.RF.voltage_V
-                  << std::setw(12) << dom.DC.axial_V
-                  << std::setw(20) << status
-                  << std::setw(20) << grid_info
-                  << "\n";
+        Logger::main()->info("{:<6} {:<15} {:<8} {:<12} {:<12} {:<20} {:<20}",
+                             dom.index,
+                             ICARION::config::EnumMapper::instrument_to_string(dom.instrument),
+                             FA_file,
+                             dom.RF.voltage_V,
+                             dom.DC.axial_V,
+                             status,
+                             grid_info);
     }
 
-    std::cout << std::string(85, '=') << "\n\n";
+    Logger::main()->info("{}\n", std::string(85, '='));
 }
 
 /**

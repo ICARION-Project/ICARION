@@ -473,8 +473,7 @@ icarion --dump-build-info > build_info.txt
 
 ## See Also
 
-- [Input Configuration Format](INPUT_FORMAT_SPECIFICATION.md)
-- [JSON Schema Documentation](INPUT_SCHEMA.md)
+- [Configuration Guide](CONFIG_GUIDE.md)
 - [HDF5 Output Schema](OUTPUT_SCHEMA.md)
 - [Developer's Guide](DEVELOPERS_GUIDE.md)
 - [Architecture Overview](ARCHITECTURE.md)
@@ -487,7 +486,7 @@ icarion --dump-build-info > build_info.txt
 - **Build information:** `icarion --dump-build-info`
 - **Schema documentation:** `icarion --dump-config-schema`
 - **GitHub Issues:** https://github.com/icarion-project/icarion/issues
-- **Documentation:** https://icarion.readthedocs.io
+- **Documentation:** https://icarion.readthedocs.io (coming soon)
 
 ---
 

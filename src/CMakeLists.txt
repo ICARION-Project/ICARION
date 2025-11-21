@@ -52,10 +52,12 @@ if(USE_GPU_ACCEL)
     endif()
 endif()
 
-# IO
+# IO + Logging
 file(GLOB_RECURSE ICARION_IO_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/io/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/io/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/log/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/log/*.h"
 )
 
 # Config

@@ -34,3 +34,19 @@ if(NOT cxxopts_FOUND)
     FetchContent_MakeAvailable(cxxopts)
 endif()
 list(APPEND ICARION_CORE_DEPS cxxopts::cxxopts)
+
+# spdlog (Logging library)
+find_package(spdlog CONFIG QUIET)
+if(NOT spdlog_FOUND)
+    message(STATUS "spdlog not found, using FetchContent")
+    include(FetchContent)
+    FetchContent_Declare(
+        spdlog
+        GIT_REPOSITORY https://github.com/gabime/spdlog.git
+        GIT_TAG v1.12.0
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(spdlog)
+endif()
+list(APPEND ICARION_CORE_DEPS spdlog::spdlog)
+

@@ -40,10 +40,10 @@
 #include <sstream>
 
 #include "integrator/integrator.h"
-#include "core/io/logger.h"
 #include "core/io/hdf5Writer.h"
 #include "core/param/paramUtils.h"
 #include "utils/cli_parser.h"  // CLI argument parser
+#include "core/log/Logger.h"  // New structured logging
 #include "core/utils/simulationsUtils.h"  // print_domain_summary, print_results
 #include "core/physics/reactions/reactionUtils.h"  // ReactionEntry struct only
 #include "core/io/fieldArrayLoader.h"
@@ -87,6 +87,19 @@ int main(int argc, char* argv[]) {
     if (opts.show_help || opts.show_version) {
         return 0;
     }
+    
+    // === Initialize logging FIRST (before any other operations) ===
+    bool json_logs = false;  // TODO: Add --log-format flag in future
+    ICARION::log::Logger::init(
+        opts.log_level,
+        opts.log_file.value_or(""),
+        json_logs
+    );
+    
+    // Log startup information
+    ICARION::log::Logger::main()->info("ICARION v{} starting", ICARION_VERSION);
+    ICARION::log::Logger::main()->info("Git commit: {}", GIT_HASH);
+    ICARION::log::Logger::main()->info("Config file: {}", opts.config_file);
     
     // === Handle information flags (Phase 1) ===
     if (opts.dump_build_info) {
@@ -259,7 +272,7 @@ int main(int argc, char* argv[]) {
                 dom.fieldArrayLoaded = (ok == dom.FA_terms.size() && ok > 0) || dom.fieldArrayLoaded;
             }
         }
-        std::cout << "Loaded " << domains.size() << " instrument domains.\n";
+        ICARION::log::Logger::config()->info("Loaded {} instrument domains", domains.size());
         ICARION::utils::print_domain_summary(domains);
 
         // === Save input config for reproducibility ===
@@ -313,8 +326,8 @@ int main(int argc, char* argv[]) {
         // Species and reactions are ALREADY loaded in full_config by ConfigLoader!
         // (ConfigLoader calls full_config.load_databases() automatically)
         std::cout << "\n=== Physical Models ===\n";
-        std::cout << "Species loaded:  " << full_config.species_db.size() << "\n";
-        std::cout << "Reactions loaded: " << full_config.reaction_db.size() << "\n";
+        ICARION::log::Logger::config()->info("Species loaded: {}", full_config.species_db.size());
+        ICARION::log::Logger::config()->info("Reactions loaded: {}", full_config.reaction_db.size());
         
         // --- Convert species for integrator (temporary until Phase 5) ---
         ICARION::io::SpeciesDatabase speciesDB;
@@ -386,15 +399,15 @@ int main(int argc, char* argv[]) {
         } else if (!gParams.enable_reactions) {
             std::cout << "ℹ  Reactions disabled (enable_reactions=false)\n";
         } else {
-            std::cout << "ℹ  No reactions loaded\n";
+            ICARION::log::Logger::config()->info("No reactions loaded");
         }
 
         // === Dry-run mode: Validate configuration and exit ===
         if (opts.dry_run) {
             std::cout << "\n=== Dry-run mode: Configuration validation ===\n";
-            std::cout << "✓ JSON configuration loaded successfully\n";
-            std::cout << "✓ Species database loaded: " << speciesDB.size() << " species\n";
-            std::cout << "✓ Reactions loaded: " << reaction_list.size() << " reactions\n";
+            ICARION::log::Logger::config()->info("JSON configuration loaded successfully");
+            ICARION::log::Logger::config()->info("Species database loaded: {} species", speciesDB.size());
+            ICARION::log::Logger::config()->info("Reactions loaded: {} reactions", reaction_list.size());
             std::cout << "✓ Domains configured: " << domains.size() << " domain(s)\n";
             std::cout << "✓ RNG seed: " << gParams.rng_seed << "\n";
             std::cout << "✓ Output file: " << gParams.output_file << "\n";
@@ -436,18 +449,16 @@ int main(int argc, char* argv[]) {
             // Normal initialization from ion configuration
             std::mt19937 rng(gParams.rng_seed);
             ions = full_config.generate_ions(rng);
-            std::cout << "Generated " << ions.size() << " ions from configuration.\n";
+            ICARION::log::Logger::main()->info("Generated {} ions from configuration", ions.size());
         }
 
-        // === 6. Initialize logger ===
-        ICARION::io::RunLogger logger(gParams.output_file);
-        logger.writeHeader();
-        logger.writeGlobalParams(gParams, ions, speciesDB, reaction_list);
-        logger.writeInstrumentDomains(domains);
-
-        // === 7. Run simulation ===
-        auto             start  = std::chrono::high_resolution_clock::now();
-        logger.log("Starting integration...");
+        // === 6. Run simulation ===
+        LOG_TIMER("simulation_total");
+        
+        ICARION::log::Logger::main()->info("Starting integration ({} ions, {:.6f} s total time, dt={:.2e} s)",
+                                            ions.size(), t_end - t_start, gParams.dt_s);
+        
+        auto start = std::chrono::high_resolution_clock::now();
         std::vector<IonState> final_ions = integrate_trajectory(
             ions, 
             t_start, 
@@ -458,7 +469,7 @@ int main(int argc, char* argv[]) {
             reaction_list, 
             domains,
             RK45Settings(),
-            &logger
+            nullptr  // No more RunLogger
         );
         
         auto             end    = std::chrono::high_resolution_clock::now();
@@ -484,29 +495,31 @@ int main(int argc, char* argv[]) {
             hdf5_file.close();
             
             if (!simulation_complete && gParams.auto_continue_if_active) {
-                std::cout << "\n[WARNING] Simulation incomplete: " << active_count 
-                          << " ions still active at t=" << t_end << " s\n";
-                std::cout << "Consider using continue mode:\n";
-                std::cout << "  \"continue_from\": \"" << gParams.output_file << ".h5\",\n";
-                std::cout << "  \"continue_time_s\": " << gParams.continue_time_s << "\n\n";
+                ICARION::log::Logger::main()->warn("Simulation incomplete: {} ions still active at t={:.6f} s",
+                                                    active_count, t_end);
+                ICARION::log::Logger::main()->info("Consider using continue mode: \"continue_from\": \"{}.h5\", \"continue_time_s\": {}",
+                                                    gParams.output_file, gParams.continue_time_s);
             }
         } catch (const std::exception& e) {
-            std::cerr << "Warning: Failed to write metadata: " << e.what() << "\n";
+            ICARION::log::Logger::hdf5()->warn("Failed to write metadata: {}", e.what());
         }
         
         // === 10. Optional result printout ===
         if (gParams.print_results) {
             ICARION::utils::print_results(final_ions, 100);
         }
-        logger.log("HDF5 file written successfully.");
+        
+        ICARION::log::Logger::hdf5()->info("HDF5 file written successfully");
+        
         double elapsed_s = std::chrono::duration<double>(end - start).count();
-        logger.log("Simulation completed in " + std::to_string(elapsed_s) + " s CPU time.");
-
-        logger.finalize(final_ions, gParams.output_file);
+        ICARION::log::Logger::main()->info("Simulation completed in {:.3f} s CPU time", elapsed_s);
+        ICARION::log::Logger::main()->info("Output file: {}.h5", gParams.output_file);
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        ICARION::log::Logger::main()->error("Fatal error: {}", e.what());
+        ICARION::log::Logger::shutdown();
         return 1;
     }
 
+    ICARION::log::Logger::shutdown();
     return 0;
 }

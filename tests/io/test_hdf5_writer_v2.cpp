@@ -13,9 +13,11 @@
 
 #include "core/io/hdf5Writer_v2.h"
 #include "core/config/types/FullConfig.h"
+#include "core/config/loader/ConfigLoader.h"
 #include "core/types/IonState.h"
 #include <H5Cpp.h>
 #include <filesystem>
+#include <fstream>
 
 using namespace ICARION;
 using Catch::Approx;
@@ -631,4 +633,63 @@ TEST_CASE("HDF5Writer v2 handles large ion ensembles", "[hdf5][io][performance]"
     REQUIRE(dims[2] == 3);     // x,y,z
     
     file.close();
+}
+
+TEST_CASE("HDF5Writer v2 SHA256 hashing with ConfigLoader integration", "[hdf5][io][integration][hash]") {
+    std::string test_file = get_test_file();
+    
+    // Create a real config file
+    std::string config_path = "/tmp/test_sha256_config.json";
+    std::ofstream ofs(config_path);
+    ofs << R"({
+        "simulation": {"dt_s": 1e-9, "total_time_s": 1e-6, "integrator": "RK4", "write_interval": 100},
+        "physics": {"collision_model": "NoCollisions"},
+        "output": {"folder": "./output", "trajectory_file": "test.h5"},
+        "domains": [{
+            "name": "test_domain",
+            "domain_index": 0,
+            "instrument": "IMS",
+            "solver": "rk45",
+            "geometry": {"length_m": 0.1, "radius_m": 0.01},
+            "environment": {"pressure_Pa": 101325.0, "temperature_K": 300.0, "gas_species": "He"},
+            "fields": {"dc": {"axial_V": 0.0}}
+        }]
+    })";
+    ofs.close();
+    
+    // Load config via ConfigLoader (should set config_file_path)
+    auto config = config::ConfigLoader::load(config_path);
+    
+    // Verify config_file_path is set
+    REQUIRE(!config.config_file_path.empty());
+    REQUIRE(std::filesystem::exists(config.config_file_path));
+    
+    // Create test ions
+    auto ions = create_test_ions();
+    
+    // Create HDF5 file with SHA256 hashing
+    io::HDF5Writer::create_file(test_file, config, ions, "abc123", "gcc 11.4.0");
+    
+    // Open and verify SHA256 hash was written
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    H5::Group hash_group = file.openGroup("/metadata/reproducibility/input_hash");
+    
+    // Read SHA256 hash
+    H5::DataSet ds_hash = hash_group.openDataSet("config_sha256");
+    H5::StrType str_type = ds_hash.getStrType();
+    std::string stored_hash;
+    ds_hash.read(stored_hash, str_type);
+    
+    // Should NOT be "N/A" or "ERROR" (should be actual hash)
+    REQUIRE(stored_hash != "N/A");
+    REQUIRE(stored_hash != "ERROR");
+    
+    // Should be valid SHA256 (64 hex characters)
+    REQUIRE(stored_hash.length() == 64);
+    REQUIRE(stored_hash.find_first_not_of("0123456789abcdef") == std::string::npos);
+    
+    file.close();
+    
+    // Cleanup
+    std::filesystem::remove(config_path);
 }

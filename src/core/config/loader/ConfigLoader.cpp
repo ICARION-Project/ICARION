@@ -21,8 +21,11 @@ FullConfig ConfigLoader::load(const std::filesystem::path& config_path) {
     // Base path for resolving relative paths
     auto base_path = config_path.parent_path();
     
-    // Load from parsed JSON
-    return load_from_json(root, base_path);
+    // Load from parsed JSON and store absolute config path
+    auto config = load_from_json(root, base_path);
+    config.config_file_path = std::filesystem::absolute(config_path).string();
+    
+    return config;
 }
 
 FullConfig ConfigLoader::load_from_json(const Json::Value& root, 
@@ -84,8 +87,7 @@ FullConfig ConfigLoader::load_from_json(const Json::Value& root,
         config.title = root["title"].asString();
     }
     
-    // Store config file path
-    config.config_file_path = base_path.string();
+    // Note: config_file_path is set in load() function (not here, since we only have base_path)
     
     // Finalize all domains (compute derived quantities)
     config.finalize_all();

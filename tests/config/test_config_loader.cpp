@@ -69,6 +69,12 @@ TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
     REQUIRE(cfg.physics.collision_model == CollisionModel::NoCollisions);
     REQUIRE(cfg.output.folder == "./output");
     REQUIRE(cfg.domains.size() == 1);
+    
+    // Verify config_file_path is stored as absolute path (for SHA256 hashing)
+    REQUIRE(!cfg.config_file_path.empty());
+    REQUIRE(cfg.config_file_path[0] == '/');  // Absolute path starts with /
+    REQUIRE(cfg.config_file_path.find(".json") != std::string::npos);
+    REQUIRE(std::filesystem::exists(cfg.config_file_path));
 }
 
 TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domains]") {

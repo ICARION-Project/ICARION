@@ -28,11 +28,34 @@
 #include <string>
 #include <string_view>
 
+// ============================================================================
+// ⚠️ DEPRECATED: InstrumentType location violates SSOT principle!
+// ============================================================================
+// InstrumentType is defined in instrument/ but should be part of config/
+// 
+// **WHY THIS IS BAD:**
+// - InstrumentType is a configuration parameter, not instrument logic
+// - Should live in core/config/types/ alongside DomainConfig, FieldsConfig, etc.
+// - Current location creates artificial dependency: config → instrument
+// - Makes config module depend on instrument module (backwards!)
+// 
+// **TODO (Phase 2):**
+// - Move InstrumentType to core/config/types/InstrumentType.h
+// - Update all includes throughout codebase
+// - Keep this file as forwarding header with #warning for transition period
+// - Eventually remove this file entirely
+// 
+// **RATIONALE:** Configuration types belong in config/, not scattered across modules.
+// ============================================================================
+
 namespace ICARION {
 namespace instrument {
 
 /**
  * @brief Supported instrument types in ICARION simulations
+ * 
+ * @deprecated This enum should be in core/config/types/, not instrument/
+ * Will be moved in Phase 2 SSOT refactor.
  * 
  * This is the canonical enumeration for all instrument types.
  * Note: SIFDT_MS has been consolidated into IMS (Ion Mobility Spectrometry).

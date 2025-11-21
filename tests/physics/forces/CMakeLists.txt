@@ -90,3 +90,25 @@ add_test(NAME SpaceChargeForce COMMAND test_space_charge_force)
 set_tests_properties(SpaceChargeForce PROPERTIES
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+
+# Test: Force Integration (all forces combined)
+add_executable(test_force_integration
+    test_force_integration.cpp
+)
+
+target_link_libraries(test_force_integration
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_force_integration
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+add_test(NAME ForceIntegration COMMAND test_force_integration)
+set_tests_properties(ForceIntegration PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)

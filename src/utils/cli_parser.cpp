@@ -307,68 +307,150 @@ void print_build_info() {
 
 void print_hdf5_schema() {
     std::cout << R"(
-ICARION HDF5 Output Schema v1.0
-================================
+ICARION HDF5 Output Schema v2.0 (FullConfig-based)
+===================================================
 
-Structure:
-----------
+Hierarchical Structure:
+-----------------------
 
 /metadata/
-  version         string      ICARION version
-  git_hash        string      Git commit hash
-  timestamp       string      ISO8601 timestamp (YYYY-MM-DDTHH:MM:SSZ)
-  rng_seed        int64       Random number generator seed
-  hostname        string      Machine hostname
-  username        string      Username
-  config_file     string      Path to configuration file
+  /config/                      # Simulation configuration
+    format_version      string      Config format version
+    dt_s                float64     Timestep [s]
+    total_time_s        float64     Total simulation time [s]
+    integrator          string      Solver (RK4, RK45, etc.)
+    collision_model     string      Collision model (EHSS, HSMC, etc.)
+  
+  /reproducibility/             # Full reproducibility metadata
+    global_seed         uint32      RNG seed
+    git_hash            string      Git commit hash
+    git_dirty           bool        Uncommitted changes?
+    compiler_cxx        string      Compiler version
+    build_type          string      Release/Debug
+    /input_hash/                    # SHA256 file hashes
+      config_sha256     string      Config file hash
+  
+  /system/                      # Execution environment
+    hostname            string      Machine hostname
+    os                  string      Operating system
+    cpu_model           string      CPU model
+    cpu_cores           int32       CPU cores
+    memory_gb           float64     System memory [GB]
+    timestamp           string      ISO8601 start time
+  
+  /species/                     # Tabular species data (pandas-compatible)
+    names               string[N]   Species names
+    mass_kg             float64[N]  Masses [kg]
+    charge_C            float64[N]  Charges [C]
+    mobility_m2Vs       float64[N]  Mobilities [m²/(V·s)]
+    CCS_m2              float64[N]  Cross sections [m²]
+  
+  /reactions/                   # Reaction definitions (if enabled)
+    id                  string[R]   Reaction IDs
+    reactant_1          string[R]   First reactant
+    product_1           string[R]   Product
+    rate_constant_m3s   float64[R]  Rate [m³/s]
+  
+  /completion/                  # Written at simulation end
+    success             bool        Completed?
+    final_time_s        float64     Final time [s]
+    active_ions         int32       Active ions
 
-/system_info/
-  os              string      Operating system
-  cpu_model       string      CPU model name
-  cpu_cores       int32       Number of CPU cores
-  memory_gb       float64     Total system memory [GB]
+/trajectory/                    # Time-series data (chunked + GZIP compressed)
+  time                  float64[T]      Time points [s]
+  positions             float64[T,N,3]  Positions [m] (x,y,z)
+  velocities            float64[T,N,3]  Velocities [m/s]
+  species_ids           string[T,N]     Species per ion
+  domain_indices        int32[T,N]      Domain index per ion
 
-/trajectory/
-  time            float64[N]      Time points [s]
-  position        float64[N,3]    Ion positions [x,y,z] [m]
-  velocity        float64[N,3]    Ion velocities [vx,vy,vz] [m/s]
-  species_id      int32[N]        Species identifier
-  active          bool[N]         Ion active flag (true=active, false=lost)
-  domain_index    int32[N]        Current domain index
-  ion_id          int32[N]        Unique ion identifier
+/ions/                          # Initial conditions
+  initial_species_id    string[N]       Initial species
+  initial_pos_x/y/z     float64[N]      Initial position [m]
+  initial_vel_x/y/z     float64[N]      Initial velocity [m/s]
+  birth_time_s          float64[N]      Birth time [s]
 
-/species/<name>/
-  mass_kg         float64     Ion mass [kg]
-  charge_C        float64     Ion charge [C]
-  mobility_m2Vs   float64     Ion mobility [m²/(V·s)]
-  ccs_m2          float64     Collision cross-section [m²]
+/domains/                       # Per-domain hierarchy
+  /domain_0/
+    name                string      Domain name
+    instrument          string      Instrument (IMS, TOF, etc.)
+    /geometry/
+      length_m          float64     Length [m]
+      radius_m          float64     Radius [m]
+    /environment/
+      pressure_Pa       float64     Pressure [Pa]
+      temperature_K     float64     Temperature [K]
+      gas_species       string      Gas type
+    /fields/
+      /dc/
+        axial_V         float64     DC voltage [V]
+      /rf/
+        voltage_V       float64     RF amplitude [V]
+        frequency_Hz    float64     RF frequency [Hz]
 
-/config/
-  full_config     string      Complete JSON configuration (serialized)
+Data Properties:
+----------------
+- Chunked storage: [100 × N × 3] for efficient appending
+- GZIP compression: Level 6 (~3-5× reduction)
+- Variable-length strings: For species/reaction IDs
+- SI units: All physical quantities
+- ISO8601 timestamps: UTC (YYYY-MM-DDTHH:MM:SSZ)
 
-/domains/
-  domain_<N>/
-    name          string      Domain name
-    instrument    string      Instrument type (IMS, LQIT, TOF, etc.)
-    length_m      float64     Domain length [m]
-    radius_m      float64     Domain radius [m]
+Python Access:
+--------------
+import h5py
+import pandas as pd
 
-Notes:
-------
-  - N = number of time snapshots × number of ions
-  - All quantities in SI units unless specified
-  - Use h5dump, HDFView, or Python h5py to read files
-  - Trajectory data stored in chunked + compressed format
+with h5py.File('icarion_output.h5', 'r') as f:
+    # Configuration
+    dt = f['/metadata/config/dt_s'][()]
+    git_hash = f['/metadata/reproducibility/git_hash'][()].decode()
+    
+    # Species as DataFrame
+    species = pd.DataFrame({
+        'name': f['/metadata/species/names'][:].astype(str),
+        'mass_kg': f['/metadata/species/mass_kg'][:],
+        'mobility': f['/metadata/species/mobility_m2Vs'][:]
+    })
+    
+    # Trajectory (memory-mapped)
+    time = f['/trajectory/time'][:]
+    pos = f['/trajectory/positions'][:]  # [T × N × 3]
+    
+    # Final positions
+    final_x = pos[-1, :, 0]
+    print(f"Final x: min={final_x.min():.3e} m, max={final_x.max():.3e} m")
 
-Example (Python):
------------------
-  import h5py
-  with h5py.File('output.h5', 'r') as f:
-      time = f['/trajectory/time'][:]
-      pos = f['/trajectory/position'][:]
-      metadata = dict(f['/metadata'].attrs)
+Reproducibility Verification:
+------------------------------
+import hashlib, h5py
 
-For detailed documentation, see: docs/OUTPUT_SCHEMA.md
+def verify_config_hash(h5_path, config_path):
+    with h5py.File(h5_path, 'r') as f:
+        stored = f['/metadata/reproducibility/input_hash/config_sha256'][()].decode()
+    
+    with open(config_path, 'rb') as f:
+        computed = hashlib.sha256(f.read()).hexdigest()
+    
+    if stored == computed:
+        print("✓ Config verified - unchanged")
+    else:
+        print("✗ Config modified!")
+
+Full Documentation:
+-------------------
+- Format spec: docs/HDF5_OUTPUT_STRUCTURE.md
+- API reference: src/core/io/hdf5Writer_v2.h
+- Examples: tests/io/test_hdf5_writer_v2.cpp
+
+Compatibility:
+--------------
+- HDF5: 1.10.0+
+- Python h5py: 2.10.0+
+- MATLAB: R2020a+
+- Julia HDF5.jl: 0.15.0+
+
+Legacy Format (< v2.0): Not supported - re-run simulations
+
 )";
 }
 

@@ -50,3 +50,7 @@ if(NOT spdlog_FOUND)
 endif()
 list(APPEND ICARION_CORE_DEPS spdlog::spdlog)
 
+# OpenSSL (for SHA256 file hashing)
+find_package(OpenSSL REQUIRED)
+list(APPEND ICARION_CORE_DEPS OpenSSL::Crypto)
+

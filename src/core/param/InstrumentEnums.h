@@ -14,6 +14,7 @@
  *
  *   @details
  *   Defines the `InstrumentGPU` enum listing supported instrument types
+ *   for GPU compatibility.
  *
  *   @date        2025-10-17
  *   @version     0.1

@@ -68,7 +68,7 @@ struct IonState {
     bool born = false;                    ///< true if created by reaction during simulation
     int current_domain_index = 0;         ///< Index of current instrument domain
     
-    // Domain specific parameters (cached for collision calculations)
+    // Domain specific parameters (cached for collision calculations) #todo this is weird
     double domain_neutral_mass_kg = 0.0;  ///< Background gas mass [kg] in current domain
     double domain_temperature_K   = 0.0;  ///< Gas temperature [K] in current domain
     double domain_particle_density_m3   = 0.0;   ///< Neutral density [1/m³] for collisions

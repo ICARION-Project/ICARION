@@ -2,26 +2,110 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 /**
- * @brief Smoke test for HDF5 C++ library
+ * @brief Integration tests for HDF5Writer v2
  * 
- * This is a minimal test to verify HDF5 C++ library is available and functional.
- * Full integration testing of HDF5Writer v2 requires field name alignment between
- * FullConfig types and IonState structures.
- * 
- * @todo Add full HDF5Writer v2 integration tests once resolved:
- * - IonState: domain_index → current_domain_index
- * - IonState: charge_C → ion_charge_C  
- * - SpeciesProperties: reduced_mobility_m2Vs → mobility conversion
- * - SpeciesProperties: ccs_m2 → CCS_m2
- * - Reaction: rate_constant → rate_constant_m3s
- * - DomainConfig: solver string → SolverType enum conversion
+ * Tests the complete HDF5 v2.0 output format with FullConfig.
+ * Verifies file structure, metadata writing, trajectory appending, and finalization.
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+
+#include "core/io/hdf5Writer_v2.h"
+#include "core/config/types/FullConfig.h"
+#include "core/types/IonState.h"
 #include <H5Cpp.h>
 #include <filesystem>
 
-TEST_CASE("HDF5 library is available and functional", "[hdf5][io]") {
+using namespace ICARION;
+using Catch::Approx;
+
+namespace {
+    std::string get_test_file() {
+        static std::string file = "/tmp/test_hdf5_v2.h5";
+        if (std::filesystem::exists(file)) {
+            std::filesystem::remove(file);
+        }
+        return file;
+    }
+    
+    config::FullConfig create_minimal_config() {
+        config::FullConfig cfg;
+        
+        // Simulation
+        cfg.simulation.dt_s = 1e-9;
+        cfg.simulation.total_time_s = 1e-6;
+        cfg.simulation.total_steps = 1000;
+        cfg.simulation.write_interval = 100;
+        cfg.simulation.rng_seed = 42;
+        cfg.simulation.integrator = "RK4";
+        cfg.simulation.enable_gpu = false;
+        
+        // Physics
+        cfg.physics.collision_model = config::CollisionModel::EHSS;
+        cfg.physics.enable_reactions = false;
+        cfg.physics.enable_space_charge = false;
+        
+        // Output
+        cfg.output.trajectory_file = "test.h5";
+        cfg.output.folder = "./output";
+        
+        // Species
+        config::SpeciesProperties h3o;
+        h3o.id = "H3O+";
+        h3o.mass_amu = 19.02;
+        h3o.charge = 1;
+        h3o.mobility_cm2Vs = 2.8e-4;
+        h3o.CCS_A2 = 110.0;
+        h3o.convert_to_SI();  // Convert to SI units
+        cfg.species_db.species["H3O+"] = h3o;
+        
+        config::SpeciesProperties no2;
+        no2.id = "NO2+";
+        no2.mass_amu = 46.0;
+        no2.charge = 1;
+        no2.mobility_cm2Vs = 2.5e-4;
+        no2.CCS_A2 = 120.0;
+        no2.convert_to_SI();
+        cfg.species_db.species["NO2+"] = no2;
+        
+        // Domain
+        config::DomainConfig domain;
+        domain.name = "test_domain";
+        domain.instrument = config::Instrument::IMS;
+        domain.solver = config::SolverType::RK4;
+        domain.domain_index = 0;
+        domain.geometry.length_m = 0.1;
+        domain.geometry.radius_m = 0.01;
+        domain.environment.pressure_Pa = 200.0;
+        domain.environment.temperature_K = 300.0;
+        domain.environment.gas_species = "N2";
+        cfg.domains.push_back(domain);
+        
+        return cfg;
+    }
+    
+    std::vector<core::IonState> create_test_ions() {
+        std::vector<core::IonState> ions;
+        
+        for (int i = 0; i < 10; ++i) {
+            core::IonState ion;
+            ion.species_id = (i % 2 == 0) ? "H3O+" : "NO2+";
+            ion.pos = core::Vec3(0.001 * i, 0.0001 * i, 0);
+            ion.vel = core::Vec3(100, 10, 0);
+            ion.mass_kg = (i % 2 == 0) ? 19.02 * 1.66e-27 : 46.0 * 1.66e-27;
+            ion.ion_charge_C = 1.602e-19;
+            ion.birth_time_s = 0.0;
+            ion.current_domain_index = 0;
+            ion.active = true;
+            ions.push_back(ion);
+        }
+        
+        return ions;
+    }
+}
+
+TEST_CASE("HDF5 library is available and functional", "[hdf5][io][smoke]") {
     std::string test_file = "/tmp/test_hdf5_smoke.h5";
     
     if (std::filesystem::exists(test_file)) {
@@ -72,4 +156,304 @@ TEST_CASE("HDF5 library is available and functional", "[hdf5][io]") {
     
     // Cleanup
     std::filesystem::remove(test_file);
+}
+
+TEST_CASE("HDF5Writer v2 creates correct file structure", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    // Create file with metadata
+    io::HDF5Writer::create_file(test_file, config, ions, "test_git_hash", "gcc 11.4.0 -O3");
+    
+    REQUIRE(std::filesystem::exists(test_file));
+    
+    // Verify structure
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    
+    // Check main groups
+    REQUIRE(file.nameExists("/metadata"));
+    REQUIRE(file.nameExists("/metadata/config"));
+    REQUIRE(file.nameExists("/metadata/reproducibility"));
+    REQUIRE(file.nameExists("/metadata/system"));
+    REQUIRE(file.nameExists("/metadata/species"));
+    REQUIRE(file.nameExists("/trajectory"));
+    REQUIRE(file.nameExists("/ions"));
+    REQUIRE(file.nameExists("/domains"));
+    REQUIRE(file.nameExists("/domains/domain_0"));
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 writes simulation metadata correctly", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "abc123def", "gcc 11.4.0");
+    
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    H5::Group cfg_group = file.openGroup("/metadata/config");
+    
+    // Check timestep
+    H5::DataSet ds_dt = cfg_group.openDataSet("dt_s");
+    double dt;
+    ds_dt.read(&dt, H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(dt == Approx(1e-9));
+    
+    // Check total time
+    H5::DataSet ds_time = cfg_group.openDataSet("total_time_s");
+    double total_time;
+    ds_time.read(&total_time, H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(total_time == Approx(1e-6));
+    
+    // Check integrator
+    H5::DataSet ds_integ = cfg_group.openDataSet("integrator");
+    H5::StrType str_type = ds_integ.getStrType();
+    std::string integrator;
+    ds_integ.read(integrator, str_type);
+    REQUIRE(integrator == "RK4");
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 writes reproducibility metadata", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "abc123def", "gcc 11.4.0");
+    
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    H5::Group repro = file.openGroup("/metadata/reproducibility");
+    
+    // Check RNG seed
+    H5::DataSet ds_seed = repro.openDataSet("global_seed");
+    unsigned int seed;
+    ds_seed.read(&seed, H5::PredType::NATIVE_UINT);
+    REQUIRE(seed == 42);
+    
+    // Check git hash
+    H5::DataSet ds_git = repro.openDataSet("git_hash");
+    H5::StrType str_type = ds_git.getStrType();
+    std::string git_hash;
+    ds_git.read(git_hash, str_type);
+    REQUIRE(git_hash == "abc123def");
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 writes species metadata in tabular format", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    H5::Group species_group = file.openGroup("/metadata/species");
+    
+    // Check names dataset
+    H5::DataSet ds_names = species_group.openDataSet("names");
+    H5::DataSpace space = ds_names.getSpace();
+    hsize_t dims[1];
+    space.getSimpleExtentDims(dims);
+    REQUIRE(dims[0] == 2);  // H3O+ and NO2+
+    
+    // Check mass dataset
+    H5::DataSet ds_mass = species_group.openDataSet("mass_kg");
+    space = ds_mass.getSpace();
+    space.getSimpleExtentDims(dims);
+    REQUIRE(dims[0] == 2);
+    
+    std::vector<double> masses(2);
+    ds_mass.read(masses.data(), H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(masses[0] > 0.0);
+    REQUIRE(masses[1] > 0.0);
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 writes domain configuration", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    H5::Group domain = file.openGroup("/domains/domain_0");
+    
+    // Check domain name
+    H5::DataSet ds_name = domain.openDataSet("name");
+    H5::StrType str_type = ds_name.getStrType();
+    std::string name;
+    ds_name.read(name, str_type);
+    REQUIRE(name == "test_domain");
+    
+    // Check geometry group exists
+    REQUIRE(file.nameExists("/domains/domain_0/geometry"));
+    H5::Group geom = domain.openGroup("geometry");
+    
+    H5::DataSet ds_length = geom.openDataSet("length_m");
+    double length;
+    ds_length.read(&length, H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(length == Approx(0.1));
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 writes ion initial conditions", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    H5::Group ion_group = file.openGroup("/ions");
+    
+    // Check number of ions
+    H5::DataSet ds_species = ion_group.openDataSet("initial_species_id");
+    H5::DataSpace space = ds_species.getSpace();
+    hsize_t dims[1];
+    space.getSimpleExtentDims(dims);
+    REQUIRE(dims[0] == 10);
+    
+    // Check position data
+    H5::DataSet ds_pos_x = ion_group.openDataSet("initial_pos_x");
+    space = ds_pos_x.getSpace();
+    space.getSimpleExtentDims(dims);
+    REQUIRE(dims[0] == 10);
+    
+    std::vector<double> pos_x(10);
+    ds_pos_x.read(pos_x.data(), H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(pos_x[0] == Approx(0.0));
+    REQUIRE(pos_x[9] == Approx(0.009));
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 appends trajectory data correctly", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    
+    // Append first timestep
+    for (auto& ion : ions) {
+        ion.pos.x += 0.0001;
+        ion.vel.x += 1.0;
+    }
+    io::HDF5Writer::append_trajectory(test_file, 0.0, ions);
+    
+    // Append second timestep
+    for (auto& ion : ions) {
+        ion.pos.x += 0.0001;
+        ion.vel.x += 1.0;
+    }
+    io::HDF5Writer::append_trajectory(test_file, 1e-9, ions);
+    
+    // Append third timestep
+    for (auto& ion : ions) {
+        ion.pos.x += 0.0001;
+        ion.vel.x += 1.0;
+    }
+    io::HDF5Writer::append_trajectory(test_file, 2e-9, ions);
+    
+    // Verify trajectory data
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    H5::Group traj = file.openGroup("/trajectory");
+    
+    // Check time array
+    H5::DataSet ds_time = traj.openDataSet("time");
+    H5::DataSpace space = ds_time.getSpace();
+    hsize_t dims[1];
+    space.getSimpleExtentDims(dims);
+    REQUIRE(dims[0] == 3);  // 3 timesteps
+    
+    std::vector<double> times(3);
+    ds_time.read(times.data(), H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(times[0] == Approx(0.0));
+    REQUIRE(times[1] == Approx(1e-9));
+    REQUIRE(times[2] == Approx(2e-9));
+    
+    // Check positions array [T × N × 3]
+    H5::DataSet ds_pos = traj.openDataSet("positions");
+    space = ds_pos.getSpace();
+    hsize_t pos_dims[3];
+    space.getSimpleExtentDims(pos_dims);
+    REQUIRE(pos_dims[0] == 3);   // 3 timesteps
+    REQUIRE(pos_dims[1] == 10);  // 10 ions
+    REQUIRE(pos_dims[2] == 3);   // x,y,z
+    
+    // Check velocities array [T × N × 3]
+    H5::DataSet ds_vel = traj.openDataSet("velocities");
+    space = ds_vel.getSpace();
+    hsize_t vel_dims[3];
+    space.getSimpleExtentDims(vel_dims);
+    REQUIRE(vel_dims[0] == 3);
+    REQUIRE(vel_dims[1] == 10);
+    REQUIRE(vel_dims[2] == 3);
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 finalization writes completion metadata", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    
+    // Simulate some trajectory steps
+    io::HDF5Writer::append_trajectory(test_file, 0.0, ions);
+    io::HDF5Writer::append_trajectory(test_file, 1e-9, ions);
+    
+    // Finalize
+    io::HDF5Writer::finalize(test_file, true, 2e-9, 8);
+    
+    // Verify completion metadata
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    REQUIRE(file.nameExists("/metadata/completion"));
+    
+    H5::Group completion = file.openGroup("/metadata/completion");
+    
+    // Check success flag
+    H5::DataSet ds_success = completion.openDataSet("success");
+    hbool_t success;
+    ds_success.read(&success, H5::PredType::NATIVE_HBOOL);
+    REQUIRE(success);
+    
+    // Check final time
+    H5::DataSet ds_time = completion.openDataSet("final_time_s");
+    double final_time;
+    ds_time.read(&final_time, H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(final_time == Approx(2e-9));
+    
+    // Check active ions
+    H5::DataSet ds_active = completion.openDataSet("active_ions");
+    int active;
+    ds_active.read(&active, H5::PredType::NATIVE_INT);
+    REQUIRE(active == 8);
+    
+    file.close();
+}
+
+TEST_CASE("HDF5Writer v2 handles empty reaction database", "[hdf5][io]") {
+    std::string test_file = get_test_file();
+    auto config = create_minimal_config();
+    auto ions = create_test_ions();
+    
+    // reactions vector is already empty by default
+    REQUIRE(config.reaction_db.reactions.empty());
+    
+    // Should not crash when writing empty reactions
+    REQUIRE_NOTHROW(io::HDF5Writer::create_file(test_file, config, ions, "test", "test"));
+    
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    // Reactions group should still exist but be empty
+    // (Implementation detail - may or may not create group for empty database)
+    file.close();
 }

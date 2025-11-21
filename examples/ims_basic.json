@@ -10,7 +10,7 @@
     "rng_seed": 123
   },
   "physics": {
-    "collision_model": "HSMC"
+    "collision_model": "HSS"
   },
   "output": {
     "folder": "../results/ims",

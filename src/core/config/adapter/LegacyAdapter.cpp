@@ -23,7 +23,7 @@ static core::CollisionModel convert_collision_model(config::CollisionModel model
         case config::CollisionModel::EHSS:
             return core::CollisionModel::EHSS;
         case config::CollisionModel::HSS:
-            return core::CollisionModel::HSMC;
+            return core::CollisionModel::HSS;
         case config::CollisionModel::UnknownCollisionModel:
             return core::CollisionModel::UnknownCollisionModel;
         default:

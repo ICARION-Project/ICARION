@@ -68,7 +68,7 @@ Configuration parameters extracted from `FullConfig`.
 | `total_steps` | int | Number of integration steps | - |
 | `write_interval` | int | Output write interval | steps |
 | `integrator` | string | Integration method (RK4, RK45, Boris) | - |
-| `collision_model` | string | Collision model (EHSS, HSMC, Langevin) | - |
+| `collision_model` | string | Collision model (EHSS, HSS, Langevin) | - |
 | `enable_reactions` | bool | Reactions enabled? | - |
 | `enable_space_charge` | bool | Space charge enabled? | - |
 | `enable_gpu` | bool | GPU acceleration enabled? | - |

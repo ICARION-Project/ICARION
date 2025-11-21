@@ -401,7 +401,7 @@ void handle_collision(IonState& y, EhssRng& rng, double dt, const GlobalParams& 
         if (gParams.collisionModel == CollisionModel::EHSS) {
             const auto& [h_centers, h_radii] = geometry_map.at(y.species_id);
             y.vel = collide_ehss_cpu_geometry_given_neutral(v_ion, v_neutral, ep, h_centers, h_radii, rng);
-        } else if (gParams.collisionModel == CollisionModel::HSMC) {
+        } else if (gParams.collisionModel == CollisionModel::HSS) {
             y.vel = collide_hs_cpu(v_ion, v_neutral, ep, rng);
         }
     }

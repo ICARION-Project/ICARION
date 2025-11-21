@@ -244,7 +244,7 @@ void integrate_one_step(
  * @brief Integrate ion trajectories across multiple domains with RK4/RK45, collisions, and reactions.
  *
  * Advances ions from t_start to t_end using step size dt, applying domain-specific fields,
- * stochastic collisions (EHSS/HSMC), chemical reactions, and logging snapshots to HDF5.
+ * stochastic collisions (EHSS/HSS), chemical reactions, and logging snapshots to HDF5.
  *
  * @param[in,out] ions              Ion states to integrate.
  * @param[in]     t_start           Start time [s].
@@ -317,7 +317,7 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
     // Load geometry if stochastic collisions are used and a geometry file is provided
     std::unordered_map<std::string, std::pair<std::vector<Vec3>, std::vector<double>>> geometry_map;
     if ((gParams.collisionModel == CollisionModel::EHSS ||
-         gParams.collisionModel == CollisionModel::HSMC) && !gParams.geometry_file.empty()) {
+         gParams.collisionModel == CollisionModel::HSS) && !gParams.geometry_file.empty()) {
         for (const auto& ion : ions) {
             const std::string& sp_id = ion.species_id;
             if (geometry_map.find(sp_id) == geometry_map.end()) {
@@ -327,12 +327,12 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
                     load_geometry(gParams.geometry_file, sp_id, centers, radii);
                     geometry_map[sp_id] = {std::move(centers), std::move(radii)};
                 } catch (const std::exception& e) {
-                    // If geometry cannot be loaded, warn and fall back to HSMC-like behavior
+                    // If geometry cannot be loaded, warn and fall back to HSS-like behavior
                     if (logger) {
                         std::ostringstream warn;
                         warn << "Warning: could not load geometry for species '" << sp_id
                              << "' from file '" << gParams.geometry_file << "': " << e.what()
-                             << " — falling back to HSMC assumptions.";
+                             << " — falling back to HSS assumptions.";
                         logger->log(warn.str());
                     }
                     geometry_map[sp_id] = {std::vector<Vec3>(), std::vector<double>()};
@@ -644,7 +644,7 @@ void load_geometry(const std::string& filename, const std::string& targetName,
  *
  * Determines whether a collision occurs for a given ion during the current 
  * timestep and updates its velocity. Supports EHSS (Extended Hard Sphere 
- * Scattering) and HSMC (Hard Sphere Monte Carlo) models.
+ * Scattering) and HSS (Hard Sphere Stochastic) models.
  *
  * @param[in,out] y           Ion state to update (velocity may change).
  * @param[in,out] rng         Random number generator for reproducibility.
@@ -654,7 +654,7 @@ void load_geometry(const std::string& filename, const std::string& targetName,
  *
  * @note
  * - EHSS collisions use precomputed molecular geometry.
- * - HSMC treats ions as simple hard spheres.
+ * - HSS treats ions as simple hard spheres.
  * - Collision probability: P = 1 - exp(-n * sigma_eff * v_rel * dt)
  */
 void handle_collision(IonState& y, EhssRng& rng, double dt, const GlobalParams& gParams,
@@ -723,10 +723,10 @@ void handle_collision(IonState& y, EhssRng& rng, double dt, const GlobalParams& 
                 const auto& h_radii   = it->second.second;
                 y.vel = collide_ehss_cpu_geometry_given_neutral(v_ion, v_neutral, ep, h_centers, h_radii, rng);
             } else {
-                // Fallback to HSMC collision if EHSS geometry is unavailable
+                // Fallback to HSS collision if EHSS geometry is unavailable
                 y.vel = collide_hs_cpu(v_ion, v_neutral, ep, rng);
             }
-        } else if (gParams.collisionModel == CollisionModel::HSMC) {
+        } else if (gParams.collisionModel == CollisionModel::HSS) {
             y.vel = collide_hs_cpu(v_ion, v_neutral, ep, rng);
         }
     }

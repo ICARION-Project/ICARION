@@ -280,7 +280,7 @@ __device__ inline void compute_accelerations_device(double t,
         Vec3 friction_force = y.vel * damping;
         collision_acc = friction_force / y.mass_kg;
     }
-    // TODO: Add Langevin, EHSS, HSMC collision models
+    // TODO: Add Langevin, EHSS, HSS collision models
     
     acc_total += collision_acc;
 

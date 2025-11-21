@@ -133,10 +133,10 @@
         "Langevin",
         "Friction",
         "HSD",
-        "HSMC",
+        "HSS",
         "HardSphere"
       ],
-      "description": "Collision model. Preferred: EHSS, HSS, HSD, Langevin, Friction. Legacy aliases: HSMC→HSS, HardSphere→HSD"
+      "description": "Collision model. Preferred: EHSS, HSS, HSD, Langevin, Friction. Legacy aliases: hsmc→HSS, HardSphere→HSD"
     },
     
     "solver_type": {

@@ -47,7 +47,7 @@ SimulationEngine (orchestrator)
     │
     ├── CollisionHandler (interface)
     │   ├── EHSSCollisionHandler
-    │   ├── HSMCCollisionHandler
+    │   ├── HSSCollisionHandler
     │   ├── LangevinCollisionHandler
     │   └── FrictionCollisionHandler
     │

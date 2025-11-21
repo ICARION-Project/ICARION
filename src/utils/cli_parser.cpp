@@ -322,7 +322,7 @@ Hierarchical Structure:
     total_steps         int32       Number of integration steps
     write_interval      int32       Output write interval
     integrator          string      Solver type (RK4, RK45, Leapfrog, etc.)
-    collision_model     string      Collision model (EHSS, HSMC, etc.)
+    collision_model     string      Collision model (EHSS, HSS, etc.)
     enable_reactions    bool        Chemical reactions enabled?
     enable_space_charge bool        Space charge enabled?
     enable_gpu          bool        GPU acceleration enabled?

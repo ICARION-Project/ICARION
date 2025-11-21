@@ -81,7 +81,7 @@ static std::string collision_model_to_string(CollisionModel c) {
         case CollisionModel::HardSphere:   return "HardSphere";
         case CollisionModel::Langevin:     return "Langevin";
         case CollisionModel::EHSS:         return "EHSS";
-        case CollisionModel::HSMC:         return "HSMC";
+        case CollisionModel::HSS:          return "HSS";
         case CollisionModel::UnknownCollisionModel: return "Unknown collision model";
         default: return "Unknown";
     }

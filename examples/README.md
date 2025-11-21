@@ -139,7 +139,7 @@ python schema/validate_config.py examples/<example_name>.json
 
 #### `collision_models_comparison.json` – Collision Model Comparison
 
-- **Purpose**: Compare EHSS, HSMC, and Langevin collision models
+- **Purpose**: Compare EHSS, HSS, and Langevin collision models
 - **Ion Count**: 2,500 ions (H+, H2O+, N2+)
 - **Physics**: Multiple collision models, drift field
 - **Applications**: Method validation, cross-section measurements
@@ -202,7 +202,7 @@ done
 
 - **Required fields**: `simulation`, `instrument`, `ions`, `fields`, `collisions`, `output`
 - **Instrument types**: `IMS`, `LQIT`, `TOF`, `Quadrupole`, `FT_ICR`, `Orbitrap`, `spacecharge`
-- **Collision models**: `EHSS`, `HSMC`, `Langevin`, `Friction`, `NoCollisions`
+- **Collision models**: `EHSS`, `HSS`, `Langevin`, `Friction`, `NoCollisions`
 - **Integrators**: `rk4`, `rk45`, `boris`, `verlet`
 
 The ICARION Core engine accepts case-insensitive values (e.g., `"ims"` works),  

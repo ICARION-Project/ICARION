@@ -21,7 +21,7 @@
 
  *   Key features:
  *   Supports multiple instrument geometries (LQIT, SIFDT-MS, IMS, Orbitrap).
- *   Adapts to selected collision model (hard-sphere, Langevin, friction, EHSS, HSMC).
+ *   Adapts to selected collision model (hard-sphere, Langevin, friction, EHSS, HSS).
  *   Can record arrival times, reaction products, and full trajectory data.
  *   Compatible with time evaluation grid from `gParams.t_eval`.
 
@@ -69,7 +69,7 @@
  *
  *   Key features:
  *   Supports multiple instrument geometries (LQIT, SIFDT-MS, IMS, Orbitrap).
- *   Adapts to selected collision model (hard-sphere, Langevin, friction, EHSS, HSMC).
+ *   Adapts to selected collision model (hard-sphere, Langevin, friction, EHSS, HSS).
  *   Can record arrival times, reaction products, and full trajectory data.
  *   Compatible with time evaluation grid from `gParams.t_eval`.
  *
@@ -146,7 +146,7 @@ namespace trajectory {
  * 
  * Integrates equations of motion for ion ensemble under electric fields, collisions,
  * and reactions. Supports multiple instrument types (LQIT, SIFDT-MS, IMS, Orbitrap)
- * and collision models (hard-sphere, Langevin, friction, EHSS, HSMC).
+ * and collision models (hard-sphere, Langevin, friction, EHSS, HSS).
  * 
  * Writes trajectory snapshots to HDF5 at intervals defined by gParams.t_eval.
  * Handles boundary conditions (absorbing, reflecting, periodic) and detection events.

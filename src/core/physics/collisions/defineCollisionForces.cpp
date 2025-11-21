@@ -14,7 +14,7 @@
  *    - Friction (mobility-based damping)
  *    - Langevin (ion-neutral long-range interactions)
  *    - Hard-sphere collisions
- *    - EHSS / HSMC stochastic models (no explicit damping)
+ *    - EHSS / HSS stochastic models (no explicit damping)
  *
  *   Each function returns a force vector divided by the ion mass (acceleration).
  *
@@ -47,7 +47,7 @@ Vec3 CollisionForce(const IonState& ion, const GlobalParams& gParams, const Inst
         case CollisionModel::Langevin:   return LangevinCollision(ion, dom);
         case CollisionModel::Friction:   return FrictionCollision(ion, dom);
         case CollisionModel::EHSS:       return EHSSCollision(ion, dom);
-        case CollisionModel::HSMC:       return HSMCCollision(ion, dom);
+        case CollisionModel::HSS:        return HSSCollision(ion, dom);  // Note: function name stays for now
         case CollisionModel::NoCollisions: return Vec3{0.0, 0.0, 0.0}; // No collisions
     }
     return Vec3{0.0, 0.0, 0.0}; // fallback
@@ -114,10 +114,10 @@ Vec3 EHSSCollision(const IonState& ion, const InstrumentDomain& dom) {
 }
 
 /**
- * @brief HSMC collision model: returns zero damping force, 
+ * @brief HSS collision model: returns zero damping force, 
           since Collision is described stochastically. 
  */
-Vec3 HSMCCollision(const IonState& ion, const InstrumentDomain& dom) {
+Vec3 HSSCollision(const IonState& ion, const InstrumentDomain& dom) {
     return Vec3{0.0, 0.0, 0.0};
 }
 

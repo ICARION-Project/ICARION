@@ -60,7 +60,7 @@ namespace core {
 // Use canonical InstrumentType from instrument namespace
 using Instrument = ICARION::instrument::InstrumentType;
 
-enum class CollisionModel { HardSphere, Langevin, Friction, EHSS, HSMC, NoCollisions, UnknownCollisionModel };
+enum class CollisionModel { HardSphere, Langevin, Friction, EHSS, HSS, NoCollisions, UnknownCollisionModel };
 
 enum class SolverType { RK45, RK4, Boris};
 

@@ -39,15 +39,15 @@ inline void print_startup_banner(
     std::cout << "\n";
     std::cout << "╔════════════════════════════════════════════════════════════════════════════╗\n";
     std::cout << "║                                                                            ║\n";
-    std::cout << "║     ██╗ ██████╗ █████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗                    ║\n";
-    std::cout << "║     ██║██╔════╝██╔══██╗██╔══██╗██║██╔═══██╗████╗  ██║                    ║\n";
-    std::cout << "║     ██║██║     ███████║██████╔╝██║██║   ██║██╔██╗ ██║                    ║\n";
-    std::cout << "║     ██║██║     ██╔══██║██╔══██╗██║██║   ██║██║╚██╗██║                    ║\n";
-    std::cout << "║     ██║╚██████╗██║  ██║██║  ██║██║╚██████╔╝██║ ╚████║                    ║\n";
-    std::cout << "║     ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝                    ║\n";
+    std::cout << "║             ██╗ ██████╗ █████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗              ║\n";
+    std::cout << "║             ██║██╔════╝██╔══██╗██╔══██╗██║██╔═══██╗████╗  ██║              ║\n";
+    std::cout << "║             ██║██║     ███████║██████╔╝██║██║   ██║██╔██╗ ██║              ║\n";
+    std::cout << "║             ██║██║     ██╔══██║██╔══██╗██║██║   ██║██║╚██╗██║              ║\n";
+    std::cout << "║             ██║╚██████╗██║  ██║██║  ██║██║╚██████╔╝██║ ╚████║              ║\n";
+    std::cout << "║             ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝              ║\n";
     std::cout << "║                                                                            ║\n";
-    std::cout << "║                Ion Collision And Reaction IntegratiON                     ║\n";
-    std::cout << "║                   High-Performance Trajectory Simulator                   ║\n";
+    std::cout << "║                  Ion Collision And Reaction IntegratiON                    ║\n";
+    std::cout << "║                   High-Performance Trajectory Simulator                    ║\n";
     std::cout << "║                                                                            ║\n";
     std::cout << "╚════════════════════════════════════════════════════════════════════════════╝\n";
     std::cout << "\n";
@@ -90,7 +90,7 @@ inline void print_startup_banner(
     #endif
     std::cout << "\n\n";
     
-    std::cout << "   License:      Apache-2.0\n";
+    std::cout << "   License:      MIT\n";
     std::cout << "   Support:      https://github.com/icarion/icarion/issues\n";
     std::cout << "\n";
     

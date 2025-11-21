@@ -104,7 +104,7 @@ void HDF5Writer::append_trajectory(
             velocities.push_back(ion.vel.y);
             velocities.push_back(ion.vel.z);
             
-            domain_indices.push_back(ion.domain_index);
+            domain_indices.push_back(ion.current_domain_index);
             species_ids.push_back(ion.species_id.c_str());
         }
         
@@ -314,7 +314,7 @@ void HDF5Writer::write_config_metadata(
     write_scalar(cfg_group, "total_steps", static_cast<int>(config.simulation.total_steps));
     write_scalar(cfg_group, "write_interval", config.simulation.write_interval);
     
-    write_string(cfg_group, "integrator", config::EnumMapper::solver_to_string(config.simulation.integrator));
+    write_string(cfg_group, "integrator", config.simulation.integrator);  // Already a string
     write_string(cfg_group, "collision_model", config::EnumMapper::collision_model_to_string(config.physics.collision_model));
     
     write_scalar(cfg_group, "enable_reactions", config.physics.enable_reactions);
@@ -495,8 +495,8 @@ void HDF5Writer::write_species_metadata(
         names.push_back(name);
         masses_kg.push_back(species.mass_kg);
         charges_C.push_back(species.charge_C);
-        mobilities_m2Vs.push_back(species.reduced_mobility_m2Vs);
-        ccs_m2.push_back(species.ccs_m2);
+        mobilities_m2Vs.push_back(species.mobility_m2Vs);
+        ccs_m2.push_back(species.CCS_m2);
     }
     
     // === Write as datasets (tabular format) ===
@@ -543,11 +543,11 @@ void HDF5Writer::write_reactions_metadata(
     
     for (const auto& rxn : reaction_db.reactions) {
         ids.push_back(rxn.id);
-        reactant_1.push_back(rxn.reactant.empty() ? "" : rxn.reactant[0]);
-        reactant_2.push_back(rxn.reactant.size() > 1 ? rxn.reactant[1] : "");
-        product_1.push_back(rxn.product.empty() ? "" : rxn.product[0]);
-        rate_constants.push_back(rxn.rate_constant);
-        types.push_back(static_cast<int>(rxn.type));
+        reactant_1.push_back(rxn.reactant);  // reactant is a string, not array
+        reactant_2.push_back("");  // No second reactant in current schema
+        product_1.push_back(rxn.product);  // product is a string, not array
+        rate_constants.push_back(rxn.rate_constant_m3s);
+        types.push_back(2);  // Type 2 = two-body reaction (A+ + X -> B+)
     }
     
     // Write datasets
@@ -687,7 +687,7 @@ void HDF5Writer::write_ion_metadata(
         initial_vel_y.push_back(ion.vel.y);
         initial_vel_z.push_back(ion.vel.z);
         birth_times.push_back(ion.birth_time_s);
-        charges.push_back(ion.charge_C);
+        charges.push_back(ion.ion_charge_C);
     }
     
     // Write datasets

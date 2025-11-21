@@ -23,9 +23,39 @@ This guide provides practical instructions for extending ICARION with new featur
 
 ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement `IForce::compute()` and are managed by `ForceRegistry`.
 
+### Design Principle: Single Source of Truth (SSOT)
+
+**✅ CORRECT PATTERN**: Forces receive **const references** to config objects, NOT parameter structs.
+
+**❌ WRONG PATTERN**: Creating separate `YourForceParams` structs duplicates configuration data.
+
+**Why?** Parameter duplication violates SSOT and creates maintenance burden. Forces should read directly from `config::DomainConfig` or similar config structs.
+
+**Example**:
+```cpp
+// ✅ CORRECT: Direct config reference
+class ElectricFieldForce : public IForce {
+    ElectricFieldForce(const config::DomainConfig& domain);
+private:
+    const config::DomainConfig& domain_;  // Reference, not copy!
+};
+
+// ❌ WRONG: Parameter struct (duplicates config!)
+struct ElectricFieldParams { /* ... */ };
+class ElectricFieldForce : public IForce {
+    ElectricFieldForce(const ElectricFieldParams& params);
+private:
+    ElectricFieldParams params_;  // Duplication!
+};
+```
+
+---
+
 ### Step-by-Step Guide
 
 #### 1. Create Force Header (`src/core/physics/forces/YourForce.h`)
+
+**✅ CORRECT PATTERN**: Use **const reference** to config, not parameter struct!
 
 ```cpp
 #pragma once
@@ -34,34 +64,35 @@ ICARION's force system follows a plugin architecture using the **IForce interfac
 #include "ForceContext.h"
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
+#include "core/config/DomainConfig.h"  // ✅ Direct config reference
 
 namespace ICARION {
 namespace physics {
 
 /**
- * @brief Parameters for YourForce
- * 
- * ⚠️ DEPRECATED: Violates SSOT principle!
- * TODO (Phase 2): Replace with direct config reference.
- */
-struct YourForceParams {
-    double some_parameter = 0.0;
-    bool enabled = false;
-};
-
-/**
  * @brief Your force description
  * 
  * Physics: F = ... (formula)
+ * 
+ * ✅ Uses const reference to DomainConfig (SSOT pattern)
  */
 class YourForce : public IForce {
 public:
-    explicit YourForce(const YourForceParams& params);
+    /**
+     * @brief Constructor
+     * 
+     * @param domain Reference to simulation domain config (SSOT)
+     * @param additional_param Any non-config parameters
+     * 
+     * ⚠️ Config reference must outlive this object!
+     */
+    explicit YourForce(const config::DomainConfig& domain, double additional_param = 0.0);
     
     Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
     
 private:
-    YourForceParams params_;
+    const config::DomainConfig& domain_;  ///< ✅ Reference, not copy!
+    double additional_param_;
 };
 
 } // namespace physics
@@ -77,18 +108,22 @@ private:
 namespace ICARION {
 namespace physics {
 
-YourForce::YourForce(const YourForceParams& params)
-    : params_(params) {
+YourForce::YourForce(const config::DomainConfig& domain, double additional_param)
+    : domain_(domain)  // ✅ Store reference
+    , additional_param_(additional_param) {
 }
 
 Vec3 YourForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
-    if (!params_.enabled) {
+    // ✅ Read config directly from domain_
+    if (!domain_.enable_some_feature) {
         return Vec3{0, 0, 0};
     }
     
-    // Your force calculation
+    // Example: Use domain config parameters
+    double param = domain_.some_config_value;
     Vec3 force = {0, 0, 0};
-    // ... implement physics ...
+    
+    // ... implement physics using domain_ and ctx ...
     
     return force;
 }
@@ -104,17 +139,23 @@ Vec3 YourForce::compute(const IonState& ion, double t, const ForceContext& ctx) 
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "core/physics/forces/YourForce.h"
+#include "core/config/DomainConfig.h"
 
 using namespace ICARION::physics;
+using namespace ICARION::config;
 using Catch::Matchers::WithinAbs;
 
 TEST_CASE("YourForce - Basic functionality", "[forces][yourforce]") {
-    YourForceParams params;
-    params.enabled = true;
-    params.some_parameter = 1.0;
+    // ✅ Create config (SSOT)
+    DomainConfig domain;
+    domain.enable_some_feature = true;
+    domain.some_config_value = 1.0;
     
-    YourForce force(params);
+    YourForce force(domain, 0.5);  // ✅ Pass by reference
+    
     ForceContext ctx;
+    ctx.domain = domain;  // ✅ Same config in context
+    ctx.temperature_K = 300.0;
     
     IonState ion;
     ion.pos = Vec3{0, 0, 0};
@@ -126,6 +167,8 @@ TEST_CASE("YourForce - Basic functionality", "[forces][yourforce]") {
     
     // Add your assertions
     REQUIRE(std::isfinite(F.x));
+    REQUIRE(std::isfinite(F.y));
+    REQUIRE(std::isfinite(F.z));
 }
 ```
 
@@ -148,13 +191,15 @@ add_test(NAME YourForce COMMAND test_your_force)
 #### 5. Register in ForceRegistry (User Code)
 
 ```cpp
+// ✅ Config lives in scope
+config::DomainConfig domain = load_config("config.json");
+
 ForceRegistry registry;
 
-YourForceParams params;
-params.enabled = true;
-params.some_parameter = 123.45;
+// ✅ Force stores reference to domain (no duplication!)
+registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 
-registry.add_force(std::make_unique<YourForce>(params));
+// ⚠️ domain must outlive registry!
 ```
 
 ### Best Practices
@@ -529,8 +574,8 @@ When Phase 2 begins:
 ## Getting Help
 
 - **Architecture Questions**: See `ARCHITECTURE.md`
-- **API Reference**: See `docs/PUBLIC_CPP_API_v1.0.md`
-- **Config Schema**: See `schema/icarion_config_schema_v1.0.json`
+- **API Reference**: See `docs/CLI_USAGE.md`
+- **Config Schema**: See `schema/icarion-config.schema.json`
 - **Bug Reports**: Create GitHub issue with minimal reproducer
 
 ---

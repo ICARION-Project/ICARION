@@ -1,6 +1,6 @@
 # ICARION Architecture Guide
 
-**Version:** 1.0++ (Post Phase 1: Force System Refactoring)  
+**Version:** 1.0
 **Last Updated:** November 21, 2025
 
 This document describes the high-level architecture of ICARION, focusing on module organization, data flow, and key design patterns.
@@ -28,15 +28,15 @@ ICARION is a modular ion trajectory simulation framework with the following key 
 ┌─────────────────────────────────────────────────────────────┐
 │                     ICARION Simulation                      │
 ├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │   Config     │  │    Physics   │  │  Integrator  │      │
-│  │   Loader     │→ │    Forces    │→ │   (ODE)      │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │   Config     │  │    Physics   │  │  Integrator  │       │
+│  │   Loader     │→ │    Forces    │→ │   (ODE)      │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
 │         ↓                 ↓                  ↓              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │   Domain     │  │ Field Solver │  │   Output     │      │
-│  │   Config     │→ │   (Poisson)  │→ │   (HDF5)     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │   Domain     │  │ Field Solver │  │   Output     │       │
+│  │   Config     │→ │   (Poisson)  │→ │   (HDF5)     │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -341,23 +341,17 @@ public:
 
 ### ForceContext
 
-Provides shared data for force computation:
+Provides shared data for force computation (avoids duplicate lookups):
 
 ```cpp
 struct ForceContext {
-    // Ion ensemble (for space charge, ion-ion collisions)
-    const std::vector<IonState>* all_ions = nullptr;
-    
-    // Background gas properties
-    double particle_density_m3 = 0.0;   // Gas number density [1/m³]
-    double temperature_K = 0.0;          // Gas temperature [K]
-    
-    // Simulation state
-    double current_time_s = 0.0;
-    
-    // Field providers (optional)
-    const IFieldProvider* electric_field = nullptr;
-    const IFieldProvider* magnetic_field = nullptr;
+    const IFieldProvider* field_provider;       ///< Field evaluator (electric/magnetic)
+    const config::DomainConfig& domain;         ///< Simulation domain parameters
+    const std::vector<IonState>& all_ions;      ///< All ions (for space charge)
+    double temperature_K;                       ///< Gas temperature [K]
+    double pressure_Pa;                         ///< Gas pressure [Pa]
+    double particle_density_m3;                 ///< Neutral gas density [m⁻³]
+    Vec3 gas_velocity_ms;                       ///< Gas flow velocity [m/s]
 };
 ```
 
@@ -366,7 +360,7 @@ struct ForceContext {
 Manages multiple forces and computes total force via superposition:
 
 ```cpp
-class ForceRegistry {
+class ForceRegistry : public IForce {
 public:
     /**
      * @brief Add a force to the registry
@@ -376,11 +370,11 @@ public:
     void add_force(std::unique_ptr<IForce> force);
     
     /**
-     * @brief Compute total force on ion
+     * @brief Compute total force on ion (overrides IForce::compute)
      * 
      * F_total = F1 + F2 + F3 + ... (superposition)
      */
-    Vec3 compute_total_force(const IonState& ion, double t, const ForceContext& ctx) const;
+    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
     
     /**
      * @brief Clear all forces
@@ -390,7 +384,17 @@ public:
     /**
      * @brief Get number of registered forces
      */
-    size_t num_forces() const;
+    size_t size() const;
+    
+    /**
+     * @brief Check if registry is empty
+     */
+    bool empty() const;
+    
+    /**
+     * @brief Get const reference to force vector (for iteration)
+     */
+    const std::vector<std::unique_ptr<IForce>>& forces() const;
     
 private:
     std::vector<std::unique_ptr<IForce>> forces_;
@@ -412,7 +416,7 @@ Computes Lorentz electric force: **F = q·E**
 - IMS (Ion Mobility Spectrometry)
 - TOF (Time-of-Flight)
 - Orbitrap
-- QuadrupoleRF (SLIM)
+- QuadrupoleRF
 - FTICR (Fourier Transform ICR)
 
 #### 2. MagneticFieldForce
@@ -749,41 +753,6 @@ tests/
 - **Integration**: 12 assertions / 4 tests
 
 **Total**: 199 assertions / 47 tests (100% passing)
-
----
-
-## Future Architecture Evolution
-
-### Phase 2: SSOT Compliance
-
-**Goals**:
-1. Remove all parameter struct duplicates
-2. Move `InstrumentType` to `core/config/types/`
-3. Forces take `const Config&` references directly
-4. Single source of truth for all configuration
-
-### Phase 3: GPU Acceleration
-
-**Goals**:
-1. CUDA kernels for space charge
-2. GPU-accelerated Poisson solver
-3. Batched field evaluation on GPU
-
-### Phase 4: Advanced Physics
-
-**Goals**:
-1. Ion-neutral reactive collisions
-2. Photon interactions
-3. Surface interactions (electrodes)
-4. Multi-species simulations
-
----
-
-## References
-
-- **Design Patterns**: Gang of Four (GoF)
-- **Physics**: Classical Mechanics (Goldstein), Plasma Physics (Chen)
-- **Numerics**: Numerical Recipes, Hairer (Geometric Integration)
 
 ---
 

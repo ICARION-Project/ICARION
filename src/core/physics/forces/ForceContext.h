@@ -119,12 +119,39 @@ struct ForceContext {
     double particle_density_m3 = 0.0;
     
     /**
+     * @brief Gas number density [m^-3] (alias for particle_density_m3)
+     * 
+     * Same as particle_density_m3, provided for clarity in damping force code.
+     */
+    double gas_density_m3 = 0.0;
+    
+    /**
+     * @brief Mean thermal velocity [m/s]
+     * 
+     * Mean thermal velocity of neutral gas molecules: √(8kT/πm_n).
+     * Used by hard-sphere and Langevin collision models.
+     * 
+     * @note For N2 at 300K: ~500 m/s
+     */
+    double mean_thermal_velocity_m_s = 0.0;
+    
+    /**
      * @brief Neutral particle mass [kg]
      * 
      * Mass of background gas molecules (e.g., He, N2).
      * Used for reduced mass calculations in collision forces.
      */
     double neutral_mass_kg = 0.0;
+    
+    /**
+     * @brief Neutral polarizability [m^3]
+     * 
+     * Polarizability of background gas molecules (α).
+     * Used by Langevin collision model for long-range interactions.
+     * 
+     * @note For N2: α ≈ 1.76e-30 m³
+     */
+    double neutral_polarizability_m3 = 0.0;
 };
 
 } // namespace ICARION::physics

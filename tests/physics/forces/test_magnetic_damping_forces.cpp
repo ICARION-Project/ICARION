@@ -181,10 +181,10 @@ TEST_CASE("MagneticFieldForce - Disabled force", "[forces][magnetic]") {
 // DampingForce Tests
 // ============================================================================
 
-TEST_CASE("DampingForce - Friction model", "[forces][damping]") {
+TEST_CASE("DampingForce - Friction model (explicit gamma)", "[forces][damping]") {
     DampingParams params;
     params.model = DampingModel::Friction;
-    params.damping_coefficient = 1e-15;  // kg/s
+    params.gamma_coefficient = 1e6;  // 1/s (explicit damping coefficient)
     
     DampingForce force(params);
     ForceContext ctx;
@@ -194,11 +194,11 @@ TEST_CASE("DampingForce - Friction model", "[forces][damping]") {
     }
     
     SECTION("Force opposes velocity") {
-        IonState ion = make_ion(1000, 0, 0);  // v_x = 1 km/s
+        IonState ion = make_ion(1000, 0, 0);  // v_x = 1 km/s, m = 100 Da
         Vec3 F = force.compute(ion, 0.0, ctx);
         
-        // F = -γ·v
-        double expected_F_x = -params.damping_coefficient * 1000.0;
+        // F = -γ·m·v [N]
+        double expected_F_x = -params.gamma_coefficient * ion.mass_kg * 1000.0;
         
         REQUIRE(F.x == Approx(expected_F_x));
         REQUIRE(F.y == Approx(0.0).margin(1e-25));
@@ -212,7 +212,7 @@ TEST_CASE("DampingForce - Friction model", "[forces][damping]") {
         Vec3 F1 = force.compute(ion1, 0.0, ctx);
         Vec3 F2 = force.compute(ion2, 0.0, ctx);
         
-        // F2 should be twice F1 (F ∝ v)
+        // F2 should be twice F1 (F = -γ·m·v, so F ∝ v)
         REQUIRE(F2.x == Approx(2.0 * F1.x));
     }
     
@@ -226,54 +226,53 @@ TEST_CASE("DampingForce - Friction model", "[forces][damping]") {
     }
 }
 
-TEST_CASE("DampingForce - Langevin model", "[forces][damping][stochastic]") {
+TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]") {
+    // Test HardSphere damping with explicit parameters
     DampingParams params;
-    params.model = DampingModel::Langevin;
-    params.damping_coefficient = 1e-15;
-    params.temperature_K = 300.0;
-    params.random_seed = 42;
+    params.model = DampingModel::HardSphere;
+    params.gas_density_m3 = 2.5e25;           // ~1 atm at 300K
+    params.mean_thermal_velocity_m_s = 500.0;  // ~N2 at 300K
+    params.neutral_mass_kg = 28.0 * AMU_TO_KG; // N2
+    params.CCS_m2 = 1e-18;                     // 100 Ų
     
     DampingForce force(params);
     ForceContext ctx;
+    ctx.gas_density_m3 = params.gas_density_m3;
+    ctx.mean_thermal_velocity_m_s = params.mean_thermal_velocity_m_s;
+    ctx.neutral_mass_kg = params.neutral_mass_kg;
     
     SECTION("Force name") {
-        REQUIRE(force.name() == "Damping(Langevin)");
+        REQUIRE(force.name() == "Damping(HardSphere)");
     }
     
-    SECTION("Has friction component") {
-        IonState ion = make_ion(1000, 0, 0);
+    SECTION("Force opposes velocity (deterministic)") {
+        IonState ion = make_ion(1000, 0, 0);  // v_x = 1 km/s
+        ion.CCS_m2 = params.CCS_m2;
+        
         Vec3 F = force.compute(ion, 0.0, ctx);
         
-        // Should have negative x-component (friction opposes motion)
-        // But also random component, so just check that friction dominates
+        // F = -γ·m·v where γ = n·σ·v_th·m_reduced/m_ion
+        // Should be negative (opposes motion) and deterministic
         REQUIRE(F.x < 0.0);
-    }
-    
-    SECTION("Random force varies between calls") {
-        IonState ion = make_ion(0, 0, 0);  // Stationary → only random force
+        REQUIRE(F.y == Approx(0.0).margin(1e-25));
+        REQUIRE(F.z == Approx(0.0).margin(1e-25));
         
-        Vec3 F1 = force.compute(ion, 0.0, ctx);
+        // Check determinism: repeated calls give same result
         Vec3 F2 = force.compute(ion, 0.0, ctx);
-        Vec3 F3 = force.compute(ion, 0.0, ctx);
-        
-        // Random forces should differ
-        bool all_different = (F1.x != F2.x) && (F2.x != F3.x);
-        REQUIRE(all_different);
+        REQUIRE(F2.x == Approx(F.x));
     }
     
-    SECTION("Different seeds produce different sequences") {
-        DampingParams params2 = params;
-        params2.random_seed = 123;  // Different seed
-        
-        DampingForce force2(params2);
-        
-        IonState ion = make_ion(0, 0, 0);
+    SECTION("Force proportional to velocity") {
+        IonState ion = make_ion(500, 0, 0);
+        ion.CCS_m2 = params.CCS_m2;
         
         Vec3 F1 = force.compute(ion, 0.0, ctx);
-        Vec3 F2 = force2.compute(ion, 0.0, ctx);
         
-        // Different seeds → different random forces
-        REQUIRE(F1.x != F2.x);
+        ion.vel.x = 1000.0;  // Double velocity
+        Vec3 F2 = force.compute(ion, 0.0, ctx);
+        
+        // F ∝ v (F = -γ·m·v with constant γ)
+        REQUIRE(F2.x == Approx(2.0 * F1.x));
     }
 }
 
@@ -311,7 +310,7 @@ TEST_CASE("Combined Magnetic + Damping", "[forces][combined]") {
     
     DampingParams d_params;
     d_params.model = DampingModel::Friction;
-    d_params.damping_coefficient = 1e-16;
+    d_params.gamma_coefficient = 1e5;  // 1/s (explicit)
     
     MagneticFieldForce mag_force(b_params);
     DampingForce damp_force(d_params);

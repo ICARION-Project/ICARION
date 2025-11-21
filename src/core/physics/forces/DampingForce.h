@@ -3,11 +3,22 @@
 
 /**
  * @file DampingForce.h
- * @brief Damping force implementations (friction, Langevin)
+ * @brief Deterministic collision damping forces (HardSphere, Langevin, Friction)
  * 
- * Computes velocity-dependent damping forces for ions in background gas:
- * - Friction damping: F = -γ·v (continuous drag)
- * - Langevin damping: F = -γ·v + random thermal kicks (Brownian motion)
+ * Computes velocity-dependent damping forces F = -γ·v for ions in background gas.
+ * All models are DETERMINISTIC - they compute continuous friction opposing motion.
+ * 
+ * The damping coefficient γ differs by collision model:
+ * - **HardSphere**: γ = ν_collision = n·σ·v_th·(m_n/(m_i+m_n))
+ * - **Langevin**: γ = ν_Langevin(v) (velocity-dependent, polarization)
+ * - **Friction**: γ = q/K₀ (mobility-based)
+ * 
+ * @note RANDOM THERMAL KICKS ARE NOT COMPUTED HERE!
+ * Stochastic diffusion (Ornstein-Uhlenbeck process) is handled separately
+ * by CollisionEngine via apply_ou_velocity_kick() when enable_ou_thermalization=true.
+ * This separation matches the legacy architecture:
+ *   1. ODE solver uses deterministic damping forces
+ *   2. After ODE step, apply_ou_velocity_kick() adds thermal noise
  */
 
 #pragma once
@@ -17,65 +28,86 @@
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
 
-#include <random>
-
 namespace ICARION {
 namespace physics {
 
 /**
  * @enum DampingModel
- * @brief Type of damping force model
+ * @brief Collision model for damping force calculation
+ * 
+ * Each model computes F = -γ·m·v with different formulas for γ:
+ * - HardSphere: Elastic collisions with momentum transfer rate
+ * - Langevin: Long-range ion-neutral polarization interactions
+ * - Friction: Mobility-based drag (Mason-Schamp equation)
  */
 enum class DampingModel {
-    None,      ///< No damping
-    Friction,  ///< Deterministic friction: F = -γ·v
-    Langevin   ///< Stochastic Langevin: F = -γ·v + ξ(t) (Brownian)
+    None,       ///< No damping
+    HardSphere, ///< Hard-sphere elastic collisions
+    Langevin,   ///< Langevin polarization model
+    Friction    ///< Mobility-based friction
 };
 
 /**
- * @brief Parameters for damping force configuration
+ * @brief Parameters for damping force calculation
+ * 
+ * Contains collision parameters needed to compute damping coefficient γ.
+ * Different models use different subsets of these parameters.
  */
 struct DampingParams {
     DampingModel model = DampingModel::None;
-    double damping_coefficient = 0.0;  ///< Damping coefficient γ [kg/s]
-    double temperature_K = 300.0;      ///< Gas temperature [K] (for Langevin)
-    unsigned int random_seed = 42;     ///< RNG seed for reproducibility
+    
+    // --- Explicit damping coefficient (if > 0, overrides model calculation) ---
+    double gamma_coefficient = 0.0;  ///< Friction coefficient γ [1/s] (F = -γ·m·v)
+    
+    // --- HardSphere model parameters ---
+    double gas_density_m3 = 0.0;              ///< Neutral gas number density [1/m³]
+    double mean_thermal_velocity_m_s = 0.0;   ///< Mean thermal velocity √(8kT/πm_n) [m/s]
+    double neutral_mass_kg = 0.0;             ///< Neutral molecule mass [kg]
+    double CCS_m2 = 0.0;                      ///< Collision cross-section [m²]
+    
+    // --- Langevin model parameters ---
+    double neutral_polarizability_m3 = 0.0;   ///< Neutral polarizability [m³]
+    
+    // --- Friction model parameters ---
+    double reduced_mobility_cm2_Vs = 0.0;     ///< Reduced mobility K₀ [cm²/(V·s)]
 };
 
 /**
  * @class DampingForce
- * @brief Computes velocity-dependent damping forces
+ * @brief Computes deterministic collision damping forces
  * 
- * **Friction Damping:**
- * - F = -γ·v (deterministic drag)
- * - Energy dissipation without thermal fluctuations
- * - Suitable for high-pressure regime or phenomenological modeling
+ * **All models compute:** F = -γ·m·v (friction opposing velocity)
  * 
- * **Langevin Damping:**
- * - F = -γ·v + ξ(t) (stochastic force)
- * - ξ(t): Gaussian white noise with ⟨ξ⟩ = 0
- * - Variance: σ² = 2·γ·k_B·T·m/Δt (fluctuation-dissipation theorem)
- * - Models Brownian motion in dilute gas
+ * **Damping coefficient γ [1/s] by model:**
+ * 
+ * 1. **HardSphere** (elastic collisions):
+ *    γ = ν_collision = n·σ·v_th·m_reduced/m_ion
+ *    where m_reduced = m_n/(m_i+m_n)
+ * 
+ * 2. **Langevin** (polarization interactions):
+ *    γ = ν_Langevin = n·σ_Langevin(v)·v_th·m_reduced/m_ion
+ *    where σ_Langevin = π·q·√(α/(4πε₀·m_reduced))/|v|
+ * 
+ * 3. **Friction** (mobility-based):
+ *    γ = q/(K₀·m_ion) where K₀ = reduced mobility
  * 
  * **Usage:**
  * ```cpp
- * // Friction damping (deterministic)
+ * // From ion/domain state (automatic model selection)
  * DampingParams params;
- * params.model = DampingModel::Friction;
- * params.damping_coefficient = 1e-15;  // kg/s
+ * params.model = DampingModel::Langevin;
+ * // Parameters extracted from ForceContext (ion.CCS_m2, domain.env, etc.)
  * auto force = std::make_unique<DampingForce>(params);
  * 
- * // Langevin damping (stochastic, temperature-dependent)
- * DampingParams langevin;
- * langevin.model = DampingModel::Langevin;
- * langevin.damping_coefficient = 1e-15;
- * langevin.temperature_K = 300.0;
- * langevin.random_seed = 12345;
- * auto force = std::make_unique<DampingForce>(langevin);
+ * // Explicit damping coefficient (overrides model)
+ * DampingParams explicit_params;
+ * explicit_params.model = DampingModel::Friction;
+ * explicit_params.gamma_coefficient = 1e6;  // 1/s
+ * auto force = std::make_unique<DampingForce>(explicit_params);
  * ```
  * 
- * @note Damping coefficient γ depends on ion-gas collision cross-section
- * @note For Langevin: requires dt from context for proper noise scaling
+ * @note Random thermal kicks (OU process) are handled by CollisionEngine, NOT here
+ * @note Matches legacy defineCollisionForces.cpp behavior (deterministic only)
  */
 class DampingForce : public IForce {
 public:
@@ -86,39 +118,38 @@ public:
     explicit DampingForce(const DampingParams& params);
     
     /**
-     * @brief Compute damping force
+     * @brief Compute damping force F = -γ·m·v
      * 
-     * @param ion Ion state (velocity required!)
-     * @param t Current simulation time [s]
-     * @param ctx Force context (temperature from environment)
+     * @param ion Ion state (velocity, mass, charge, CCS, mobility)
+     * @param t Current simulation time [s] (unused for damping)
+     * @param ctx Force context (domain environment properties)
      * @return Force vector [N]
-     * 
-     * Friction: F = -γ·v
-     * Langevin: F = -γ·v + ξ(t), with ξ ~ N(0, σ²)
      */
     Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
     
     /**
      * @brief Get force name
-     * @return "Damping(Friction)" or "Damping(Langevin)"
+     * @return "Damping(HardSphere)", "Damping(Langevin)", or "Damping(Friction)"
      */
     std::string name() const override;
 
 private:
-    /**
-     * @brief Compute random thermal force for Langevin dynamics
-     * @param ion_mass Ion mass [kg]
-     * @param temperature Temperature [K]
-     * @param dt Time step [s]
-     * @return Random force vector [N]
-     */
-    Vec3 compute_random_force(double ion_mass, double temperature, double dt) const;
-    
     DampingParams params_;
     
-    // Mutable RNG for thread-safe random number generation
-    mutable std::mt19937 rng_;
-    mutable std::normal_distribution<double> normal_dist_;
+    /**
+     * @brief Calculate damping coefficient γ [1/s] based on collision model
+     * 
+     * @param ion Ion state (mass, charge, CCS, mobility)
+     * @param ctx Force context (domain gas properties)
+     * @return γ such that F = -γ·m·v [1/s]
+     * 
+     * Returns params_.gamma_coefficient if > 0 (explicit override).
+     * Otherwise computes from model:
+     * - HardSphere: ν_collision from momentum transfer rate
+     * - Langevin: ν_Langevin from polarization cross-section
+     * - Friction: q/(K₀·m) from reduced mobility
+     */
+    double calculate_gamma(const IonState& ion, const ForceContext& ctx) const;
 };
 
 } // namespace physics

@@ -34,7 +34,14 @@ struct PhysicsConfig {
     ValidationResult validate() const {
         ValidationResult result;
         
-        // OU thermalization with stochastic models might be redundant
+        // OU thermalization with stochastic models is incompatible
+        if (enable_ou_thermalization && 
+            (collision_model == CollisionModel::HSS || 
+             collision_model == CollisionModel::EHSS)) {
+            result.add_error("enable_ou_thermalization cannot be true when using stochastic collision models (HSS or EHSS). "
+                           "OU is only compatible with deterministic damping models (Friction, Langevin, HardSphere).");
+        }
+        
         if (force_ou_for_stochastic && 
             (collision_model == CollisionModel::HSS || 
              collision_model == CollisionModel::EHSS)) {

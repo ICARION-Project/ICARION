@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
+/**
+ * @file ICollisionHandler.h
+ * @brief Interface for stochastic collision models
+ * 
+ * Defines the abstract interface for handling discrete collision events in ion trajectory simulations.
+ * This interface supports EHSS (structure-resolved), HSS (isotropic), and OU (thermal kicks) models.
+ * 
+ * **Design Philosophy (SSOT):**
+ * - Handlers read environment parameters directly from `EnvironmentConfig` (no parameter copies)
+ * - No intermediate structs or conversions (single source of truth)
+ * - Clean separation: stochastic collisions (ICollisionHandler) vs deterministic damping (DampingForce)
+ * 
+ * @date 2025-11-21
+ * @version 1.0
+ */
+
+#pragma once
+
+#include "core/types/IonState.h"
+#include "core/config/types/EnvironmentConfig.h"
+#include "core/physics/collisions/collisionHelpers.h"  // EhssRng
+#include <string>
+#include <cstddef>
+
+namespace ICARION::physics {
+
+/**
+ * @brief Collision statistics (for tracking/debugging)
+ */
+struct CollisionStats {
+    size_t total_collisions = 0;        ///< Total number of collision events
+    size_t rejected_collisions = 0;     ///< Collisions rejected (e.g., low probability)
+    double average_collision_rate = 0.0;///< Mean collision rate [Hz]
+};
+
+/**
+ * @brief Abstract interface for stochastic collision handlers
+ * 
+ * All collision models (EHSS, HSS, OU) implement this interface.
+ * 
+ * **IMPORTANT:** This is ONLY for **stochastic** collision models!
+ * Deterministic models (Friction, Langevin, HardSphere) use `DampingForce` instead.
+ * 
+ * **SSOT Design:**
+ * - Handler reads parameters directly from `EnvironmentConfig` (no copies!)
+ * - No intermediate structs (e.g., CollisionContext)
+ * - Config references must outlive handler instance
+ * 
+ * **Collision Models:**
+ * - **EHSS** (Explicit Hard-Sphere Scattering): Structure-resolved, atom-centered spheres
+ * - **HSS** (Hard-Sphere Stochastic): Isotropic scattering, single effective sphere
+ * - **OU** (Ornstein-Uhlenbeck): Thermal velocity kicks (add-on for deterministic models)
+ * 
+ * @see DampingForce for deterministic collision models
+ * @see CollisionHandlerFactory for creating handlers from config
+ */
+class ICollisionHandler {
+public:
+    virtual ~ICollisionHandler() = default;
+    
+    /**
+     * @brief Handle collision for single timestep
+     * 
+     * Determines if collision occurs (probabilistic) and updates ion velocity accordingly.
+     * 
+     * **SSOT Pattern:**
+     * Environment parameters (temperature, pressure, density, etc.) are read directly
+     * from `env` parameter. No parameter copies or intermediate structs.
+     * 
+     * @param[in,out] ion Ion state (velocity modified in-place if collision occurs)
+     * @param[in] dt Timestep [s]
+     * @param[in,out] rng Random number generator
+     * @param[in] env Environment configuration (SSOT - direct reference!)
+     * 
+     * @return true if collision occurred, false otherwise
+     * 
+     * @note Thread-safety: Not thread-safe! Each thread needs separate handler + RNG instance.
+     * 
+     * @example
+     * ```cpp
+     * config::EnvironmentConfig env;
+     * env.temperature_K = 300.0;
+     * env.pressure_Pa = 101325.0;
+     * 
+     * EhssRng rng(12345);
+     * IonState ion;
+     * 
+     * bool collision_occurred = handler->handle_collision(ion, 1e-9, rng, env);
+     * ```
+     */
+    virtual bool handle_collision(
+        IonState& ion,
+        double dt,
+        EhssRng& rng,
+        const config::EnvironmentConfig& env
+    ) = 0;
+    
+    /**
+     * @brief Get collision model name
+     * 
+     * @return Model name (e.g., "EHSS", "HSS", "OU")
+     */
+    virtual std::string name() const = 0;
+    
+    /**
+     * @brief Get collision statistics (for debugging/logging)
+     * 
+     * @return Collision statistics (total collisions, rejection rate, etc.)
+     */
+    virtual CollisionStats get_stats() const { return {}; }
+    
+    /**
+     * @brief Reset statistics counters
+     */
+    virtual void reset_stats() {}
+};
+
+} // namespace ICARION::physics

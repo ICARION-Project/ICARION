@@ -47,6 +47,8 @@
 #include "core/utils/safety/numericalSafetyGuards.h"
 // Instrument type definitions
 #include "instrument/InstrumentTypes.h"
+// SSOT: CollisionModel defined in config::PhysicsEnums.h (Phase 2E)
+#include "core/config/types/PhysicsEnums.h"
 
 // Forward declarations
 class FieldServer; // Phase 6.3 live field computation
@@ -60,7 +62,8 @@ namespace core {
 // Use canonical InstrumentType from instrument namespace
 using Instrument = ICARION::instrument::InstrumentType;
 
-enum class CollisionModel { HardSphere, Langevin, Friction, EHSS, HSMC, NoCollisions, UnknownCollisionModel };
+// Legacy core::CollisionModel deleted - use config namespace as single source of truth
+using CollisionModel = ICARION::config::CollisionModel;
 
 enum class SolverType { RK45, RK4, Boris};
 

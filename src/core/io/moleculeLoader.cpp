@@ -184,19 +184,19 @@ Molecule load_molecule(const std::string& filepath) {
         atom.mass_u = atom_json["mass_u"].asDouble();
         atom.partial_charge_e = atom_json["partial_charge_e"].asDouble();
         
-        // Parse position array
+        // Parse position array (JSON positions are in Angstrom, convert to meters)
         const Json::Value& pos = atom_json["pos"];
         if (!pos.isArray() || pos.size() != 3) {
             throw std::runtime_error("Atom " + std::to_string(i) + " 'pos' must be array of 3 numbers in: " + filepath);
         }
         atom.pos_m = Vec3{
-            pos[0].asDouble(),
-            pos[1].asDouble(),
-            pos[2].asDouble()
+            pos[0].asDouble() * ANGSTROM_TO_M,
+            pos[1].asDouble() * ANGSTROM_TO_M,
+            pos[2].asDouble() * ANGSTROM_TO_M
         };
         
-        // Optional LJ parameters
-        atom.LJ_sigma_m = atom_json.get("LJ_sigma_m", 0.0).asDouble();
+        // Optional LJ parameters (JSON in Ångström, convert to meters)
+        atom.LJ_sigma_m = atom_json.get("LJ_sigma_angstrom", 0.0).asDouble() * ANGSTROM_TO_M;
         atom.LJ_epsilon_eV = atom_json.get("LJ_epsilon_eV", 0.0).asDouble();
         
         mol.atoms.push_back(atom);

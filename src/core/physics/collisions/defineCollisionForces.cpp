@@ -14,9 +14,26 @@
  *    - Friction (mobility-based damping)
  *    - Langevin (ion-neutral long-range interactions)
  *    - Hard-sphere collisions
- *    - EHSS / HSMC stochastic models (no explicit damping)
+ *    - EHSS / HSS stochastic models (no explicit damping)
  *
  *   Each function returns a force vector divided by the ion mass (acceleration).
+ *
+ *   ⚠️ **DEPRECATED (Phase 2B - November 2025):**
+ *   This file duplicates logic already implemented in `DampingForce`.
+ *   
+ *   **Reason for duplication:**
+ *   - This file is used by legacy `compute_accelerations()` (computeAccelerations.cpp)
+ *   - DampingForce is used by new `ForceRegistry` architecture
+ *   
+ *   **Migration plan (Phase 4):**
+ *   - Replace `compute_accelerations()` with `ForceRegistry::compute_total_force()`
+ *   - Delete this file after integrator refactoring is complete
+ *   
+ *   **Affected models:**
+ *   - HardSphereCollision() → DampingForce (DampingModel::HardSphere)
+ *   - LangevinCollision()   → DampingForce (DampingModel::Langevin)
+ *   - FrictionCollision()   → DampingForce (DampingModel::Friction)
+ *   - EHSS/HSS              → No force (stochastic collisions only)
  *
  *   @date        2025-10-08
  *   @version     0.1
@@ -43,11 +60,11 @@ namespace physics {
  */
 Vec3 CollisionForce(const IonState& ion, const GlobalParams& gParams, const InstrumentDomain& dom) {
     switch(gParams.collisionModel) {
-        case CollisionModel::HardSphere: return HardSphereCollision(ion, dom);
+        case CollisionModel::HSD: return HardSphereCollision(ion, dom);
         case CollisionModel::Langevin:   return LangevinCollision(ion, dom);
         case CollisionModel::Friction:   return FrictionCollision(ion, dom);
         case CollisionModel::EHSS:       return EHSSCollision(ion, dom);
-        case CollisionModel::HSMC:       return HSMCCollision(ion, dom);
+        case CollisionModel::HSS:        return HSSCollision(ion, dom);  // Note: function name stays for now
         case CollisionModel::NoCollisions: return Vec3{0.0, 0.0, 0.0}; // No collisions
     }
     return Vec3{0.0, 0.0, 0.0}; // fallback
@@ -58,6 +75,9 @@ Vec3 CollisionForce(const IonState& ion, const GlobalParams& gParams, const Inst
  *
  * Damping proportional to collision frequency derived from ion CCS,
  * neutral particle density, and thermal velocity.
+ *
+ * ⚠️ **DEPRECATED:** Duplicate of DampingForce::calculate_gamma(DampingModel::HardSphere)
+ * Will be removed in Phase 4 (Integrator Refactor).
  *
  * @param[in] ion Current ion state.
  * @param[in] dom Instrument domain properties.
@@ -74,6 +94,9 @@ Vec3 HardSphereCollision(const IonState& ion, const InstrumentDomain& dom) {
  * @brief Langevin collision model: damping from long-range ion-neutral polarization.
  *
  * Computes velocity-dependent damping proportional to the Langevin collision frequency.
+ *
+ * ⚠️ **DEPRECATED:** Duplicate of DampingForce::calculate_gamma(DampingModel::Langevin)
+ * Will be removed in Phase 4 (Integrator Refactor).
  *
  * @param[in] ion Current ion state.
  * @param[in] dom Instrument domain properties.
@@ -95,6 +118,9 @@ Vec3 LangevinCollision(const IonState& ion, const InstrumentDomain& dom) {
  *
  * Computes damping based on ion mobility. The force is opposite to ion velocity.
  *
+ * ⚠️ **DEPRECATED:** Duplicate of DampingForce::calculate_gamma(DampingModel::Friction)
+ * Will be removed in Phase 4 (Integrator Refactor).
+ *
  * @param[in] ion  Current ion state.
  * @param[in] dom  Instrument domain parameters.
  * @return Vec3    Damping force vector [N].
@@ -106,18 +132,28 @@ Vec3 FrictionCollision(const IonState& ion, const InstrumentDomain& dom) {
 }
 
 /**
- * @brief EHSS collision model: returns zero damping force, 
-          since Collision is described stochastically. 
+ * @brief EHSS collision model: returns zero damping force.
+ * 
+ * EHSS (Explicit Hard-Sphere Scattering) is a **stochastic** collision model.
+ * Collisions are handled discretely by ICollisionHandler (Phase 2C), not as continuous force.
+ * 
+ * ⚠️ **NOTE:** This function will be removed in Phase 4 when EHSS is fully migrated
+ * to ICollisionHandler architecture.
  */
 Vec3 EHSSCollision(const IonState& ion, const InstrumentDomain& dom) {
     return Vec3{0.0, 0.0, 0.0};
 }
 
 /**
- * @brief HSMC collision model: returns zero damping force, 
-          since Collision is described stochastically. 
+ * @brief HSS collision model: returns zero damping force.
+ * 
+ * HSS (Hard-Sphere Stochastic) is a **stochastic** collision model.
+ * Collisions are handled discretely by ICollisionHandler (Phase 2C), not as continuous force.
+ * 
+ * ⚠️ **NOTE:** This function will be removed in Phase 4 when HSS is fully migrated
+ * to ICollisionHandler architecture.
  */
-Vec3 HSMCCollision(const IonState& ion, const InstrumentDomain& dom) {
+Vec3 HSSCollision(const IonState& ion, const InstrumentDomain& dom) {
     return Vec3{0.0, 0.0, 0.0};
 }
 

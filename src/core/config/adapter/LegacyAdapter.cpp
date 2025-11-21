@@ -10,26 +10,9 @@ namespace ICARION::config {
 // Enum conversion helpers
 // ====================================================================
 
-static core::CollisionModel convert_collision_model(config::CollisionModel model) {
-    switch (model) {
-        case config::CollisionModel::NoCollisions:
-            return core::CollisionModel::NoCollisions;
-        case config::CollisionModel::HSD:
-            return core::CollisionModel::HardSphere;
-        case config::CollisionModel::Langevin:
-            return core::CollisionModel::Langevin;
-        case config::CollisionModel::Friction:
-            return core::CollisionModel::Friction;
-        case config::CollisionModel::EHSS:
-            return core::CollisionModel::EHSS;
-        case config::CollisionModel::HSS:
-            return core::CollisionModel::HSMC;
-        case config::CollisionModel::UnknownCollisionModel:
-            return core::CollisionModel::UnknownCollisionModel;
-        default:
-            return core::CollisionModel::UnknownCollisionModel;
-    }
-}
+// NOTE: convert_collision_model() REMOVED in Phase 2E
+// SSOT: core::CollisionModel is now an alias to config::CollisionModel
+// No conversion needed - both types are identical!
 
 static core::SolverType convert_solver_type(config::SolverType solver) {
     switch (solver) {
@@ -59,7 +42,7 @@ core::GlobalParams LegacyAdapter::to_global_params(const FullConfig& config) {
     g.rng_seed = config.simulation.rng_seed;
     
     // === Physics ===
-    g.collisionModel = convert_collision_model(config.physics.collision_model);
+    g.collisionModel = config.physics.collision_model;  // SSOT: Direct assignment (Phase 2E)
     g.enable_reactions = config.physics.enable_reactions;
     g.enable_space_charge = config.physics.enable_space_charge;
     g.enable_ou_thermalization = config.physics.enable_ou_thermalization;

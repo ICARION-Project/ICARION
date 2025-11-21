@@ -69,57 +69,11 @@ void integrate_one_step(
     , const IFieldProvider* field_provider = nullptr
 );
 
-/**
- * @brief Load molecular geometry from XYZ file for EHSS collisions
- * @param filename Path to XYZ geometry file
- * @param targetName Species name to load
- * @param h_centers Output: atom positions [m] in molecule frame
- * @param h_radii Output: atomic radii [m] for hard-sphere collisions
- * @param ccs_mobcal Output: reference CCS [m²] from MOBCAL calculations
- * 
- * Parses XYZ file containing atomic coordinates and radii.
- * Used for EHSS collision model with explicit molecular geometry.
- */
-void load_geometry(const std::string& filename, const std::string& targetName,
-                   std::vector<Vec3>& h_centers, std::vector<double>& h_radii, double& ccs_mobcal);
-
-/**
- * @brief Compute collision cross-section from molecular geometry
- * @param centers Atom positions [m]
- * @param radii Atomic radii [m]
- * @param neutral_radius_m Neutral molecule radius [m]
- * @param n_samples Number of Monte Carlo trajectories for CCS calculation
- * @return Collision cross-section [m²]
- * 
- * Uses trajectory method (Monte Carlo) to compute orientationally-averaged CCS.
- * Samples random impact parameters and orientations, counts collisions.
- */
-inline double compute_CCS_from_geometry(const std::vector<Vec3>& centers,
-                                        const std::vector<double>& radii,
-                                        double neutral_radius_m,
-                                        int n_samples = 2000);
-
-/**
- * @brief Handle stochastic collision event
- * @param y Ion state (velocity modified in-place)
- * @param rng Random number generator
- * @param dt Timestep [s]
- * @param gParams Global parameters (collision model selection)
- * @param neutral_radius_m Neutral molecule hard-sphere radius [m]
- * @param geometry_map Map of species name to molecular geometry
- * @param mobcal_ccs_map Map of species name to reference CCS [m²]
- * 
- * Applies collision based on selected model:
- * - Hard-sphere: isotropic scattering
- * - EHSS: explicit molecular geometry with atom-centered spheres
- * - Langevin: momentum damping with random thermal kick
- * 
- * Collision probability computed from mean free path and timestep.
- */
-void handle_collision(IonState& y, EhssRng& rng, double dt, const GlobalParams& gParams,
-                      double neutral_radius_m,
-                      const std::unordered_map<std::string, std::pair<std::vector<Vec3>, std::vector<double>>>& geometry_map,
-                      const std::unordered_map<std::string, double>& mobcal_ccs_map);
+// NOTE: load_geometry(), compute_CCS_from_geometry(), and handle_collision() removed
+// in Phase 2D refactor. See src/core/physics/collisions/ for modern collision system:
+// - load_geometry_from_file() in utils.h
+// - CollisionHandlerFactory::create() for handler instantiation
+// - ICollisionHandler::handle_collision() for collision processing
 
 /**
  * @brief Handle ion-molecule reaction event

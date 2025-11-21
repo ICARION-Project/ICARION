@@ -17,7 +17,7 @@
  *
  *   @details
  *   Wrapper for cuRAND library to provide RNG state management for
- *   stochastic collision models (EHSS, HSMC) on GPU.
+ *   stochastic collision models (EHSS, HSS) on GPU.
  *
  *   Each ion gets its own persistent RNG state that is maintained
  *   across timesteps, allowing for reproducible simulations with

@@ -21,7 +21,7 @@
 
  *   Key features:
  *   Supports multiple instrument geometries (LQIT, SIFDT-MS, IMS, Orbitrap).
- *   Adapts to selected collision model (hard-sphere, Langevin, friction, EHSS, HSMC).
+ *   Adapts to selected collision model (hard-sphere, Langevin, friction, EHSS, HSS).
  *   Can record arrival times, reaction products, and full trajectory data.
  *   Compatible with time evaluation grid from `gParams.t_eval`.
 
@@ -41,7 +41,6 @@
  *   @see         types/IonState.h
  *   @see         physics/ionMotion.h
  *   @see         physics/eventFunctions.h
- *   @see         physics/geometryReader.h
  *   @see         reactionUtils/reactionUtils.h
  *   @see         constants.h
  *   @see         io/hdf5Writer.h
@@ -69,7 +68,7 @@
  *
  *   Key features:
  *   Supports multiple instrument geometries (LQIT, SIFDT-MS, IMS, Orbitrap).
- *   Adapts to selected collision model (hard-sphere, Langevin, friction, EHSS, HSMC).
+ *   Adapts to selected collision model (hard-sphere, Langevin, friction, EHSS, HSS).
  *   Can record arrival times, reaction products, and full trajectory data.
  *   Compatible with time evaluation grid from `gParams.t_eval`.
  *
@@ -89,7 +88,6 @@
  *   @see         types/IonState.h
  *   @see         physics/ionMotion.h
  *   @see         physics/eventFunctions.h
- *   @see         physics/geometryReader.h
  *   @see         reactionUtils/reactionUtils.h
  *   @see         constants.h
  *   @see         io/hdf5Writer.h
@@ -106,7 +104,6 @@
 #include "core/param/paramUtils.h"
 
 #include "core/physics/collisions/collisionHelpers.h"
-#include "core/physics/geometryReader.h"
 #include "core/physics/computeAccelerations.h"
 
 #include "core/io/hdf5Writer.h"
@@ -146,7 +143,7 @@ namespace trajectory {
  * 
  * Integrates equations of motion for ion ensemble under electric fields, collisions,
  * and reactions. Supports multiple instrument types (LQIT, SIFDT-MS, IMS, Orbitrap)
- * and collision models (hard-sphere, Langevin, friction, EHSS, HSMC).
+ * and collision models (hard-sphere, Langevin, friction, EHSS, HSS).
  * 
  * Writes trajectory snapshots to HDF5 at intervals defined by gParams.t_eval.
  * Handles boundary conditions (absorbing, reflecting, periodic) and detection events.
@@ -187,21 +184,15 @@ double rk_error_norm(const IonState& y5, const IonState& y4, const IonState& y, 
 void rk45_dp_step(double t, const IonState& y, double h, const GlobalParams& gParams, const InstrumentDomain& dom, IonState& y5,
 				  IonState& y4, const std::vector<IonState>& current_ions);
 
-void load_geometry(const std::string& filename, const std::string& targetName,
-				   std::vector<Vec3>& h_centers, std::vector<double>& h_radii);
-
-// Backwards-compatible overload that also returns an optional MobCal CCS value
-// via the out parameter `ccs_mobcal` (0.0 when not present). Some code paths
-// (notably the modern integrator in `src/integrator`) use this variant.
-void load_geometry(const std::string& filename, const std::string& targetName,
-				   std::vector<Vec3>& h_centers, std::vector<double>& h_radii,
-				   double& ccs_mobcal);
+// NOTE: load_geometry() and handle_collision() removed in Phase 2D refactor
+// See src/core/physics/collisions/ for modern collision handling
+// - load_geometry_from_file() in utils.h
+// - CollisionHandlerFactory for handler creation
+// - ICollisionHandler::handle_collision() for processing
 
 // -----------------------------
 // collision and reaction event helper functions
-// -----------------------------                
-void handle_collision(IonState& y, EhssRng& rng, double dt, const GlobalParams& gParams,
-					  const std::unordered_map<std::string, std::pair<std::vector<Vec3>, std::vector<double>>>& geometry_map);
+// -----------------------------
 
 void handle_reaction(IonState& y, EhssRng& rng, double dt, const GlobalParams& gParams,
 					 const ICARION::io::SpeciesDatabase& speciesDB,
@@ -241,8 +232,7 @@ using ICARION::trajectory::integrate_trajectory;
 using ICARION::trajectory::integrate_trajectory_legacy;
 using ICARION::trajectory::rk_error_norm;
 using ICARION::trajectory::rk45_dp_step;
-using ICARION::trajectory::load_geometry;
-using ICARION::trajectory::handle_collision;
+// NOTE: load_geometry and handle_collision removed in Phase 2D - see CollisionHandlerFactory
 using ICARION::trajectory::handle_reaction;
 using ICARION::trajectory::log_step;
 using ICARION::trajectory::integrate_one_step;

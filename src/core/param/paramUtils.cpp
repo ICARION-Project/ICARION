@@ -226,16 +226,16 @@ GlobalParams load_global_params(const std::string& filename) {
                    [](unsigned char c){ return std::tolower(c); });
     
     if (collision_str == "ehss" || collision_str == "EHSS") g.collisionModel = CollisionModel::EHSS;
-    else if (collision_str == "hsmc" || collision_str == "HSMC" || collision_str == "hss" || collision_str == "HSS") g.collisionModel = CollisionModel::HSMC;
+    else if (collision_str == "HSS" || collision_str == "HSS" || collision_str == "hss" || collision_str == "HSS") g.collisionModel = CollisionModel::HSS;
     else if (collision_str == "friction" || collision_str == "Friction") g.collisionModel = CollisionModel::Friction;
     else if (collision_str == "langevin" || collision_str == "Langevin") g.collisionModel = CollisionModel::Langevin;
     else if (collision_str == "hardsphere" || collision_str == "hard_sphere" || collision_str == "HardSphere" || collision_str == "Hard_Sphere") 
-        g.collisionModel = CollisionModel::HardSphere;
+        g.collisionModel = CollisionModel::HSD;
     else if (collision_str == "nocollisions" || collision_str == "none" || collision_str == "NoCollisions" || collision_str == "No_Collisions") 
         g.collisionModel = CollisionModel::NoCollisions;
     else {
         throw std::runtime_error("Unknown collision model: '" + collision_str + 
-                                 "'. Valid options: EHSS, HSMC, Friction, Langevin, HardSphere, NoCollisions");
+                                 "'. Valid options: EHSS, HSS, Friction, Langevin, HardSphere, NoCollisions");
     }
     
     // Thermalization

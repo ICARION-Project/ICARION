@@ -47,13 +47,18 @@ namespace io {
  * 
  * Contains position, mass, charge, and Lennard-Jones parameters.
  * Typically derived from DFT calculations.
+ * 
+ * **Unit Conventions:**
+ * - JSON input: positions and LJ_sigma in Angström [Å]
+ * - Struct storage: positions and LJ_sigma in SI units [m]
+ * - Conversion: 1 Å = 1e-10 m (applied automatically by loader)
  */
 struct Atom {
     std::string element;          ///< Element symbol (e.g., "C", "H", "O", "N")
-    Vec3 pos_m;                   ///< Position in molecule coordinate system [m]
+    Vec3 pos_m;                   ///< Position in molecule coordinate system [m] (JSON: Å)
     double mass_u;                ///< Atomic mass [u]
     double partial_charge_e;      ///< Partial charge [elementary charges]
-    double LJ_sigma_m;            ///< Lennard-Jones sigma parameter [m]
+    double LJ_sigma_m;            ///< Lennard-Jones sigma parameter [m] (JSON: Å)
     double LJ_epsilon_eV;         ///< Lennard-Jones epsilon parameter [eV]
     
     /**
@@ -128,7 +133,7 @@ struct Molecule {
  *     "atoms": [
  *       {
  *         "element": "O",
- *         "pos": [0.0, 0.0, 0.0],
+ *         "pos": [0.0, 0.0, 0.0],          // Positions in Angstrom [Å]
  *         "mass_u": 15.999,
  *         "partial_charge_e": -0.5,
  *         "LJ_sigma_m": 3.07e-10,
@@ -136,7 +141,7 @@ struct Molecule {
  *       },
  *       {
  *         "element": "H",
- *         "pos": [9.58e-11, 0.0, 0.0],
+ *         "pos": [0.958, 0.0, 0.0],        // Positions in Angstrom [Å]
  *         "mass_u": 1.008,
  *         "partial_charge_e": 0.5,
  *         "LJ_sigma_m": 2.42e-10,
@@ -146,6 +151,14 @@ struct Molecule {
  *   }
  * }
  * ```
+ * 
+ * **Units:**
+ * - `pos`: Angstrom [Å] (automatically converted to meters)
+ * - `mass_u`: Atomic mass units [u]
+ * - `partial_charge_e`: Elementary charge units [e]
+ * - `LJ_sigma_m`: Meters [m]
+ * - `LJ_epsilon_eV`: Electron volts [eV]
+ * - `diameter_m`, `CCS_m2`: SI units [m], [m²]
  * 
  * Required fields:
  * - molecule.name

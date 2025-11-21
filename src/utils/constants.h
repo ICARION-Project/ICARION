@@ -18,6 +18,7 @@ constexpr double EPSILON_0      = 8.854187817e-12;    // Perimittivität (F/m)
 
 // Unit conversion constants:
 const double CM2_TO_M2          = 1e-4;               // cm² to m² conversion
+const double ANGSTROM_TO_M      = 1e-10;              // Å (Angstrom) to m
 const double ANGSTROM2_TO_M2    = 1e-20;              // Ų (Angstrom²) to m²
 const double ANGSTROM3_TO_M3    = 1e-30;              // ų (Angstrom³) to m³
 

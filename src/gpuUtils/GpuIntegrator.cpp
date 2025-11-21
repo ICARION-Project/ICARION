@@ -194,7 +194,7 @@ int parseCollisionModel(const Json::Value& config) {
     if (collision == "langevin") return 1;
     if (collision == "friction") return 2;
     if (collision == "ehss") return 3;
-    if (collision == "hsmc") return 4;
+    if (collision == "hss" || collision == "hsmc") return 4;  // hsmc for backward compat
     if (collision == "nocollisions" || collision == "none") return 5;
     return 3;  // default to EHSS for consistency with CPU defaults
 }
@@ -334,7 +334,7 @@ void GpuIntegrator::initializeFromConfig(const Json::Value& config) {
         }
     }
 
-    // If validation mode requested, map stochastic collision models (EHSS/HSMC)
+    // If validation mode requested, map stochastic collision models (EHSS/HSS)
     // to NoCollisions so GPU parity runs match CPU semantics (CPU uses no
     // stochastic collisions and returns zero collision force for these models).
     bool validate_gpu_flag2 = false;
@@ -812,7 +812,7 @@ void GpuIntegrator::uploadIons(const std::vector<ICARION::core::IonState>& ions,
                                 }
                             }
                         } else {
-                            // EHSS/HSMC/no-collision: cpu_acc stays zero (stochastic)
+                            // EHSS/HSS/no-collision: cpu_acc stays zero (stochastic)
                             cpu_acc = Vec3{0.0,0.0,0.0};
                         }
 

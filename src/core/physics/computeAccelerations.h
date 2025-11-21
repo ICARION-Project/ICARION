@@ -44,6 +44,14 @@ namespace physics {
 /**
  * @brief Compute ion acceleration from electric fields and collision forces
  * 
+ * ⚠️ **LEGACY FUNCTION (Phase 4 migration pending):**
+ * This function will be replaced by `ForceRegistry::compute_total_force()` in Phase 4.
+ * Currently uses deprecated `CollisionForce()` for damping (duplicates `DampingForce`).
+ * 
+ * **New code should use:**
+ * - `ForceRegistry` with `DampingForce`, `ElectricFieldForce`, etc.
+ * - `ICollisionHandler` for stochastic collisions
+ * 
  * @param t Current simulation time [s]
  * @param ion Ion state (position, velocity, mass, charge)
  * @param gParams Global simulation parameters (field configuration, gas properties)

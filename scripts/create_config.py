@@ -69,7 +69,7 @@ TEMPLATES = {
                 "rng_seed": 42
             },
             "physics": {
-                "collision_model": "HSMC"
+                "collision_model": "HSS"
             },
             "output": {
                 "folder": "./results/ims",
@@ -169,7 +169,7 @@ TEMPLATES = {
                 "enable_gpu": True
             },
             "physics": {
-                "collision_model": "HSMC"
+                "collision_model": "HSS"
             },
             "output": {
                 "folder": "./results/lqit",
@@ -319,7 +319,7 @@ def interactive_mode() -> Dict[str, Any]:
     
     # Physics
     print("\n--- Physics Settings ---")
-    print("Collision models: NoCollisions, HSD, HSMC, EHSS, SDS")
+    print("Collision models: NoCollisions, HSD, HSS, EHSS, SDS")
     config["physics"]["collision_model"] = get_user_input(
         "Collision model", 
         config["physics"]["collision_model"]
@@ -463,7 +463,7 @@ Examples:
     parser.add_argument("--timestep", type=float, help="Time step [s]")
     parser.add_argument("--integrator", choices=["RK4", "RK45", "Boris"], help="Integrator type")
     parser.add_argument("--gpu", type=bool, help="Enable GPU")
-    parser.add_argument("--collision-model", help="Collision model (NoCollisions/HSD/HSMC/EHSS)")
+    parser.add_argument("--collision-model", help="Collision model (NoCollisions/HSD/HSS/EHSS)")
     parser.add_argument("--pressure", type=float, help="Gas pressure [Pa]")
     parser.add_argument("--temperature", type=float, help="Gas temperature [K]")
     parser.add_argument("--gas", help="Gas species (He/N2/Ar)")

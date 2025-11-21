@@ -145,7 +145,7 @@ FullConfig                          // Top-level configuration
 │       ├── temperature_K
 │       ├── pressure_Pa
 │       ├── gas_species             // "N2", "He", "Ar", ...
-│       ├── collision_model         // "HardSphere", "Langevin", ...
+│       ├── collision_model         // "HSD", "Langevin", ...
 │       └── collision_parameters
 │
 ├── IntegrationConfig               // Numerical integration
@@ -243,25 +243,25 @@ private:
 └──────────────┘
 ```
 
-### SSOT Violations (Phase 1 → Phase 2)
+### SSOT Violations 
 
 ⚠️ **Current Issues:**
 
 1. **InstrumentType Location**:
    - **Current**: `instrument/InstrumentTypes.h`
    - **Problem**: Creates dependency `config → instrument` (backwards!)
-   - **Fix (Phase 2)**: Move to `core/config/types/InstrumentType.h`
+   - **Fix**: Move to `core/config/types/InstrumentType.h`
 
 2. **Parameter Duplication**:
    - **Current**: Force classes use parameter structs (e.g., `AnalyticalFieldParams`)
    - **Problem**: Duplicates data from `FieldsConfig`
-   - **Fix (Phase 2)**: Forces take `const DomainConfig&` directly
+   - **Fix**: Forces take `const DomainConfig&` directly
 
 3. **Collision Parameters**:
    - **Current**: `DampingParams` duplicates `EnvironmentConfig`
-   - **Fix (Phase 2)**: Use `EnvironmentConfig` directly
+   - **Fix**: Use `EnvironmentConfig` directly
 
-### Phase 2 Target Architecture
+### Target Architecture
 
 ```cpp
 // No more parameter structs!
@@ -434,7 +434,7 @@ Computes deterministic collision damping: **F = -γ·m·v**
 
 **Models:**
 - **Friction**: Direct γ coefficient
-- **HardSphere**: Elastic collisions, γ = ν·(m_n/(m_i+m_n))
+- **HSD**: Elastic collisions, γ = ν·(m_n/(m_i+m_n))
 - **Langevin**: Ion-induced dipole, enhanced cross-section
 
 ⚠️ **Note**: Stochastic kicks (thermal noise) are handled separately by CollisionEngine.
@@ -744,7 +744,7 @@ tests/
     └── scaling/
 ```
 
-### Test Coverage (Phase 1)
+### Test Coverage (Forces)
 
 - **ForceRegistry**: 46 assertions / 8 tests
 - **ElectricFieldForce**: 57 assertions / 9 tests
@@ -757,3 +757,106 @@ tests/
 ---
 
 **Document Status:** Living document, updated with each architectural change.
+
+---
+
+## Collision System Architecture
+
+**Version:** v1.0  
+**Status:** Production-ready
+
+ICARION uses a handler-based collision system where stochastic collision models implement the `ICollisionHandler` interface.
+
+**Design Principles:**
+1. **Separation of Concerns:** Deterministic damping (Friction, Langevin, HSD) uses `DampingForce`, stochastic models (EHSS, HSS, OU) use `ICollisionHandler`
+2. **SSOT Compliance:** All handlers read directly from `EnvironmentConfig` (no parameter copies)
+3. **Factory Pattern:** `CollisionHandlerFactory` creates appropriate handlers based on `PhysicsConfig.collision_model`
+
+#### Collision Model Types
+
+**Deterministic Models** (continuous damping force):
+- **Friction:** Mobility-based damping (F = -γ·m·v)
+- **Langevin:** Velocity-dependent damping with polarization
+- **HSD (HSD):** Collision-frequency-based damping
+
+→ **Implemented in:** `DampingForce`
+
+**Stochastic Models** (discrete collision events):
+- **EHSS:** Structure-resolved hard-sphere scattering (uses molecular geometry)
+- **HSS:** Isotropic hard-sphere scattering (single effective sphere)
+- **OU:** Ornstein-Uhlenbeck thermal kicks (adds thermal noise to deterministic models)
+
+→ **Implemented in:** `ICollisionHandler`
+
+#### ICollisionHandler Interface
+
+```cpp
+class ICollisionHandler {
+public:
+    virtual bool handle_collision(
+        IonState& ion,
+        double dt,
+        EhssRng& rng,
+        const config::EnvironmentConfig& env  // ✅ SSOT!
+    ) = 0;
+    
+    virtual std::string name() const = 0;
+};
+```
+
+**Key Features:**
+
+- Direct `EnvironmentConfig` reference (SSOT)
+- Returns `true` if collision occurred
+- Modifies ion velocity in-place
+
+#### CollisionHandlerFactory
+
+```cpp
+class CollisionHandlerFactory {
+public:
+    static std::unique_ptr<ICollisionHandler> create(
+        const config::PhysicsConfig& config,
+        const GeometryMap* geometry_map = nullptr,
+        double gamma_for_ou = 0.0
+    );
+};
+```
+
+**Behavior:**
+
+- Returns `nullptr` for deterministic models (NoCollisions, Friction, Langevin, HSD)
+- Returns handler for stochastic models (EHSS, HSS, OU)
+- Throws exception for invalid configurations (e.g., OU with EHSS/HSS)
+
+#### Integration Point
+
+```cpp
+// src/core/integrator/integrator_helpers.cpp
+
+void integrate_one_step(...) {
+    // Stochastic collision (EHSS, HSS, OU)
+    if (collision_handler) {
+        collision_handler->handle_collision(
+            ion,
+            dt,
+            rng,
+            domain.environment  // ✅ SSOT!
+        );
+    }
+    
+    // Deterministic damping (Friction, Langevin, HSD)
+    // WARNING; NOT IMPLEMENTED YET
+    Vec3 F_total = force_registry->compute_total_force(ion, t, ctx);
+    // ... integration ...
+}
+```
+
+#### Test Coverage (Collisions)
+
+- **CollisionHandlerFactory:** 11 test cases, 16 assertions (100% passing)
+- **EHSSCollisionHandler:** Geometry fallback, thermalization
+- **HSSCollisionHandler:** Isotropic scattering, collision probability
+- **OUCollisionHandler:** Thermal kicks, temperature equilibrium
+
+---

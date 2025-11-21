@@ -157,7 +157,7 @@ __global__ void integrate_rk4_step_kernel(IonStateGPU* ions, int n,
                 collision_params.uby = curDom.env.flow_velocity_m_s.y;
                 collision_params.ubz = curDom.env.flow_velocity_m_s.z;
 
-                if (g.collisionModel == 4) {  // CollisionModel::HSMC = 4
+                if (g.collisionModel == 4) {  // CollisionModel::HSS = 4
                     // Hard-sphere Monte Carlo (isotropic scattering)
                     handle_collision_hs_gpu(y.vel, collision_params, &rng_states[i]);
                 }

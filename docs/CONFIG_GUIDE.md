@@ -546,7 +546,7 @@ Validation errors are collected in `ValidationResult` (not thrown as exceptions)
 
 ```json
 "physics": {
-  "collision_model": "HSMC",           // Collision model
+  "collision_model": "HSS",            // Collision model
   "enable_ou_thermalization": false,   // Enable Ornstein-Uhlenbeck thermalization
   "force_ou_for_stochastic": false     // Force OU for stochastic models
 }

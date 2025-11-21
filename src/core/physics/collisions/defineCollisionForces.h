@@ -17,9 +17,17 @@
  *    - Friction (mobility-based damping)
  *    - Langevin (ion-neutral long-range interactions)
  *    - Hard-sphere collisions
- *    - EHSS / HSMC stochastic models (no explicit damping)
+ *    - EHSS / HSS stochastic models (no explicit damping)
  *
  *   Each function returns a force vector divided by the ion mass (acceleration).
+ *
+ *   ⚠️ **DEPRECATED (Phase 2B - November 2025):**
+ *   This file duplicates logic already implemented in `DampingForce`.
+ *   Used by legacy `compute_accelerations()` until Phase 4 migration.
+ *   
+ *   **New code should use:**
+ *   - `ForceRegistry` + `DampingForce` (for deterministic models)
+ *   - `ICollisionHandler` (for stochastic models - EHSS/HSS)
  *
  *   @date        2025-11-10
  *   @version     1.0.0
@@ -45,7 +53,7 @@ Vec3 HardSphereCollision(const IonState& ion, const InstrumentDomain& dom);
 Vec3 LangevinCollision(const IonState& ion, const InstrumentDomain& dom);
 Vec3 FrictionCollision(const IonState& ion, const InstrumentDomain& dom);
 Vec3 EHSSCollision(const IonState& ion, const InstrumentDomain& dom);
-Vec3 HSMCCollision(const IonState& ion, const InstrumentDomain& dom);
+Vec3 HSSCollision(const IonState& ion, const InstrumentDomain& dom);
 
 }  // namespace physics
 }  // namespace ICARION

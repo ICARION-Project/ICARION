@@ -311,11 +311,11 @@ int main(int argc, char* argv[]) {
         std::string collision_model;
         switch (gParams.collisionModel) {
             case ICARION::core::CollisionModel::NoCollisions: collision_model = "NoCollisions"; break;
-            case ICARION::core::CollisionModel::HardSphere: collision_model = "HardSphere"; break;
+            case ICARION::core::CollisionModel::HSD: collision_model = "HardSphere"; break;
             case ICARION::core::CollisionModel::Langevin: collision_model = "Langevin"; break;
             case ICARION::core::CollisionModel::Friction: collision_model = "Friction"; break;
             case ICARION::core::CollisionModel::EHSS: collision_model = "EHSS"; break;
-            case ICARION::core::CollisionModel::HSMC: collision_model = "HSMC"; break;
+            case ICARION::core::CollisionModel::HSS: collision_model = "HSS"; break;
             default: collision_model = "Unknown"; break;
         }
         Logger::main()->info("Collision model: {}", collision_model);

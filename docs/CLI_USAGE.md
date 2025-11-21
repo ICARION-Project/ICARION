@@ -138,9 +138,27 @@ Write log output to a file instead of the console.
 icarion --log-file simulation.log config.json
 ```
 
+### `--log-format <FORMAT>`
+
+Set the log output format. Available formats:
+
+- `text` - Human-readable colored console output (default)
+- `json` - Machine-readable JSON format for automated analysis
+
+```bash
+# JSON format for pandas/automated analysis
+icarion --log-format json config.json
+
+# Text format (default)
+icarion --log-format text config.json
+```
+
+See [JSON_LOGGING.md](JSON_LOGGING.md) for analysis examples with pandas.
+
 **Combining logging options:**
 ```bash
 icarion --log-level DEBUG --log-file debug.log config.json
+icarion --log-format json --log-file simulation.log config.json
 ```
 
 ---

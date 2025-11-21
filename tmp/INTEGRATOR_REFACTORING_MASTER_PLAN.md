@@ -131,16 +131,18 @@ tests/physics/forces/
 - Remove collision logic from integrator
 - Enable collision model swapping at runtime
 - Separate physics from debug logging
+- Collision System should use FullConfig and related Configs (SSOT, no legacy code)
 
 #### Deliverables
 1. `ICollisionHandler` interface
 2. `EHSSCollisionHandler` implementation
-3. `HSMCCollisionHandler` implementation
+3. `HSSCollisionHandler` implementation
 4. `LangevinCollisionHandler` implementation
 5. `FrictionCollisionHandler` implementation
-6. `NoCollisionHandler` (null object pattern)
-7. `CollisionHandlerFactory`
-8. Unit tests
+6. `HardSphereCollisionHandler` implementation
+7. `NoCollisionHandler` (null object pattern)
+8. `CollisionHandlerFactory`
+9. Unit tests
 
 #### Files to Create
 ```
@@ -150,12 +152,14 @@ src/core/physics/collisions/
 ├── CollisionStats.h            (statistics)
 ├── EHSSCollisionHandler.h
 ├── EHSSCollisionHandler.cpp
-├── HSMCCollisionHandler.h
-├── HSMCCollisionHandler.cpp
+├── HSSCollisionHandler.h
+├── HSSCollisionHandler.cpp
 ├── LangevinCollisionHandler.h
 ├── LangevinCollisionHandler.cpp
 ├── FrictionCollisionHandler.h
 ├── FrictionCollisionHandler.cpp
+├── HardSphereCollisionHandler.h
+├── HardSphereCollisionHandler.cpp
 ├── NoCollisionHandler.h
 ├── CollisionHandlerFactory.h
 └── CollisionHandlerFactory.cpp
@@ -163,8 +167,10 @@ src/core/physics/collisions/
 tests/physics/collisions/
 ├── CMakeLists.txt
 ├── test_ehss_collision_handler.cpp
-├── test_hsmc_collision_handler.cpp
+├── test_hss_collision_handler.cpp
 ├── test_langevin_collision_handler.cpp
+├── test_friction_collision_handler.cpp
+├── test_hard_sphere_collision_handler.cpp
 └── test_collision_factory.cpp
 ```
 
@@ -187,6 +193,7 @@ tests/physics/collisions/
 - Event tracking for reaction history
 - Separate rate calculation from event handling
 - Optimized data structures (hash maps)
+- Reaction Engine should use FullConfig, as well as the new reaction and species databases (SSOT, no legacy code)
 
 #### Deliverables
 1. `ReactionEngine` class
@@ -230,6 +237,7 @@ tests/physics/reactions/
 - Clean RK4, RK45, Boris implementations
 - Separate adaptive logic from integration
 - Enable solver swapping at runtime
+- Integration Strategy should use FullConfig (SSOT, no legacy code)
 
 #### Deliverables
 1. `IIntegrationStrategy` interface
@@ -280,6 +288,7 @@ tests/integrator/strategies/
 - Replace monolithic `integrate_trajectory()`
 - Modular design (swap components easily)
 - Separate concerns (physics / I/O / domain management)
+- SimulationEngine should use FullConfig (SSOT, no legacy code)
 
 #### Deliverables
 1. `SimulationEngine` class
@@ -376,7 +385,7 @@ integrator-refactor (base)
 ### Phase Status
 | Phase | Component | Status | Branch | Duration | Completion |
 |-------|-----------|--------|--------|----------|-----------|
-| 1 | Force System | 🔵 Ready | `refactor/force-system` | 1 week | 0% |
+| 1 | Force System | 🔵 Finished | `refactor/force-system` | 1 week | 100% |
 | 2 | Collision System | ⏳ Waiting | `refactor/collision-system` | 1 week | 0% |
 | 3 | Reaction System | ⏳ Waiting | `refactor/reaction-system` | 3 days | 0% |
 | 4 | Integration Strategies | ⏳ Waiting | `refactor/integration-strategies` | 1 week | 0% |
@@ -385,7 +394,7 @@ integrator-refactor (base)
 
 ### Overall Progress
 - **Total Duration:** ~5 weeks
-- **Completion:** 0% (planning complete)
+- **Completion:** 16% (planning complete)
 - **Next Step:** Start Phase 1 (Force System)
 
 ---
@@ -423,6 +432,11 @@ integrator-refactor (base)
 
 ---
 
+## Further to-dos
+
+* Implement GPU path for new integrator components or subsystems
+
+---
 **Last Updated:** 2025-11-21  
 **Maintained By:** ICARION Development Team  
 **Status:** 🟢 Active Development

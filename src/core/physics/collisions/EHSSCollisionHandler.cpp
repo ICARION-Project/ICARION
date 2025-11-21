@@ -33,9 +33,9 @@ bool EHSSCollisionHandler::handle_collision(
     // ===================================================================
     const double n = env.particle_density_m_3;
     const double T_K = env.temperature_K;
-    const double m_neutral = env.neutral_mass_kg;
+    const double m_neutral = env.gas_mass_kg;
     const Vec3 v_gas = env.gas_velocity_m_s;
-    const double neutral_radius = env.neutral_radius_m;
+    const double neutral_radius = env.gas_radius_m;
     
     // Compute effective CCS from geometry (or fallback to ion.CCS_m2)
     const double sigma_eff = compute_effective_ccs(ion, neutral_radius);

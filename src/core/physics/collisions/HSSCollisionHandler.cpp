@@ -23,7 +23,7 @@ bool HSSCollisionHandler::handle_collision(
     // ===================================================================
     const double n = env.particle_density_m_3;
     const double T_K = env.temperature_K;
-    const double m_neutral = env.neutral_mass_kg;
+    const double m_neutral = env.gas_mass_kg;
     const Vec3 v_gas = env.gas_velocity_m_s;
     
     // Use stored effective cross-section

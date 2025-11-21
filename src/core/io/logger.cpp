@@ -248,7 +248,7 @@ void RunLogger::finalize(const std::vector<IonState>& ions, const std::string& o
     file_ << "Simulation finished: " << timestamp() << "\n";
     file_ << "------------------------------------------------------------\n";
     file_ << "Project repository:\n";
-    file_ << "  https://github.com/chsch95/Ion_Motion_Modelling\n";
+    file_ << "  https://github.com/ICARION-Project/ICARION\n";
     file_ << "Please cite ICARION once the reference paper is available.\n";
     file_ << "------------------------------------------------------------\n";
     file_.close();

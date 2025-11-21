@@ -503,7 +503,7 @@ icarion --dump-build-info > build_info.txt
 - **Command-line help:** `icarion --help`
 - **Build information:** `icarion --dump-build-info`
 - **Schema documentation:** `icarion --dump-config-schema`
-- **GitHub Issues:** https://github.com/icarion-project/icarion/issues
+- **GitHub Issues:** https://github.com/ICARION-Project/ICARION/issues
 - **Documentation:** https://icarion.readthedocs.io (coming soon)
 
 ---

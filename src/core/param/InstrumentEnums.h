@@ -23,6 +23,7 @@
  *
  * =====================================================================
  */
+//LEGACY-CODE, remove in FUTURE!
 #pragma once
 #include "paramUtils.h"
 // Keep ordering identical to CPU-side `enum class Instrument` in paramUtils.h

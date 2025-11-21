@@ -91,7 +91,7 @@ inline void print_startup_banner(
     std::cout << "\n\n";
     
     std::cout << "   License:      MIT\n";
-    std::cout << "   Support:      https://github.com/icarion/icarion/issues\n";
+    std::cout << "   Support:      https://github.com/ICARION-Project/ICARION/issues\n";
     std::cout << "\n";
     
     std::cout << "────────────────────────────────────────────────────────────────────────────\n\n";

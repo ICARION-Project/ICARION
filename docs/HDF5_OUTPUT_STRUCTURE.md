@@ -466,7 +466,7 @@ end
 
 ## Format Versioning
 
-**Current Version:** 2.0
+**Current Version:** 1.0
 
 ### Version History
 
@@ -516,4 +516,4 @@ with h5py.File('simulation.h5', 'r') as f:
 ---
 
 **Questions or Issues?**  
-https://github.com/icarion/icarion/issues
+https://github.com/ICARION-Project/ICARION/issues

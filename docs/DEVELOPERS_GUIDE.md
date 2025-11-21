@@ -1,6 +1,6 @@
 # ICARION Developer's Guide
 
-**Version:** 1.0++ (Post Phase 1: Force System Refactoring)  
+**Version:** 1.0 
 **Last Updated:** November 21, 2025
 
 This guide provides practical instructions for extending ICARION with new features.
@@ -204,7 +204,7 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 
 ### Best Practices
 
-✅ **Always provide parameter structs** (even if deprecated for Phase 2)  
+✅ **Always provide parameter structs** (even if deprecated for legacy pattern)  
 ✅ **Add deprecation warnings** to parameter structs pointing to SSOT violation  
 ✅ **Write comprehensive unit tests** (aim for >90% coverage)  
 ✅ **Document physics equations** in class docstrings  
@@ -221,80 +221,256 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 
 ### Overview
 
-Collision damping is implemented in `DampingForce` with multiple models:
-- **Friction**: Simple γ·m·v drag
-- **HSD**: Elastic collisions with momentum transfer
-- **Langevin**: Ion-neutral polarization interactions
+ICARION supports two types of collision models:
 
-### Adding a New Model
+1. **Deterministic:** Continuous damping forces (use `DampingForce`)
+2. **Stochastic:** Discrete collision events (use `ICollisionHandler`)
 
-#### 1. Add to DampingModel Enum (`src/core/physics/forces/DampingForce.h`)
+**IMPORTANT:** This guide covers stochastic models. For deterministic models, see "Adding New Force Types".
+
+### Design Principle: SSOT Compliance
+
+✅ **DO:** Read directly from `EnvironmentConfig`  
+✅ **DO:** Store `const config::EnvironmentConfig&` references  
+❌ **DON'T:** Create parameter structs (SSOT violation!)  
+❌ **DON'T:** Copy config data into handler objects
+
+### Step-by-Step Guide
+
+#### 1. Implement ICollisionHandler
+
+**File:** `src/core/physics/collisions/YourCollisionHandler.h`
 
 ```cpp
-enum class DampingModel {
-    None,
-    HSD,
-    Langevin,
-    Friction,
-    YourNewModel  // Add here
+#pragma once
+
+#include "ICollisionHandler.h"
+
+namespace ICARION::physics {
+
+/**
+ * @brief Your collision model description
+ * 
+ * Physics: [Describe collision mechanism]
+ * 
+ * SSOT Design: Reads parameters directly from EnvironmentConfig.
+ */
+class YourCollisionHandler : public ICollisionHandler {
+public:
+    /**
+     * @brief Construct handler
+     * @param your_param Model-specific parameter (if needed)
+     */
+    explicit YourCollisionHandler(double your_param = 1.0);
+    
+    bool handle_collision(
+        IonState& ion,
+        double dt,
+        EhssRng& rng,
+        const config::EnvironmentConfig& env  // ✅ SSOT!
+    ) override;
+    
+    std::string name() const override { return "YourModel"; }
+    
+private:
+    double your_param_;
 };
+
+} // namespace ICARION::physics
 ```
 
-#### 2. Add Parameters to DampingParams
+#### 2. Implement Logic
+
+**File:** `src/core/physics/collisions/YourCollisionHandler.cpp`
 
 ```cpp
-struct DampingParams {
-    DampingModel model = DampingModel::None;
-    
-    // ... existing parameters ...
-    
-    // --- YourNewModel parameters ---
-    double your_parameter = 0.0;
-};
-```
+#include "YourCollisionHandler.h"
+#include "utils/constants.h"
 
-#### 3. Implement in DampingForce::compute()
+namespace ICARION::physics {
 
-```cpp
-Vec3 DampingForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
-    // ... existing code ...
+YourCollisionHandler::YourCollisionHandler(double your_param)
+    : your_param_(your_param)
+{}
+
+bool YourCollisionHandler::handle_collision(
+    IonState& ion,
+    double dt,
+    EhssRng& rng,
+    const config::EnvironmentConfig& env
+) {
+    // Read parameters directly from env (SSOT!)
+    const double T_K = env.temperature_K;
+    const double n = env.particle_density_m_3;
+    const double m_neutral = env.neutral_mass_kg;
+    const Vec3 v_gas = env.gas_velocity_m_s;
     
-    switch (params_.model) {
-        case DampingModel::YourNewModel: {
-            gamma = compute_your_model_gamma(ion, ctx);
-            break;
-        }
-        // ... other cases ...
+    // Your collision physics here
+    // ...
+    
+    // Modify ion velocity if collision occurs
+    if (collision_occurred) {
+        ion.vel = new_velocity;
+        return true;
     }
     
-    return Vec3(-gamma * ion.mass_kg * ion.vel.x,
-                -gamma * ion.mass_kg * ion.vel.y,
-                -gamma * ion.mass_kg * ion.vel.z);
+    return false;
 }
+
+} // namespace ICARION::physics
 ```
 
-#### 4. Add Helper Method
+#### 3. Add to CollisionHandlerFactory
+
+**File:** `src/core/physics/collisions/CollisionHandlerFactory.cpp`
 
 ```cpp
-double DampingForce::compute_your_model_gamma(const IonState& ion, const ForceContext& ctx) const {
-    // Your damping coefficient calculation
-    return some_value;
+#include "YourCollisionHandler.h"
+
+std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
+    const config::PhysicsConfig& config,
+    const GeometryMap* geometry_map,
+    double gamma_for_ou
+) {
+    switch (config.collision_model) {
+        // ... existing cases ...
+        
+        case CM::YourModel:  // Add your model
+            return std::make_unique<YourCollisionHandler>(config.your_param);
+        
+        default:
+            throw std::runtime_error("Unknown collision model");
+    }
 }
 ```
 
-#### 5. Add Tests
+#### 4. Add Enum Value
+
+**File:** `src/core/config/types/PhysicsEnums.h`
 
 ```cpp
-TEST_CASE("DampingForce - YourNewModel", "[forces][damping]") {
-    DampingParams params;
-    params.model = DampingModel::YourNewModel;
-    params.your_parameter = 123.0;
-    
-    DampingForce force(params);
-    
-    // Test your model
+enum class CollisionModel {
+    // ... existing values ...
+    YourModel,         // Add your model
+    UnknownCollisionModel
+};
+```
+
+**File:** `src/core/config/conversion/EnumMapper.h`
+
+```cpp
+inline CollisionModel collision_model_from_string(std::string_view str) {
+    // ... existing mappings ...
+    if (str_lower == "yourmodel") return CollisionModel::YourModel;
+    // ...
+}
+
+inline std::string collision_model_to_string(CollisionModel model) {
+    // ... existing cases ...
+    case CollisionModel::YourModel: return "YourModel";
+    // ...
 }
 ```
+
+#### 5. Write Unit Tests
+
+**File:** `tests/physics/collisions/test_your_collision_handler.cpp`
+
+```cpp
+#include <catch2/catch_test_macros.hpp>
+#include "YourCollisionHandler.h"
+
+TEST_CASE("YourCollisionHandler: Basic functionality", "[collision][yourmodel]") {
+    // Setup
+    physics::YourCollisionHandler handler(1.0);
+    
+    IonState ion;
+    ion.mass_kg = 50.0 * 1.66e-27;
+    ion.vel = Vec3{100, 0, 0};
+    
+    config::EnvironmentConfig env;
+    env.temperature_K = 300.0;
+    env.pressure_Pa = 101325.0;
+    // ...
+    
+    EhssRng rng(42);
+    double dt = 1e-9;
+    
+    // Act
+    bool collision = handler.handle_collision(ion, dt, rng, env);
+    
+    // Assert
+    if (collision) {
+        REQUIRE(ion.vel.magnitude() < 100.0);  // Velocity changed
+    }
+}
+```
+
+#### 6. Update CMakeLists.txt
+
+```cmake
+# tests/physics/collisions/CMakeLists.txt
+
+add_executable(test_your_collision_handler
+    test_your_collision_handler.cpp
+)
+target_link_libraries(test_your_collision_handler PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+add_test(NAME YourCollisionHandler COMMAND test_your_collision_handler)
+```
+
+### Best Practices
+
+1. **SSOT Compliance:** Always read from `EnvironmentConfig` directly
+2. **Return Value:** Return `true` if collision occurred, `false` otherwise
+3. **In-Place Modification:** Modify `ion.vel` directly (don't return new velocity)
+4. **Validation:** Check for invalid parameters in constructor
+5. **Logging:** Use `io::debug_log()` for warnings/diagnostics
+6. **Testing:** Test edge cases (zero velocity, zero density, etc.)
+
+### Common Patterns
+
+#### Pattern 1: Collision Probability
+
+```cpp
+// Mean free path approach
+double collision_rate = n * sigma * v_rel_mag;
+double P = 1.0 - std::exp(-collision_rate * dt);
+
+if (rng.uniform01() < P) {
+    // Apply collision
+}
+```
+
+#### Pattern 2: Post-Collision Velocity
+
+```cpp
+// Thermal scattering
+double v_thermal = std::sqrt(BOLTZMANN_CONSTANT * T_K / reduced_mass);
+
+// Random direction
+double theta = std::acos(2.0 * rng.uniform01() - 1.0);
+double phi = 2.0 * M_PI * rng.uniform01();
+
+Vec3 v_new;
+v_new.x = v_thermal * std::sin(theta) * std::cos(phi);
+v_new.y = v_thermal * std::sin(theta) * std::sin(phi);
+v_new.z = v_thermal * std::cos(theta);
+
+ion.vel = v_new + v_gas;  // Add gas velocity
+```
+
+### Troubleshooting
+
+**Problem: Ions equilibrate to ~70-80% of thermal energy instead of 100%**
+
+**Error:** Kinetic energy does not equilibrate correctly to gas temperature. This effect is more or less independent of temperature, and persists across different random seeds and time steps, as well as neutral gas molecules (with different masses).
+
+**Cause:** Collision probability calculated with bulk gas velocity (`v_rel = ion.vel - v_gas`), but collision applied with different Maxwell-Boltzmann sampled neutral. This velocity inconsistency creates systematic bias.
+
+**Solution:** Sample neutral velocity FIRST, then calculate collision probability using the SAME sampled velocity. See commit 92d29c1 for implementation.
 
 ---
 
@@ -321,7 +497,7 @@ enum class InstrumentType {
 };
 ```
 
-⚠️ **Note:** This file violates SSOT and will be moved to `core/config/types/` in Phase 2.
+⚠️ **Note:** This file violates SSOT and will be moved to `core/config/types/` in the future.
 
 #### 2. Add Parameters to AnalyticalFieldParams
 
@@ -514,7 +690,7 @@ Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const;
 
 ### SSOT Violations
 
-When creating parameter structs (Phase 1 pattern), always add deprecation warning:
+When creating parameter structs (legacy pattern), always add deprecation warning:
 
 ```cpp
 // ============================================================================
@@ -550,7 +726,7 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 
 ---
 
-## Future Enhancements (Phase 2+)
+## Future Enhancements 
 
 ### Planned Changes
 

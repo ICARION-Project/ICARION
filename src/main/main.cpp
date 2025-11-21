@@ -311,7 +311,7 @@ int main(int argc, char* argv[]) {
         std::string collision_model;
         switch (gParams.collisionModel) {
             case ICARION::core::CollisionModel::NoCollisions: collision_model = "NoCollisions"; break;
-            case ICARION::core::CollisionModel::HardSphere: collision_model = "HardSphere"; break;
+            case ICARION::core::CollisionModel::HSD: collision_model = "HardSphere"; break;
             case ICARION::core::CollisionModel::Langevin: collision_model = "Langevin"; break;
             case ICARION::core::CollisionModel::Friction: collision_model = "Friction"; break;
             case ICARION::core::CollisionModel::EHSS: collision_model = "EHSS"; break;

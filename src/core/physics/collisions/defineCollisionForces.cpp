@@ -60,7 +60,7 @@ namespace physics {
  */
 Vec3 CollisionForce(const IonState& ion, const GlobalParams& gParams, const InstrumentDomain& dom) {
     switch(gParams.collisionModel) {
-        case CollisionModel::HardSphere: return HardSphereCollision(ion, dom);
+        case CollisionModel::HSD: return HardSphereCollision(ion, dom);
         case CollisionModel::Langevin:   return LangevinCollision(ion, dom);
         case CollisionModel::Friction:   return FrictionCollision(ion, dom);
         case CollisionModel::EHSS:       return EHSSCollision(ion, dom);

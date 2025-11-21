@@ -223,7 +223,7 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 
 Collision damping is implemented in `DampingForce` with multiple models:
 - **Friction**: Simple γ·m·v drag
-- **HardSphere**: Elastic collisions with momentum transfer
+- **HSD**: Elastic collisions with momentum transfer
 - **Langevin**: Ion-neutral polarization interactions
 
 ### Adding a New Model
@@ -233,7 +233,7 @@ Collision damping is implemented in `DampingForce` with multiple models:
 ```cpp
 enum class DampingModel {
     None,
-    HardSphere,
+    HSD,
     Langevin,
     Friction,
     YourNewModel  // Add here

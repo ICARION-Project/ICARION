@@ -230,7 +230,7 @@ GlobalParams load_global_params(const std::string& filename) {
     else if (collision_str == "friction" || collision_str == "Friction") g.collisionModel = CollisionModel::Friction;
     else if (collision_str == "langevin" || collision_str == "Langevin") g.collisionModel = CollisionModel::Langevin;
     else if (collision_str == "hardsphere" || collision_str == "hard_sphere" || collision_str == "HardSphere" || collision_str == "Hard_Sphere") 
-        g.collisionModel = CollisionModel::HardSphere;
+        g.collisionModel = CollisionModel::HSD;
     else if (collision_str == "nocollisions" || collision_str == "none" || collision_str == "NoCollisions" || collision_str == "No_Collisions") 
         g.collisionModel = CollisionModel::NoCollisions;
     else {

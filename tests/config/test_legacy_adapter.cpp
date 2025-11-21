@@ -64,7 +64,7 @@ TEST_CASE("LegacyAdapter converts collision model enums", "[adapter][enums]") {
     SECTION("HSD -> HardSphere") {
         cfg.physics.collision_model = ICARION::config::CollisionModel::HSD;
         auto g = ICARION::config::LegacyAdapter::to_global_params(cfg);
-        REQUIRE(g.collisionModel == ICARION::core::CollisionModel::HardSphere);
+        REQUIRE(g.collisionModel == ICARION::core::CollisionModel::HSD);
     }
     
     SECTION("EHSS") {

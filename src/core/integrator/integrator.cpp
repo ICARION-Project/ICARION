@@ -366,29 +366,8 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
         
         // Create PhysicsConfig from GlobalParams
         ICARION::config::PhysicsConfig physics_config;
-        // Convert core::CollisionModel to config::CollisionModel
-        switch (gParams.collisionModel) {
-            case ICARION::core::CollisionModel::NoCollisions:
-                physics_config.collision_model = ICARION::config::CollisionModel::NoCollisions;
-                break;
-            case ICARION::core::CollisionModel::EHSS:
-                physics_config.collision_model = ICARION::config::CollisionModel::EHSS;
-                break;
-            case ICARION::core::CollisionModel::HSS:
-                physics_config.collision_model = ICARION::config::CollisionModel::HSS;
-                break;
-            case ICARION::core::CollisionModel::Langevin:
-                physics_config.collision_model = ICARION::config::CollisionModel::Langevin;
-                break;
-            case ICARION::core::CollisionModel::Friction:
-                physics_config.collision_model = ICARION::config::CollisionModel::Friction;
-                break;
-            case ICARION::core::CollisionModel::HardSphere:
-                physics_config.collision_model = ICARION::config::CollisionModel::HSD;
-                break;
-            default:
-                physics_config.collision_model = ICARION::config::CollisionModel::UnknownCollisionModel;
-        }
+        // SSOT: Direct assignment (Phase 2E) - core::CollisionModel is alias to config::CollisionModel
+        physics_config.collision_model = gParams.collisionModel;
         physics_config.enable_reactions = gParams.enable_reactions;
         
         // Create handler from factory

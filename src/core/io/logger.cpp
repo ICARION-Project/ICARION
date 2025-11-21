@@ -78,7 +78,7 @@ static std::string collision_model_to_string(CollisionModel c) {
     switch (c) {
         case CollisionModel::NoCollisions: return "NoCollisions";
         case CollisionModel::Friction:     return "Friction";
-        case CollisionModel::HardSphere:   return "HardSphere";
+        case CollisionModel::HSD:   return "HardSphere";
         case CollisionModel::Langevin:     return "Langevin";
         case CollisionModel::EHSS:         return "EHSS";
         case CollisionModel::HSS:          return "HSS";

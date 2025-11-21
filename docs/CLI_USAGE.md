@@ -199,7 +199,7 @@ Can be specified multiple times to override multiple values.
 - `simulation.enable_openmp` - Enable OpenMP parallelization (true/false)
 
 **Physics parameters:**
-- `physics.collision_model` - Collision model (NoCollisions, HardSphere, Langevin, Friction, HSS, EHSS)
+- `physics.collision_model` - Collision model (NoCollisions, HSD, Langevin, Friction, HSS, EHSS)
 - `physics.enable_reactions` - Enable chemical reactions (true/false)
 - `physics.enable_space_charge` - Enable space charge effects (true/false)
 - `physics.enable_ou_thermalization` - Enable Ornstein-Uhlenbeck thermalization (true/false)
@@ -303,7 +303,7 @@ icarion --list-collision-models
 
 **Available models:**
 - **NoCollisions** - No collision modeling (free flight)
-- **HardSphere** - Hard sphere collisions (deterministic)
+- **HSD** - Hard sphere collisions (deterministic)
 - **Langevin** - Langevin collisions (polarization)
 - **Friction** - Frictional drag
 - **HSS** - Hard sphere stochastical
@@ -388,7 +388,7 @@ for seed in {1..10}; do
 done
 
 # Test different collision models
-for model in NoCollisions HardSphere Langevin EHSS; do
+for model in NoCollisions HSD Langevin EHSS; do
     icarion --set physics.collision_model=$model \
             --output results_${model}.h5 \
             config.json

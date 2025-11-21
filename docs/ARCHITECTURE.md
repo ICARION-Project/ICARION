@@ -145,7 +145,7 @@ FullConfig                          // Top-level configuration
 │       ├── temperature_K
 │       ├── pressure_Pa
 │       ├── gas_species             // "N2", "He", "Ar", ...
-│       ├── collision_model         // "HardSphere", "Langevin", ...
+│       ├── collision_model         // "HSD", "Langevin", ...
 │       └── collision_parameters
 │
 ├── IntegrationConfig               // Numerical integration
@@ -434,7 +434,7 @@ Computes deterministic collision damping: **F = -γ·m·v**
 
 **Models:**
 - **Friction**: Direct γ coefficient
-- **HardSphere**: Elastic collisions, γ = ν·(m_n/(m_i+m_n))
+- **HSD**: Elastic collisions, γ = ν·(m_n/(m_i+m_n))
 - **Langevin**: Ion-induced dipole, enhanced cross-section
 
 ⚠️ **Note**: Stochastic kicks (thermal noise) are handled separately by CollisionEngine.

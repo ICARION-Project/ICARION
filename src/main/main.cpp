@@ -39,12 +39,17 @@
 #include <fstream>
 #include <sstream>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include "integrator/integrator.h"
 #include "core/io/hdf5Writer.h"
 #include "core/param/paramUtils.h"
 #include "utils/cli_parser.h"  // CLI argument parser
 #include "core/log/Logger.h"  // Structured logging
 #include "core/utils/simulationsUtils.h"  // print_domain_summary, print_results
+#include "core/utils/startupBanner.h"  // Professional startup banner
 #include "core/physics/reactions/reactionUtils.h"  // ReactionEntry struct only
 #include "core/io/fieldArrayLoader.h"
 #include "core/io/speciesLoader.h"  // io::SpeciesDatabase (temporary until Phase 5)
@@ -94,10 +99,21 @@ int main(int argc, char* argv[]) {
         opts.log_file.value_or(""),
         opts.log_format);
     
-    // Log startup information
-    ICARION::log::Logger::main()->info("ICARION v{} starting", ICARION_VERSION);
-    ICARION::log::Logger::main()->info("Git commit: {}", GIT_HASH);
-    ICARION::log::Logger::main()->info("Config file: {}", opts.config_file);
+    // Print startup banner (only for text format, not JSON)
+    if (opts.log_format == "text") {
+        ICARION::utils::print_startup_banner(
+            ICARION_VERSION,
+            GIT_HASH,
+            opts.config_file,
+            opts.log_level,
+            opts.log_file.value_or("")
+        );
+    } else {
+        // JSON format: log structured startup info
+        ICARION::log::Logger::main()->info("ICARION v{} starting", ICARION_VERSION);
+        ICARION::log::Logger::main()->info("Git commit: {}", GIT_HASH);
+        ICARION::log::Logger::main()->info("Config file: {}", opts.config_file);
+    }
     
     // === Handle information flags ===
     if (opts.dump_build_info) {
@@ -507,6 +523,27 @@ int main(int argc, char* argv[]) {
         double elapsed_s = std::chrono::duration<double>(end - start).count();
         ICARION::log::Logger::main()->info("Simulation completed in {:.3f} s CPU time", elapsed_s);
         ICARION::log::Logger::main()->info("Output file: {}.h5", gParams.output_file);
+        
+        // Print completion summary (only for text format)
+        if (opts.log_format == "text") {
+            size_t num_steps = static_cast<size_t>((t_end - t_start) / gParams.dt_s);
+            
+            // Get file size
+            double file_size_mb = 0.0;
+            std::ifstream file(gParams.output_file + ".h5", std::ios::binary | std::ios::ate);
+            if (file) {
+                file_size_mb = file.tellg() / (1024.0 * 1024.0);
+            }
+            
+            ICARION::utils::print_completion_summary(
+                elapsed_s,
+                ions.size(),
+                num_steps,
+                gParams.output_file,
+                active_count,
+                file_size_mb
+            );
+        }
     } catch (const std::exception& e) {
         ICARION::log::Logger::main()->error("Fatal error: {}", e.what());
         ICARION::log::Logger::shutdown();

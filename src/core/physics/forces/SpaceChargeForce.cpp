@@ -4,6 +4,7 @@
 #include "SpaceChargeForce.h"
 #include "ForceContext.h"
 #include "core/utils/mathUtils.h"
+#include "utils/constants.h"
 
 #include <cmath>
 #include <algorithm>
@@ -87,8 +88,11 @@ Vec3 SpaceChargeForce::compute_pairwise_force(
                       + r_vec.z * r_vec.z;
     
     // Handle exact overlap (r = 0)
-    if (r_sq < 1e-30) {
-        return Vec3{0.0, 0.0, 0.0};
+    // Use softening threshold: if r < softening, skip (ions too close)
+    // Minimum threshold: 1% of softening, or 1e-30 m² (numerical safety for softening=0)
+    const double min_distance_sq = std::max(softening_m_ * softening_m_ * 1e-4, 1e-30);
+    if (r_sq < min_distance_sq) {
+        return Vec3{0.0, 0.0, 0.0};  // Skip if inside minimum safe distance
     }
     
     // Softened distance: r_eff = √(r² + ε²)
@@ -112,8 +116,8 @@ Vec3 SpaceChargeForce::compute_pairwise_force(
     // This ensures:
     //   - r → ∞: F → k·q₁·q₂/r² (recovers standard Coulomb)
     //   - r → 0:  F → k·q₁·q₂/ε² (finite, not infinite)
-    //
-    const double force_magnitude = k_coulomb_ * ion1.ion_charge_C * ion2.ion_charge_C 
+    //   Coulomb constant: COULOMB_CONST from utils/constants.h defined as k = 1/(4πε₀)
+    const double force_magnitude = COULOMB_CONST * ion1.ion_charge_C * ion2.ion_charge_C 
                                  / r_eff_sq;
     
     // Force vector: F⃗ = F_mag · r̂

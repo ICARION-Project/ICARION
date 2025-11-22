@@ -859,8 +859,37 @@ strategy_->step(ion, t, dt, compute_accel, &domain);
 
 **Migration Status:**
 - ✅ Strategies implemented and tested (Phase 4)
-- ⏳ Factory pattern pending (Phase 5)
+- ✅ Factory pattern implemented (Phase 4)
 - ⏳ SimulationEngine integration pending (Phase 5)
+
+---
+
+## Domain Management (Phase 5A)
+
+**DomainManager** handles spatial domain lookup, coordinate transformations, and boundary conditions.
+
+**Key Features:**
+- Domain lookup by position (cylindrical + hyperbolic Orbitrap geometry)
+- Coordinate transforms (global ↔ local)
+- Aperture crossing detection
+- Domain property updates (temperature, pressure, gas velocity)
+
+**SSOT Compliance:**
+```cpp
+// Uses modern config::DomainConfig (not legacy InstrumentDomain)
+DomainManager manager(full_config.domains);
+
+int idx = manager.find_domain_index(ion.pos);
+Vec3 local = manager.global_to_local_pos(ion.pos, idx);
+manager.update_domain_properties(ion, idx);
+```
+
+**Internal Geometry Check:**
+- Replaces legacy `isInsideDomain()` from `paramUtils.cpp`
+- Supports cylindrical (most instruments) and hyperbolic (Orbitrap)
+- No dependency on legacy functions
+
+**Status:** ✅ Complete (Phase 5A, Nov 2025)
 
 ---
 

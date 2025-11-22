@@ -289,17 +289,22 @@ void integrate_one_step(
         }
     }
     
-    // === PHASE 3: Modern Reaction System ===
-    // Delegate reactions to IReactionHandler (SSOT-compliant)
+    // === PHASE 3C: Reaction System Selection ===
+    // Use modern handler if provided, otherwise fall back to legacy
+    // NOTE: Modern handler not yet fully wired due to database type mismatch
+    //       (ICARION::io::Species vs config::SpeciesProperties)
+    //       Full SSOT integration will happen in Phase 3D
+    
     if (reaction_handler != nullptr) {
-        // SSOT: Pass databases directly (no intermediate structs)
-        // reaction_handler->handle_reaction(ion, dt_local, local_rng, reaction_db, species_db, env);
-        // TODO: Need to pass config databases instead of legacy structures
-        // For now, fall back to legacy system until Phase 3B completes database migration
+        // Modern reaction system (Phase 3)
+        // reaction_handler->handle_reaction() called here when SSOT databases available
+        // For now: reaction_handler exists but not used (type mismatch blocker)
+        // TODO Phase 3D: Pass config::ReactionDatabase and config::SpeciesDatabase
     }
     
-    // === LEGACY: Old Reaction System (DEPRECATED) ===
-    // Will be removed in Phase 3C after full migration
+    // === LEGACY: Old Reaction System ===
+    // Still active until Phase 3D completes database migration
+    // Will be removed once reaction_handler can access SSOT databases
     handle_reaction(ion, local_rng, dt_local, gParams, speciesDB, reaction_list);
     
     global_ion_counter++;

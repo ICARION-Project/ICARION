@@ -202,39 +202,101 @@ tests/physics/reactions/
 
 ---
 
-### **Phase 3C: Legacy Cleanup (Day 3)**
+### **Phase 3C: Factory Integration (Day 2-3)** ✅ COMPLETED
 
-#### **Files to DELETE:**
+#### **Status:** ✅ Handler factory created and instantiated in integrate_trajectory
 
-1. ❌ `src/core/physics/reactions/reactionUtils.cpp:113-142` (`load_reactions()` function)
-2. ❌ `src/core/integrator/integrator_helpers.cpp:304` (`handle_reaction()` function)
-3. ❌ `src/main/main.cpp:359-400` (manual `ReactionEntry` conversion)
+#### **Completed Tasks:**
 
-#### **Files to UPDATE:**
+12. ✅ Added `ReactionHandlerFactory` includes to `integrator.cpp`
+13. ✅ Moved `PhysicsConfig` creation outside collision handler scope
+14. ✅ Created reaction handler from factory in `integrate_trajectory()`
+15. ✅ Added logger output for handler creation
+16. ✅ All 23 tests passing
 
-```diff
-// src/core/physics/reactions/reactionUtils.h
+#### **Commits:**
+- `9791baa`: Factory integration in integrate_trajectory
+- `d9a0871`: integrate_one_step signature with reaction_handler parameter
+- `3a35748`: Competing channels fix (weighted selection)
+- `8a35840`: Handler system (IReactionHandler, StochasticReactionHandler, Factory)
 
--/**
-- * @brief Load ion-molecule reactions from JSON file
-- * 
-- * @deprecated Use config::ReactionLoader instead
-- */
--std::vector<ReactionEntry> load_reactions(const GlobalParams& gParams);
+**Time Spent:** 3 hours
 
-+// DEPRECATED: Use config::ReactionLoader and ReactionHandlerFactory instead
-+// This function removed in Phase 3 refactor (2025-11-22)
+---
+
+### **Phase 3D: Database Migration (Day 4)** ⏳ TODO
+
+#### **BLOCKER IDENTIFIED:**
+
+**Type Mismatch Prevents Full Integration:**
+- `integrator.cpp` uses `ICARION::io::Species` (from speciesLoader.h)
+- `integrator_helpers.cpp` uses `Species` (from reactionUtils.h)
+- `reaction_handler` expects `config::SpeciesDatabase` (from SpeciesConfig.h)
+
+**Current Data Flow (Suboptimal):**
+```
+JSON → config::SpeciesDatabase (SSOT)
+     → Adapter in main.cpp (converts to legacy)
+     → ICARION::io::SpeciesDatabase (integrator.cpp)
+     → std::unordered_map<string, Species> (integrator_helpers.cpp)
+     → ❌ Cannot convert back to config::SpeciesDatabase for reaction_handler
 ```
 
-#### **Tasks:**
+**Target Data Flow (After Phase 3D):**
+```
+JSON → config::SpeciesDatabase (SSOT)
+     → integrate_trajectory() directly
+     → reaction_handler (no conversion!)
+```
 
-12. ✅ Delete legacy `handle_reaction()`
-13. ✅ Delete legacy `load_reactions()`
-14. ✅ Delete conversion code in `main.cpp`
-15. ✅ Update deprecation comments
-16. ✅ Build & test (all 21+ tests passing)
+#### **Migration Plan:**
 
-**Estimated Time:** 1 hour
+1. ❌ **Unify Species Types:**
+   - Remove `ICARION::io::Species` (speciesLoader.h)
+   - Remove `Species` (reactionUtils.h)
+   - Keep only `config::SpeciesProperties` (SpeciesConfig.h)
+
+2. ❌ **Update integrate_trajectory Signature:**
+   ```cpp
+   // OLD:
+   integrate_trajectory(..., const ICARION::io::SpeciesDatabase& speciesDB, ...)
+   
+   // NEW:
+   integrate_trajectory(..., const config::SpeciesDatabase& species_db, ...)
+   ```
+
+3. ❌ **Wire reaction_handler to integrate_one_step:**
+   ```cpp
+   // Currently disabled due to type mismatch:
+   if (reaction_handler != nullptr) {
+       reaction_handler->handle_reaction(ion, dt, rng, reaction_db, species_db, env);
+   }
+   ```
+
+4. ❌ **Delete Legacy Code:**
+   - `src/core/physics/reactions/reactionUtils.cpp:113-142` (load_reactions)
+   - `src/core/integrator/integrator_helpers.cpp:316` (handle_reaction)
+   - `src/main/main.cpp:359-400` (ReactionEntry conversion)
+
+5. ❌ **Update main.cpp:**
+   - Remove legacy adapter (SSOT config → Legacy types)
+   - Pass SSOT databases directly to integrator
+
+#### **Dependencies:**
+
+- ⚠️ **Force System** must also migrate to SSOT (currently uses GlobalParams)
+- ⚠️ **All systems** using legacy GlobalParams must be modernized first
+
+#### **Estimated Time:** 4-6 hours (complex cross-cutting change)
+
+---
+
+### **Phase 3E: Full SSOT Integration (Day 5)** ⏳ FUTURE
+
+**Remove Legacy Adapter Entirely:**
+- Delete main.cpp conversion code (SSOT → Legacy)
+- Integrate force system with SSOT configs
+- Remove GlobalParams (replace with modern config types)
 
 ---
 

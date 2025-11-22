@@ -17,6 +17,9 @@
 #include <string>
 #include <unordered_map>
 #include "integrator.h"
+#include "core/physics/reactions/IReactionHandler.h"  // Phase 3 reaction system
+
+namespace ICARION { namespace physics { class IReactionHandler; } }  // Forward declaration
 
 namespace integrator_helpers {
 
@@ -47,11 +50,12 @@ void log_step(double t, double t_end, int& step_count, double& next_write_time, 
  * @param gParams Global simulation parameters
  * @param dom Current instrument domain
  * @param speciesDB Species database
- * @param reaction_list Available reactions
+ * @param reaction_list Available reactions (DEPRECATED - use reaction_handler)
  * @param local_rng Random number generator for collisions
  * @param rk45 RK45 adaptive settings
  * @param current_ions All ions (for space-charge if enabled)
  * @param field_provider Field interpolation provider
+ * @param reaction_handler Modern reaction handler (Phase 3 refactor)
  * 
  * Advances ion by one timestep using selected solver (RK4 or RK45).
  * Handles collisions (stochastic or deterministic) and reactions.
@@ -67,6 +71,7 @@ void integrate_one_step(
     const RK45Settings& rk45,
     const std::vector<IonState>& current_ions
     , const IFieldProvider* field_provider = nullptr
+    , ICARION::physics::IReactionHandler* reaction_handler = nullptr
 );
 
 // NOTE: load_geometry(), compute_CCS_from_geometry(), and handle_collision() removed

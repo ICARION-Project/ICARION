@@ -50,6 +50,7 @@ void integrate_one_step(
     const RK45Settings& rk45,
     const std::vector<IonState>& current_ions
     , const IFieldProvider* field_provider
+    , ICARION::physics::IReactionHandler* reaction_handler
 ) {
     double t_local = ion.t;
     double t_target = ion.t + ion.dt;
@@ -287,6 +288,19 @@ void integrate_one_step(
             break;
         }
     }
+    
+    // === PHASE 3: Modern Reaction System ===
+    // Delegate reactions to IReactionHandler (SSOT-compliant)
+    if (reaction_handler != nullptr) {
+        // SSOT: Pass databases directly (no intermediate structs)
+        // reaction_handler->handle_reaction(ion, dt_local, local_rng, reaction_db, species_db, env);
+        // TODO: Need to pass config databases instead of legacy structures
+        // For now, fall back to legacy system until Phase 3B completes database migration
+    }
+    
+    // === LEGACY: Old Reaction System (DEPRECATED) ===
+    // Will be removed in Phase 3C after full migration
+    handle_reaction(ion, local_rng, dt_local, gParams, speciesDB, reaction_list);
     
     global_ion_counter++;
 }

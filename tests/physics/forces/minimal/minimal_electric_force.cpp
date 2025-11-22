@@ -29,6 +29,9 @@
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonState.h"
+#include "core/config/types/DomainConfig.h"
+#include "core/config/types/FieldsConfig.h"
+#include "core/config/types/GeometryConfig.h"
 #include <iostream>
 #include <iomanip>
 #include <cmath>
@@ -40,14 +43,13 @@ void test_ims_drift_field() {
     std::cout << "\n=== Test 1: IMS Drift Field ===\n";
     std::cout << "Physics: F = q·E with uniform field E_z = 400 V/m\n";
     
-    // IMS parameters: 1 m drift tube, 400 V drift voltage
-    AnalyticalFieldParams params;
-    params.instrument_type = instrument::InstrumentType::IMS;
-    params.dc_axial_voltage_V = 400.0;  // Drift voltage [V]
-    params.length_m = 1.0;              // Drift length [m]
-    // E_z = U/L = 400 V/m
+    // IMS parameters: 1 m drift tube, 400 V drift voltage (SSOT config)
+    ICARION::config::DomainConfig domain;
+    domain.instrument = ICARION::core::Instrument::IMS;
+    domain.fields.dc.axial_V = 400.0;
+    domain.geometry.length_m = 1.0;
     
-    ElectricFieldForce force(params);
+    ElectricFieldForce force(domain);
     ForceContext ctx;
     
     // Test ion: charge +e at z=0.5m
@@ -82,16 +84,17 @@ void test_lqit_quadrupole() {
     std::cout << "\n=== Test 2: LQIT Quadrupole Field ===\n";
     std::cout << "Physics: F_x = 2U·x/r₀², F_y = -2U·y/r₀² (harmonic confinement)\n";
     
-    // LQIT parameters
-    AnalyticalFieldParams params;
-    params.instrument_type = instrument::InstrumentType::LQIT;
-    params.rf_voltage_V = 100.0;        // RF amplitude [V]
-    params.rf_frequency_Hz = 1e6;       // 1 MHz
-    params.dc_quad_voltage_V = 0.0;     // No DC offset
-    params.radius_m = 0.01;             // r₀ = 1 cm
-    params.length_m = 0.05;             // 5 cm length
+    // LQIT parameters (SSOT config)
+    ICARION::config::DomainConfig domain;
+    domain.instrument = ICARION::core::Instrument::LQIT;
+    domain.fields.rf.voltage_V = 100.0;
+    domain.fields.rf.frequency_Hz = 1e6;
+    domain.fields.rf.angular_frequency_rad_s = 2.0 * M_PI * 1e6;  // Precomputed
+    domain.fields.dc.quad_V = 0.0;
+    domain.geometry.radius_m = 0.01;
+    domain.geometry.length_m = 0.05;
     
-    ElectricFieldForce force(params);
+    ElectricFieldForce force(domain);
     ForceContext ctx;
     
     // Test ion: at position (2mm, 3mm, 0)

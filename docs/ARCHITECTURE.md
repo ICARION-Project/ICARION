@@ -772,6 +772,9 @@ y_new = y + dt*(k1 + 2*k2 + 2*k3 + k4)/6
 ```cpp
 namespace ICARION::integrator {
 
+/**
+ * @brief Factory for creating integration strategies
+ */
 class IntegrationStrategyFactory {
 public:
     /**
@@ -793,62 +796,71 @@ public:
 } // namespace ICARION::integrator
 ```
 
+**Implementation:** `src/core/integrator/strategies/IntegrationStrategyFactory.h`
+
+**Supported Strategies:**
+- `"RK4"` - 4th-order Runge-Kutta (fixed timestep)
+- `"RK45"` - Dormand-Prince 5(4) (adaptive timestep)
+- `"Boris"` - Boris pusher (electromagnetic fields)
+
 **Example Usage:**
+
 ```cpp
 // Create from config
 std::string method = config.simulation.integrator;  // "RK45"
 auto strategy = IntegrationStrategyFactory::create(method);
 
-// Fixed-step integration
-strategy->step(ion, t, dt, force_registry, domain, all_ions);
+// Use strategy (callback-based)
+auto compute_accel = [&](const IonState& ion, double t) -> Vec3 {
+    // Your acceleration computation
+    return Vec3{0, 0, -9.81};
+};
 
-// Adaptive integration (RK45)
-double dt_adaptive = dt;
-strategy->step_adaptive(ion, t, dt_adaptive, force_registry, domain, all_ions);
-// dt_adaptive now contains suggested next timestep
+strategy->step(ion, t, dt, compute_accel, &domain);
 ```
+
+**Current Status (Phase 4):**
+- ✅ Factory implemented and tested
+- ⏳ Not yet integrated into main.cpp (Phase 5 work)
 
 ### Integration Loop Examples
 
-**Fixed-Step (RK4):**
+**Current Implementation (Test Usage):**
+
 ```cpp
+// Example: Fixed-step RK4 (from tests)
 void simulate_trajectory_fixed(
     IonState& ion,
-    const ForceRegistry& forces,
+    std::function<Vec3(const IonState&, double)> compute_accel,
     IIntegrationStrategy& strategy,
     double t_max,
     double dt
 ) {
     double t = 0.0;
     while (t < t_max) {
-        strategy.step(ion, t, dt, forces, domain, all_ions);
+        strategy.step(ion, t, dt, compute_accel, nullptr);
         t += dt;
         save_output(ion, t);
     }
 }
 ```
 
-**Adaptive-Step (RK45):**
+**Future (Production Usage with ForceRegistry):**
+
 ```cpp
-void simulate_trajectory_adaptive(
-    IonState& ion,
-    const ForceRegistry& forces,
-    IIntegrationStrategy& strategy,
-    double t_max,
-    double dt_initial
-) {
-    double t = 0.0;
-    double dt = dt_initial;
-    
-    while (t < t_max) {
-        double dt_step = std::min(dt, t_max - t);  // Don't overshoot
-        strategy.step_adaptive(ion, t, dt_step, forces, domain, all_ions);
-        t += dt_step;
-        dt = dt_step;  // Use suggested dt for next step
-        save_output(ion, t);
-    }
-}
+// Future: SimulationEngine will wrap ForceRegistry in callback
+auto compute_accel = [&](const IonState& ion, double t) -> Vec3 {
+    Vec3 F_total = force_registry_->compute_total_force(ion, t, ctx);
+    return F_total / ion.mass_kg;
+};
+
+strategy_->step(ion, t, dt, compute_accel, &domain);
 ```
+
+**Migration Status:**
+- ✅ Strategies implemented and tested (Phase 4)
+- ⏳ Factory pattern pending (Phase 5)
+- ⏳ SimulationEngine integration pending (Phase 5)
 
 ---
 

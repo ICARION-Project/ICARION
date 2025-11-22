@@ -816,8 +816,11 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
   - BorisStrategy (symplectic pusher for electromagnetic fields)
   - IntegrationStrategyFactory for runtime selection
   - Comprehensive test suites (27/27 tests passing, 100%)
-  - SSOT-compliant (uses DomainConfig, ForceRegistry)
+  - SSOT-compliant (uses DomainConfig pointer, callback-based acceleration)
+  - **Strategies tested standalone, NOT yet integrated into main.cpp**
   - Files: `src/core/integrator/strategies/*`
+
+**Next Step:** Phase 5 (SimulationEngine) will integrate strategies into main simulation loop
 
 ---
 

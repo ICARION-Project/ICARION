@@ -343,6 +343,29 @@ where k(T) depends on rate_model:
 }
 ```
 
+When `enable_reactions` is enabled, ICARION will:
+
+1. **Load the reaction database** from the specified file
+2. **Handle reactions stochastically** using Monte Carlo method during simulation
+3. **Compute effective rates** at each time step:
+
+   ```text
+   k_eff [s⁻¹] = k(T) × ∏ᵢ [Xᵢ]^nᵢ
+   ```
+
+   where k(T) is the temperature-dependent rate constant and [Xᵢ] are concentration terms
+
+4. **Calculate reaction probability** for each particle per time step:
+
+   ```text
+   P = 1 - exp(-k_eff × dt)
+   ```
+
+5. **Select channels** if multiple reactions compete (probability-weighted)
+6. **Update species** by replacing reactant particle with product particle
+
+See [Reaction Database Schema](#reaction-database-schema) for details on configuring reactions.
+
 **Path resolution:** Paths can be:
 
 - Absolute: `/absolute/path/to/database.json`
@@ -623,6 +646,193 @@ Validation errors are collected in `ValidationResult` (not thrown as exceptions)
 **Example configs:**
 
 - `examples/ion_clouds/multi_species_example.json` - Multi-species with different boundaries
+
+---
+
+## Reaction Database Schema
+
+When `enable_reactions` is set in the `physics` section, you must provide a `reaction_database` JSON file defining all possible reactions.
+
+### Schema Structure
+
+```json
+{
+  "reactions": [
+    {
+      "id": "rxn_proton_transfer",
+      "reactant": "H3O+",
+      "product": "NH4+",
+      "rate_model": "Constant",
+      "rate_constant": 2.5e-9,
+      "order": [
+        {
+          "species": "NH3",
+          "exponent": 1,
+          "concentration_m3": -1.0
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Field Descriptions
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | ✅ | Unique identifier for the reaction |
+| `reactant` | string | ✅ | Species ID of the reactant (must exist in species database) |
+| `product` | string | ✅ | Species ID of the product (must exist in species database) |
+| `rate_model` | enum | ✅ | Temperature model: `"Constant"`, `"Arrhenius"`, `"ModifiedArrhenius"` |
+| `rate_constant` | number | ✅ | Base rate constant (units depend on reaction order, see below) |
+| `activation_energy_eV` | number | Conditional | Required if `rate_model` is `"Arrhenius"` or `"ModifiedArrhenius"` |
+| `temperature_exponent` | number | Conditional | Required if `rate_model` is `"ModifiedArrhenius"` |
+| `reference_temperature_K` | number | Conditional | Required if `rate_model` is `"ModifiedArrhenius"` |
+| `order` | array | ❌ | Concentration terms (if omitted, 1st-order reaction) |
+
+### Order Term Structure
+
+Each entry in the `order` array defines a concentration dependence:
+
+```json
+{
+  "species": "H2O",
+  "exponent": 1,
+  "concentration_m3": 2.5e25
+}
+```
+
+| Field | Type | Values | Description |
+|-------|------|--------|-------------|
+| `species` | string | Species ID or `"neutral"` | Which species to use for concentration |
+| `exponent` | integer | 0, 1, 2 | Power to raise concentration to |
+| `concentration_m3` | number | ≥ -1.0 | Explicit concentration [m⁻³] or -1.0 for buffer gas |
+
+**Buffer Gas Fallback:**
+
+- If `concentration_m3 = -1.0` (or omitted), use buffer gas density from `EnvironmentConfig.particle_density_m_3`
+- If `concentration_m3 > 0`, use the explicit value
+
+### Rate Constant Units (Order-Dependent)
+
+⚠️ **Important:** The `rate_constant` field has **order-dependent units**:
+
+| Reaction Order | Rate Constant Unit | Effective Rate Unit | Example |
+|----------------|-------------------|---------------------|---------|
+| 0th (spontaneous) | [s⁻¹] | [s⁻¹] | Unimolecular decay |
+| 2nd (bimolecular) | [m³/s] | [s⁻¹] | A⁺ + X → B⁺ |
+| 3rd (termolecular) | [m⁶/s] | [s⁻¹] | A⁺ + X + M → B⁺ |
+
+**Effective Rate Formula:**
+
+```text
+k_eff [s⁻¹] = k₀(T) [m³ⁿ⁻³/s] × ∏ᵢ [Xᵢ]^nᵢ
+```
+
+Where n = total order = Σ exponents.
+
+### Temperature Models
+
+**1. Constant (no temperature dependence):**
+
+```text
+k(T) = k₀
+```
+
+**2. Arrhenius:**
+
+```text
+k(T) = A × exp(-Eₐ/(kB·T))
+```
+
+Where:
+
+- A = `rate_constant` [m³ⁿ⁻³/s]
+- Eₐ = `activation_energy_eV` [eV]
+- kB = Boltzmann constant
+
+**3. ModifiedArrhenius:**
+
+```text
+k(T) = A × (T/T₀)^n × exp(-Eₐ/(kB·T))
+```
+
+Where:
+
+- A = `rate_constant` [m³ⁿ⁻³/s]
+- T₀ = `reference_temperature_K` [K]
+- n = `temperature_exponent` [dimensionless]
+- Eₐ = `activation_energy_eV` [eV]
+
+### Examples
+
+**Example 1: 2nd-order reaction with Constant model:**
+
+```json
+{
+  "id": "rxn_proton_transfer",
+  "reactant": "H3O+",
+  "product": "NH4+",
+  "rate_model": "Constant",
+  "rate_constant": 2.5e-9,
+  "order": [
+    {
+      "species": "NH3",
+      "exponent": 1,
+      "concentration_m3": -1.0
+    }
+  ]
+}
+```
+
+**Example 2: 3rd-order reaction with Arrhenius model:**
+
+```json
+{
+  "id": "rxn_clustering",
+  "reactant": "H3O+",
+  "product": "H5O2+",
+  "rate_model": "Arrhenius",
+  "rate_constant": 1.2e-28,
+  "activation_energy_eV": 0.05,
+  "order": [
+    {
+      "species": "H2O",
+      "exponent": 1,
+      "concentration_m3": 2.5e25
+    },
+    {
+      "species": "He",
+      "exponent": 1,
+      "concentration_m3": -1.0
+    }
+  ]
+}
+```
+
+**Example 3: 1st-order unimolecular decay (ModifiedArrhenius):**
+
+```json
+{
+  "id": "rxn_fragmentation",
+  "reactant": "C6H6+",
+  "product": "C4H4+",
+  "rate_model": "ModifiedArrhenius",
+  "rate_constant": 1e5,
+  "activation_energy_eV": 1.5,
+  "temperature_exponent": 0.5,
+  "reference_temperature_K": 300.0
+}
+```
+
+### Validation
+
+Validate your reaction database with:
+
+```bash
+python schema/validate_config.py --reaction-db my_reactions.json
+```
+
 
 ---
 

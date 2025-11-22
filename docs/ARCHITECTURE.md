@@ -1085,6 +1085,76 @@ public:
 - Returns `StochasticReactionHandler` if `reactions_enabled == true`
 - Returns `NoReactionHandler` if `reactions_enabled == false`
 
+### Reaction Order Handling
+
+ICARION supports **multi-order reactions** (1st, 2nd, 3rd-order) with explicit concentration terms.
+
+**Rate Formula:**
+
+```text
+k_eff [s⁻¹] = k₀(T) [m³ⁿ⁻³/s] × ∏ᵢ [Xᵢ]^nᵢ
+```
+
+Where:
+
+- `k₀(T)`: Temperature-dependent base rate constant
+- `[Xᵢ]`: Concentration of species i [m⁻³]
+- `nᵢ`: Exponent for species i (0, 1, or 2)
+
+**Supported Orders:**
+
+| Order | Rate Constant Unit | k_eff Unit | Example |
+|-------|-------------------|------------|---------|
+| 0th (spontaneous) | [s⁻¹] | [s⁻¹] | A⁺ → B⁺ (unimolecular decay) |
+| 2nd (bimolecular) | [m³/s] | [s⁻¹] | A⁺ + X → B⁺ (proton transfer) |
+| 3rd (termolecular) | [m⁶/s] | [s⁻¹] | A⁺ + X + M → B⁺ (clustering) |
+
+**JSON Configuration:**
+
+```json
+{
+  "id": "rxn_three_body",
+  "reactant": "H3O+",
+  "product": "H5O2+",
+  "rate_constant": 1.2e-28,
+  "order": [
+    {
+      "species": "H2O",
+      "exponent": 1,
+      "concentration_m3": 2.5e19
+    },
+    {
+      "species": "He",
+      "exponent": 1,
+      "concentration_m3": -1.0
+    }
+  ]
+}
+```
+
+**Buffer Gas Fallback:**
+
+- If `concentration_m3 = -1.0` (or omitted): Use buffer gas density from `EnvironmentConfig.particle_density_m_3`
+- If `concentration_m3 > 0`: Use explicit value [m⁻³]
+
+**Calculation Example (3rd-order):**
+
+Given:
+
+- k₀ = 1.2e-28 [m⁶/s]
+- [H₂O] = 2.5e25 [m⁻³] (explicit)
+- [He] = 2.5e25 [m⁻³] (buffer gas fallback)
+
+Result:
+
+```text
+k_eff = 1.2e-28 × (2.5e25)¹ × (2.5e25)¹
+      = 1.2e-28 × 6.25e50
+      = 7.5e22 [s⁻¹]
+```
+
+**Implementation:** See `StochasticReactionHandler::compute_effective_rate()`
+
 ### Integration Point
 
 ```cpp

@@ -454,3 +454,154 @@ TEST_CASE("StochasticReactionHandler handles competing channels correctly", "[re
     INFO("Branching ratio A:B = " << fraction_A << " : " << fraction_B);
     INFO("Total reactions: " << total_reactions << " / " << total_trials);
 }
+
+// =============================================================================
+// TEST 9: Zero Reactions Available (Edge Case)
+// =============================================================================
+TEST_CASE("StochasticReactionHandler handles zero reactions gracefully", "[reactions][handler][edge-case]") {
+    // Empty reaction database
+    ReactionDatabase reaction_db;  // No reactions!
+    
+    SpeciesDatabase species_db;
+    SpeciesProperties ion_props;
+    ion_props.mass_amu = 100.0;
+    ion_props.charge = 1;
+    ion_props.mass_kg = 100.0 * AMU_TO_KG;
+    ion_props.charge_C = ELEM_CHARGE_C;
+    ion_props.CCS_m2 = 100e-20;
+    ion_props.mobility_m2Vs = 2.0e-4;
+    species_db.species["Ion+"] = ion_props;
+    
+    auto env = create_test_environment(300.0, 2.5e25);
+    
+    StochasticReactionHandler handler(false);
+    EhssRng rng(42);
+    
+    IonState ion;
+    ion.species_id = "Ion+";
+    ion.mass_kg = 100.0 * AMU_TO_KG;
+    ion.ion_charge_C = ELEM_CHARGE_C;
+    ion.CCS_m2 = 100e-20;
+    
+    double dt = 1e-6;
+    
+    // Try many times - should never react (no reactions available)
+    for (int i = 0; i < 100; ++i) {
+        IonState test_ion = ion;
+        bool reacted = handler.handle_reaction(test_ion, dt, rng, reaction_db, species_db, env);
+        
+        REQUIRE(!reacted);  // Must return false (no reactions)
+        REQUIRE(test_ion.species_id == "Ion+");  // Species unchanged
+    }
+    
+    auto stats = handler.get_stats();
+    REQUIRE(stats.total_reactions == 0);  // No reactions should have occurred
+}
+
+// =============================================================================
+// TEST 10: Very Large Rate Constant (Numerical Stability)
+// =============================================================================
+TEST_CASE("StochasticReactionHandler handles very large k_eff", "[reactions][handler][edge-case]") {
+    SpeciesDatabase species_db;
+    SpeciesProperties ion_props;
+    ion_props.mass_amu = 100.0;
+    ion_props.charge = 1;
+    ion_props.mass_kg = 100.0 * AMU_TO_KG;
+    ion_props.charge_C = ELEM_CHARGE_C;
+    ion_props.CCS_m2 = 100e-20;
+    ion_props.mobility_m2Vs = 2.0e-4;
+    species_db.species["Ion+"] = ion_props;
+    species_db.species["Product+"] = ion_props;  // Same properties
+    
+    // Reaction with HUGE rate constant → P ≈ 1 (certain reaction)
+    ReactionDatabase reaction_db;
+    Reaction rxn;
+    rxn.id = "fast_rxn";
+    rxn.reactant = "Ion+";
+    rxn.product = "Product+";
+    rxn.rate_constant_m3s = 1e20;  // Extremely large! P = 1 - exp(-1e20 * dt) ≈ 1
+    rxn.order_terms = {};
+    reaction_db.reactions = {rxn};
+    
+    auto env = create_test_environment(300.0, 2.5e25);
+    
+    StochasticReactionHandler handler(false);
+    EhssRng rng(99);
+    
+    IonState ion;
+    ion.species_id = "Ion+";
+    ion.mass_kg = 100.0 * AMU_TO_KG;
+    ion.ion_charge_C = ELEM_CHARGE_C;
+    ion.CCS_m2 = 100e-20;
+    
+    double dt = 1e-9;  // Small timestep
+    
+    // With k_eff = 1e20 and dt = 1e-9, P = 1 - exp(-1e11) ≈ 1.0
+    // Should react 100% of the time
+    int reacted_count = 0;
+    for (int i = 0; i < 100; ++i) {
+        IonState test_ion = ion;
+        bool reacted = handler.handle_reaction(test_ion, dt, rng, reaction_db, species_db, env);
+        if (reacted) {
+            reacted_count++;
+            REQUIRE(test_ion.species_id == "Product+");
+        }
+    }
+    
+    // Should react ~100 times (probability ≈ 1.0)
+    REQUIRE(reacted_count >= 95);  // At least 95% (numerical stability check)
+}
+
+// =============================================================================
+// TEST 11: Very Small Rate Constant (Rare Events)
+// =============================================================================
+TEST_CASE("StochasticReactionHandler handles very small k_eff", "[reactions][handler][edge-case]") {
+    SpeciesDatabase species_db;
+    SpeciesProperties ion_props;
+    ion_props.mass_amu = 100.0;
+    ion_props.charge = 1;
+    ion_props.mass_kg = 100.0 * AMU_TO_KG;
+    ion_props.charge_C = ELEM_CHARGE_C;
+    ion_props.CCS_m2 = 100e-20;
+    ion_props.mobility_m2Vs = 2.0e-4;
+    species_db.species["Ion+"] = ion_props;
+    species_db.species["Product+"] = ion_props;
+    
+    // Reaction with TINY rate constant → P ≈ 0 (rare event)
+    ReactionDatabase reaction_db;
+    Reaction rxn;
+    rxn.id = "slow_rxn";
+    rxn.reactant = "Ion+";
+    rxn.product = "Product+";
+    rxn.rate_constant_m3s = 1e-20;  // Extremely small! P = 1 - exp(-1e-20 * dt) ≈ 1e-20 * dt
+    rxn.order_terms = {};
+    reaction_db.reactions = {rxn};
+    
+    auto env = create_test_environment(300.0, 2.5e25);
+    
+    StochasticReactionHandler handler(false);
+    EhssRng rng(123);
+    
+    IonState ion;
+    ion.species_id = "Ion+";
+    ion.mass_kg = 100.0 * AMU_TO_KG;
+    ion.ion_charge_C = ELEM_CHARGE_C;
+    ion.CCS_m2 = 100e-20;
+    
+    double dt = 1e-6;  // Typical timestep
+    
+    // With k_eff = 1e-20 and dt = 1e-6, P ≈ 1e-26 (extremely rare)
+    // Should almost never react in 1000 trials
+    int reacted_count = 0;
+    for (int i = 0; i < 1000; ++i) {
+        IonState test_ion = ion;
+        bool reacted = handler.handle_reaction(test_ion, dt, rng, reaction_db, species_db, env);
+        if (reacted) {
+            reacted_count++;
+        }
+    }
+    
+    // Should react 0-2 times max (very rare event, P ≈ 1e-26)
+    REQUIRE(reacted_count <= 5);  // Statistical tolerance
+    INFO("Rare event: " << reacted_count << " reactions in 1000 trials (expected ~0)");
+}

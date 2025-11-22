@@ -42,6 +42,16 @@ using json = nlohmann::json;
  * @param[in] neutral_mass_kg Mass of neutral particle used for CCS calculation [kg].
  * @return std::unordered_map<std::string, Species> Map of species name to Species object.
  *
+ * @deprecated Use config::SpeciesLoader instead (Phase 3 refactor, 2025-11-22)
+ * 
+ * This legacy function will be removed in Phase 3D after database unification.
+ * Modern alternative: config::SpeciesLoader::load_species(file_path)
+ * 
+ * Migration path:
+ * 1. Load SSOT config: config::SpeciesLoader::load_species("species.json")
+ * 2. Returns: config::SpeciesDatabase (no conversion needed)
+ * 3. Pass directly to IReactionHandler implementations
+ *
  * @throws std::runtime_error If the JSON file cannot be opened or parsed.
  *
  * @details For each species:
@@ -51,6 +61,9 @@ using json = nlohmann::json;
  * - Retains user-specified mobility.
  *
  * @note CCS formula is derived from standard ion mobility theory.
+ * 
+ * @see src/core/config/loaders/SpeciesLoader.h
+ * @see src/core/config/types/SpeciesConfig.h
  */
 
 std::unordered_map<std::string, Species> load_speciesDB(
@@ -98,6 +111,16 @@ std::unordered_map<std::string, Species> load_speciesDB(
 
 /**
  * @brief Load reaction entries from JSON file.
+ * 
+ * @deprecated Use config::ReactionLoader instead (Phase 3 refactor, 2025-11-22)
+ * 
+ * This legacy function will be removed in Phase 3D after database unification.
+ * Modern alternative: config::ReactionLoader::load_reactions(file_path)
+ * 
+ * Migration path:
+ * 1. Load SSOT config: config::ReactionLoader::load_reactions("reactions.json")
+ * 2. Returns: config::ReactionDatabase (no conversion needed)
+ * 3. Pass directly to IReactionHandler implementations
  *
  * @param[in] gParams Global simulation parameters (provides reaction file path).
  * @return std::vector<ReactionEntry> Vector of reactions.
@@ -109,6 +132,9 @@ std::unordered_map<std::string, Species> load_speciesDB(
  * - Rate constant (scaled as necessary in simulation).
  * - Neutral concentration (optional).
  * - Reaction order terms specifying species and exponents.
+ * 
+ * @see src/core/config/loaders/ReactionLoader.h
+ * @see src/core/config/types/ReactionConfig.h
  */
 std::vector<ReactionEntry> load_reactions(const GlobalParams& gParams) {
     // If no reaction_file was provided, return an empty list. Do not gate

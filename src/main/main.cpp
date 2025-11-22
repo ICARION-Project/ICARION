@@ -228,6 +228,10 @@ int main(int argc, char* argv[]) {
         }
         
         // Convert to legacy GlobalParams
+        // TODO Phase 3E: Remove after Force System migration (feature/force-system-ssot branch)
+        // Modern approach: Pass full_config directly to integrate_trajectory()
+        // Blocker: Force System (compute_accelerations, CollisionForce) still uses GlobalParams
+        // Resolution: Migrate Force System to SSOT config types (Phase 3E)
         GlobalParams gParams = ICARION::config::LegacyAdapter::to_global_params(full_config);
         
         // Override RNG seed if --seed was provided
@@ -366,6 +370,10 @@ int main(int argc, char* argv[]) {
         }
         
         // --- Convert reactions for integrator (inline, no adapter class) ---
+        // TODO Phase 3D: Remove after database migration (feature/database-unification branch)
+        // Modern approach: Pass full_config.reaction_db directly to integrate_trajectory()
+        // Blocker: integrate_trajectory() still expects legacy vector<ReactionEntry>
+        // Resolution: Update integrate_trajectory() signature in Phase 3D
         std::vector<ReactionEntry> reaction_list;
         
         if (gParams.enable_reactions && full_config.reaction_db.size() > 0) {

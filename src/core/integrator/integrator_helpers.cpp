@@ -318,6 +318,22 @@ void integrate_one_step(
 // Collision handling now delegated to ICollisionHandler implementations
 // See CollisionHandlerFactory and handler->handle_collision() in integrate_trajectory()
 
+/**
+ * @deprecated Use IReactionHandler implementations instead (Phase 3 refactor)
+ * 
+ * This legacy function will be removed in Phase 3D after database unification.
+ * Modern alternative: StochasticReactionHandler with config::ReactionDatabase
+ * 
+ * Migration path:
+ * 1. Create reaction handler: ReactionHandlerFactory::create(physics_config)
+ * 2. Call: handler->handle_reaction(ion, dt, rng, reaction_db, species_db, env)
+ * 
+ * Blocker: Type mismatch (ICARION::io::Species vs config::SpeciesProperties)
+ * Resolution: Branch feature/database-unification (Phase 3D)
+ * 
+ * @see src/core/physics/reactions/IReactionHandler.h
+ * @see src/core/physics/reactions/StochasticReactionHandler.h
+ */
 void handle_reaction(IonState& y, EhssRng& rng, double dt, const GlobalParams& gParams,
                      const std::unordered_map<std::string, Species>& speciesDB,
                      const std::vector<ReactionEntry>& reaction_list) {

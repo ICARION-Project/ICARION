@@ -67,6 +67,10 @@ struct Species {
 
 /**
  * @brief Load chemical species database from JSON file
+ * @deprecated Use config::SpeciesLoader instead (Phase 3 refactor, 2025-11-22)
+ * 
+ * This legacy function will be removed in Phase 3D after database unification.
+ * Use config::SpeciesLoader::load_species() for new code.
  * 
  * @param gParams Global simulation parameters (contains speciesDB_json path)
  * @param temperature_K Gas temperature [K] for mobility calculations
@@ -84,6 +88,9 @@ struct Species {
  * 
  * If mobility is not provided, it's calculated from CCS using Mason-Schamp equation.
  * If CCS is not provided, it's calculated from mobility.
+ * 
+ * @see src/core/config/loaders/SpeciesLoader.h
+ * @see src/core/config/types/SpeciesConfig.h
  */
 std::unordered_map<std::string, Species> load_speciesDB(
     const GlobalParams& gParams,
@@ -93,10 +100,17 @@ std::unordered_map<std::string, Species> load_speciesDB(
 
 /**
  * @brief Load ion-molecule reactions from JSON file
+ * @deprecated Use config::ReactionLoader instead (Phase 3 refactor, 2025-11-22)
+ * 
+ * This legacy function will be removed in Phase 3D after database unification.
+ * Use config::ReactionLoader::load_reactions() for new code.
  * 
  * @param gParams Global simulation parameters (contains reactions_json path)
  * 
  * @return Vector of reaction entries with rate constants and products
+ * 
+ * @see src/core/config/loaders/ReactionLoader.h
+ * @see src/core/config/types/ReactionConfig.h
  * 
  * Parses JSON file specified in gParams.reactions_json containing reaction definitions.
  * Each reaction entry includes:

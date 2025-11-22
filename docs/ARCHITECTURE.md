@@ -284,7 +284,7 @@ private:
 
 ### Design Overview
 
-The force system follows a **Strategy Pattern** with plugin architecture:
+The force system follows a **Strategy Pattern** with plugin architecture and **SSOT (Single Source of Truth)** principle:
 
 ```
          ┌──────────┐
@@ -305,6 +305,23 @@ The force system follows a **Strategy Pattern** with plugin architecture:
                  └───────────────┘
 ```
 
+### SSOT Principle (v1.0)
+
+**Forces store references to config, not copies:**
+
+```cpp
+// (v1.0): Direct config reference
+const config::MagneticFieldConfig& magnetic = domain.fields.magnetic;
+MagneticFieldForce force(magnetic);  // Reference to SSOT
+```
+
+**Benefits:**
+
+- No data duplication
+- Config changes automatically propagate
+- Cleaner interfaces
+- Type safety from config system
+
 ### IForce Interface
 
 ```cpp
@@ -314,7 +331,7 @@ namespace physics {
 /**
  * @brief Abstract interface for all force types
  * 
- * Forces are stateless functors that compute F(ion, t, context).
+ * Forces store const references to config (SSOT) and compute F(ion, t, context).
  * All physics happens in compute().
  */
 class IForce {
@@ -326,13 +343,18 @@ public:
      * 
      * @param ion Ion state (position, velocity, mass, charge)
      * @param t Current simulation time [s]
-     * @param ctx Additional context (ion ensemble, gas properties)
+     * @param ctx Additional context (ion ensemble, field provider)
      * @return Force vector [N]
      * 
      * Must be const (no mutation of force object).
      * Must be thread-safe if called from parallel context.
      */
     virtual Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const = 0;
+    
+    /**
+     * @brief Get force name for logging/debugging
+     */
+    virtual std::string name() const = 0;
 };
 
 } // namespace physics
@@ -345,13 +367,10 @@ Provides shared data for force computation (avoids duplicate lookups):
 
 ```cpp
 struct ForceContext {
-    const IFieldProvider* field_provider;       ///< Field evaluator (electric/magnetic)
-    const config::DomainConfig* domain;         ///< Simulation domain parameters
-    const std::vector<IonState>& all_ions;      ///< All ions (for space charge)
-    double temperature_K;                       ///< Gas temperature [K]
-    double pressure_Pa;                         ///< Gas pressure [Pa]
-    double particle_density_m3;                 ///< Neutral gas density [m⁻³]
-    Vec3 gas_velocity_ms;                       ///< Gas flow velocity [m/s]
+    const IFieldProvider* field_provider;       ///< Optional field evaluator override
+    const std::vector<IonState>* all_ions;      ///< All ions (for space charge)
+    
+    // Context is minimal - forces read from their stored config references
 };
 ```
 
@@ -407,35 +426,90 @@ private:
 
 Computes Lorentz electric force: **F = q·E**
 
-**Modes:**
-- **Analytical**: Instrument-specific field formulas (LQIT, IMS, TOF, Orbitrap, etc.)
-- **Field Provider**: Interpolated fields from grid data or Poisson solver
+**Constructor (SSOT):**
+
+```cpp
+// Analytical mode: reads from DomainConfig
+ElectricFieldForce(const config::DomainConfig& domain);
+
+// Field provider mode: uses external field evaluator
+ElectricFieldForce(std::shared_ptr<IFieldProvider> provider);
+```
+
+**Configuration Access:**
+
+```cpp
+// Reads directly from stored domain reference
+double voltage = domain_->fields.dc.axial_V;
+double radius = domain_->geometry.radius_m;
+Instrument instrument = domain_->instrument;
+```
 
 **Supported Instruments:**
+
 - LQIT (Linear Quadrupole Ion Trap)
 - IMS (Ion Mobility Spectrometry)
 - TOF (Time-of-Flight)
 - Orbitrap
 - QuadrupoleRF
 - FTICR (Fourier Transform ICR)
+- NoFixedInstrument (returns zero field)
 
 #### 2. MagneticFieldForce
 
 Computes Lorentz magnetic force: **F = q(v × B)**
 
+**Constructor (SSOT):**
+
+```cpp
+// Analytical mode: reads from MagneticFieldConfig
+MagneticFieldForce(const config::MagneticFieldConfig& magnetic);
+
+// Field provider mode
+MagneticFieldForce(std::shared_ptr<IFieldProvider> provider);
+```
+
+**Configuration Access:**
+
+```cpp
+// Reads directly from stored magnetic reference
+Vec3 B = magnetic_.field_strength_T;
+Vec3 gradient = magnetic_.field_gradient_T_m;
+bool enabled = magnetic_.enabled;
+```
+
 **Modes:**
-- Uniform field
-- Linear gradient
+
+- Uniform field: `B = const`
+- Linear gradient: `B(z) = B₀ + ∇B·z`
 - Field provider (interpolated)
 
 #### 3. DampingForce
 
 Computes deterministic collision damping: **F = -γ·m·v**
 
+**Constructor (SSOT):**
+
+```cpp
+DampingForce(const config::EnvironmentConfig& env, DampingModel model);
+```
+
+**Configuration Access:**
+
+```cpp
+// Reads directly from stored environment reference
+double pressure = env_.pressure_Pa;
+double temperature = env_.temperature_K;
+double density = env_.particle_density_m_3;
+double mass_gas = env_.gas_mass_kg;
+```
+
 **Models:**
-- **Friction**: Direct γ coefficient
+
+- **Friction**: Mobility-based, γ = q/(K₀·m)
 - **HSD**: Elastic collisions, γ = ν·(m_n/(m_i+m_n))
 - **Langevin**: Ion-induced dipole, enhanced cross-section
+- **None**: No damping
 
 ⚠️ **Note**: Stochastic kicks (thermal noise) are handled separately by CollisionEngine.
 
@@ -443,7 +517,14 @@ Computes deterministic collision damping: **F = -γ·m·v**
 
 Computes ion-ion Coulomb repulsion: **F = k_e·q₁·q₂·r̂/r²**
 
+**Constructor:**
+
+```cpp
+SpaceChargeForce();  // Stateless, reads from ForceContext
+```
+
 **Features:**
+
 - N-body direct summation (O(N²))
 - Self-interaction exclusion
 - Softening parameter to prevent divergence at r→0
@@ -1142,15 +1223,15 @@ Where:
 Given:
 
 - k₀ = 1.2e-28 [m⁶/s]
-- [H₂O] = 2.5e25 [m⁻³] (explicit)
+- [H₂O] = 2.5e19 [m⁻³] (explicit)
 - [He] = 2.5e25 [m⁻³] (buffer gas fallback)
 
 Result:
 
 ```text
-k_eff = 1.2e-28 × (2.5e25)¹ × (2.5e25)¹
-      = 1.2e-28 × 6.25e50
-      = 7.5e22 [s⁻¹]
+k_eff = 1.2e-28 × (2.5e19)¹ × (2.5e25)¹
+      = 1.2e-28 × 6.25e44
+      = 7.5e16 [s⁻¹]
 ```
 
 **Implementation:** See `StochasticReactionHandler::compute_effective_rate()`

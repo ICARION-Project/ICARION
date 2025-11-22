@@ -23,31 +23,50 @@ This guide provides practical instructions for extending ICARION with new featur
 
 ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement `IForce::compute()` and are managed by `ForceRegistry`.
 
+**Version History:**
+- **v1.0**: Forces used parameter structs (MagneticFieldParams, AnalyticalFieldParams, etc.)
+- **v1.1+**: Forces use **const config references** (SSOT pattern) - parameter structs deprecated
+
 ### Design Principle: Single Source of Truth (SSOT)
 
-**✅ CORRECT PATTERN**: Forces receive **const references** to config objects, NOT parameter structs.
+⚠️ **BREAKING CHANGE (v1.1)**: Forces now use **const config references**, not parameter structs.
 
-**❌ WRONG PATTERN**: Creating separate `YourForceParams` structs duplicates configuration data.
+**✅ MODERN (v1.1+)**: Forces receive **const references** to config objects
 
-**Why?** Parameter duplication violates SSOT and creates maintenance burden. Forces should read directly from `config::DomainConfig` or similar config structs.
+**❌ DEPRECATED (v1.0)**: Parameter structs duplicate configuration data
 
-**Example**:
+**Why SSOT?**
+
+- **No data duplication**: Config changes automatically propagate
+- **Type safety**: Use strongly-typed config structs
+- **Maintainability**: Single place to update parameters
+- **Performance**: No copying of config data
+
+**Migration Example (v1.0 → v1.1):**
+
 ```cpp
-// ✅ CORRECT: Direct config reference
-class ElectricFieldForce : public IForce {
-    ElectricFieldForce(const config::DomainConfig& domain);
-private:
-    const config::DomainConfig& domain_;  // Reference, not copy!
+// ❌ DEPRECATED (v1.0): Parameter struct pattern
+struct MagneticFieldParams {
+    Vec3 uniform_field_T;     // Duplicates config.fields.magnetic
+    Vec3 gradient_T_m;
+    bool enabled;
 };
 
-// ❌ WRONG: Parameter struct (duplicates config!)
-struct ElectricFieldParams { /* ... */ };
-class ElectricFieldForce : public IForce {
-    ElectricFieldForce(const ElectricFieldParams& params);
-private:
-    ElectricFieldParams params_;  // Duplication!
-};
+MagneticFieldParams params;
+params.uniform_field_T = {0, 0, 1.5};  // Manual copy!
+MagneticFieldForce force(params);
+
+// ✅ MODERN (v1.1+): Direct config reference (SSOT)
+config::DomainConfig domain = load_config("config.json");
+const auto& magnetic = domain.fields.magnetic;
+
+MagneticFieldForce force(magnetic);  // No copy, just reference!
+// Changes to domain.fields.magnetic are visible immediately
 ```
+
+**Key Difference:**
+- **v1.0**: `params.uniform_field_T` is a **copy** of config data
+- **v1.1**: `magnetic_.field_strength_T` is a **reference** to config data (SSOT)
 
 ---
 
@@ -202,18 +221,87 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 // ⚠️ domain must outlive registry!
 ```
 
-### Best Practices
+### Best Practices (v1.1+)
 
-✅ **Always provide parameter structs** (even if deprecated for legacy pattern)  
-✅ **Add deprecation warnings** to parameter structs pointing to SSOT violation  
-✅ **Write comprehensive unit tests** (aim for >90% coverage)  
-✅ **Document physics equations** in class docstrings  
-✅ **Use const correctness** (`compute()` must be const)  
-✅ **Check for NaN/Inf** in force output  
+✅ **DO:**
 
-❌ **Don't mutate ion state** in `compute()`  
-❌ **Don't store mutable state** in force objects  
-❌ **Don't allocate in hot loops** (pre-allocate in constructor)
+- **Use const config references**, not parameter structs
+- **Store references as members**: `const config::DomainConfig& domain_;`
+- **Read config on-demand**: `double V = domain_.fields.dc.axial_V;`
+- **Write comprehensive unit tests** (aim for >90% coverage)
+- **Document physics equations** in class docstrings
+- **Use const correctness** (`compute()` must be const)
+- **Check for NaN/Inf** in force output
+- **Validate config in constructor** (throw if invalid)
+
+❌ **DON'T:**
+
+- **Don't create parameter structs** (violates SSOT!)
+- **Don't copy config data** (use references!)
+- **Don't mutate ion state** in `compute()`
+- **Don't store mutable state** in force objects
+- **Don't allocate in hot loops** (pre-allocate in constructor)
+- **Don't use raw pointers** (use const references or shared_ptr)
+
+### Migration Guide (v1.0 → v1.1)
+
+If you have existing forces using parameter structs, migrate as follows:
+
+**Step 1: Update Constructor**
+
+```cpp
+// OLD (v1.0):
+YourForce(const YourForceParams& params)
+    : params_(params) {}  // Copy
+
+// NEW (v1.1):
+YourForce(const config::SomeConfig& config)
+    : config_(config) {}  // Reference
+```
+
+**Step 2: Update Member Variables**
+
+```cpp
+// OLD (v1.0):
+YourForceParams params_;  // Copy of data
+
+// NEW (v1.1):
+const config::SomeConfig& config_;  // Reference to SSOT
+```
+
+**Step 3: Update compute() Implementation**
+
+```cpp
+// OLD (v1.0):
+double value = params_.some_field;
+
+// NEW (v1.1):
+double value = config_.some_field;
+```
+
+**Step 4: Update Tests**
+
+```cpp
+// OLD (v1.0):
+YourForceParams params;
+params.some_field = 123.45;
+YourForce force(params);
+
+// NEW (v1.1):
+config::SomeConfig config;
+config.some_field = 123.45;
+YourForce force(config);  // config must outlive force!
+```
+
+**Step 5: Delete Parameter Struct**
+
+```cpp
+// DELETE this:
+struct YourForceParams {
+    double some_field;
+    // ... (all fields duplicate config!)
+};
+```
 
 ---
 

@@ -637,50 +637,214 @@ dv/dt = F(x, v, t) / m
 dx/dt = v
 ```
 
-### Integrator Interface
+### Integration Strategy Interface (Phase 4)
 
 ```cpp
-class IIntegrator {
+namespace ICARION::integrator {
+
+/**
+ * @brief Strategy pattern for numerical integration methods
+ * 
+ * Replaces legacy integrate_one_step() with modular, testable design.
+ * Uses ForceRegistry for force computation (SSOT-compliant).
+ */
+class IIntegrationStrategy {
 public:
-    virtual ~IIntegrator() = default;
+    virtual ~IIntegrationStrategy() = default;
     
     /**
-     * @brief Advance ion state by one time step
+     * @brief Fixed-step integration
      * 
-     * @param ion Current ion state (updated in-place)
-     * @param force_registry Forces to compute F(ion, t)
-     * @param dt Time step [s]
+     * @param ion Ion state (updated in-place)
      * @param t Current time [s]
+     * @param dt Time step [s]
+     * @param force_registry Force computation engine
+     * @param domain Domain configuration (fields, boundaries)
+     * @param all_ions All ions in ensemble (for space charge)
      */
     virtual void step(
         IonState& ion,
-        const ForceRegistry& force_registry,
+        double t,
         double dt,
-        double t
+        const physics::ForceRegistry& force_registry,
+        const config::DomainConfig& domain,
+        const std::vector<IonState>& all_ions
     ) = 0;
+    
+    /**
+     * @brief Adaptive-step integration (optional)
+     * 
+     * @param dt_inout Input: current dt, Output: suggested next dt
+     * 
+     * Default: calls step() and ignores dt adjustment
+     * RK45: uses error control for adaptive stepping
+     */
+    virtual void step_adaptive(
+        IonState& ion,
+        double t,
+        double& dt_inout,
+        const physics::ForceRegistry& force_registry,
+        const config::DomainConfig& domain,
+        const std::vector<IonState>& all_ions
+    );
+    
+    virtual std::string name() const = 0;
 };
+
+} // namespace ICARION::integrator
 ```
 
-### Implemented Integrators
+### Implemented Strategies (Phase 4A/4B)
 
-1. **RK4Integrator**: 4th-order Runge-Kutta (fixed step)
-2. **VerletIntegrator**: Velocity Verlet (symplectic)
-3. **AdaptiveRK45**: Runge-Kutta-Fehlberg (adaptive step)
+#### 1. RK4Strategy
+- **Order:** 4th-order accurate
+- **Type:** Fixed timestep
+- **Use Case:** General-purpose integration
+- **Cost:** 4 force evaluations per step
+- **File:** `src/core/integrator/strategies/RK4Strategy.{h,cpp}`
 
-### Integration Loop
+**Algorithm:**
+```
+k1 = f(t, y)
+k2 = f(t + dt/2, y + dt*k1/2)
+k3 = f(t + dt/2, y + dt*k2/2)
+k4 = f(t + dt, y + dt*k3)
+y_new = y + dt*(k1 + 2*k2 + 2*k3 + k4)/6
+```
+
+#### 2. RK45Strategy (Dormand-Prince)
+- **Order:** 5th-order accurate (4th-order error control)
+- **Type:** Adaptive timestep with error control
+- **Use Case:** High-accuracy simulations with varying dynamics
+- **Cost:** 6 force evaluations per step (FSAL optimization)
+- **File:** `src/core/integrator/strategies/RK45Strategy.{h,cpp}`
+
+**Features:**
+- Embedded Runge-Kutta 5(4) (Dormand-Prince coefficients)
+- FSAL (First Same As Last) optimization
+- PI controller for timestep adaptation
+- Configurable tolerances (atol, rtol) via `simulation.rk45_settings`
+- Automatic step rejection when error > tolerance
+
+**Configuration (SSOT):**
+```json
+{
+  "simulation": {
+    "integrator": "RK45",
+    "rk45_settings": {
+      "abs_tol": 1e-14,
+      "rel_tol": 1e-12,
+      "dt_min": 1e-12,
+      "safety": 0.84,
+      "min_factor": 0.2,
+      "max_factor": 5.0
+    }
+  }
+}
+```
+
+#### 3. BorisStrategy
+- **Order:** 2nd-order accurate
+- **Type:** Symplectic (energy-conserving)
+- **Use Case:** Charged particles in strong electromagnetic fields
+- **Cost:** 1 force evaluation per step
+- **File:** `src/core/integrator/strategies/BorisStrategy.{h,cpp}`
+
+**Algorithm (Boris Pusher):**
+```
+1. v^- = v^n + (q/m)*E*(dt/2)          [Electric half-step]
+2. t = (q/m)*B*(dt/2)                  [Rotation parameter]
+3. s = 2*t / (1 + |t|^2)               [Scaled rotation]
+4. v' = v^- + v^- × t                  [First rotation]
+5. v^+ = v^- + v' × s                  [Second rotation]
+6. x^(n+1) = x^n + v^+*dt              [Position update]
+7. v^(n+1) = v^+ + (q/m)*E*(dt/2)      [Electric half-step]
+```
+
+**Properties:**
+- Time-reversible
+- Preserves phase-space volume (symplectic)
+- No small-angle approximation (valid for all B)
+- Optimal for cyclotron motion (no accumulation errors)
+
+### Factory Pattern (IntegrationStrategyFactory)
 
 ```cpp
-void simulate_trajectory(
+namespace ICARION::integrator {
+
+class IntegrationStrategyFactory {
+public:
+    /**
+     * @brief Create integration strategy from name
+     * 
+     * @param strategy_name "RK4", "RK45", or "Boris"
+     * @return Unique pointer to strategy instance
+     * @throws std::invalid_argument if unknown strategy
+     */
+    static std::unique_ptr<IIntegrationStrategy> 
+    create(const std::string& strategy_name);
+    
+    /**
+     * @brief Get list of supported strategies
+     */
+    static std::vector<std::string> supported_strategies();
+};
+
+} // namespace ICARION::integrator
+```
+
+**Example Usage:**
+```cpp
+// Create from config
+std::string method = config.simulation.integrator;  // "RK45"
+auto strategy = IntegrationStrategyFactory::create(method);
+
+// Fixed-step integration
+strategy->step(ion, t, dt, force_registry, domain, all_ions);
+
+// Adaptive integration (RK45)
+double dt_adaptive = dt;
+strategy->step_adaptive(ion, t, dt_adaptive, force_registry, domain, all_ions);
+// dt_adaptive now contains suggested next timestep
+```
+
+### Integration Loop Examples
+
+**Fixed-Step (RK4):**
+```cpp
+void simulate_trajectory_fixed(
     IonState& ion,
     const ForceRegistry& forces,
-    IIntegrator& integrator,
+    IIntegrationStrategy& strategy,
     double t_max,
     double dt
 ) {
     double t = 0.0;
     while (t < t_max) {
-        integrator.step(ion, forces, dt, t);
+        strategy.step(ion, t, dt, forces, domain, all_ions);
         t += dt;
+        save_output(ion, t);
+    }
+}
+```
+
+**Adaptive-Step (RK45):**
+```cpp
+void simulate_trajectory_adaptive(
+    IonState& ion,
+    const ForceRegistry& forces,
+    IIntegrationStrategy& strategy,
+    double t_max,
+    double dt_initial
+) {
+    double t = 0.0;
+    double dt = dt_initial;
+    
+    while (t < t_max) {
+        double dt_step = std::min(dt, t_max - t);  // Don't overshoot
+        strategy.step_adaptive(ion, t, dt_step, forces, domain, all_ions);
+        t += dt_step;
+        dt = dt_step;  // Use suggested dt for next step
         save_output(ion, t);
     }
 }

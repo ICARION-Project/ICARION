@@ -759,18 +759,18 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 
 ### In Progress
 
-1. **Integrator SSOT Migration** (Steps 5-8, approximately 3.5h remaining):
-   - Migrate compute_accelerations() to use DomainConfig
-   - Migrate integrate_one_step() to use FullConfig
-   - Migrate integrate_trajectory() to remove GlobalParams
-   - Remove LegacyAdapter from main.cpp
-   - Status: See tmp/REMAINING_SSOT_MIGRATION_WORK.md
-
-2. **Reaction System Database Unification** (Phase 3D, approximately 4-6h):
+1. **Reaction System Database Unification** (Phase 3D, approximately 4-6h):
    - Unify species types (remove ICARION::io::Species, reactionUtils::Species)
    - Wire reaction_handler directly into integrator
    - Delete legacy reaction loading code
    - Blocker: Type mismatch between species databases
+
+2. **SimulationEngine Integration** (Phase 5A, approximately 12h):
+   - Main simulation loop using integration strategies
+   - Orchestration of ForceRegistry + CollisionHandler + ReactionHandler
+   - Boundary condition handling
+   - Output management (HDF5Writer v2)
+   - Status: Ready to start (Phase 4 complete)
 
 ### Planned
 
@@ -794,9 +794,30 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 
 ### Completed
 
-- Force System SSOT (Phase 1, Steps 1-4 complete)
-- Collision System SSOT (Phase 2C complete)
-- Reaction System Handlers (Phase 3C complete)
+- **Force System SSOT** (Phase 1, Steps 1-4 complete)
+  - IForce interface with ForceRegistry
+  - ElectricFieldForce, MagneticFieldForce, DampingForce, SpaceChargeForce
+  - Full unit test coverage (27/27 tests passing)
+
+- **Collision System SSOT** (Phase 2C complete)
+  - ICollisionHandler interface with factory
+  - EHSS, HSS, OU collision handlers
+  - Energy conservation validation
+
+- **Reaction System Handlers** (Phase 3C complete)
+  - IReactionHandler interface with factory
+  - StochasticReactionHandler implementation
+  - Database-driven reaction loading
+
+- **Integration Strategies** (Phase 4A/4B complete, November 2025)
+  - IIntegrationStrategy interface
+  - RK4Strategy (4th-order Runge-Kutta, fixed-step)
+  - RK45Strategy (Dormand-Prince 5(4), adaptive timestep with FSAL)
+  - BorisStrategy (symplectic pusher for electromagnetic fields)
+  - IntegrationStrategyFactory for runtime selection
+  - Comprehensive test suites (27/27 tests passing, 100%)
+  - SSOT-compliant (uses DomainConfig, ForceRegistry)
+  - Files: `src/core/integrator/strategies/*`
 
 ---
 

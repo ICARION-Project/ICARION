@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "DampingForce.h"
+#include "core/config/types/EnvironmentConfig.h"
 #include "utils/constants.h"
 
 #include <cmath>
@@ -14,8 +15,8 @@ namespace physics {
 // Constructor
 // ============================================================================
 
-DampingForce::DampingForce(const DampingParams& params)
-    : params_(params)
+DampingForce::DampingForce(const ICARION::config::EnvironmentConfig& env, DampingModel model)
+    : env_(&env), model_(model)
 {
     // No validation - all params can be zero (disabled force)
 }
@@ -27,7 +28,7 @@ DampingForce::DampingForce(const DampingParams& params)
 Vec3 DampingForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
     (void)t;  // Time-independent (deterministic damping)
     
-    if (params_.model == DampingModel::None) {
+    if (model_ == DampingModel::None) {
         return Vec3{0.0, 0.0, 0.0};
     }
     
@@ -44,7 +45,7 @@ Vec3 DampingForce::compute(const IonState& ion, double t, const ForceContext& ct
 }
 
 std::string DampingForce::name() const {
-    switch (params_.model) {
+    switch (model_) {
         case DampingModel::HardSphere: return "Damping(HardSphere)";
         case DampingModel::Langevin:   return "Damping(Langevin)";
         case DampingModel::Friction:   return "Damping(Friction)";
@@ -57,35 +58,24 @@ std::string DampingForce::name() const {
 // ============================================================================
 
 double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ctx) const {
-    // If explicit gamma provided, use it directly
-    if (params_.gamma_coefficient > 0.0) {
-        return params_.gamma_coefficient;
-    }
+    (void)ctx;  // SSOT: Read from env_ config directly
     
-    // Extract gas properties from context (domain environment)
-    const double gas_density = params_.gas_density_m3 > 0.0 
-                             ? params_.gas_density_m3 
-                             : ctx.gas_density_m3;
-    
-    const double v_th = params_.mean_thermal_velocity_m_s > 0.0
-                      ? params_.mean_thermal_velocity_m_s
-                      : ctx.mean_thermal_velocity_m_s;
-    
-    const double m_neutral = params_.neutral_mass_kg > 0.0
-                           ? params_.neutral_mass_kg
-                           : ctx.neutral_mass_kg;
+    // SSOT: Read gas properties from config
+    const double gas_density = env_->particle_density_m_3;
+    const double v_th = env_->mean_thermal_velocity_m_s;
+    const double m_neutral = env_->gas_mass_kg;
     
     // ========================================================================
     // Model-specific damping coefficient calculation
     // ========================================================================
     
-    switch (params_.model) {
+    switch (model_) {
         case DampingModel::HardSphere: {
             // Hard-sphere collision frequency:
             // γ = ν_collision = n·σ·v_th·(m_i/(m_n+m_i))
             // Note: Legacy uses m_i in numerator (ion mass factor)
             
-            const double CCS = params_.CCS_m2 > 0.0 ? params_.CCS_m2 : ion.CCS_m2;
+            const double CCS = ion.CCS_m2;
             const double m_ion = ion.mass_kg;
             
             if (CCS <= 0.0 || gas_density <= 0.0 || v_th <= 0.0 || m_neutral <= 0.0) {
@@ -104,9 +94,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             // γ = ν_Langevin = n·σ_L(v)·v_th·m_reduced/m_ion
             // where σ_L = π·q·√(α/(4πε₀·m_reduced))/|v|
             
-            const double alpha = params_.neutral_polarizability_m3 > 0.0
-                               ? params_.neutral_polarizability_m3
-                               : ctx.neutral_polarizability_m3;
+            const double alpha = env_->gas_polarizability_m3;
             
             const double m_ion = ion.mass_kg;
             const double q = ion.ion_charge_C;
@@ -136,9 +124,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             // Mobility-based friction:
             // γ = q/(K₀·m_ion) where K₀ = reduced mobility
             
-            const double K0_cm2_Vs = params_.reduced_mobility_cm2_Vs > 0.0
-                                   ? params_.reduced_mobility_cm2_Vs
-                                   : ion.reduced_mobility_cm2_Vs;
+            const double K0_cm2_Vs = ion.reduced_mobility_cm2_Vs;
             
             const double m_ion = ion.mass_kg;
             const double q = ion.ion_charge_C;

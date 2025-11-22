@@ -310,7 +310,7 @@ The force system follows a **Strategy Pattern** with plugin architecture and **S
 **Forces store references to config, not copies:**
 
 ```cpp
-// (v1.0): Direct config reference
+// ✅ MODERN (v1.0): Direct config reference
 const config::MagneticFieldConfig& magnetic = domain.fields.magnetic;
 MagneticFieldForce force(magnetic);  // Reference to SSOT
 ```

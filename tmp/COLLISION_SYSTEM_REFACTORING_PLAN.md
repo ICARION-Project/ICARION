@@ -44,7 +44,7 @@ All components implemented and tested:
 |-------|---------------|---------------|
 | **Friction** | `DampingForce` (mobility-based) | Optional: + OU |
 | **Langevin** | `DampingForce` (velocity-dependent) | Optional: + OU |
-| **HardSphere/HSD** | `DampingForce` (collision frequency) | Optional: + OU |
+| **HSD** | `DampingForce` (collision frequency) | Optional: + OU |
 
 **→ Already implemented in `src/core/physics/forces/DampingForce.h`!** ✅
 
@@ -84,7 +84,7 @@ Force System:
   └─ DampingForce (already implemented!)
        ├─ Friction model
        ├─ Langevin model
-       └─ HardSphere model
+       └─ HSD model
 
 Collision System (NEW):
   └─ ICollisionHandler (interface)
@@ -180,7 +180,7 @@ tests/physics/collisions/
 
 **Tasks:**
 1. ✅ Add deprecation warnings to `defineCollisionForces.{h,cpp}`
-2. ✅ Document that HardSphere/Langevin/Friction are duplicated in `DampingForce`
+2. ✅ Document that HSD/Langevin/Friction are duplicated in `DampingForce`
 3. ✅ Add deprecation warning to `compute_accelerations()` 
 4. ✅ Explain migration path: `compute_accelerations()` → `ForceRegistry`
 5. ✅ Verify build still works

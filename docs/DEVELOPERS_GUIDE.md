@@ -24,16 +24,16 @@ This guide provides practical instructions for extending ICARION with new featur
 ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement `IForce::compute()` and are managed by `ForceRegistry`.
 
 **Version History:**
-- **v1.0**: Forces used parameter structs (MagneticFieldParams, AnalyticalFieldParams, etc.)
-- **v1.1+**: Forces use **const config references** (SSOT pattern) - parameter structs deprecated
+- **Pre-v1.0**: Forces used parameter structs (MagneticFieldParams, AnalyticalFieldParams, etc.) - DEPRECATED
+- **v1.0+**: Forces use **const config references** (SSOT pattern)
 
 ### Design Principle: Single Source of Truth (SSOT)
 
-⚠️ **BREAKING CHANGE (v1.1)**: Forces now use **const config references**, not parameter structs.
+⚠️ **IMPORTANT (v1.0)**: Forces now use **const config references**, not parameter structs.
 
-**✅ MODERN (v1.1+)**: Forces receive **const references** to config objects
+**✅ MODERN (v1.0)**: Forces receive **const references** to config objects
 
-**❌ DEPRECATED (v1.0)**: Parameter structs duplicate configuration data
+**❌ DEPRECATED (Pre-v1.0)**: Parameter structs duplicate configuration data
 
 **Why SSOT?**
 
@@ -42,10 +42,10 @@ ICARION's force system follows a plugin architecture using the **IForce interfac
 - **Maintainability**: Single place to update parameters
 - **Performance**: No copying of config data
 
-**Migration Example (v1.0 → v1.1):**
+**Migration Example (Pre-v1.0 → v1.0):**
 
 ```cpp
-// ❌ DEPRECATED (v1.0): Parameter struct pattern
+// ❌ DEPRECATED (Pre-v1.0): Parameter struct pattern
 struct MagneticFieldParams {
     Vec3 uniform_field_T;     // Duplicates config.fields.magnetic
     Vec3 gradient_T_m;
@@ -56,7 +56,7 @@ MagneticFieldParams params;
 params.uniform_field_T = {0, 0, 1.5};  // Manual copy!
 MagneticFieldForce force(params);
 
-// ✅ MODERN (v1.1+): Direct config reference (SSOT)
+// ✅ MODERN (v1.0): Direct config reference (SSOT)
 config::DomainConfig domain = load_config("config.json");
 const auto& magnetic = domain.fields.magnetic;
 
@@ -65,8 +65,8 @@ MagneticFieldForce force(magnetic);  // No copy, just reference!
 ```
 
 **Key Difference:**
-- **v1.0**: `params.uniform_field_T` is a **copy** of config data
-- **v1.1**: `magnetic_.field_strength_T` is a **reference** to config data (SSOT)
+- **Pre-v1.0**: `params.uniform_field_T` is a **copy** of config data
+- **v1.0**: `magnetic_.field_strength_T` is a **reference** to config data (SSOT)
 
 ---
 
@@ -221,7 +221,7 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 // ⚠️ domain must outlive registry!
 ```
 
-### Best Practices (v1.1+)
+### Best Practices (v1.0)
 
 ✅ **DO:**
 
@@ -243,18 +243,18 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 - **Don't allocate in hot loops** (pre-allocate in constructor)
 - **Don't use raw pointers** (use const references or shared_ptr)
 
-### Migration Guide (v1.0 → v1.1)
+### Migration Guide (Pre-v1.0 → v1.0)
 
 If you have existing forces using parameter structs, migrate as follows:
 
 **Step 1: Update Constructor**
 
 ```cpp
-// OLD (v1.0):
+// OLD (Pre-v1.0):
 YourForce(const YourForceParams& params)
     : params_(params) {}  // Copy
 
-// NEW (v1.1):
+// NEW (v1.0):
 YourForce(const config::SomeConfig& config)
     : config_(config) {}  // Reference
 ```
@@ -262,32 +262,32 @@ YourForce(const config::SomeConfig& config)
 **Step 2: Update Member Variables**
 
 ```cpp
-// OLD (v1.0):
+// OLD (Pre-v1.0):
 YourForceParams params_;  // Copy of data
 
-// NEW (v1.1):
+// NEW (v1.0):
 const config::SomeConfig& config_;  // Reference to SSOT
 ```
 
 **Step 3: Update compute() Implementation**
 
 ```cpp
-// OLD (v1.0):
+// OLD (Pre-v1.0):
 double value = params_.some_field;
 
-// NEW (v1.1):
+// NEW (v1.0):
 double value = config_.some_field;
 ```
 
 **Step 4: Update Tests**
 
 ```cpp
-// OLD (v1.0):
+// OLD (Pre-v1.0):
 YourForceParams params;
 params.some_field = 123.45;
 YourForce force(params);
 
-// NEW (v1.1):
+// NEW (v1.0):
 config::SomeConfig config;
 config.some_field = 123.45;
 YourForce force(config);  // config must outlive force!

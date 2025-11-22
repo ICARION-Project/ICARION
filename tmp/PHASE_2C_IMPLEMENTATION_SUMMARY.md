@@ -40,7 +40,7 @@
 ### 4. OUCollisionHandler (`OUCollisionHandler.{h,cpp}`)
 - **Physics:** Ornstein-Uhlenbeck thermal velocity kicks
 - **Purpose:** Maintains thermal equilibrium for deterministic damping models
-- **Valid With:** Friction, Langevin, HardSphere (deterministic damping)
+- **Valid With:** Friction, Langevin, HSD (deterministic damping)
 - **Invalid With:** EHSS, HSS (already have thermal scattering)
 - **Implementation:**
   - Stores gamma coefficient (must match DampingForce!)
@@ -56,7 +56,7 @@
       result.add_error(
           "enable_ou_thermalization cannot be true when using stochastic "
           "collision models (HSS or EHSS). OU is only compatible with "
-          "deterministic damping models (Friction, Langevin, HardSphere)."
+          "deterministic damping models (Friction, Langevin, HSD)."
       );
   }
   ```
@@ -82,7 +82,7 @@ cd /home/chsch95/ICARION/build && make -j$(nproc)
 === VALIDATION ERRORS ===
   [ERROR] enable_ou_thermalization cannot be true when using stochastic 
           collision models (HSS or EHSS). OU is only compatible with 
-          deterministic damping models (Friction, Langevin, HardSphere).
+          deterministic damping models (Friction, Langevin, HSD).
 [main] [error] Fatal error: Configuration validation failed
 ```
 ✅ **Pass:** Error caught before simulation starts

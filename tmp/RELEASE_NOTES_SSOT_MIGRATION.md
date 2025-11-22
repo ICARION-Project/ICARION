@@ -1,4 +1,4 @@
-# ICARION v1.1 - Force System SSOT Migration
+# ICARION v1.0 - Force System SSOT Migration
 
 **Release Date:** TBD  
 **Breaking Changes:** YES  
@@ -8,7 +8,7 @@
 
 ## 🎯 Overview
 
-ICARION v1.1 migrates the Force System to follow the **Single Source of Truth (SSOT)** principle. Forces now read directly from config references instead of copying data into parameter structs.
+ICARION v1.0 implements the Force System following the **Single Source of Truth (SSOT)** principle. Forces now read directly from config references instead of copying data into parameter structs.
 
 **Key Changes:**
 - ✅ Parameter structs deleted (~200 lines of duplication removed)
@@ -25,7 +25,7 @@ ICARION v1.1 migrates the Force System to follow the **Single Source of Truth (S
 #### MagneticFieldForce
 
 ```cpp
-// ❌ OLD (v1.0 - REMOVED):
+// ❌ OLD (Pre-v1.0 - REMOVED):
 #include "core/physics/forces/MagneticFieldParams.h"
 
 MagneticFieldParams params;
@@ -35,7 +35,7 @@ params.enabled = true;
 
 MagneticFieldForce force(params);
 
-// ✅ NEW (v1.1):
+// NEW (v1.0):
 #include "core/config/types/DomainConfig.h"
 
 const config::MagneticFieldConfig& magnetic = domain.fields.magnetic;
@@ -45,7 +45,7 @@ MagneticFieldForce force(magnetic);
 #### ElectricFieldForce
 
 ```cpp
-// ❌ OLD (v1.0 - REMOVED):
+// ❌ OLD (Pre-v1.0 - REMOVED):
 #include "core/physics/forces/AnalyticalFieldParams.h"
 
 AnalyticalFieldParams params;
@@ -55,7 +55,7 @@ params.length_m = 0.1;
 
 ElectricFieldForce force(params);
 
-// ✅ NEW (v1.1):
+// NEW (v1.0):
 #include "core/config/types/DomainConfig.h"
 
 const config::DomainConfig& domain = ...; // From config loader
@@ -65,7 +65,7 @@ ElectricFieldForce force(domain);
 #### DampingForce
 
 ```cpp
-// ❌ OLD (v1.0 - REMOVED):
+// ❌ OLD (Pre-v1.0 - REMOVED):
 #include "core/physics/forces/DampingParams.h"
 
 DampingParams params;
@@ -73,13 +73,13 @@ params.pressure_Pa = 101325.0;
 params.temperature_K = 300.0;
 params.gas_mass_kg = 28.0 * AMU_TO_KG;
 
-DampingForce force(params, DampingModel::HardSphere);
+DampingForce force(params, DampingModel::HSD);
 
-// ✅ NEW (v1.1):
+// NEW (v1.0):
 #include "core/config/types/EnvironmentConfig.h"
 
 const config::EnvironmentConfig& env = domain.environment;
-DampingForce force(env, DampingModel::HardSphere);
+DampingForce force(env, DampingModel::HSD);
 ```
 
 ### 2. Deleted Files
@@ -93,143 +93,6 @@ src/core/physics/forces/DampingParams.h           (DELETED)
 ```
 
 If your code includes these headers, **compilation will fail**.
-
----
-
-## 📦 Migration Guide
-
-### Step 1: Update Includes
-
-Replace parameter struct includes with config includes:
-
-```cpp
-// ❌ Remove these:
-#include "core/physics/forces/MagneticFieldParams.h"
-#include "core/physics/forces/AnalyticalFieldParams.h"
-#include "core/physics/forces/DampingParams.h"
-
-// ✅ Add these:
-#include "core/config/types/DomainConfig.h"
-#include "core/config/types/EnvironmentConfig.h"
-#include "core/config/types/FieldsConfig.h"
-```
-
-### Step 2: Load Config (if not already done)
-
-```cpp
-#include "core/config/loader/ConfigLoader.h"
-
-// Load full config from JSON
-config::FullConfig full_config = config::load_config("config.json");
-
-// Access domain config
-const auto& domain = full_config.domains[0];
-```
-
-### Step 3: Update Force Construction
-
-```cpp
-// Create force registry
-ForceRegistry registry;
-
-// ✅ Pass config references (not parameter structs!)
-registry.add_force(std::make_unique<ElectricFieldForce>(domain));
-registry.add_force(std::make_unique<MagneticFieldForce>(domain.fields.magnetic));
-registry.add_force(std::make_unique<DampingForce>(domain.environment, DampingModel::Friction));
-```
-
-### Step 4: Ensure Config Lifetime
-
-⚠️ **CRITICAL**: Config objects **must outlive** force objects!
-
-```cpp
-// ✅ CORRECT: config outlives forces
-{
-    config::DomainConfig domain = load_config(...);
-    
-    ForceRegistry registry;
-    registry.add_force(std::make_unique<ElectricFieldForce>(domain));
-    
-    // ... use registry ...
-    
-} // domain destructs AFTER registry
-
-// ❌ WRONG: config destructs before forces!
-{
-    ForceRegistry registry;
-    
-    {
-        config::DomainConfig domain = load_config(...);
-        registry.add_force(std::make_unique<ElectricFieldForce>(domain));
-    } // domain destructs HERE - forces now have dangling references!
-    
-    // ... use registry ... ⚠️ UNDEFINED BEHAVIOR!
-}
-```
-
-### Step 5: Update Tests
-
-Replace parameter struct setup with config setup:
-
-```cpp
-// ❌ OLD (v1.0):
-TEST_CASE("MyForceTest") {
-    MagneticFieldParams params;
-    params.uniform_field_T = Vec3{0, 0, 1.0};
-    MagneticFieldForce force(params);
-    // ...
-}
-
-// ✅ NEW (v1.1):
-TEST_CASE("MyForceTest") {
-    config::DomainConfig domain;
-    domain.fields.magnetic.field_strength_T = Vec3{0, 0, 1.0};
-    domain.fields.magnetic.enabled = true;
-    
-    MagneticFieldForce force(domain.fields.magnetic);
-    // ...
-}
-```
-
----
-
-## ✅ Benefits of SSOT Migration
-
-### Before (v1.0): Parameter Duplication
-
-```cpp
-// Config (SSOT)
-domain.fields.dc.axial_V = 1000.0;
-domain.geometry.length_m = 0.1;
-
-// Force parameters (DUPLICATE!)
-AnalyticalFieldParams params;
-params.dc_axial_voltage_V = 1000.0;  // ❌ Copied from config!
-params.length_m = 0.1;               // ❌ Copied from config!
-
-// Problem: Two sources of truth, must keep in sync!
-```
-
-### After (v1.1): Single Source of Truth
-
-```cpp
-// Config (SSOT)
-domain.fields.dc.axial_V = 1000.0;
-domain.geometry.length_m = 0.1;
-
-// Force (reference)
-ElectricFieldForce force(domain);  // ✅ References config directly!
-
-// Benefit: One source of truth, always in sync!
-```
-
-### Advantages
-
-1. **No duplication**: ~200 lines of parameter code deleted
-2. **Type safety**: Use strongly-typed config structs
-3. **Automatic propagation**: Config changes visible immediately
-4. **Cleaner code**: Fewer includes, simpler constructors
-5. **Better maintainability**: Update config in one place
 
 ---
 
@@ -261,7 +124,7 @@ ctest -R "Force"
 
 ## 🔍 Example: Complete Migration
 
-**Before (v1.0):**
+**Before (Pre-v1.0):**
 
 ```cpp
 #include "core/physics/forces/MagneticFieldParams.h"
@@ -287,10 +150,10 @@ damp_params.gas_mass_kg = 28.0 * AMU_TO_KG;
 ForceRegistry registry;
 registry.add_force(std::make_unique<MagneticFieldForce>(mag_params));
 registry.add_force(std::make_unique<ElectricFieldForce>(field_params));
-registry.add_force(std::make_unique<DampingForce>(damp_params, DampingModel::HardSphere));
+registry.add_force(std::make_unique<DampingForce>(damp_params, DampingModel::HSD));
 ```
 
-**After (v1.1):**
+**After (v1.0):**
 
 ```cpp
 #include "core/config/loader/ConfigLoader.h"
@@ -402,4 +265,4 @@ If you encounter issues during migration:
 ---
 
 **Last Updated:** 2025-11-22  
-**Applies to:** ICARION v1.1+
+**Applies to:** ICARION v1.0

@@ -317,7 +317,7 @@ grep -r "DampingParams" src/
    - API-Änderungen dokumentieren
    - Breaking Changes auflisten
 
-4. **`RELEASE_NOTES_v1.1.md` (neu):**
+4. **`RELEASE_NOTES_SSOT_MIGRATION.md` (neu):
    - Migration Guide schreiben
    - Breaking Changes auflisten
    - Code-Beispiele (alt vs. neu)

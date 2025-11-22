@@ -32,7 +32,7 @@ ReactionDatabase create_test_reaction_db() {
     rxn1.id = "rxn_h3o_to_nh4";
     rxn1.reactant = "H3O+";
     rxn1.product = "NH4+";
-    rxn1.rate_constant_m3s = 2.0e-9;  // [m³/s]
+    rxn1.rate_constant = 2.0e-9;  // [m³/s]
     
     ReactionOrderTerm term1;
     term1.species = "NH3";
@@ -47,7 +47,7 @@ ReactionDatabase create_test_reaction_db() {
     rxn2.id = "rxn_h3o_to_h5o2";
     rxn2.reactant = "H3O+";
     rxn2.product = "H5O2+";
-    rxn2.rate_constant_m3s = 1.2e-28;  // [m⁶/s]
+    rxn2.rate_constant = 1.2e-28;  // [m⁶/s]
     
     ReactionOrderTerm term2a;
     term2a.species = "H2O";
@@ -69,7 +69,7 @@ ReactionDatabase create_test_reaction_db() {
     rxn3.id = "rxn_nh4_to_h3o";
     rxn3.reactant = "NH4+";
     rxn3.product = "H3O+";
-    rxn3.rate_constant_m3s = 1.0e-10;
+    rxn3.rate_constant = 1.0e-10;
     
     ReactionOrderTerm term3;
     term3.species = "H2O";
@@ -394,14 +394,14 @@ TEST_CASE("StochasticReactionHandler handles competing channels correctly", "[re
     rxn_A.id = "rxn_A";
     rxn_A.reactant = "Ion+";
     rxn_A.product = "ProductA+";
-    rxn_A.rate_constant_m3s = 1e10;  // 10% of total
+    rxn_A.rate_constant = 1e10;  // 10% of total
     rxn_A.order_terms = {};  // Zero-order (constant rate)
     
     Reaction rxn_B;
     rxn_B.id = "rxn_B";
     rxn_B.reactant = "Ion+";
     rxn_B.product = "ProductB+";
-    rxn_B.rate_constant_m3s = 9e10;  // 90% of total
+    rxn_B.rate_constant = 9e10;  // 90% of total
     rxn_B.order_terms = {};  // Zero-order (constant rate)
     
     reaction_db.reactions = {rxn_A, rxn_B};
@@ -519,7 +519,7 @@ TEST_CASE("StochasticReactionHandler handles very large k_eff", "[reactions][han
     rxn.id = "fast_rxn";
     rxn.reactant = "Ion+";
     rxn.product = "Product+";
-    rxn.rate_constant_m3s = 1e20;  // Extremely large! P = 1 - exp(-1e20 * dt) ≈ 1
+    rxn.rate_constant = 1e20;  // Extremely large! P = 1 - exp(-1e20 * dt) ≈ 1
     rxn.order_terms = {};
     reaction_db.reactions = {rxn};
     
@@ -573,7 +573,7 @@ TEST_CASE("StochasticReactionHandler handles very small k_eff", "[reactions][han
     rxn.id = "slow_rxn";
     rxn.reactant = "Ion+";
     rxn.product = "Product+";
-    rxn.rate_constant_m3s = 1e-20;  // Extremely small! P = 1 - exp(-1e-20 * dt) ≈ 1e-20 * dt
+    rxn.rate_constant = 1e-20;  // Extremely small! P = 1 - exp(-1e-20 * dt) ≈ 1e-20 * dt
     rxn.order_terms = {};
     reaction_db.reactions = {rxn};
     
@@ -627,7 +627,7 @@ TEST_CASE("StochasticReactionHandler early exit for k_total < 1e-60", "[reaction
     rxn.id = "negligible_rxn";
     rxn.reactant = "Ion+";
     rxn.product = "Product+";
-    rxn.rate_constant_m3s = 1e-65;  // k_total = 1e-65 < 1e-60 → early exit!
+    rxn.rate_constant = 1e-65;  // k_total = 1e-65 < 1e-60 → early exit!
     rxn.order_terms = {};
     reaction_db.reactions = {rxn};
     
@@ -678,7 +678,7 @@ TEST_CASE("StochasticReactionHandler numerical safety for k*dt > 50", "[reaction
     rxn.id = "certain_rxn";
     rxn.reactant = "Ion+";
     rxn.product = "Product+";
-    rxn.rate_constant_m3s = 1e10;  // k_total = 1e10 s⁻¹
+    rxn.rate_constant = 1e10;  // k_total = 1e10 s⁻¹
     rxn.order_terms = {};
     reaction_db.reactions = {rxn};
     
@@ -734,7 +734,7 @@ TEST_CASE("StochasticReactionHandler: Arrhenius temperature dependence", "[react
     rxn.reactant = "Ion+";
     rxn.product = "Product+";
     rxn.rate_model = RateModel::Arrhenius;
-    rxn.rate_constant_m3s = 1.0e-9;      // A [m³/s]
+    rxn.rate_constant = 1.0e-9;      // A [m³/s]
     rxn.activation_energy_eV = 0.1;      // Eₐ = 0.1 eV
     
     // Second-order reaction (ion-neutral)
@@ -815,7 +815,7 @@ TEST_CASE("StochasticReactionHandler: Modified Arrhenius (capture)", "[reactions
     rxn.reactant = "Ion+";
     rxn.product = "Cluster+";
     rxn.rate_model = RateModel::ModifiedArrhenius;
-    rxn.rate_constant_m3s = 2.0e-9;          // A [m³/s]
+    rxn.rate_constant = 2.0e-9;          // A [m³/s]
     rxn.temperature_exponent = -0.5;         // n = -0.5
     rxn.reference_temperature_K = 300.0;     // T₀ = 300 K
     rxn.activation_energy_eV = 0.0;          // No barrier

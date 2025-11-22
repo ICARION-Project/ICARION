@@ -12,7 +12,7 @@
       "description": "Array of reaction definitions",
       "items": {
         "type": "object",
-        "required": ["id", "reactant", "product", "rate_constant_m3s"],
+        "required": ["id", "reactant", "product", "rate_constant"],
         "additionalProperties": false,
         "properties": {
           "id": {
@@ -33,9 +33,9 @@
             "pattern": "^[A-Za-z0-9+\\-_]+$",
             "minLength": 1
           },
-          "rate_constant_m3s": {
+          "rate_constant": {
             "type": "number",
-            "description": "Base rate constant (k₀ or A) with correct dimensions [m³/s for 2nd-order, m⁶/s for 3rd-order]",
+            "description": "Base rate constant (k₀ or A). Units depend on reaction order: [s⁻¹] for 0th-order (spontaneous), [m³/s] for 2nd-order (1 neutral, exponent=1), [m⁶/s] for 3rd-order (exponent=2 or two exponent=1 terms).",
             "exclusiveMinimum": 0
           },
           "rate_model": {
@@ -71,20 +71,20 @@
               "properties": {
                 "species": {
                   "type": "string",
-                  "description": "Species ID for concentration dependence (must exist in species database)",
+                  "description": "Species ID for concentration dependence (must exist in species database, or 'neutral' for buffer gas)",
                   "pattern": "^[A-Za-z0-9+\\-_]+$",
                   "minLength": 1
                 },
                 "exponent": {
                   "type": "integer",
-                  "description": "Exponent for concentration term (0, 1, or 2)",
+                  "description": "Concentration exponent (VALIDATION: must be 0, 1, or 2)",
                   "minimum": 0,
                   "maximum": 2
                 },
                 "concentration_m3": {
                   "type": "number",
-                  "description": "Optional fixed concentration in m⁻³ (for pseudo-first-order conditions)",
-                  "exclusiveMinimum": 0
+                  "description": "Fixed concentration in m⁻³. Use -1.0 for buffer gas fallback, ≥0 for explicit value (VALIDATION: must be ≥ -1.0)",
+                  "minimum": -1.0
                 }
               }
             },
@@ -118,7 +118,7 @@
           "id": "rxn_001_constant_rate",
           "reactant": "H3O+",
           "product": "H5O2+",
-          "rate_constant_m3s": 3.5e-15,
+          "rate_constant": 3.5e-15,
           "rate_model": "Constant",
           "order": [
             {
@@ -134,7 +134,7 @@
           "id": "rxn_002_arrhenius",
           "reactant": "H3O+",
           "product": "NH4+",
-          "rate_constant_m3s": 1.5e-9,
+          "rate_constant": 1.5e-9,
           "rate_model": "Arrhenius",
           "activation_energy_eV": 0.12,
           "order": [
@@ -150,7 +150,7 @@
           "id": "rxn_003_capture",
           "reactant": "H3O+",
           "product": "H3O+·H2O",
-          "rate_constant_m3s": 2.0e-9,
+          "rate_constant": 2.0e-9,
           "rate_model": "ModifiedArrhenius",
           "temperature_exponent": -0.5,
           "reference_temperature_K": 300.0,

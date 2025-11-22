@@ -35,7 +35,7 @@ int main() {
         std::cout << "\nLoaded " << reaction_db.size() << " reactions:\n";
         for (const auto& rxn : reaction_db.reactions) {
             std::cout << "  - " << rxn.id << ": " << rxn.reactant << " → " << rxn.product;
-            std::cout << " (k=" << rxn.rate_constant_m3s << " m³/s)\n";
+            std::cout << " (k=" << rxn.rate_constant << " m³/s)\n";
             
             if (!rxn.order_terms.empty()) {
                 for (const auto& term : rxn.order_terms) {

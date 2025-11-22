@@ -174,7 +174,7 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
       "id": "rxn_001_constant",
       "reactant": "H3O+",
       "product": "H5O2+",
-      "rate_constant_m3s": 3.5e-9,
+      "rate_constant": 3.5e-9,
       "rate_model": "Constant",
       "order": [
         {
@@ -189,7 +189,7 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
       "id": "rxn_002_arrhenius",
       "reactant": "H3O+",
       "product": "NH4+",
-      "rate_constant_m3s": 1.5e-9,
+      "rate_constant": 1.5e-9,
       "rate_model": "Arrhenius",
       "activation_energy_eV": 0.12,
       "order": [
@@ -205,7 +205,7 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
       "id": "rxn_003_capture",
       "reactant": "H3O+",
       "product": "H3O+·H2O",
-      "rate_constant_m3s": 2.0e-9,
+      "rate_constant": 2.0e-9,
       "rate_model": "ModifiedArrhenius",
       "temperature_exponent": -0.5,
       "reference_temperature_K": 300.0,
@@ -227,7 +227,7 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
 - `id`: Unique reaction identifier
 - `reactant`: Species ID (must exist in species database)
 - `product`: Species ID (must exist in species database)
-- `rate_constant_m3s`: Base rate constant (k₀ or A) with correct dimensions [m³/s for 2nd-order, m⁶/s for 3rd-order]
+- `rate_constant`: Base rate constant (k₀ or A). **Units depend on reaction order** (see below)
 
 **Optional fields (Temperature Dependence):**
 
@@ -242,11 +242,61 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
 **Optional fields (Concentration Dependence):**
 
 - `order`: Array of concentration-dependent terms
-  - `species`: Species ID for concentration dependence
-  - `exponent`: Concentration exponent (allowed: 0, 1, or 2)
-  - `concentration_m3`: Fixed concentration [m⁻³] for pseudo-first-order
+  - `species`: Species ID for concentration dependence (or `"neutral"` for buffer gas)
+  - `exponent`: Concentration exponent (allowed: **0, 1, or 2**)
+  - `concentration_m3`: Fixed concentration [m⁻³] or **-1** for buffer gas fallback
 - `description`: Human-readable description
 - `reference`: Literature reference
+
+---
+
+### ✅ Supported Reaction Cases & Validation Rules
+
+ICARION supports the following reaction types with **strict validation**:
+
+| **Case** | **JSON Configuration** | **Meaning** | **Example** |
+|----------|------------------------|-------------|-------------|
+| **1. Pseudo-first-order** | `"species": "neutral"` <br> `"exponent": 1` <br> `"concentration_m3": -1` | Use buffer gas density `n_gas` from simulation config | H₃O⁺ + N₂ → products <br> (k in [m³/s], rate = k·n_gas) |
+| **2. Explicit concentration** | `"species": "O2"` <br> `"exponent": 1` <br> `"concentration_m3": 2.5e25` | User-defined fixed concentration | H₃O⁺ + O₂ → H₃O⁺·O₂ <br> (k in [m³/s], n_O₂ = 2.5×10²⁵ m⁻³) |
+| **3. Bimolecular (Ion + X)** | `"species": "O2"` <br> `"exponent": 1` | Concentration from species_db or runtime | H₃O⁺ + O₂ → products <br> (typical 2-body ion-molecule) |
+| **4. Termolecular (3-body)** | `"species": "H2O"` <br> `"exponent": 2` | Quadratic concentration dependence | H₃O⁺ + 2 H₂O → H₃O⁺·(H₂O)₂ <br> (k in [m⁶/s]) |
+| **5. Autocatalytic** | `"species": "H3O+"` <br> `"exponent": 1` | Product species appears in order term | Ion → Ion collision chains <br> (mathematical only, rare) |
+
+**⚠️ IMPORTANT: Order-Dependent Units**
+
+The `rate_constant` field has **dimensions that depend on reaction order**:
+- **Order 0** (spontaneous decay, no order terms): k has units [s⁻¹]
+- **Order 1** (2nd-order, one neutral with exponent=1): k has units [m³/s]
+- **Order 2** (3rd-order, exponent=2 or two exponent=1 terms): k has units [m⁶/s]
+
+**Always specify k with the correct dimensions for your reaction order!**
+
+---
+
+### 🔒 Validation Rules (Enforced at Load Time)
+
+ICARION **strictly validates** all order terms:
+
+| **Rule** | **Check** | **Error Example** |
+|----------|-----------|-------------------|
+| **#1: Exponent range** | `exponent ∈ {0, 1, 2}` | ❌ `"exponent": 3` → "exponent must be 0, 1, or 2" |
+| **#2: Concentration range** | `concentration_m3 ≥ -1.0` | ❌ `"concentration_m3": -5.0` → "must be ≥ -1.0" |
+| **#3: Species exists** | `species ∈ species_db` (if not `"neutral"`) | ❌ `"species": "XYZ"` → "species 'XYZ' not found" |
+| **#4: No duplicate species** | Each `species` appears once | ❌ Two terms with `"species": "O2"` → "duplicate order term for 'O2'. Use exponent=2 instead." |
+| **#5: Max one buffer gas** | At most one term with `concentration_m3 = -1` | ❌ Two terms with `-1` → "only one term can use buffer gas fallback" |
+
+**Dimensional Consistency Warnings:**
+
+ICARION also warns about likely unit mismatches:
+
+```
+⚠  Reaction 'rxn_001': 2nd-order (exponent=1) but k = 1.5e-30 m⁶/s outside typical range [1e-12, 1e-6] m³/s
+```
+
+**Typical Rate Constant Ranges:**
+- **1st-order (spontaneous):** k ~ 10⁻³ to 10⁶ s⁻¹
+- **2nd-order (ion + neutral):** k ~ 10⁻¹² to 10⁻⁶ m³/s
+- **3rd-order (termolecular):** k ~ 10⁻³⁰ to 10⁻²⁴ m⁶/s
 
 **Effective rate calculation:**
 

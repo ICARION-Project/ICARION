@@ -392,7 +392,7 @@ int main(int argc, char* argv[]) {
                 ReactionEntry entry;
                 entry.reactant = rxn.reactant;
                 entry.product = rxn.product;
-                entry.rate_constant = rxn.rate_constant_m3s;
+                entry.rate_constant = rxn.rate_constant;
                 entry.neutral_concentration = 0.0;  // Computed dynamically in integrator
                 
                 // Convert order terms

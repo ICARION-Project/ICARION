@@ -4,7 +4,7 @@
       "id": "rxn_001_h3o_to_h5o2",
       "reactant": "H3O+",
       "product": "H5O2+",
-      "rate_constant_m3s": 3.5e-15,
+      "rate_constant": 3.5e-15,
       "order": [
         {
           "species": "H2O",
@@ -17,7 +17,7 @@
       "id": "rxn_002_h5o2_dissociation",
       "reactant": "H5O2+",
       "product": "H3O+",
-      "rate_constant_m3s": 1.2e-16,
+      "rate_constant": 1.2e-16,
       "order": []
     }
   ]

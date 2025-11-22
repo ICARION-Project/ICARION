@@ -138,7 +138,7 @@ double StochasticReactionHandler::compute_effective_rate(
     
     // ✅ STEP 2: Apply order terms (concentration dependencies)
     // Optimization 3: Dimensional consistency check
-    // ⚠️ IMPORTANT: rate_constant_m3s must have correct dimensions!
+    // ⚠️ IMPORTANT: rate_constant must have correct dimensions!
     // - 1st order (exponent=1): k [m³/s]   → k_eff = k(T) * [X]    [s⁻¹]
     // - 2nd order (exponent=2): k [m⁶/s]   → k_eff = k(T) * [X]²   [s⁻¹]
     // User is responsible for providing k with correct dimensional units!

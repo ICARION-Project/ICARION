@@ -565,7 +565,7 @@ void HDF5Writer::write_reactions_metadata(
         reactant_1.push_back(rxn.reactant);  // reactant is a string, not array
         reactant_2.push_back("");  // No second reactant in current schema
         product_1.push_back(rxn.product);  // product is a string, not array
-        rate_constants.push_back(rxn.rate_constant_m3s);
+        rate_constants.push_back(rxn.rate_constant);
         types.push_back(2);  // Type 2 = two-body reaction (A+ + X -> B+)
     }
     
@@ -587,7 +587,7 @@ void HDF5Writer::write_reactions_metadata(
     write_str_array("reactant_2", reactant_2);
     write_str_array("product_1", product_1);
     
-    write_array(rxn_group, "rate_constant_m3s", rate_constants);
+    write_array(rxn_group, "rate_constant", rate_constants);
     
     H5::DataSet ds_type = rxn_group.createDataSet("type", H5::PredType::NATIVE_INT, space);
     ds_type.write(types.data(), H5::PredType::NATIVE_INT);

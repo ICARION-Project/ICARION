@@ -49,6 +49,16 @@ ReactionDatabase ReactionLoader::load_from_json(const Json::Value& json,
                 throw std::runtime_error(error_msg);
             }
             
+            // VALIDATION RULE #3: species exists in database (if not "neutral")
+            for (const auto& term : rxn.order_terms) {
+                if (term.species != "neutral" && !species_db->has(term.species)) {
+                    throw std::runtime_error(
+                        "Reaction '" + rxn.id + "': order term species '" + term.species + 
+                        "' not found in species database"
+                    );
+                }
+            }
+            
             // Print warnings
             for (const auto& warning : validation.warnings) {
                 std::cout << "⚠  Reaction '" << rxn.id << "': " << warning << "\n";
@@ -94,10 +104,10 @@ Reaction ReactionLoader::parse_reaction(const Json::Value& json) {
     }
     rxn.product = json["product"].asString();
     
-    if (!json.isMember("rate_constant_m3s") || !json["rate_constant_m3s"].isNumeric()) {
-        throw std::runtime_error("Reaction '" + rxn.id + "': missing or invalid 'rate_constant_m3s' field");
+    if (!json.isMember("rate_constant") || !json["rate_constant"].isNumeric()) {
+        throw std::runtime_error("Reaction '" + rxn.id + "': missing or invalid 'rate_constant' field");
     }
-    rxn.rate_constant_m3s = json["rate_constant_m3s"].asDouble();
+    rxn.rate_constant = json["rate_constant"].asDouble();
     
     // === Optional: Temperature dependence ===
     
@@ -150,8 +160,55 @@ Reaction ReactionLoader::parse_reaction(const Json::Value& json) {
     
     // === Optional: Concentration dependence (order terms) ===
     if (json.isMember("order") && json["order"].isArray()) {
+        std::unordered_map<std::string, int> species_count;  // Track duplicate species
+        int neutral_fallback_count = 0;  // Track multiple neutral=-1 entries
+        
         for (const auto& term_json : json["order"]) {
-            rxn.order_terms.push_back(parse_order_term(term_json));
+            ReactionOrderTerm term = parse_order_term(term_json);
+            
+            // VALIDATION RULE #4: No duplicate species in order terms
+            if (species_count.count(term.species) > 0) {
+                throw std::runtime_error(
+                    "Reaction '" + rxn.id + "': duplicate order term for species '" + term.species + 
+                    "'. Use exponent=2 instead of two separate terms."
+                );
+            }
+            species_count[term.species] = 1;
+            
+            // VALIDATION RULE #5: Max one neutral fallback (concentration_m3 = -1)
+            if (term.concentration_m3 == -1.0) {
+                neutral_fallback_count++;
+                if (neutral_fallback_count > 1) {
+                    throw std::runtime_error(
+                        "Reaction '" + rxn.id + "': multiple order terms with concentration_m3 = -1.0 " +
+                        "(buffer gas fallback). Only one term can use buffer gas density."
+                    );
+                }
+            }
+            
+            rxn.order_terms.push_back(term);
+        }
+        
+        // ⚠️ DIMENSIONAL CONSISTENCY WARNING
+        int total_order = 0;
+        for (const auto& term : rxn.order_terms) {
+            total_order += term.exponent;
+        }
+        
+        // Warn if rate_constant dimensions likely mismatch order
+        if (total_order == 0 && rxn.rate_constant > 1e-6) {
+            std::cout << "⚠  Reaction '" << rxn.id << "': spontaneous decay (order=0) but k = " 
+                      << rxn.rate_constant << " suggests [m³/s] units. Expected [s⁻¹] (~1e-3 to 1e6).\n";
+        }
+        
+        if (total_order == 1 && (rxn.rate_constant < 1e-12 || rxn.rate_constant > 1e-6)) {
+            std::cout << "⚠  Reaction '" << rxn.id << "': 2nd-order (total exponent=1) but k = " 
+                      << rxn.rate_constant << " outside typical range [1e-12, 1e-6] m³/s.\n";
+        }
+        
+        if (total_order == 2 && (rxn.rate_constant < 1e-30 || rxn.rate_constant > 1e-24)) {
+            std::cout << "⚠  Reaction '" << rxn.id << "': 3rd-order (total exponent=2) but k = " 
+                      << rxn.rate_constant << " outside typical range [1e-30, 1e-24] m⁶/s.\n";
         }
     }
     
@@ -171,11 +228,35 @@ ReactionOrderTerm ReactionLoader::parse_order_term(const Json::Value& json) {
     }
     term.exponent = json["exponent"].asInt();
     
-    // concentration_m3 is optional (can default to 0 and be overridden at runtime)
+    // VALIDATION RULE #1: exponent ∈ {0, 1, 2}
+    if (term.exponent < 0 || term.exponent > 2) {
+        throw std::runtime_error(
+            "Order term for '" + term.species + "': exponent must be 0, 1, or 2 (got " + 
+            std::to_string(term.exponent) + ")"
+        );
+    }
+    
+    // concentration_m3 is optional (default: -1.0 = use buffer gas)
     if (json.isMember("concentration_m3") && json["concentration_m3"].isNumeric()) {
         term.concentration_m3 = json["concentration_m3"].asDouble();
     } else {
-        term.concentration_m3 = 0.0;
+        term.concentration_m3 = -1.0;  // Default: use buffer gas density
+    }
+    
+    // VALIDATION RULE #2: concentration_m3 ≥ -1.0
+    if (term.concentration_m3 < -1.0) {
+        throw std::runtime_error(
+            "Order term for '" + term.species + "': concentration_m3 must be ≥ -1.0 (got " + 
+            std::to_string(term.concentration_m3) + "). Use -1.0 for buffer gas fallback."
+        );
+    }
+    
+    // Reject ambiguous negative values (e.g., -0.5)
+    if (term.concentration_m3 > -1.0 && term.concentration_m3 < 0.0) {
+        throw std::runtime_error(
+            "Order term for '" + term.species + "': concentration_m3 cannot be between -1.0 and 0.0 (got " + 
+            std::to_string(term.concentration_m3) + "). Use -1.0 for buffer gas or ≥ 0 for explicit value."
+        );
     }
     
     return term;

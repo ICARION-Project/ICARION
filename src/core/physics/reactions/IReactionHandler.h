@@ -71,7 +71,7 @@ public:
      * @return true if reaction occurred, false otherwise
      * 
      * **SSOT Compliance:** All parameters read directly from databases/config:
-     * - Reaction rates: `reaction_db.reactions[i].rate_constant_m3s`
+     * - Reaction rates: `reaction_db.reactions[i].rate_constant`
      * - Species properties: `species_db.species[id]`
      * - Temperature: `env.temperature_K`
      * - Density: `env.particle_density_m_3`

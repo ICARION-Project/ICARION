@@ -12,14 +12,14 @@ double Reaction::compute_rate_constant(double temperature_K) const {
     switch (rate_model) {
         case RateModel::Constant:
             // k(T) = k₀ (no temperature dependence)
-            return rate_constant_m3s;
+            return rate_constant;
         
         case RateModel::Arrhenius: {
             // k(T) = A × exp(-Eₐ / (kB·T))
             
             if (activation_energy_eV <= 0.0) {
                 // No barrier → constant rate
-                return rate_constant_m3s;
+                return rate_constant;
             }
             
             // Convert Eₐ from eV to Joules
@@ -35,10 +35,10 @@ double Reaction::compute_rate_constant(double temperature_K) const {
             }
             if (exponent > 50.0) {
                 // This shouldn't happen (negative barrier?), but be safe
-                return rate_constant_m3s * std::exp(50.0);
+                return rate_constant * std::exp(50.0);
             }
             
-            return rate_constant_m3s * std::exp(exponent);
+            return rate_constant * std::exp(exponent);
         }
         
         case RateModel::ModifiedArrhenius: {
@@ -64,7 +64,7 @@ double Reaction::compute_rate_constant(double temperature_K) const {
                 }
             }
             
-            return rate_constant_m3s * T_factor * exp_factor;
+            return rate_constant * T_factor * exp_factor;
         }
         
         default:

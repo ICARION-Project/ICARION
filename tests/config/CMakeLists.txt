@@ -95,6 +95,24 @@ target_include_directories(test_reaction_loader_unit
 
 add_test(NAME ReactionLoaderUnit COMMAND test_reaction_loader_unit)
 
+# Reaction validation tests (order term validation rules #1-5)
+add_executable(test_reaction_validation
+    test_reaction_validation.cpp
+)
+
+target_link_libraries(test_reaction_validation
+    PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+
+target_include_directories(test_reaction_validation
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+add_test(NAME ReactionValidation COMMAND test_reaction_validation)
+
 # Database integration test (ConfigLoader with species/reactions)
 add_executable(test_database_integration
     test_database_integration.cpp

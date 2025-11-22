@@ -369,7 +369,7 @@ Hierarchical Structure:
     reactant_1          string[R]   First reactant species name
     reactant_2          string[R]   Second reactant (empty if unimolecular)
     product_1           string[R]   First product species name
-    rate_constant_m3s   float64[R]  Rate constant [m³/s]
+    rate_constant   float64[R]  Rate constant [m³/s]
     type                int32[R]    Reaction type enum (2=two-body)
   
   /completion/                      # Written at simulation end

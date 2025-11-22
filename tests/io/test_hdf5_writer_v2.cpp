@@ -472,7 +472,7 @@ TEST_CASE("HDF5Writer v2 writes reaction metadata correctly", "[hdf5][io]") {
     rxn.id = "charge_transfer_1";
     rxn.reactant = "H3O+";
     rxn.product = "NO2+";
-    rxn.rate_constant_m3s = 1.5e-15;
+    rxn.rate_constant = 1.5e-15;
     config.reaction_db.reactions.push_back(rxn);
     
     io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
@@ -491,7 +491,7 @@ TEST_CASE("HDF5Writer v2 writes reaction metadata correctly", "[hdf5][io]") {
     REQUIRE(dims[0] == 1);  // 1 reaction
     
     // Check rate constant
-    H5::DataSet ds_rate = rxn_group.openDataSet("rate_constant_m3s");
+    H5::DataSet ds_rate = rxn_group.openDataSet("rate_constant");
     std::vector<double> rates(1);
     ds_rate.read(rates.data(), H5::PredType::NATIVE_DOUBLE);
     REQUIRE(rates[0] == Approx(1.5e-15));

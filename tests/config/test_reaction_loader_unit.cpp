@@ -48,7 +48,7 @@ TEST_CASE("ReactionLoader - Load simple reaction without order terms", "[reactio
                 "id": "rxn_test",
                 "reactant": "A",
                 "product": "B",
-                "rate_constant_m3s": 1.5e-15
+                "rate_constant": 1.5e-15
             }
         ]
     })");
@@ -61,7 +61,7 @@ TEST_CASE("ReactionLoader - Load simple reaction without order terms", "[reactio
     CHECK(rxn.id == "rxn_test");
     CHECK(rxn.reactant == "A");
     CHECK(rxn.product == "B");
-    CHECK_THAT(rxn.rate_constant_m3s, Catch::Matchers::WithinRel(1.5e-15, 1e-9));
+    CHECK_THAT(rxn.rate_constant, Catch::Matchers::WithinRel(1.5e-15, 1e-9));
     CHECK(rxn.order_terms.empty());
 }
 
@@ -72,7 +72,7 @@ TEST_CASE("ReactionLoader - Load reaction with order terms", "[reaction][loader]
                 "id": "rxn_complex",
                 "reactant": "H3O+",
                 "product": "H5O2+",
-                "rate_constant_m3s": 3.5e-15,
+                "rate_constant": 3.5e-15,
                 "order": [
                     {
                         "species": "H2O",
@@ -98,9 +98,9 @@ TEST_CASE("ReactionLoader - Load reaction with order terms", "[reaction][loader]
 TEST_CASE("ReactionLoader - Multiple reactions", "[reaction][loader]") {
     TempReactionFile tmp_file(R"({
         "reactions": [
-            {"id": "rxn1", "reactant": "A", "product": "B", "rate_constant_m3s": 1e-15},
-            {"id": "rxn2", "reactant": "B", "product": "C", "rate_constant_m3s": 2e-15},
-            {"id": "rxn3", "reactant": "C", "product": "A", "rate_constant_m3s": 3e-15}
+            {"id": "rxn1", "reactant": "A", "product": "B", "rate_constant": 1e-15},
+            {"id": "rxn2", "reactant": "B", "product": "C", "rate_constant": 2e-15},
+            {"id": "rxn3", "reactant": "C", "product": "A", "rate_constant": 3e-15}
         ]
     })");
     
@@ -129,7 +129,7 @@ TEST_CASE("ReactionLoader - Species validation with database", "[reaction][loade
                 "id": "valid_rxn",
                 "reactant": "H3O+",
                 "product": "H2O",
-                "rate_constant_m3s": 1e-15,
+                "rate_constant": 1e-15,
                 "order": [{"species": "H2O", "exponent": 1}]
             }
         ]
@@ -153,7 +153,7 @@ TEST_CASE("ReactionLoader - Invalid species reference throws", "[reaction][loade
                 "id": "invalid_rxn",
                 "reactant": "UNKNOWN",
                 "product": "H3O+",
-                "rate_constant_m3s": 1e-15
+                "rate_constant": 1e-15
             }
         ]
     })");
@@ -184,7 +184,7 @@ TEST_CASE("ReactionLoader - File not found throws", "[reaction][loader][error]")
 TEST_CASE("Reaction - Effective rate calculation", "[reaction][calculation]") {
     Reaction rxn;
     rxn.id = "test";
-    rxn.rate_constant_m3s = 1e-15;
+    rxn.rate_constant = 1e-15;
     
     // No order terms -> k_eff = k (empty concentration map)
     double T_K = 300.0;  // Temperature (irrelevant for Constant model)
@@ -205,7 +205,7 @@ TEST_CASE("Reaction - Effective rate calculation", "[reaction][calculation]") {
 
 TEST_CASE("Reaction - Multiple order terms", "[reaction][calculation]") {
     Reaction rxn;
-    rxn.rate_constant_m3s = 1e-15;
+    rxn.rate_constant = 1e-15;
     
     // [A]^2 = 1e24 m⁻³, [B]^1 = 3e25 m⁻³
     ReactionOrderTerm term_a;
@@ -234,19 +234,19 @@ TEST_CASE("ReactionDatabase - Get reactions for species", "[reaction][database]"
     rxn1.id = "r1";
     rxn1.reactant = "A";
     rxn1.product = "B";
-    rxn1.rate_constant_m3s = 1e-15;
+    rxn1.rate_constant = 1e-15;
     
     Reaction rxn2;
     rxn2.id = "r2";
     rxn2.reactant = "A";
     rxn2.product = "C";
-    rxn2.rate_constant_m3s = 2e-15;
+    rxn2.rate_constant = 2e-15;
     
     Reaction rxn3;
     rxn3.id = "r3";
     rxn3.reactant = "B";
     rxn3.product = "C";
-    rxn3.rate_constant_m3s = 3e-15;
+    rxn3.rate_constant = 3e-15;
     
     db.reactions.push_back(rxn1);
     db.reactions.push_back(rxn2);

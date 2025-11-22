@@ -69,11 +69,11 @@ struct ReactionOrderTerm {
  * Multi-step reactions reserved for v2.0.
  * 
  * ⚠️ DIMENSIONAL CONSISTENCY:
- * rate_constant_m3s must have correct dimensions based on order_terms:
- * - 0 order terms (spontaneous):     k [s⁻¹]      → rate_constant_m3s = k
- * - 1 order term with exponent=1:    k [m³/s]     → rate_constant_m3s = k
- * - 1 order term with exponent=2:    k [m⁶/s]     → rate_constant_m3s = k
- * - 2 order terms with exponent=1:   k [m⁶/s]     → rate_constant_m3s = k
+ * rate_constant has order-dependent dimensions:
+ * - 0 order terms (spontaneous):     k [s⁻¹]
+ * - 1 order term with exponent=1:    k [m³/s]
+ * - 1 order term with exponent=2:    k [m⁶/s]
+ * - 2 order terms with exponent=1:   k [m⁶/s]
  * 
  * Example: For A⁺ + 2X → B⁺, use exponent=2 and k in [m⁶/s]!
  */
@@ -82,7 +82,7 @@ struct Reaction {
     std::string id;                         ///< Unique reaction identifier
     std::string reactant;                   ///< Reactant ion species ID
     std::string product;                    ///< Product ion species ID
-    double rate_constant_m3s;               ///< Base rate constant (k₀ or A) with correct dimensions
+    double rate_constant;                   ///< Base rate constant (k₀ or A), dimensions depend on reaction order
     
     // === Temperature dependence (optional) ===
     RateModel rate_model = RateModel::Constant;  ///< Temperature dependence model
@@ -181,7 +181,7 @@ struct Reaction {
             }
         }
         
-        if (rate_constant_m3s <= 0.0) {
+        if (rate_constant <= 0.0) {
             result.add_error("Reaction '" + id + "': rate constant must be positive");
         }
         

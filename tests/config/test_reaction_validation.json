@@ -1,0 +1,105 @@
+{
+  "reactions": [
+    {
+      "id": "valid_pseudo_first_order",
+      "reactant": "H3O+",
+      "product": "H5O2+",
+      "rate_constant": 3.5e-9,
+      "order": [
+        {
+          "species": "neutral",
+          "exponent": 1,
+          "concentration_m3": -1.0
+        }
+      ]
+    },
+    {
+      "id": "valid_explicit_concentration",
+      "reactant": "H3O+",
+      "product": "NH4+",
+      "rate_constant": 1.5e-9,
+      "order": [
+        {
+          "species": "NH3",
+          "exponent": 1,
+          "concentration_m3": 2.5e25
+        }
+      ]
+    },
+    {
+      "id": "valid_termolecular",
+      "reactant": "H3O+",
+      "product": "H3O+·H2O",
+      "rate_constant": 1.0e-28,
+      "order": [
+        {
+          "species": "H2O",
+          "exponent": 2,
+          "concentration_m3": 2.5e25
+        }
+      ]
+    },
+    {
+      "id": "INVALID_bad_exponent",
+      "reactant": "H3O+",
+      "product": "H5O2+",
+      "rate_constant": 3.5e-9,
+      "order": [
+        {
+          "species": "H2O",
+          "exponent": 3,
+          "concentration_m3": 1e25
+        }
+      ]
+    },
+    {
+      "id": "INVALID_bad_concentration",
+      "reactant": "H3O+",
+      "product": "H5O2+",
+      "rate_constant": 3.5e-9,
+      "order": [
+        {
+          "species": "H2O",
+          "exponent": 1,
+          "concentration_m3": -5.0
+        }
+      ]
+    },
+    {
+      "id": "INVALID_duplicate_species",
+      "reactant": "H3O+",
+      "product": "H5O2+",
+      "rate_constant": 3.5e-9,
+      "order": [
+        {
+          "species": "H2O",
+          "exponent": 1,
+          "concentration_m3": 1e25
+        },
+        {
+          "species": "H2O",
+          "exponent": 1,
+          "concentration_m3": 1e25
+        }
+      ]
+    },
+    {
+      "id": "INVALID_two_neutral_fallbacks",
+      "reactant": "H3O+",
+      "product": "H5O2+",
+      "rate_constant": 3.5e-9,
+      "order": [
+        {
+          "species": "neutral",
+          "exponent": 1,
+          "concentration_m3": -1.0
+        },
+        {
+          "species": "neutral_gas",
+          "exponent": 1,
+          "concentration_m3": -1.0
+        }
+      ]
+    }
+  ]
+}

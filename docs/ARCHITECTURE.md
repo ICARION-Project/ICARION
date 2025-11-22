@@ -243,40 +243,63 @@ private:
 └──────────────┘
 ```
 
-### SSOT Violations 
+### SSOT Status (v1.0)
 
-⚠️ **Current Issues:**
+**Completed SSOT Migrations:**
 
-1. **InstrumentType Location**:
-   - **Current**: `instrument/InstrumentTypes.h`
-   - **Problem**: Creates dependency `config → instrument` (backwards!)
-   - **Fix**: Move to `core/config/types/InstrumentType.h`
+1. **Force System** (Phase 1, Steps 1-4 complete):
+   - MagneticFieldForce: Uses const MagneticFieldConfig&
+   - ElectricFieldForce: Uses const DomainConfig&
+   - DampingForce: Uses const EnvironmentConfig&
+   - Legacy structs deleted: MagneticFieldParams, AnalyticalFieldParams, DampingParams
 
-2. **Parameter Duplication**:
-   - **Current**: Force classes use parameter structs (e.g., `AnalyticalFieldParams`)
-   - **Problem**: Duplicates data from `FieldsConfig`
-   - **Fix**: Forces take `const DomainConfig&` directly
+2. **Collision System** (Phase 2C complete):
+   - All collision handlers use const EnvironmentConfig& reference
+   - No parameter duplication
 
-3. **Collision Parameters**:
-   - **Current**: `DampingParams` duplicates `EnvironmentConfig`
-   - **Fix**: Use `EnvironmentConfig` directly
+3. **Reaction System** (Phase 3C complete):
+   - ReactionHandler wired into integrator
+   - Uses species database from FullConfig
 
-### Target Architecture
+**In Progress:**
+
+1. **Integrator System** (Phase 1, Steps 5-8, approximately 3.5h remaining):
+   - compute_accelerations(): Replace GlobalParams with DomainConfig
+   - integrate_one_step(): Use FullConfig directly
+   - integrate_trajectory(): Remove parameter conversions
+   - See: tmp/REMAINING_SSOT_MIGRATION_WORK.md
+
+**Known Minor Issue:**
+
+1. **InstrumentType Location** (Low priority, approximately 30min):
+   - Current: instrument/InstrumentTypes.h
+   - Issue: Creates dependency config to instrument (backwards)
+   - Fix: Move to core/config/types/InstrumentType.h
+   - Impact: Cosmetic only, not a functional SSOT violation
+
+### Current Architecture (v1.0)
+
+All force classes follow SSOT principle with direct config references:
 
 ```cpp
-// No more parameter structs!
-
+// Example: ElectricFieldForce (SSOT compliant since v1.0)
 class ElectricFieldForce : public IForce {
 public:
-    // Direct config reference (SSOT compliant)
-    ElectricFieldForce(const FieldsConfig& fields);
+    ElectricFieldForce(const config::DomainConfig& domain);
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
+    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
+        // Read config on-demand
+        const auto& dc = domain_.fields.dc;
+        double axial_V = dc.axial_V;  // No duplication
+        // ...
+    }
     
 private:
-    const FieldsConfig& fields_;  // Reference to config
+    const config::DomainConfig& domain_;  // Reference (zero-copy)
 };
 ```
+
+Benefit: Config changes propagate automatically, no parameter conversion overhead.
 
 ---
 
@@ -310,7 +333,7 @@ The force system follows a **Strategy Pattern** with plugin architecture and **S
 **Forces store references to config, not copies:**
 
 ```cpp
-// ✅ MODERN (v1.0): Direct config reference
+// MODERN (v1.0): Direct config reference
 const config::MagneticFieldConfig& magnetic = domain.fields.magnetic;
 MagneticFieldForce force(magnetic);  // Reference to SSOT
 ```
@@ -511,7 +534,7 @@ double mass_gas = env_.gas_mass_kg;
 - **Langevin**: Ion-induced dipole, enhanced cross-section
 - **None**: No damping
 
-⚠️ **Note**: Stochastic kicks (thermal noise) are handled separately by CollisionEngine.
+****Note**: Stochastic kicks (thermal noise) are handled separately by CollisionEngine.
 
 #### 4. SpaceChargeForce
 
@@ -878,7 +901,7 @@ public:
         IonState& ion,
         double dt,
         EhssRng& rng,
-        const config::EnvironmentConfig& env  // ✅ SSOT!
+        const config::EnvironmentConfig& env  // SSOT!
     ) = 0;
     
     virtual std::string name() const = 0;
@@ -922,7 +945,7 @@ void integrate_one_step(...) {
             ion,
             dt,
             rng,
-            domain.environment  // ✅ SSOT!
+            domain.environment  // SSOT!
         );
     }
     
@@ -1034,7 +1057,7 @@ The handler implements the physically correct competing channels algorithm with 
 - **Second-order (2-body):** `k_eff = k * n_M` [s⁻¹], where `k` [m³/s] and `n_M` [m⁻³]
 - **Third-order (3-body):** `k_eff = k * n_M1 * n_M2` [s⁻¹], where `k` [m⁶/s]
 
-⚠️ **Dimensional Consistency:** User must provide `rate_constant_m3s` with correct dimensions:
+****Dimensional Consistency:** User must provide `rate_constant_m3s` with correct dimensions:
 
 - 1st-order term (exponent=1): `k` [m³/s]
 - 2nd-order term (exponent=2): `k` [m⁶/s]
@@ -1248,8 +1271,8 @@ void integrate_one_step(...) {
             ion,
             dt,
             rng,
-            reaction_db,     // ⚠️ Phase 3D: Still uses legacy adapter
-            species_db,      // ⚠️ Phase 3D: Still uses legacy adapter
+            reaction_db,     // **Phase 3D: Still uses legacy adapter
+            species_db,      // **Phase 3D: Still uses legacy adapter
             domain.environment
         );
     }
@@ -1264,17 +1287,17 @@ void integrate_one_step(...) {
 
 **Current State (Phase 3C):**
 
-- ✅ `IReactionHandler` interface complete
-- ✅ `StochasticReactionHandler` with competing channels algorithm complete
-- ✅ `NoReactionHandler` complete
-- ✅ `ReactionHandlerFactory` complete
-- ✅ Handler created in `integrate_trajectory()`, but **not yet fully wired** to `integrate_one_step()`
-- ⚠️ Blocker: Type mismatch (ICARION::io::Species vs config::SpeciesProperties)
+- `IReactionHandler` interface complete
+- `StochasticReactionHandler` with competing channels algorithm complete
+- `NoReactionHandler` complete
+- `ReactionHandlerFactory` complete
+- Handler created in `integrate_trajectory()`, but **not yet fully wired** to `integrate_one_step()`
+- **Blocker: Type mismatch (ICARION::io::Species vs config::SpeciesProperties)
 - 📋 Resolution: Phase 3D database unification branch (future)
 
 ### Migration Status
 
-#### Phase 3C: Modern Handler System (Complete ✅)
+#### Phase 3C: Modern Handler System (Complete)
 
 - Modern handler hierarchy implemented
 - Factory pattern integrated
@@ -1282,7 +1305,7 @@ void integrate_one_step(...) {
 - Adapter code commented with `TODO Phase 3D`
 - 11 test cases (26 tests total), 1420 assertions (100% passing)
 
-#### Phase 3D: Database Unification (Future 📋)
+#### Phase 3D: Database Unification (Future)
 
 - Unify species types (remove `ICARION::io::Species` and `reactionUtils::Species`, keep `config::SpeciesProperties`)
 - Update `integrate_trajectory()` signature to accept `config::SpeciesDatabase` and `config::ReactionDatabase`
@@ -1290,7 +1313,7 @@ void integrate_one_step(...) {
 - Delete deprecated functions: `load_reactions()`, `load_speciesDB()`, `handle_reaction()`
 - Remove adapter code from `main.cpp` (lines ~369-410)
 
-#### Phase 3E: Force System SSOT (Future 📋)
+#### Phase 3E: Force System SSOT (Future)
 
 - Create `ForceConfig` types
 - Update `compute_accelerations()` signature (remove `GlobalParams`)

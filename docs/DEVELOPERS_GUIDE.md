@@ -29,11 +29,9 @@ ICARION's force system follows a plugin architecture using the **IForce interfac
 
 ### Design Principle: Single Source of Truth (SSOT)
 
-⚠️ **IMPORTANT (v1.0)**: Forces now use **const config references**, not parameter structs.
+****IMPORTANT (v1.0)**: Forces now use **const config references**, not parameter structs.
 
-**✅ MODERN (v1.0)**: Forces receive **const references** to config objects
-
-**❌ DEPRECATED (Pre-v1.0)**: Parameter structs duplicate configuration data
+**MODERN (v1.0)**: Forces receive **const references** to config objects
 
 **Why SSOT?**
 
@@ -42,39 +40,13 @@ ICARION's force system follows a plugin architecture using the **IForce interfac
 - **Maintainability**: Single place to update parameters
 - **Performance**: No copying of config data
 
-**Migration Example (Pre-v1.0 → v1.0):**
-
-```cpp
-// ❌ DEPRECATED (Pre-v1.0): Parameter struct pattern
-struct MagneticFieldParams {
-    Vec3 uniform_field_T;     // Duplicates config.fields.magnetic
-    Vec3 gradient_T_m;
-    bool enabled;
-};
-
-MagneticFieldParams params;
-params.uniform_field_T = {0, 0, 1.5};  // Manual copy!
-MagneticFieldForce force(params);
-
-// ✅ MODERN (v1.0): Direct config reference (SSOT)
-config::DomainConfig domain = load_config("config.json");
-const auto& magnetic = domain.fields.magnetic;
-
-MagneticFieldForce force(magnetic);  // No copy, just reference!
-// Changes to domain.fields.magnetic are visible immediately
-```
-
-**Key Difference:**
-- **Pre-v1.0**: `params.uniform_field_T` is a **copy** of config data
-- **v1.0**: `magnetic_.field_strength_T` is a **reference** to config data (SSOT)
-
 ---
 
 ### Step-by-Step Guide
 
 #### 1. Create Force Header (`src/core/physics/forces/YourForce.h`)
 
-**✅ CORRECT PATTERN**: Use **const reference** to config, not parameter struct!
+**CORRECT PATTERN**: Use **const reference** to config, not parameter struct!
 
 ```cpp
 #pragma once
@@ -83,7 +55,7 @@ MagneticFieldForce force(magnetic);  // No copy, just reference!
 #include "ForceContext.h"
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
-#include "core/config/DomainConfig.h"  // ✅ Direct config reference
+#include "core/config/DomainConfig.h"  // Direct config reference
 
 namespace ICARION {
 namespace physics {
@@ -93,7 +65,7 @@ namespace physics {
  * 
  * Physics: F = ... (formula)
  * 
- * ✅ Uses const reference to DomainConfig (SSOT pattern)
+ * Uses const reference to DomainConfig (SSOT pattern)
  */
 class YourForce : public IForce {
 public:
@@ -103,14 +75,14 @@ public:
      * @param domain Reference to simulation domain config (SSOT)
      * @param additional_param Any non-config parameters
      * 
-     * ⚠️ Config reference must outlive this object!
+     * **Config reference must outlive this object!
      */
     explicit YourForce(const config::DomainConfig& domain, double additional_param = 0.0);
     
     Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
     
 private:
-    const config::DomainConfig& domain_;  ///< ✅ Reference, not copy!
+    const config::DomainConfig& domain_;  ///< Reference, not copy!
     double additional_param_;
 };
 
@@ -128,12 +100,12 @@ namespace ICARION {
 namespace physics {
 
 YourForce::YourForce(const config::DomainConfig& domain, double additional_param)
-    : domain_(domain)  // ✅ Store reference
+    : domain_(domain)  // Store reference
     , additional_param_(additional_param) {
 }
 
 Vec3 YourForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
-    // ✅ Read config directly from domain_
+    // Read config directly from domain_
     if (!domain_.enable_some_feature) {
         return Vec3{0, 0, 0};
     }
@@ -165,15 +137,15 @@ using namespace ICARION::config;
 using Catch::Matchers::WithinAbs;
 
 TEST_CASE("YourForce - Basic functionality", "[forces][yourforce]") {
-    // ✅ Create config (SSOT)
+    // Create config (SSOT)
     DomainConfig domain;
     domain.enable_some_feature = true;
     domain.some_config_value = 1.0;
     
-    YourForce force(domain, 0.5);  // ✅ Pass by reference
+    YourForce force(domain, 0.5);  // Pass by reference
     
     ForceContext ctx;
-    ctx.domain = domain;  // ✅ Same config in context
+    ctx.domain = domain;  // Same config in context
     ctx.temperature_K = 300.0;
     
     IonState ion;
@@ -210,20 +182,20 @@ add_test(NAME YourForce COMMAND test_your_force)
 #### 5. Register in ForceRegistry (User Code)
 
 ```cpp
-// ✅ Config lives in scope
+// Config lives in scope
 config::DomainConfig domain = load_config("config.json");
 
 ForceRegistry registry;
 
-// ✅ Force stores reference to domain (no duplication!)
+// Force stores reference to domain (no duplication!)
 registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 
-// ⚠️ domain must outlive registry!
+// **domain must outlive registry!
 ```
 
 ### Best Practices (v1.0)
 
-✅ **DO:**
+**DO:**
 
 - **Use const config references**, not parameter structs
 - **Store references as members**: `const config::DomainConfig& domain_;`
@@ -234,7 +206,7 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 - **Check for NaN/Inf** in force output
 - **Validate config in constructor** (throw if invalid)
 
-❌ **DON'T:**
+****DON'T:**
 
 - **Don't create parameter structs** (violates SSOT!)
 - **Don't copy config data** (use references!)
@@ -243,65 +215,6 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 - **Don't allocate in hot loops** (pre-allocate in constructor)
 - **Don't use raw pointers** (use const references or shared_ptr)
 
-### Migration Guide (Pre-v1.0 → v1.0)
-
-If you have existing forces using parameter structs, migrate as follows:
-
-**Step 1: Update Constructor**
-
-```cpp
-// OLD (Pre-v1.0):
-YourForce(const YourForceParams& params)
-    : params_(params) {}  // Copy
-
-// NEW (v1.0):
-YourForce(const config::SomeConfig& config)
-    : config_(config) {}  // Reference
-```
-
-**Step 2: Update Member Variables**
-
-```cpp
-// OLD (Pre-v1.0):
-YourForceParams params_;  // Copy of data
-
-// NEW (v1.0):
-const config::SomeConfig& config_;  // Reference to SSOT
-```
-
-**Step 3: Update compute() Implementation**
-
-```cpp
-// OLD (Pre-v1.0):
-double value = params_.some_field;
-
-// NEW (v1.0):
-double value = config_.some_field;
-```
-
-**Step 4: Update Tests**
-
-```cpp
-// OLD (Pre-v1.0):
-YourForceParams params;
-params.some_field = 123.45;
-YourForce force(params);
-
-// NEW (v1.0):
-config::SomeConfig config;
-config.some_field = 123.45;
-YourForce force(config);  // config must outlive force!
-```
-
-**Step 5: Delete Parameter Struct**
-
-```cpp
-// DELETE this:
-struct YourForceParams {
-    double some_field;
-    // ... (all fields duplicate config!)
-};
-```
 
 ---
 
@@ -318,10 +231,10 @@ ICARION supports two types of collision models:
 
 ### Design Principle: SSOT Compliance
 
-✅ **DO:** Read directly from `EnvironmentConfig`  
-✅ **DO:** Store `const config::EnvironmentConfig&` references  
-❌ **DON'T:** Create parameter structs (SSOT violation!)  
-❌ **DON'T:** Copy config data into handler objects
+**DO:** Read directly from `EnvironmentConfig`  
+**DO:** Store `const config::EnvironmentConfig&` references  
+****DON'T:** Create parameter structs (SSOT violation!)  
+****DON'T:** Copy config data into handler objects
 
 ### Step-by-Step Guide
 
@@ -355,7 +268,7 @@ public:
         IonState& ion,
         double dt,
         EhssRng& rng,
-        const config::EnvironmentConfig& env  // ✅ SSOT!
+        const config::EnvironmentConfig& env  // SSOT!
     ) override;
     
     std::string name() const override { return "YourModel"; }
@@ -585,7 +498,7 @@ enum class InstrumentType {
 };
 ```
 
-⚠️ **Note:** This file violates SSOT and will be moved to `core/config/types/` in the future.
+****Note:** This file violates SSOT and will be moved to `core/config/types/` in the future.
 
 #### 2. Add Parameters to AnalyticalFieldParams
 
@@ -776,24 +689,52 @@ Use Doxygen-style comments:
 Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const;
 ```
 
-### SSOT Violations
+### SSOT Compliance
 
-When creating parameter structs (legacy pattern), always add deprecation warning:
+All new code must follow the Single Source of Truth principle:
 
 ```cpp
-// ============================================================================
-// ⚠️ DEPRECATED: YourParams violates SSOT principle!
-// ============================================================================
-// This struct duplicates parameters from FullConfig → ...
-// 
-// **TODO (Phase 2):** Replace with direct config reference.
-// **KEPT FOR NOW:** To avoid breaking changes during Phase 1.
-// ============================================================================
-
-struct YourParams {
-    // ...
+// CORRECT: Use const config reference
+class MyForce : public IForce {
+public:
+    MyForce(const config::DomainConfig& domain);
+    
+    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
+        // Read config on-demand
+        double axial_V = domain_.fields.dc.axial_V;
+        // ...
+    }
+    
+private:
+    const config::DomainConfig& domain_;  // Reference (SSOT)
 };
 ```
+
+```cpp
+// INCORRECT: Parameter struct (SSOT violation)
+struct MyForceParams {
+    double axial_V;  // Duplicates domain.fields.dc.axial_V
+};
+
+class MyForce : public IForce {
+public:
+    MyForce(const MyForceParams& params);  // Will be rejected
+    
+private:
+    MyForceParams params_;  // SSOT violation
+};
+```
+
+Rationale:
+
+- Single Source of Truth: Config changes propagate automatically
+- Type Safety: Compiler enforces correct config structure
+- No Duplication: Zero-copy, references only
+- Maintainability: One place to change parameters
+
+Migration Note: All legacy parameter structs (MagneticFieldParams, AnalyticalFieldParams, DampingParams) were deleted in ICARION v1.0. New code must use direct config references.
+
+See: src/core/physics/forces/ElectricFieldForce.h (reference implementation)
 
 ### Error Handling
 
@@ -814,24 +755,48 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 
 ---
 
-## Future Enhancements 
+## Future Enhancements
 
-### Planned Changes
+### In Progress
 
-1. **SSOT Refactor**: Remove all parameter structs, use `FullConfig` directly
-2. **Move InstrumentType**: `instrument/InstrumentTypes.h` → `core/config/types/`
-3. **Stochastic Forces**: Separate random kicks from deterministic forces
-4. **GPU Acceleration**: CUDA kernels for space charge and field evaluation
-5. **Field Caching**: Pre-compute and interpolate fields for performance
+1. **Integrator SSOT Migration** (Steps 5-8, approximately 3.5h remaining):
+   - Migrate compute_accelerations() to use DomainConfig
+   - Migrate integrate_one_step() to use FullConfig
+   - Migrate integrate_trajectory() to remove GlobalParams
+   - Remove LegacyAdapter from main.cpp
+   - Status: See tmp/REMAINING_SSOT_MIGRATION_WORK.md
 
-### Migration Strategy
+2. **Reaction System Database Unification** (Phase 3D, approximately 4-6h):
+   - Unify species types (remove ICARION::io::Species, reactionUtils::Species)
+   - Wire reaction_handler directly into integrator
+   - Delete legacy reaction loading code
+   - Blocker: Type mismatch between species databases
 
-When Phase 2 begins:
-1. Update force constructors to accept config references
-2. Deprecate parameter structs with compile warnings
-3. Update all call sites incrementally
-4. Remove parameter structs after full migration
-5. Update this guide with new patterns
+### Planned
+
+1. **InstrumentType Location** (Low priority, approximately 30min):
+   - Move instrument/InstrumentTypes.h to core/config/types/InstrumentType.h
+   - Eliminates dependency cycle config to instrument
+
+2. **Stochastic Forces** (Design phase):
+   - Separate random kicks from deterministic forces
+   - New IStochasticForce interface (similar to collision handlers)
+
+3. **GPU Acceleration** (Research phase):
+   - CUDA kernels for space charge computation
+   - Grid-based field evaluation on GPU
+   - Requirement: Ensure SSOT migration complete first
+
+4. **Field Caching** (Optimization phase):
+   - Pre-compute field on regular grid
+   - Trilinear interpolation for fast evaluation
+   - Benefit: Approximately 10x speedup for analytical fields
+
+### Completed
+
+- Force System SSOT (Phase 1, Steps 1-4 complete)
+- Collision System SSOT (Phase 2C complete)
+- Reaction System Handlers (Phase 3C complete)
 
 ---
 

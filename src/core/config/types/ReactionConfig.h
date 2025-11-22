@@ -21,7 +21,7 @@ namespace ICARION::config {
 struct ReactionOrderTerm {
     std::string species;            ///< Neutral species ID
     int exponent;                   ///< Concentration exponent (0, 1, or 2)
-    double concentration_m3;        ///< Number density [m⁻³]
+    double concentration_m3 = -1.0; ///< Number density [m⁻³] (-1.0 = use buffer gas)
     
     ValidationResult validate() const {
         ValidationResult result;
@@ -35,8 +35,13 @@ struct ReactionOrderTerm {
                            std::to_string(exponent) + ")");
         }
         
-        if (concentration_m3 < 0.0) {
-            result.add_error("Order term: concentration cannot be negative");
+        // concentration_m3 validation:
+        // -1.0 = "not specified" (use buffer gas density)
+        // >= 0.0 = explicit concentration
+        // Other negative values = error
+        if (concentration_m3 < -1.0 || (concentration_m3 > -1.0 && concentration_m3 < 0.0)) {
+            result.add_error("Order term: concentration must be >= 0 or -1.0 (buffer gas fallback), got " +
+                           std::to_string(concentration_m3));
         }
         
         return result;

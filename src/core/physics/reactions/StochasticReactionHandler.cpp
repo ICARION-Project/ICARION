@@ -1,0 +1,142 @@
+// StochasticReactionHandler.cpp
+// Implementation of stochastic reaction handler
+//
+// SSOT Design: Reads all parameters directly from databases and EnvironmentConfig.
+// No parameter duplication!
+//
+// Created: 2025-11-22 (Phase 3 Refactor)
+
+#include "StochasticReactionHandler.h"
+#include "core/io/logger.h"
+#include "utils/constants.h"
+#include <algorithm>
+#include <cmath>
+
+namespace ICARION {
+namespace physics {
+
+StochasticReactionHandler::StochasticReactionHandler(bool enable_logging)
+    : enable_logging_(enable_logging)
+{}
+
+bool StochasticReactionHandler::handle_reaction(
+    IonState& ion,
+    double dt,
+    EhssRng& rng,
+    const config::ReactionDatabase& reaction_db,
+    const config::SpeciesDatabase& species_db,
+    const config::EnvironmentConfig& env
+) {
+    // SSOT: Read temperature/density directly from EnvironmentConfig
+    const double T_K = env.temperature_K;
+    const double n_m3 = env.particle_density_m_3;
+    
+    // Find reactions for current ion species
+    auto applicable_reactions = find_applicable_reactions(ion.species_id, reaction_db);
+    
+    if (applicable_reactions.empty()) {
+        return false;  // No reactions for this species
+    }
+    
+    // Check each reaction
+    for (const auto* reaction : applicable_reactions) {
+        // SSOT: Compute rate from reaction database entry
+        double k_eff = compute_effective_rate(*reaction, T_K, n_m3);
+        
+        // Reaction probability (exponential decay)
+        double P = 1.0 - std::exp(-k_eff * dt);
+        
+        if (rng.uniform01() < P) {
+            // Reaction occurs!
+            if (enable_logging_) {
+                io::debug_log(
+                    "[StochasticReactionHandler] Reaction: " + reaction->reactant + 
+                    " -> " + reaction->product + " (k_eff=" + std::to_string(k_eff) + " s⁻¹)"
+                );
+            }
+            
+            // SSOT: Update ion from SpeciesDatabase
+            update_ion_species(ion, reaction->product, species_db);
+            
+            stats_.total_reactions++;
+            return true;
+        }
+    }
+    
+    return false;  // No reaction occurred
+}
+
+std::vector<const config::Reaction*> StochasticReactionHandler::find_applicable_reactions(
+    const std::string& species_id,
+    const config::ReactionDatabase& reaction_db
+) const {
+    std::vector<const config::Reaction*> result;
+    
+    // SSOT: Read directly from reaction_db.reactions
+    for (const auto& rxn : reaction_db.reactions) {
+        if (rxn.reactant == species_id) {
+            result.push_back(&rxn);
+        }
+    }
+    
+    return result;
+}
+
+double StochasticReactionHandler::compute_effective_rate(
+    const config::Reaction& reaction,
+    double temperature,
+    double particle_density
+) const {
+    // SSOT: Read k₀ directly from reaction.rate_constant_m3s
+    double k_eff = reaction.rate_constant_m3s;
+    
+    // Apply order terms (concentration dependencies)
+    for (const auto& term : reaction.order_terms) {
+        // Concentration handling:
+        // - If concentration_m3 == -1.0: Use buffer gas density (fallback)
+        // - Otherwise: Use explicit concentration (including 0 = no neutral)
+        double conc_m3 = (term.concentration_m3 < 0.0)
+            ? particle_density             // Fallback: buffer gas density
+            : term.concentration_m3;       // Explicit concentration
+        
+        // k_eff *= [X]^n
+        k_eff *= std::pow(conc_m3, term.exponent);
+    }
+    
+    return k_eff;  // [s⁻¹]
+}
+
+void StochasticReactionHandler::update_ion_species(
+    IonState& ion,
+    const std::string& product_id,
+    const config::SpeciesDatabase& species_db
+) const {
+    // SSOT: Look up product properties in SpeciesDatabase
+    if (!species_db.has(product_id)) {
+        io::debug_log(
+            "[StochasticReactionHandler] WARNING: Product species '" + product_id + 
+            "' not found in database - keeping reactant"
+        );
+        stats_.failed_lookups++;
+        return;
+    }
+    
+    const auto& product = species_db.get(product_id);
+    
+    // Update ion properties
+    ion.species_id = product_id;
+    ion.mass_kg = product.mass_kg;
+    ion.ion_charge_C = product.charge_C;
+    ion.CCS_m2 = product.CCS_m2;
+    ion.reduced_mobility_cm2_Vs = product.mobility_m2Vs / CM2_TO_M2;  // Convert back to reduced units
+    
+    if (enable_logging_) {
+        io::debug_log(
+            "[StochasticReactionHandler] Ion updated: " + product_id + 
+            " mass=" + std::to_string(ion.mass_kg) + " kg"
+        );
+    }
+}
+
+} // namespace physics
+} // namespace ICARION

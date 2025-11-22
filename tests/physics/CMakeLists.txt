@@ -4,3 +4,4 @@
 # Physics test subdirectories
 add_subdirectory(forces)
 add_subdirectory(collisions)
+add_subdirectory(reactions)

@@ -24,25 +24,10 @@ class IFieldProvider;
 namespace ICARION {
 namespace physics {
 
-// ============================================================================
-// ⚠️ DEPRECATED: MagneticFieldParams violates SSOT principle!
-// ============================================================================
-// This struct duplicates parameters from FullConfig → DomainConfig → FieldsConfig → MagneticFieldConfig.
-// 
-// **TODO (Phase 2):** Replace with direct DomainConfig.fields.magnetic reference.
-// **KEPT FOR NOW:** To avoid breaking changes during Phase 1.
-// ============================================================================
-
-/**
- * @brief Parameters for analytical magnetic field configuration
- * 
- * @deprecated Violates SSOT. Use DomainConfig.fields.magnetic directly in Phase 2.
- */
-struct MagneticFieldParams {
-    Vec3 uniform_field_T = {0.0, 0.0, 0.0};     ///< Uniform B-field [Tesla]
-    Vec3 gradient_T_per_m = {0.0, 0.0, 0.0};    ///< Linear gradient [T/m]
-    bool enabled = false;                        ///< Enable magnetic force
-};
+// Forward declaration for config types
+namespace config {
+    struct MagneticFieldConfig;
+}
 
 /**
  * @class MagneticFieldForce
@@ -60,11 +45,11 @@ struct MagneticFieldParams {
  * 
  * **Usage:**
  * ```cpp
- * // Analytical mode (uniform B-field for FTICR)
- * MagneticFieldParams params;
- * params.uniform_field_T = {0.0, 0.0, 7.0};  // 7T along z-axis
- * params.enabled = true;
- * auto force = std::make_unique<MagneticFieldForce>(params);
+ * // Analytical mode (SSOT-compliant)
+ * config::DomainConfig domain = load_config("config.json");
+ * domain.fields.magnetic.enabled = true;
+ * domain.fields.magnetic.field_strength_T = 7.0;  // 7T along z-axis
+ * auto force = std::make_unique<MagneticFieldForce>(domain.fields.magnetic);
  * 
  * // Field provider mode (spatially-varying field)
  * auto b_field_provider = std::make_shared<GridFieldProvider>(...);
@@ -78,10 +63,12 @@ struct MagneticFieldParams {
 class MagneticFieldForce : public IForce {
 public:
     /**
-     * @brief Construct from analytical field parameters
-     * @param params Magnetic field configuration (uniform + gradient)
+     * @brief Construct from magnetic field configuration (SSOT)
+     * @param magnetic_config Reference to magnetic field configuration
+     * 
+     * ⚠️ Config reference must outlive this object!
      */
-    explicit MagneticFieldForce(const MagneticFieldParams& params);
+    explicit MagneticFieldForce(const config::MagneticFieldConfig& magnetic_config);
     
     /**
      * @brief Construct from field provider (grid/BEM/FEM)
@@ -121,7 +108,7 @@ private:
     // Field calculation mode
     bool use_field_provider_ = false;
     std::shared_ptr<::IFieldProvider> field_provider_ = nullptr;
-    MagneticFieldParams analytical_params_;
+    const config::MagneticFieldConfig* magnetic_config_ = nullptr;  // SSOT: config reference
 };
 
 } // namespace physics

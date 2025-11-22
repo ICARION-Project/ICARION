@@ -41,6 +41,17 @@
 #include <iostream>
 #include <random>
 
+namespace {
+    // Numerical safety thresholds
+    constexpr double MIN_VELOCITY_MAG = 1e-12;  ///< Minimum velocity magnitude to avoid division by zero [m/s]
+    constexpr double MIN_CONTACT_DIST_SQ = 1e-24;  ///< Minimum squared distance for contact normal calculation [m²]
+    
+    // EHSS algorithm parameters
+    constexpr int DEFAULT_MAX_ATTEMPTS = 256;  ///< Default maximum impact parameter sampling attempts
+    constexpr int BMAX_EXPANSION_ATTEMPT = 64;  ///< Attempt number at which to expand b_max by 1.5x
+    constexpr double BMAX_EXPANSION_FACTOR = 1.5;  ///< Factor to expand b_max when not finding collisions
+}
+
 // -----------------------------
 // EhssRng methods
 // -----------------------------
@@ -206,13 +217,13 @@ Vec3 collide_ehss_cpu_geometry_given_neutral(const Vec3& v_ion_lab,
     // relative velocity and guard
     Vec3 vrel = v_ion_lab - v_neutral_lab;
     double vrel_mag = norm(vrel);
-    if (vrel_mag <= 1e-12) {
+    if (vrel_mag <= MIN_VELOCITY_MAG) {
         double u1 = rng.uniform01(), u2 = rng.uniform01();
         double cosT = 2.0*u1 - 1.0;
         double sinT = std::sqrt(std::max(0.0, 1.0 - cosT*cosT));
         double phi = 2.0*M_PI*u2;
-        vrel = Vec3{ sinT*std::cos(phi), sinT*std::sin(phi), cosT } * 1e-12;
-        vrel_mag = 1e-12;
+        vrel = Vec3{ sinT*std::cos(phi), sinT*std::sin(phi), cosT } * MIN_VELOCITY_MAG;
+        vrel_mag = MIN_VELOCITY_MAG;
     }
     Vec3 ehat = vrel / vrel_mag;
 
@@ -251,7 +262,7 @@ Vec3 collide_ehss_cpu_geometry_given_neutral(const Vec3& v_ion_lab,
     // sample impact parameters
     bool hit = false;
     Vec3 n_contact{0,0,0};
-    int max_attempts = (p.max_attempts > 0 ? p.max_attempts : 256);
+    int max_attempts = (p.max_attempts > 0 ? p.max_attempts : DEFAULT_MAX_ATTEMPTS);
     for (int attempt = 0; attempt < max_attempts && !hit; ++attempt) {
         double uA = rng.uniform01(), uB = rng.uniform01();
         double b = b_max * std::sqrt(uA);
@@ -275,7 +286,7 @@ Vec3 collide_ehss_cpu_geometry_given_neutral(const Vec3& v_ion_lab,
 
                 // avoid normalizing a near-zero vector
                 double phr2 = dot(p_hit_rel, p_hit_rel);
-                if (phr2 <= 1e-24) {
+                if (phr2 <= MIN_CONTACT_DIST_SQ) {
                     // degenerate contact, choose -ehat as normal
                     n_contact = ehat * -1.0;
                 } else {
@@ -286,7 +297,7 @@ Vec3 collide_ehss_cpu_geometry_given_neutral(const Vec3& v_ion_lab,
                 break;
             }
         }
-        if (!hit && attempt == 64) b_max *= 1.5;
+        if (!hit && attempt == BMAX_EXPANSION_ATTEMPT) b_max *= BMAX_EXPANSION_FACTOR;
     }
 
     if (!hit) return v_ion_lab;
@@ -331,15 +342,15 @@ Vec3 collide_hs_cpu(const Vec3& v_ion_lab,
     // Relative velocity
     Vec3 vrel = v_ion_lab - v_neutral_lab;
     double vrel_mag = norm(vrel);
-    if (vrel_mag <= 1e-12) {
+    if (vrel_mag <= MIN_VELOCITY_MAG) {
         // assign tiny random direction
         double u1 = rng.uniform01();
         double u2 = rng.uniform01();
         double cosT = 2.0*u1 - 1.0;
         double sinT = std::sqrt(std::max(0.0, 1.0 - cosT*cosT));
         double phi  = 2.0*M_PI*u2;
-        vrel = Vec3{ sinT*std::cos(phi), sinT*std::sin(phi), cosT } * 1e-12;
-        vrel_mag = 1e-12;
+        vrel = Vec3{ sinT*std::cos(phi), sinT*std::sin(phi), cosT } * MIN_VELOCITY_MAG;
+        vrel_mag = MIN_VELOCITY_MAG;
     }
 
     // Random isotropic scattering direction

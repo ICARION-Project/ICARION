@@ -6,6 +6,10 @@
 #include "utils/constants.h"
 #include <cmath>
 
+namespace {
+    constexpr double MIN_RELATIVE_VELOCITY = 1e-10;  ///< Minimum relative velocity to consider collision [m/s]
+}
+
 namespace ICARION::physics {
 
 HSSCollisionHandler::HSSCollisionHandler(bool enable_logging)
@@ -54,7 +58,7 @@ bool HSSCollisionHandler::handle_collision(
     const Vec3 v_rel = ion.vel - v_neutral;
     const double v_rel_mag = norm(v_rel);
     
-    if (v_rel_mag < 1e-10) {
+    if (v_rel_mag < MIN_RELATIVE_VELOCITY) {
         return false;  // Ion stationary relative to neutral
     }
     

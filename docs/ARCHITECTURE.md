@@ -858,9 +858,9 @@ strategy_->step(ion, t, dt, compute_accel, &domain);
 ```
 
 **Migration Status:**
-- ✅ Strategies implemented and tested (Phase 4)
-- ✅ Factory pattern implemented (Phase 4)
-- ⏳ SimulationEngine integration pending (Phase 5)
+- Strategies implemented and tested (Phase 4)
+- Factory pattern implemented (Phase 4)
+- SimulationEngine integration pending (Phase 5)
 
 ---
 
@@ -869,7 +869,7 @@ strategy_->step(ion, t, dt, compute_accel, &domain);
 **DomainManager** handles spatial domain lookup, coordinate transformations, and boundary conditions.
 
 **Key Features:**
-- Domain lookup by position (cylindrical + hyperbolic Orbitrap geometry)
+- Domain lookup by position (cylindrical/hyperbolic (Orbitrap) geometry)
 - Coordinate transforms (global ↔ local)
 - Aperture crossing detection
 - Domain property updates (temperature, pressure, gas velocity)
@@ -889,7 +889,7 @@ manager.update_domain_properties(ion, idx);
 - Supports cylindrical (most instruments) and hyperbolic (Orbitrap)
 - No dependency on legacy functions
 
-**Status:** ✅ Complete (Phase 5A, Nov 2025)
+**Status:** Complete (Phase 5A, Nov 2025)
 
 ---
 

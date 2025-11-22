@@ -26,6 +26,12 @@
 namespace ICARION {
 namespace integrator {
 
+namespace {
+    // Boris algorithm constants
+    constexpr double HALF_TIMESTEP = 0.5;  // For half-step electric acceleration
+    constexpr double S_NUMERATOR = 2.0;    // Numerator in s = 2t/(1 + t²) formula
+}
+
 void BorisStrategy::step(
     IonState& ion,
     double t,
@@ -69,11 +75,11 @@ void BorisStrategy::step(
     // Boris rotation parameters
     // t = (q/m) * B * (dt/2)
     double qm = ion.ion_charge_C / ion.mass_kg;
-    Vec3 t_vec = B * (qm * dt * 0.5);
+    Vec3 t_vec = B * (qm * dt * HALF_TIMESTEP);
     
     // s = 2*t / (1 + |t|²)
     double t_mag_sq = t_vec.x * t_vec.x + t_vec.y * t_vec.y + t_vec.z * t_vec.z;
-    double s_factor = 2.0 / (1.0 + t_mag_sq);
+    double s_factor = S_NUMERATOR / (1.0 + t_mag_sq);
     Vec3 s_vec = t_vec * s_factor;
     
     // v' = v^- + v^- × t
@@ -101,7 +107,7 @@ void BorisStrategy::step(
     // =========================================================================
     // STEP 5: Half-step electric acceleration (v^+ → v^(n+1))
     // =========================================================================
-    Vec3 v_new = v_plus + a_electric * (dt * 0.5);
+    Vec3 v_new = v_plus + a_electric * (dt * HALF_TIMESTEP);
     
     // Update ion state
     ion.vel = v_new;

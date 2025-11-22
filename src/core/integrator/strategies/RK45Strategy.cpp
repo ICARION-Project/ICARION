@@ -95,11 +95,20 @@ namespace {
     // PI controller coefficients (optimized for order 5)
     constexpr double PI_BETA = 0.04;  // Stabilization parameter
     constexpr double PI_ALPHA = 0.2 - PI_BETA * 0.75;  // Proportional gain
+    constexpr double REJECTION_EXPONENT = 0.2;  // 1/order for rejected steps (1/5 for order 5)
     
     // Step control parameters
     constexpr int MAX_REJECT_ATTEMPTS = 10;
     constexpr double SAFETY_MARGIN = 0.9;
     constexpr double MIN_ERROR_THRESHOLD = 1e-10;  // Below this, error estimate unreliable
+    constexpr double ERROR_ACCEPTANCE_THRESHOLD = 1.0;  // Error <= 1.0 means step accepted
+    constexpr double DT_MIN_TOLERANCE = 1.001;  // Accept step if dt near dt_min (1.001x factor)
+    
+    // Spatial dimensions
+    constexpr int NUM_SPATIAL_DIMS = 3;  // x, y, z components
+    constexpr int X_INDEX = 0;
+    constexpr int Y_INDEX = 1;
+    constexpr int Z_INDEX = 2;
 }
 
 RK45Strategy::RK45Strategy()
@@ -152,10 +161,10 @@ double RK45Strategy::estimate_error(
     double max_error = 0.0;
     
     // Position error (x, y, z)
-    for (int i = 0; i < 3; ++i) {
-        double y5_val = (i == 0) ? y5.pos.x : (i == 1) ? y5.pos.y : y5.pos.z;
-        double y4_val = (i == 0) ? y4.pos.x : (i == 1) ? y4.pos.y : y4.pos.z;
-        double y_val = (i == 0) ? y_current.pos.x : (i == 1) ? y_current.pos.y : y_current.pos.z;
+    for (int i = 0; i < NUM_SPATIAL_DIMS; ++i) {
+        double y5_val = (i == X_INDEX) ? y5.pos.x : (i == Y_INDEX) ? y5.pos.y : y5.pos.z;
+        double y4_val = (i == X_INDEX) ? y4.pos.x : (i == Y_INDEX) ? y4.pos.y : y4.pos.z;
+        double y_val = (i == X_INDEX) ? y_current.pos.x : (i == Y_INDEX) ? y_current.pos.y : y_current.pos.z;
         
         double err_abs = std::fabs(y5_val - y4_val);
         double scale = config_.atol + config_.rtol * std::fabs(y_val);
@@ -165,10 +174,10 @@ double RK45Strategy::estimate_error(
     }
     
     // Velocity error (vx, vy, vz)
-    for (int i = 0; i < 3; ++i) {
-        double y5_val = (i == 0) ? y5.vel.x : (i == 1) ? y5.vel.y : y5.vel.z;
-        double y4_val = (i == 0) ? y4.vel.x : (i == 1) ? y4.vel.y : y4.vel.z;
-        double y_val = (i == 0) ? y_current.vel.x : (i == 1) ? y_current.vel.y : y_current.vel.z;
+    for (int i = 0; i < NUM_SPATIAL_DIMS; ++i) {
+        double y5_val = (i == X_INDEX) ? y5.vel.x : (i == Y_INDEX) ? y5.vel.y : y5.vel.z;
+        double y4_val = (i == X_INDEX) ? y4.vel.x : (i == Y_INDEX) ? y4.vel.y : y4.vel.z;
+        double y_val = (i == X_INDEX) ? y_current.vel.x : (i == Y_INDEX) ? y_current.vel.y : y_current.vel.z;
         
         double err_abs = std::fabs(y5_val - y4_val);
         double scale = config_.atol + config_.rtol * std::fabs(y_val);
@@ -195,7 +204,7 @@ double RK45Strategy::compute_new_step(
     
     if (error > 1.0) {
         // Step rejected: use conservative factor
-        factor = config_.safety_factor * std::pow(1.0 / error, 0.2);  // 1/5 for order 5
+        factor = config_.safety_factor * std::pow(1.0 / error, REJECTION_EXPONENT);
     } else {
         // Step accepted: use PI controller
         factor = config_.safety_factor 
@@ -349,7 +358,7 @@ void RK45Strategy::step_adaptive(
         
         double error = estimate_error(y4, y5, y0);
         
-        if (error <= 1.0 || dt <= dt_min * 1.001) {
+        if (error <= ERROR_ACCEPTANCE_THRESHOLD || dt <= dt_min * DT_MIN_TOLERANCE) {
             // Accept step
             ion = y4;  // Use 4th-order solution
             step_accepted = true;

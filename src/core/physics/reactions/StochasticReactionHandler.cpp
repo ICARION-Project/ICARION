@@ -38,32 +38,64 @@ bool StochasticReactionHandler::handle_reaction(
         return false;  // No reactions for this species
     }
     
-    // Check each reaction
+    // === COMPETING CHANNELS ALGORITHM ===
+    // When multiple reactions are possible, we need to:
+    // 1. Compute total rate: k_total = Σ k_i
+    // 2. Total probability: P_total = 1 - exp(-k_total * dt)
+    // 3. Select channel with probability: P(channel i) = k_i / k_total
+    
+    // Step 1: Compute effective rates for all channels
+    std::vector<double> k_effs;
+    k_effs.reserve(applicable_reactions.size());
+    double k_total = 0.0;
+    
     for (const auto* reaction : applicable_reactions) {
-        // SSOT: Compute rate from reaction database entry
         double k_eff = compute_effective_rate(*reaction, T_K, n_m3);
-        
-        // Reaction probability (exponential decay)
-        double P = 1.0 - std::exp(-k_eff * dt);
-        
-        if (rng.uniform01() < P) {
-            // Reaction occurs!
+        k_effs.push_back(k_eff);
+        k_total += k_eff;
+    }
+    
+    // Step 2: Total reaction probability (exponential decay)
+    double P_total = 1.0 - std::exp(-k_total * dt);
+    
+    if (rng.uniform01() >= P_total) {
+        return false;  // No reaction occurs
+    }
+    
+    // Step 3: Select reaction channel (weighted by k_eff)
+    // Generate random number in [0, k_total)
+    double r = rng.uniform01() * k_total;
+    double cumulative = 0.0;
+    
+    for (size_t i = 0; i < applicable_reactions.size(); ++i) {
+        cumulative += k_effs[i];
+        if (r < cumulative) {
+            // This reaction channel selected!
+            const auto* selected_reaction = applicable_reactions[i];
+            
             if (enable_logging_) {
                 io::debug_log(
-                    "[StochasticReactionHandler] Reaction: " + reaction->reactant + 
-                    " -> " + reaction->product + " (k_eff=" + std::to_string(k_eff) + " s⁻¹)"
+                    "[StochasticReactionHandler] Reaction: " + selected_reaction->reactant + 
+                    " -> " + selected_reaction->product + 
+                    " (k_eff=" + std::to_string(k_effs[i]) + " s⁻¹, " +
+                    "k_total=" + std::to_string(k_total) + " s⁻¹)"
                 );
             }
             
             // SSOT: Update ion from SpeciesDatabase
-            update_ion_species(ion, reaction->product, species_db);
+            update_ion_species(ion, selected_reaction->product, species_db);
             
             stats_.total_reactions++;
             return true;
         }
     }
     
-    return false;  // No reaction occurred
+    // Numerical safety: Should never reach here (cumulative == k_total)
+    // But if we do due to floating-point errors, select last channel
+    const auto* last_reaction = applicable_reactions.back();
+    update_ion_species(ion, last_reaction->product, species_db);
+    stats_.total_reactions++;
+    return true;
 }
 
 std::vector<const config::Reaction*> StochasticReactionHandler::find_applicable_reactions(

@@ -350,3 +350,107 @@ TEST_CASE("StochasticReactionHandler: Reaction statistics", "[reaction][stats]")
     REQUIRE(stats.total_reactions > 0);
     REQUIRE(stats.total_reactions <= 10);
 }
+
+// =============================================================================
+// TEST 8: Competing Reaction Channels (Weighted Selection)
+// =============================================================================
+TEST_CASE("StochasticReactionHandler handles competing channels correctly", "[reactions][handler][competing]") {
+    // Create species database with Ion+ and two products
+    SpeciesDatabase species_db;
+    
+    SpeciesProperties ion;
+    ion.mass_amu = 100.0;
+    ion.charge = 1;
+    ion.mass_kg = 100.0 * AMU_TO_KG;
+    ion.charge_C = ELEM_CHARGE_C;
+    ion.CCS_m2 = 100e-20;
+    ion.mobility_m2Vs = 2.0e-4;
+    species_db.species["Ion+"] = ion;
+    
+    SpeciesProperties productA;
+    productA.mass_amu = 101.0;
+    productA.charge = 1;
+    productA.mass_kg = 101.0 * AMU_TO_KG;
+    productA.charge_C = ELEM_CHARGE_C;
+    productA.CCS_m2 = 101e-20;
+    productA.mobility_m2Vs = 2.0e-4;
+    species_db.species["ProductA+"] = productA;
+    
+    SpeciesProperties productB;
+    productB.mass_amu = 102.0;
+    productB.charge = 1;
+    productB.mass_kg = 102.0 * AMU_TO_KG;
+    productB.charge_C = ELEM_CHARGE_C;
+    productB.CCS_m2 = 102e-20;
+    productB.mobility_m2Vs = 2.0e-4;
+    species_db.species["ProductB+"] = productB;
+    
+    // Create two competing reaction channels:
+    // Channel A: Ion+ → ProductA+ (k = 1e10 s⁻¹, 10%)
+    // Channel B: Ion+ → ProductB+ (k = 9e10 s⁻¹, 90%)
+    ReactionDatabase reaction_db;
+    
+    Reaction rxn_A;
+    rxn_A.id = "rxn_A";
+    rxn_A.reactant = "Ion+";
+    rxn_A.product = "ProductA+";
+    rxn_A.rate_constant_m3s = 1e10;  // 10% of total
+    rxn_A.order_terms = {};  // Zero-order (constant rate)
+    
+    Reaction rxn_B;
+    rxn_B.id = "rxn_B";
+    rxn_B.reactant = "Ion+";
+    rxn_B.product = "ProductB+";
+    rxn_B.rate_constant_m3s = 9e10;  // 90% of total
+    rxn_B.order_terms = {};  // Zero-order (constant rate)
+    
+    reaction_db.reactions = {rxn_A, rxn_B};
+    
+    // Environment (buffer gas)
+    auto env = create_test_environment(300.0, 2.5e25);
+    
+    StochasticReactionHandler handler(false);
+    EhssRng rng(12345);
+    
+    IonState test_ion;
+    test_ion.species_id = "Ion+";
+    test_ion.mass_kg = 100.0 * AMU_TO_KG;
+    test_ion.ion_charge_C = ELEM_CHARGE_C;
+    test_ion.CCS_m2 = 100e-20;
+    
+    double dt = 1e-9;  // dt small enough for proper statistics
+    
+    // Run many trials to measure branching ratio
+    int count_A = 0;
+    int count_B = 0;
+    int total_trials = 10000;
+    
+    for (int trial = 0; trial < total_trials; ++trial) {
+        IonState ion_copy = test_ion;
+        bool reacted = handler.handle_reaction(ion_copy, dt, rng, reaction_db, species_db, env);
+        
+        if (reacted) {
+            if (ion_copy.species_id == "ProductA+") {
+                count_A++;
+            } else if (ion_copy.species_id == "ProductB+") {
+                count_B++;
+            }
+        }
+    }
+    
+    // Expected: ~10% ProductA, ~90% ProductB (among reactions that occurred)
+    int total_reactions = count_A + count_B;
+    REQUIRE(total_reactions > 0);  // At least some reactions occurred
+    
+    double fraction_A = static_cast<double>(count_A) / total_reactions;
+    double fraction_B = static_cast<double>(count_B) / total_reactions;
+    
+    // Verify branching ratio within 3σ (±5% for 10k trials)
+    REQUIRE(fraction_A > 0.05);   // Expected ~0.10 ± 0.05
+    REQUIRE(fraction_A < 0.15);
+    REQUIRE(fraction_B > 0.85);   // Expected ~0.90 ± 0.05
+    REQUIRE(fraction_B < 0.95);
+    
+    INFO("Branching ratio A:B = " << fraction_A << " : " << fraction_B);
+    INFO("Total reactions: " << total_reactions << " / " << total_trials);
+}

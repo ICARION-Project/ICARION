@@ -605,3 +605,107 @@ TEST_CASE("StochasticReactionHandler handles very small k_eff", "[reactions][han
     REQUIRE(reacted_count <= 5);  // Statistical tolerance
     INFO("Rare event: " << reacted_count << " reactions in 1000 trials (expected ~0)");
 }
+
+// =============================================================================
+// TEST 12: Extremely Small Rate Constant (k_total < 1e-60 early exit)
+// =============================================================================
+TEST_CASE("StochasticReactionHandler early exit for k_total < 1e-60", "[reactions][handler][optimization]") {
+    SpeciesDatabase species_db;
+    SpeciesProperties ion_props;
+    ion_props.mass_amu = 100.0;
+    ion_props.charge = 1;
+    ion_props.mass_kg = 100.0 * AMU_TO_KG;
+    ion_props.charge_C = ELEM_CHARGE_C;
+    ion_props.CCS_m2 = 100e-20;
+    ion_props.mobility_m2Vs = 2.0e-4;
+    species_db.species["Ion+"] = ion_props;
+    species_db.species["Product+"] = ion_props;
+    
+    // Reaction with k_total = 1e-65 s⁻¹ (below 1e-60 threshold)
+    ReactionDatabase reaction_db;
+    Reaction rxn;
+    rxn.id = "negligible_rxn";
+    rxn.reactant = "Ion+";
+    rxn.product = "Product+";
+    rxn.rate_constant_m3s = 1e-65;  // k_total = 1e-65 < 1e-60 → early exit!
+    rxn.order_terms = {};
+    reaction_db.reactions = {rxn};
+    
+    auto env = create_test_environment(300.0, 2.5e25);
+    
+    StochasticReactionHandler handler(false);
+    EhssRng rng(999);
+    
+    IonState ion;
+    ion.species_id = "Ion+";
+    ion.mass_kg = 100.0 * AMU_TO_KG;
+    ion.ion_charge_C = ELEM_CHARGE_C;
+    ion.CCS_m2 = 100e-20;
+    
+    double dt = 1.0;  // Large timestep
+    
+    // Should NEVER react (k_total < 1e-60 → early exit optimization)
+    for (int i = 0; i < 1000; ++i) {
+        IonState test_ion = ion;
+        bool reacted = handler.handle_reaction(test_ion, dt, rng, reaction_db, species_db, env);
+        
+        REQUIRE(!reacted);  // Must return false immediately
+        REQUIRE(test_ion.species_id == "Ion+");  // Species unchanged
+    }
+    
+    auto stats = handler.get_stats();
+    REQUIRE(stats.total_reactions == 0);  // No reactions should have occurred
+}
+
+// =============================================================================
+// TEST 13: Very Large k*dt (k_total * dt > 50 numerical safety)
+// =============================================================================
+TEST_CASE("StochasticReactionHandler numerical safety for k*dt > 50", "[reactions][handler][optimization]") {
+    SpeciesDatabase species_db;
+    SpeciesProperties ion_props;
+    ion_props.mass_amu = 100.0;
+    ion_props.charge = 1;
+    ion_props.mass_kg = 100.0 * AMU_TO_KG;
+    ion_props.charge_C = ELEM_CHARGE_C;
+    ion_props.CCS_m2 = 100e-20;
+    ion_props.mobility_m2Vs = 2.0e-4;
+    species_db.species["Ion+"] = ion_props;
+    species_db.species["Product+"] = ion_props;
+    
+    // Reaction with k_total * dt = 100 > 50 → P_total = 1.0 (certain)
+    ReactionDatabase reaction_db;
+    Reaction rxn;
+    rxn.id = "certain_rxn";
+    rxn.reactant = "Ion+";
+    rxn.product = "Product+";
+    rxn.rate_constant_m3s = 1e10;  // k_total = 1e10 s⁻¹
+    rxn.order_terms = {};
+    reaction_db.reactions = {rxn};
+    
+    auto env = create_test_environment(300.0, 2.5e25);
+    
+    StochasticReactionHandler handler(false);
+    EhssRng rng(777);
+    
+    IonState ion;
+    ion.species_id = "Ion+";
+    ion.mass_kg = 100.0 * AMU_TO_KG;
+    ion.ion_charge_C = ELEM_CHARGE_C;
+    ion.CCS_m2 = 100e-20;
+    
+    double dt = 1e-8;  // k*dt = 1e10 * 1e-8 = 100 > 50 → P_total = 1.0
+    
+    // Should react 100% of the time (P_total = 1.0, no exp() underflow)
+    int reacted_count = 0;
+    for (int i = 0; i < 100; ++i) {
+        IonState test_ion = ion;
+        bool reacted = handler.handle_reaction(test_ion, dt, rng, reaction_db, species_db, env);
+        if (reacted) {
+            reacted_count++;
+            REQUIRE(test_ion.species_id == "Product+");
+        }
+    }
+    
+    // Should react 100/100 times (P_total = 1.0)
+    REQUIRE(reacted_count == 100);  // Deterministic!
+}

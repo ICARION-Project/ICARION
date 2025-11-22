@@ -55,8 +55,21 @@ bool StochasticReactionHandler::handle_reaction(
         k_total += k_eff;
     }
     
+    // Early exit for negligible reaction rates
+    // If k_total < 1e-60 s⁻¹, reaction probability is effectively zero
+    if (k_total < 1e-60) {
+        return false;  // No reaction (rate too slow)
+    }
+    
     // Step 2: Total reaction probability (exponential decay)
-    double P_total = 1.0 - std::exp(-k_total * dt);
+    // Numerical safety for large k_total*dt
+    // If k*dt > 50, exp(-k*dt) < 2e-22 ≈ 0 → P_total ≈ 1.0
+    double P_total;
+    if (k_total * dt > 50.0) {
+        P_total = 1.0;  // Certain reaction (avoid exp underflow)
+    } else {
+        P_total = 1.0 - std::exp(-k_total * dt);
+    }
     
     if (rng.uniform01() >= P_total) {
         return false;  // No reaction occurs
@@ -123,6 +136,12 @@ double StochasticReactionHandler::compute_effective_rate(
     double k_eff = reaction.rate_constant_m3s;
     
     // Apply order terms (concentration dependencies)
+    // Optimization 3: Dimensional consistency check
+    // ⚠️ IMPORTANT: rate_constant_m3s must have correct dimensions!
+    // - 1st order (exponent=1): k [m³/s]   → k_eff = k * [X]    [s⁻¹]
+    // - 2nd order (exponent=2): k [m⁶/s]   → k_eff = k * [X]²   [s⁻¹]
+    // User is responsible for providing k with correct dimensional units!
+    
     for (const auto& term : reaction.order_terms) {
         // Concentration handling:
         // - If concentration_m3 == -1.0: Use buffer gas density (fallback)
@@ -131,7 +150,7 @@ double StochasticReactionHandler::compute_effective_rate(
             ? particle_density             // Fallback: buffer gas density
             : term.concentration_m3;       // Explicit concentration
         
-        // k_eff *= [X]^n
+        // k_eff *= [X]^n  (mathematically correct, but dimensional correctness depends on user!)
         k_eff *= std::pow(conc_m3, term.exponent);
     }
     

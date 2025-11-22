@@ -917,7 +917,7 @@ public:
 
 #### Core Algorithm: Competing Channels
 
-The handler implements the physically correct competing channels algorithm:
+The handler implements the physically correct competing channels algorithm with numerical optimizations:
 
 1. **Individual Probability Computation:**
    For each reaction `i` with effective rate constant `k_eff,i`:
@@ -926,15 +926,21 @@ The handler implements the physically correct competing channels algorithm:
    P_i = 1 - exp(-k_eff,i * dt)
    ```
 
-2. **Total Reaction Probability:**
+2. **Numerical Optimizations:**
+
+   - **Early exit for negligible rates:** If `k_total < 1e-60 s⁻¹`, return false immediately (reaction probability ≈ 0)
+   - **Large k·dt safety:** If `k_total * dt > 50`, set `P_total = 1.0` directly (avoid exp() underflow, exp(-50) < 2e-22 ≈ 0)
+
+3. **Total Reaction Probability:**
 
    ```text
-   P_total = 1 - ∏(1 - P_i)
+   P_total = 1.0 - exp(-k_total * dt)    if k*dt ≤ 50
+   P_total = 1.0                          if k*dt > 50
    ```
 
    (This is **NOT** simply `sum(P_i)` — that would be incorrect for large probabilities!)
 
-3. **Channel Selection:**
+4. **Channel Selection:**
    If a reaction occurs, select channel `i` with probability:
 
    ```text
@@ -943,9 +949,15 @@ The handler implements the physically correct competing channels algorithm:
 
 **Supported Reaction Orders:**
 
-- **First-order:** `k_eff = k` (spontaneous decay)
-- **Second-order:** `k_eff = k * n_M` (ion-neutral collision, where `n_M` is neutral density)
-- **Third-order:** `k_eff = k * n_M1 * n_M2` (three-body recombination)
+- **First-order (spontaneous):** `k_eff = k` [s⁻¹]
+- **Second-order (2-body):** `k_eff = k * n_M` [s⁻¹], where `k` [m³/s] and `n_M` [m⁻³]
+- **Third-order (3-body):** `k_eff = k * n_M1 * n_M2` [s⁻¹], where `k` [m⁶/s]
+
+⚠️ **Dimensional Consistency:** User must provide `rate_constant_m3s` with correct dimensions:
+
+- 1st-order term (exponent=1): `k` [m³/s]
+- 2nd-order term (exponent=2): `k` [m⁶/s]
+- Example: For A⁺ + 2X → B⁺, use `exponent=2` and `k` in [m⁶/s]!
 
 **Reaction Database Schema:**
 
@@ -1071,8 +1083,10 @@ void integrate_one_step(...) {
 - **Test 9:** Zero reactions edge case (empty database)
 - **Test 10:** Very large k_eff (numerical stability, P ≈ 1)
 - **Test 11:** Very small k_eff (rare events, P ≈ 0)
+- **Test 12:** Optimization: k_total < 1e-60 early exit (negligible rate)
+- **Test 13:** Optimization: k*dt > 50 numerical safety (P_total = 1.0 without exp())
 
-**Statistics:** 11 test cases, 1420 assertions (100% passing)
+**Statistics:** 13 test cases, 3522 assertions (100% passing)
 
 **Integration Test:** `test_reaction_factory.cpp`
 
@@ -1083,6 +1097,6 @@ void integrate_one_step(...) {
 
 - `REACTION_SYSTEM_REFACTORING_PLAN.md` — Detailed Phase 3 plan
 - `tmp/PHASE_3_COMPLETION_PLAN.md` — Phase 3C completion strategy
-- `INPUT_FORMAT_SPECIFICATION.md` — Reaction JSON schema
+- `docs/JSON_LOGGING.md` — Reaction JSON schema
 
 ---

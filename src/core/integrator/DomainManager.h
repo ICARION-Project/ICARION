@@ -18,9 +18,9 @@
 
 #pragma once
 
-#include "core/param/paramUtils.h"  // InstrumentDomain
-#include "core/types/Vec3.h"        // Vec3
-#include "core/types/IonState.h"    // IonState
+#include "core/config/types/DomainConfig.h"  // SSOT: config::DomainConfig
+#include "core/types/Vec3.h"                // Vec3
+#include "core/types/IonState.h"            // IonState
 #include <vector>
 
 namespace ICARION {
@@ -42,12 +42,13 @@ class DomainManager {
 public:
     /**
      * @brief Construct domain manager
-     * @param domains Vector of instrument domains (reference, not owned)
+     * @param domains Vector of domain configs (reference, not owned)
      * 
      * Stores a const reference to domains (owned by FullConfig).
      * All methods are const (no state modification).
+     * SSOT: Uses config::DomainConfig (modern format), not legacy InstrumentDomain.
      */
-    explicit DomainManager(const std::vector<InstrumentDomain>& domains);
+    explicit DomainManager(const std::vector<config::DomainConfig>& domains);
     
     /**
      * @brief Find which domain contains the ion position
@@ -62,10 +63,10 @@ public:
     /**
      * @brief Get domain by index
      * @param idx Domain index (must be valid: 0 <= idx < domains.size())
-     * @return Const reference to domain
+     * @return Const reference to domain (SSOT: config::DomainConfig)
      * @throws std::out_of_range if idx invalid
      */
-    const InstrumentDomain& get_domain(int idx) const;
+    const config::DomainConfig& get_domain(int idx) const;
     
     /**
      * @brief Transform position from global to local coordinates
@@ -146,18 +147,18 @@ public:
     size_t num_domains() const { return domains_.size(); }
     
 private:
-    const std::vector<InstrumentDomain>& domains_;  ///< Reference to domain list (not owned)
+    const std::vector<config::DomainConfig>& domains_;  ///< Reference to domain list (not owned, SSOT)
     
     /**
      * @brief Check if position is inside domain (internal helper)
-     * @param dom Domain to check
+     * @param dom Domain to check (SSOT: config::DomainConfig)
      * @param pos Global position [m]
      * @return true if inside domain boundaries
      * 
      * Handles cylindrical geometry (most instruments) and hyperbolic (Orbitrap).
      * Replaces legacy isInsideDomain() from paramUtils.cpp.
      */
-    bool is_inside_domain(const InstrumentDomain& dom, const Vec3& pos) const;
+    bool is_inside_domain(const config::DomainConfig& dom, const Vec3& pos) const;
 };
 
 }  // namespace integrator

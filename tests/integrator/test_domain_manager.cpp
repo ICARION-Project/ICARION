@@ -9,47 +9,52 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include "core/integrator/DomainManager.h"
-#include "core/param/paramUtils.h"
+#include "core/config/types/DomainConfig.h"
 #include "core/types/Vec3.h"
 
 using namespace ICARION::integrator;
 using namespace ICARION;
 using Catch::Approx;
 
-InstrumentDomain create_test_domain(int index, const Vec3& origin, double length, 
-                                    double radius, double end_aperture = -1.0) {
-    InstrumentDomain dom;
-    dom.index = index;
-    dom.geom.origin_m = origin;
-    dom.geom.length_m = length;
-    dom.geom.radius_m = radius;
-    dom.geom.end_aperture_m = end_aperture;
+config::DomainConfig create_test_domain(int index, const Vec3& origin, double length, 
+                                         double radius, double end_aperture = -1.0) {
+    config::DomainConfig dom;
+    dom.domain_index = index;
+    dom.name = "test_domain_" + std::to_string(index);
+    dom.instrument = config::Instrument::IMS;  // Default test instrument
+    
+    // Geometry (SSOT accessor)
+    dom.geometry.origin_m = origin;
+    dom.geometry.length_m = length;
+    dom.geometry.radius_m = radius;
+    dom.geometry.end_aperture_m = end_aperture;
     
     // Identity rotation
     dom.rotation_global_to_local = Mat3::identity();
     dom.rotation_local_to_global = Mat3::identity();
     
-    // Environment
-    dom.env.neutral_mass_kg = 6.646e-27;  // He-4
-    dom.env.temperature_K = 300.0;
-    dom.env.particle_density_m_3 = 2.4e25;
-    dom.env.gas_velocity_m_s = {0.0, 0.0, 0.0};
+    // Environment (SSOT accessor)
+    dom.environment.gas_species = "He";
+    dom.environment.temperature_K = 300.0;
+    dom.environment.pressure_Pa = 101325.0;
+    dom.environment.gas_velocity_m_s = Vec3{0.0, 0.0, 0.0};
+    dom.environment.compute_derived_properties();  // Compute gas_mass_kg, particle_density_m_3
     
     return dom;
 }
 
 TEST_CASE("DomainManager: Constructor rejects empty domains") {
-    std::vector<InstrumentDomain> empty;
+    std::vector<config::DomainConfig> empty;
     REQUIRE_THROWS(DomainManager(empty));
 }
 
 TEST_CASE("DomainManager: Constructor accepts valid domains") {
-    std::vector<InstrumentDomain> domains = {create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05)};
+    std::vector<config::DomainConfig> domains = {create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05)};
     REQUIRE_NOTHROW(DomainManager(domains));
 }
 
 TEST_CASE("DomainManager: Find domain by position") {
-    std::vector<InstrumentDomain> domains;
+    std::vector<config::DomainConfig> domains;
     domains.push_back(create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05));
     domains.push_back(create_test_domain(1, Vec3{0,0,0.1}, 0.2, 0.05, 0.02));
     DomainManager manager(domains);
@@ -70,7 +75,7 @@ TEST_CASE("DomainManager: Find domain by position") {
 }
 
 TEST_CASE("DomainManager: Coordinate transforms") {
-    std::vector<InstrumentDomain> domains;
+    std::vector<config::DomainConfig> domains;
     domains.push_back(create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05));
     domains.push_back(create_test_domain(1, Vec3{0,0,0.1}, 0.2, 0.05));
     DomainManager manager(domains);
@@ -100,7 +105,7 @@ TEST_CASE("DomainManager: Coordinate transforms") {
 }
 
 TEST_CASE("DomainManager: Aperture crossing") {
-    std::vector<InstrumentDomain> domains;
+    std::vector<config::DomainConfig> domains;
     domains.push_back(create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05));  // No aperture
     domains.push_back(create_test_domain(1, Vec3{0,0,0.1}, 0.2, 0.05, 0.02));  // 2cm aperture
     DomainManager manager(domains);
@@ -128,7 +133,7 @@ TEST_CASE("DomainManager: Aperture crossing") {
 }
 
 TEST_CASE("DomainManager: Update ion properties") {
-    std::vector<InstrumentDomain> domains;
+    std::vector<config::DomainConfig> domains;
     domains.push_back(create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05));
     domains.push_back(create_test_domain(1, Vec3{0,0,0.1}, 0.2, 0.05));
     DomainManager manager(domains);
@@ -140,11 +145,13 @@ TEST_CASE("DomainManager: Update ion properties") {
     
     REQUIRE(ion.current_domain_index == 1);
     REQUIRE(ion.domain_temperature_K == Approx(300.0).margin(1e-6));
-    REQUIRE(ion.domain_particle_density_m3 == Approx(2.4e25).margin(1e20));
+    // particle_density is computed from P/(kB*T), approximately 2.44e25 for 1 atm at 300K
+    REQUIRE(ion.domain_particle_density_m3 == Approx(2.44e25).margin(1e23));
+    REQUIRE(ion.domain_neutral_mass_kg == Approx(6.646e-27).margin(1e-30));  // He-4 mass
 }
 
 TEST_CASE("DomainManager: Full workflow") {
-    std::vector<InstrumentDomain> domains;
+    std::vector<config::DomainConfig> domains;
     domains.push_back(create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05));
     domains.push_back(create_test_domain(1, Vec3{0,0,0.1}, 0.2, 0.05));
     DomainManager manager(domains);

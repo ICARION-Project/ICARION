@@ -2,7 +2,6 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "DomainManager.h"
-#include "core/param/paramUtils.h"  // InstrumentDomain
 #include "instrument/InstrumentTypes.h"  // Instrument enum
 #include <stdexcept>
 #include <cmath>
@@ -10,7 +9,7 @@
 namespace ICARION {
 namespace integrator {
 
-DomainManager::DomainManager(const std::vector<InstrumentDomain>& domains)
+DomainManager::DomainManager(const std::vector<config::DomainConfig>& domains)
     : domains_(domains)
 {
     if (domains.empty()) {
@@ -27,7 +26,7 @@ int DomainManager::find_domain_index(const Vec3& pos) const {
     return -1;  // Outside all domains
 }
 
-const InstrumentDomain& DomainManager::get_domain(int idx) const {
+const config::DomainConfig& DomainManager::get_domain(int idx) const {
     if (idx < 0 || idx >= static_cast<int>(domains_.size())) {
         throw std::out_of_range("DomainManager::get_domain: invalid domain index " + 
                                 std::to_string(idx));
@@ -37,7 +36,7 @@ const InstrumentDomain& DomainManager::get_domain(int idx) const {
 
 Vec3 DomainManager::global_to_local_pos(const Vec3& pos, int domain_idx) const {
     const auto& dom = get_domain(domain_idx);
-    return dom.rotation_global_to_local * (pos - dom.geom.origin_m);
+    return dom.rotation_global_to_local * (pos - dom.geometry.origin_m);
 }
 
 Vec3 DomainManager::global_to_local_vel(const Vec3& vel, int domain_idx) const {
@@ -47,7 +46,7 @@ Vec3 DomainManager::global_to_local_vel(const Vec3& vel, int domain_idx) const {
 
 Vec3 DomainManager::local_to_global_pos(const Vec3& pos_local, int domain_idx) const {
     const auto& dom = get_domain(domain_idx);
-    return dom.rotation_local_to_global * pos_local + dom.geom.origin_m;
+    return dom.rotation_local_to_global * pos_local + dom.geometry.origin_m;
 }
 
 Vec3 DomainManager::local_to_global_vel(const Vec3& vel_local, int domain_idx) const {
@@ -60,11 +59,11 @@ void DomainManager::check_aperture_crossing(IonState& ion, int domain_idx,
     const auto& dom = get_domain(domain_idx);
     
     // No aperture constraint
-    if (dom.geom.end_aperture_m <= 0.0) {
+    if (dom.geometry.end_aperture_m <= 0.0) {
         return;  // Ion can pass freely
     }
     
-    const double z_ap = dom.geom.length_m;
+    const double z_ap = dom.geometry.length_m;
     
     // Check if ion crossed the aperture plane (forward or backward)
     const bool crossed_forward = (pos_before.z < z_ap && pos_after.z >= z_ap);
@@ -79,7 +78,7 @@ void DomainManager::check_aperture_crossing(IonState& ion, int domain_idx,
         const double r_cross = std::sqrt(cross_point.x * cross_point.x + 
                                          cross_point.y * cross_point.y);
         
-        if (r_cross > dom.geom.end_aperture_m) {
+        if (r_cross > dom.geometry.end_aperture_m) {
             // Ion blocked by aperture
             ion.active = false;
         }
@@ -89,33 +88,31 @@ void DomainManager::check_aperture_crossing(IonState& ion, int domain_idx,
 void DomainManager::update_domain_properties(IonState& ion, int domain_idx) const {
     const auto& dom = get_domain(domain_idx);
     
-    ion.domain_neutral_mass_kg = dom.env.neutral_mass_kg;
-    ion.domain_temperature_K = dom.env.temperature_K;
-    ion.domain_particle_density_m3 = dom.env.particle_density_m_3;
-    ion.domain_gas_velocity_m_s = Vec3(dom.env.gas_velocity_m_s.x,
-                                       dom.env.gas_velocity_m_s.y,
-                                       dom.env.gas_velocity_m_s.z);
-    ion.current_domain_index = dom.index;
+    ion.domain_neutral_mass_kg = dom.environment.gas_mass_kg;
+    ion.domain_temperature_K = dom.environment.temperature_K;
+    ion.domain_particle_density_m3 = dom.environment.particle_density_m_3;
+    ion.domain_gas_velocity_m_s = dom.environment.gas_velocity_m_s;
+    ion.current_domain_index = dom.domain_index;
 }
 
-bool DomainManager::is_inside_domain(const InstrumentDomain& dom, const Vec3& globalPos) const {
+bool DomainManager::is_inside_domain(const config::DomainConfig& dom, const Vec3& globalPos) const {
     // Transform to local coordinates
-    Vec3 local = dom.rotation_global_to_local * (globalPos - dom.geom.origin_m);
+    Vec3 local = dom.rotation_global_to_local * (globalPos - dom.geometry.origin_m);
     double r = std::sqrt(local.x * local.x + local.y * local.y);
     
     // Cylindrical geometry (most instruments)
-    if (dom.instrument != Instrument::Orbitrap) {
+    if (dom.instrument != config::Instrument::Orbitrap) {
         // Ion must be inside domain:
         // - z >= 0 (at or past entrance)
         // - z < length_m (before exit)
         // - r < radius_m (within radial boundary)
-        return (local.z >= 0.0 && local.z < dom.geom.length_m) && (r < dom.geom.radius_m);
+        return (local.z >= 0.0 && local.z < dom.geometry.length_m) && (r < dom.geometry.radius_m);
     }
     
     // Orbitrap: hyperbolic electrode geometry
-    const double Rin = dom.geom.radius_in_m;
-    const double Rout = dom.geom.radius_out_m;
-    const double Rm = dom.geom.radius_char_m;
+    const double Rin = dom.geometry.radius_in_m;
+    const double Rout = dom.geometry.radius_out_m;
+    const double Rm = dom.geometry.radius_char_m;
     const double z = std::fabs(local.z);
     
     // Compute allowed radial range for given z (hyperbolic surfaces)

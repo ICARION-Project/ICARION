@@ -247,11 +247,11 @@ TEST_CASE("RK4Strategy: Factory creation", "[integrator][factory]") {
         );
     }
     
-    SECTION("RK45 not yet implemented") {
-        REQUIRE_THROWS_AS(
-            IntegrationStrategyFactory::create("RK45"),
-            std::invalid_argument
-        );
+    SECTION("RK45 implemented (Phase 4B)") {
+        auto strategy = IntegrationStrategyFactory::create("RK45");
+        REQUIRE(strategy != nullptr);
+        REQUIRE(strategy->name() == "RK45");
+        REQUIRE(strategy->is_adaptive() == true);
     }
 }
 

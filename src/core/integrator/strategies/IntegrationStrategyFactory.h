@@ -30,6 +30,7 @@
 
 #include "IIntegrationStrategy.h"
 #include "RK4Strategy.h"
+#include "RK45Strategy.h"
 
 namespace ICARION {
 namespace integrator {
@@ -78,11 +79,8 @@ public:
             return std::make_unique<RK4Strategy>();
         }
         else if (strategy_name == "RK45") {
-            // Phase 4B: Not yet implemented
-            throw std::invalid_argument(
-                "IntegrationStrategyFactory: RK45 strategy not yet implemented (Phase 4B). "
-                "Use 'RK4' for now."
-            );
+            // Phase 4B: Adaptive Dormand-Prince with default config
+            return std::make_unique<RK45Strategy>();
         }
         else if (strategy_name == "Boris") {
             // Phase 4B: Not yet implemented
@@ -108,8 +106,8 @@ public:
      */
     static std::vector<std::string> supported_strategies() {
         return {
-            "RK4"     // Phase 4A (implemented)
-            // "RK45",   // Phase 4B (not yet implemented)
+            "RK4",    // Phase 4A (implemented)
+            "RK45"    // Phase 4B (implemented)
             // "Boris"   // Phase 4B (not yet implemented)
         };
     }

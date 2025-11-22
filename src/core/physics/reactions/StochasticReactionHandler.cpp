@@ -132,15 +132,18 @@ double StochasticReactionHandler::compute_effective_rate(
     double temperature,
     double particle_density
 ) const {
-    // SSOT: Read k₀ directly from reaction.rate_constant_m3s
-    double k_eff = reaction.rate_constant_m3s;
+    // ✅ STEP 1: Compute temperature-dependent rate constant k(T)
+    // Models: Constant, Arrhenius, Modified Arrhenius
+    double k_T = reaction.compute_rate_constant(temperature);
     
-    // Apply order terms (concentration dependencies)
+    // ✅ STEP 2: Apply order terms (concentration dependencies)
     // Optimization 3: Dimensional consistency check
     // ⚠️ IMPORTANT: rate_constant_m3s must have correct dimensions!
-    // - 1st order (exponent=1): k [m³/s]   → k_eff = k * [X]    [s⁻¹]
-    // - 2nd order (exponent=2): k [m⁶/s]   → k_eff = k * [X]²   [s⁻¹]
+    // - 1st order (exponent=1): k [m³/s]   → k_eff = k(T) * [X]    [s⁻¹]
+    // - 2nd order (exponent=2): k [m⁶/s]   → k_eff = k(T) * [X]²   [s⁻¹]
     // User is responsible for providing k with correct dimensional units!
+    
+    double k_eff = k_T;
     
     for (const auto& term : reaction.order_terms) {
         // Concentration handling:

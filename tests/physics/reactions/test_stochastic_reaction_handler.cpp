@@ -709,3 +709,141 @@ TEST_CASE("StochasticReactionHandler numerical safety for k*dt > 50", "[reaction
     // Should react 100/100 times (P_total = 1.0)
     REQUIRE(reacted_count == 100);  // Deterministic!
 }
+
+// =============================================================================
+// TEST 14: Arrhenius Temperature Dependence
+// =============================================================================
+TEST_CASE("StochasticReactionHandler: Arrhenius temperature dependence", "[reactions][handler][temperature]") {
+    SpeciesDatabase species_db;
+    SpeciesProperties ion_props;
+    ion_props.mass_amu = 100.0;
+    ion_props.charge = 1;
+    ion_props.mass_kg = 100.0 * AMU_TO_KG;
+    ion_props.charge_C = ELEM_CHARGE_C;
+    ion_props.CCS_m2 = 100e-20;
+    ion_props.mobility_m2Vs = 2.0e-4;
+    species_db.species["Ion+"] = ion_props;
+    species_db.species["Product+"] = ion_props;
+    
+    // Reaction with Arrhenius temperature dependence
+    // k(T) = A × exp(-Eₐ / (kB·T))
+    // A = 1e-9 m³/s, Eₐ = 0.1 eV
+    ReactionDatabase reaction_db;
+    Reaction rxn;
+    rxn.id = "arrhenius_rxn";
+    rxn.reactant = "Ion+";
+    rxn.product = "Product+";
+    rxn.rate_model = RateModel::Arrhenius;
+    rxn.rate_constant_m3s = 1.0e-9;      // A [m³/s]
+    rxn.activation_energy_eV = 0.1;      // Eₐ = 0.1 eV
+    
+    // Second-order reaction (ion-neutral)
+    ReactionOrderTerm term;
+    term.species = "N2";
+    term.exponent = 1;
+    term.concentration_m3 = -1.0;  // Use buffer gas density
+    rxn.order_terms.push_back(term);
+    
+    reaction_db.reactions = {rxn};
+    
+    StochasticReactionHandler handler(false);
+    EhssRng rng(42);
+    
+    IonState ion;
+    ion.species_id = "Ion+";
+    ion.mass_kg = 100.0 * AMU_TO_KG;
+    ion.ion_charge_C = ELEM_CHARGE_C;
+    ion.CCS_m2 = 100e-20;
+    
+    double dt = 1e-9;
+    double n_buffer = 2.5e25;  // [m⁻³]
+    
+    // Test at different temperatures
+    std::vector<double> temperatures = {200.0, 300.0, 400.0};  // [K]
+    std::vector<double> reaction_rates;
+    
+    for (double T_K : temperatures) {
+        auto env = create_test_environment(T_K, n_buffer);
+        
+        // Compute k(T)
+        double k_T = rxn.compute_rate_constant(T_K);
+        
+        // Expected: k(T) = A × exp(-Eₐ / (kB·T))
+        // Eₐ = 0.1 eV × 1.602e-19 J/eV = 1.602e-20 J
+        // kB = 1.381e-23 J/K
+        double Ea_J = 0.1 * ELEM_CHARGE_C;
+        double expected_k_T = 1e-9 * std::exp(-Ea_J / (BOLTZMANN_CONSTANT * T_K));
+        
+        // Check k(T) matches theory (within 0.01% relative error)
+        REQUIRE(k_T == Catch::Approx(expected_k_T).epsilon(1e-6));
+        
+        // Verify rate increases with temperature
+        reaction_rates.push_back(k_T);
+    }
+    
+    // Check: k(400K) > k(300K) > k(200K)
+    REQUIRE(reaction_rates[2] > reaction_rates[1]);
+    REQUIRE(reaction_rates[1] > reaction_rates[0]);
+    
+    INFO("k(200K) = " << reaction_rates[0] << " m³/s");
+    INFO("k(300K) = " << reaction_rates[1] << " m³/s");
+    INFO("k(400K) = " << reaction_rates[2] << " m³/s");
+    INFO("Ratio k(400K)/k(200K) = " << reaction_rates[2] / reaction_rates[0]);
+}
+
+// =============================================================================
+// TEST 15: Modified Arrhenius (Ion-Dipole Capture, T^(-0.5) dependence)
+// =============================================================================
+TEST_CASE("StochasticReactionHandler: Modified Arrhenius (capture)", "[reactions][handler][temperature]") {
+    SpeciesDatabase species_db;
+    SpeciesProperties ion_props;
+    ion_props.mass_amu = 100.0;
+    ion_props.charge = 1;
+    ion_props.mass_kg = 100.0 * AMU_TO_KG;
+    ion_props.charge_C = ELEM_CHARGE_C;
+    ion_props.CCS_m2 = 100e-20;
+    ion_props.mobility_m2Vs = 2.0e-4;
+    species_db.species["Ion+"] = ion_props;
+    species_db.species["Cluster+"] = ion_props;
+    
+    // Reaction with modified Arrhenius: k(T) = A × (T/T₀)^n
+    // A = 2e-9 m³/s, n = -0.5 (typical for ion-dipole capture)
+    // T₀ = 300 K, Eₐ = 0 (barrierless)
+    ReactionDatabase reaction_db;
+    Reaction rxn;
+    rxn.id = "capture_rxn";
+    rxn.reactant = "Ion+";
+    rxn.product = "Cluster+";
+    rxn.rate_model = RateModel::ModifiedArrhenius;
+    rxn.rate_constant_m3s = 2.0e-9;          // A [m³/s]
+    rxn.temperature_exponent = -0.5;         // n = -0.5
+    rxn.reference_temperature_K = 300.0;     // T₀ = 300 K
+    rxn.activation_energy_eV = 0.0;          // No barrier
+    
+    reaction_db.reactions = {rxn};
+    
+    // Test k(T) = A × (T/T₀)^(-0.5)
+    
+    // At 200 K:
+    // k(200K) = 2e-9 × (200/300)^(-0.5) = 2e-9 × (2/3)^(-0.5) = 2e-9 × 1.225 = 2.45e-9
+    double k_200 = rxn.compute_rate_constant(200.0);
+    REQUIRE(k_200 == Catch::Approx(2.45e-9).epsilon(1e-2));
+    
+    // At 300 K (reference):
+    // k(300K) = 2e-9 × (300/300)^(-0.5) = 2e-9 × 1 = 2e-9
+    double k_300 = rxn.compute_rate_constant(300.0);
+    REQUIRE(k_300 == Catch::Approx(2.0e-9).epsilon(1e-6));
+    
+    // At 400 K:
+    // k(400K) = 2e-9 × (400/300)^(-0.5) = 2e-9 × (4/3)^(-0.5) = 2e-9 × 0.866 = 1.73e-9
+    double k_400 = rxn.compute_rate_constant(400.0);
+    REQUIRE(k_400 == Catch::Approx(1.73e-9).epsilon(1e-2));
+    
+    // Verify: k decreases with T (negative exponent → "anti-Arrhenius")
+    REQUIRE(k_200 > k_300);
+    REQUIRE(k_300 > k_400);
+    
+    INFO("k(200K) = " << k_200 << " m³/s (faster at low T)");
+    INFO("k(300K) = " << k_300 << " m³/s");
+    INFO("k(400K) = " << k_400 << " m³/s (slower at high T)");
+}

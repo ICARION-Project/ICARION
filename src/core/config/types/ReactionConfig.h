@@ -13,6 +13,17 @@
 namespace ICARION::config {
 
 /**
+ * @brief Temperature dependence model for rate constant
+ * 
+ * Determines how k varies with temperature T [K].
+ */
+enum class RateModel {
+    Constant,          ///< k(T) = k₀ (no temperature dependence)
+    Arrhenius,         ///< k(T) = A × exp(-Eₐ / (kB·T))
+    ModifiedArrhenius  ///< k(T) = A × (T/T₀)ⁿ × exp(-Eₐ / (kB·T))
+};
+
+/**
  * @brief Concentration dependence term
  * 
  * Specifies how reaction rate depends on neutral concentration.
@@ -49,12 +60,13 @@ struct ReactionOrderTerm {
 };
 
 /**
- * @brief Simple single-reactant reaction
+ * @brief Single-reactant reaction with optional temperature dependence
  * 
  * Models: A⁺ + n·X → B⁺ + products
  * where A⁺ is reactant ion, X is neutral, B⁺ is product ion.
  * 
- * No temperature dependence, no multi-step reactions (reserved for v2.0).
+ * Supports temperature-dependent rate constants (Arrhenius, modified Arrhenius).
+ * Multi-step reactions reserved for v2.0.
  * 
  * ⚠️ DIMENSIONAL CONSISTENCY:
  * rate_constant_m3s must have correct dimensions based on order_terms:
@@ -70,23 +82,51 @@ struct Reaction {
     std::string id;                         ///< Unique reaction identifier
     std::string reactant;                   ///< Reactant ion species ID
     std::string product;                    ///< Product ion species ID
-    double rate_constant_m3s;               ///< Rate constant with correct dimensions (see above!)
+    double rate_constant_m3s;               ///< Base rate constant (k₀ or A) with correct dimensions
     
-    // === Optional fields ===
+    // === Temperature dependence (optional) ===
+    RateModel rate_model = RateModel::Constant;  ///< Temperature dependence model
+    double activation_energy_eV = 0.0;           ///< Activation energy Eₐ [eV] (Arrhenius)
+    double temperature_exponent = 0.0;           ///< Temperature exponent n (modified Arrhenius)
+    double reference_temperature_K = 300.0;      ///< Reference temperature T₀ [K] (modified Arrhenius)
+    
+    // === Concentration dependence (optional) ===
     std::vector<ReactionOrderTerm> order_terms; ///< Concentration dependence
     
     /**
-     * @brief Calculate effective rate constant
+     * @brief Compute temperature-dependent rate constant
      * 
-     * @param concentrations Map of species ID → concentration [m⁻³]
-     * @return k_eff [s⁻¹] including concentration dependence
+     * @param temperature_K Gas temperature [K]
+     * @return k(T) with correct dimensions [m³/s for 2nd-order, m⁶/s for 3rd-order]
      * 
-     * For 2-body: k_eff = k * [X]
-     * For 3-body: k_eff = k * [X] * [M]
+     * **Models:**
+     * - Constant: k(T) = k₀
+     * - Arrhenius: k(T) = A × exp(-Eₐ / (kB·T))
+     * - ModifiedArrhenius: k(T) = A × (T/T₀)ⁿ × exp(-Eₐ / (kB·T))
      */
-    double effective_rate_s(const std::unordered_map<std::string, double>& concentrations) const {
-        double k_eff = rate_constant_m3s;
+    double compute_rate_constant(double temperature_K) const;
+    
+    /**
+     * @brief Calculate effective rate (includes temperature + concentration)
+     * 
+     * @param temperature_K Gas temperature [K]
+     * @param concentrations Map of species ID → concentration [m⁻³]
+     * @return k_eff [s⁻¹] including both T-dependence and concentration
+     * 
+     * **Formula:** k_eff = k(T) × ∏ᵢ [Xᵢ]^nᵢ
+     * 
+     * For 2-body: k_eff = k(T) * [X]
+     * For 3-body: k_eff = k(T) * [X] * [M]
+     */
+    double effective_rate_s(
+        double temperature_K,
+        const std::unordered_map<std::string, double>& concentrations
+    ) const {
+        // Step 1: Compute k(T)
+        double k_T = compute_rate_constant(temperature_K);
         
+        // Step 2: Apply concentration terms
+        double k_eff = k_T;
         for (const auto& term : order_terms) {
             auto it = concentrations.find(term.species);
             double conc = (it != concentrations.end()) ? it->second : term.concentration_m3;

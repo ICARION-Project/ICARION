@@ -99,7 +99,56 @@ Reaction ReactionLoader::parse_reaction(const Json::Value& json) {
     }
     rxn.rate_constant_m3s = json["rate_constant_m3s"].asDouble();
     
-    // Optional: order terms
+    // === Optional: Temperature dependence ===
+    
+    // Rate model (default: Constant)
+    if (json.isMember("rate_model") && json["rate_model"].isString()) {
+        std::string model_str = json["rate_model"].asString();
+        
+        if (model_str == "Constant") {
+            rxn.rate_model = RateModel::Constant;
+        } else if (model_str == "Arrhenius") {
+            rxn.rate_model = RateModel::Arrhenius;
+        } else if (model_str == "ModifiedArrhenius") {
+            rxn.rate_model = RateModel::ModifiedArrhenius;
+        } else {
+            throw std::runtime_error(
+                "Reaction '" + rxn.id + "': unknown rate_model '" + model_str + 
+                "' (allowed: Constant, Arrhenius, ModifiedArrhenius)"
+            );
+        }
+    } else {
+        rxn.rate_model = RateModel::Constant;  // Default
+    }
+    
+    // Activation energy (optional)
+    if (json.isMember("activation_energy_eV") && json["activation_energy_eV"].isNumeric()) {
+        rxn.activation_energy_eV = json["activation_energy_eV"].asDouble();
+        
+        if (rxn.activation_energy_eV < 0.0) {
+            throw std::runtime_error(
+                "Reaction '" + rxn.id + "': activation_energy_eV must be non-negative"
+            );
+        }
+    }
+    
+    // Temperature exponent (optional, modified Arrhenius only)
+    if (json.isMember("temperature_exponent") && json["temperature_exponent"].isNumeric()) {
+        rxn.temperature_exponent = json["temperature_exponent"].asDouble();
+    }
+    
+    // Reference temperature (optional, modified Arrhenius only)
+    if (json.isMember("reference_temperature_K") && json["reference_temperature_K"].isNumeric()) {
+        rxn.reference_temperature_K = json["reference_temperature_K"].asDouble();
+        
+        if (rxn.reference_temperature_K <= 0.0) {
+            throw std::runtime_error(
+                "Reaction '" + rxn.id + "': reference_temperature_K must be positive"
+            );
+        }
+    }
+    
+    // === Optional: Concentration dependence (order terms) ===
     if (json.isMember("order") && json["order"].isArray()) {
         for (const auto& term_json : json["order"]) {
             rxn.order_terms.push_back(parse_order_term(term_json));

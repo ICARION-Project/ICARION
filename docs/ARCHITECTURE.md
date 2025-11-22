@@ -959,6 +959,84 @@ The handler implements the physically correct competing channels algorithm with 
 - 2nd-order term (exponent=2): `k` [m⁶/s]
 - Example: For A⁺ + 2X → B⁺, use `exponent=2` and `k` in [m⁶/s]!
 
+### Temperature-Dependent Rate Constants
+
+**Supported Models:**
+
+ICARION supports three temperature dependence models for reaction rate constants:
+
+#### 1. Constant (Default)
+
+```text
+k(T) = k₀
+```
+
+- No temperature dependence
+- Simplest model (use if T-range is narrow or k(T) data unavailable)
+- **JSON:** `"rate_model": "Constant"` (or omit field)
+
+#### 2. Arrhenius (Activated Reactions)
+
+```text
+k(T) = A × exp(-Eₐ / (kB·T))
+```
+
+- **Parameters:**
+  - `A`: Pre-exponential factor [m³/s for 2nd-order, m⁶/s for 3rd-order]
+  - `Eₐ`: Activation energy [eV]
+- **Physics:** Reaction has energy barrier
+- **Behavior:** Rate increases with T (typical for most reactions)
+- **JSON:**
+  ```json
+  {
+    "rate_model": "Arrhenius",
+    "rate_constant_m3s": 1.5e-9,
+    "activation_energy_eV": 0.12
+  }
+  ```
+
+**Example:** H₃O⁺ + NH₃ → NH₄⁺ + H₂O (Eₐ = 0.12 eV)
+
+- At 300 K: k(300K) = 1.5×10⁻⁹ × exp(-0.12/(kB×300)) = 1.8×10⁻¹¹ [m³/s]
+- At 400 K: k(400K) = 1.5×10⁻⁹ × exp(-0.12/(kB×400)) = 3.5×10⁻¹¹ [m³/s]
+- **Rate doubles** with 100 K increase!
+
+#### 3. Modified Arrhenius (Capture/Tunneling)
+
+```text
+k(T) = A × (T/T₀)ⁿ × exp(-Eₐ / (kB·T))
+```
+
+- **Parameters:**
+  - `n`: Temperature exponent (often negative for ion-dipole capture)
+  - `T₀`: Reference temperature [K] (typically 300 K)
+  - `Eₐ`: Activation energy [eV] (often 0 for barrierless)
+- **Physics:** Quantum effects, Langevin capture, T⁻⁰·⁵ for ion-dipole
+- **Behavior:** Can increase OR decrease with T (depends on n)
+- **JSON:**
+  ```json
+  {
+    "rate_model": "ModifiedArrhenius",
+    "rate_constant_m3s": 2.0e-9,
+    "temperature_exponent": -0.5,
+    "reference_temperature_K": 300.0,
+    "activation_energy_eV": 0.0
+  }
+  ```
+
+**Example:** H₃O⁺ + H₂O → H₃O⁺·H₂O (Ion-dipole capture, n = -0.5)
+
+- At 200 K: k(200K) = 2×10⁻⁹ × (200/300)⁻⁰·⁵ = 2.45×10⁻⁹ [m³/s] (faster!)
+- At 300 K: k(300K) = 2×10⁻⁹ × (300/300)⁻⁰·⁵ = 2.00×10⁻⁹ [m³/s]
+- At 400 K: k(400K) = 2×10⁻⁹ × (400/300)⁻⁰·⁵ = 1.73×10⁻⁹ [m³/s] (slower!)
+- **"Anti-Arrhenius"** behavior (rate decreases with T)
+
+**Implementation Details:**
+
+- Temperature dependence computed in `Reaction::compute_rate_constant(T)` ([ReactionConfig.cpp](src/core/config/types/ReactionConfig.cpp))
+- Applied in `StochasticReactionHandler::compute_effective_rate()` ([StochasticReactionHandler.cpp](src/core/physics/reactions/StochasticReactionHandler.cpp))
+- Numerical safety: exp() clamped to [-50, 50] to avoid overflow/underflow
+
 **Reaction Database Schema:**
 
 ```cpp
@@ -1097,6 +1175,6 @@ void integrate_one_step(...) {
 
 - `REACTION_SYSTEM_REFACTORING_PLAN.md` — Detailed Phase 3 plan
 - `tmp/PHASE_3_COMPLETION_PLAN.md` — Phase 3C completion strategy
-- `docs/JSON_LOGGING.md` — Reaction JSON schema
+- `docs/CONFIG_LOGGING.md` — configuration guide
 
 ---

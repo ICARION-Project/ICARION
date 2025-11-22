@@ -187,8 +187,9 @@ TEST_CASE("Reaction - Effective rate calculation", "[reaction][calculation]") {
     rxn.rate_constant_m3s = 1e-15;
     
     // No order terms -> k_eff = k (empty concentration map)
+    double T_K = 300.0;  // Temperature (irrelevant for Constant model)
     std::unordered_map<std::string, double> empty_conc;
-    CHECK_THAT(rxn.effective_rate_s(empty_conc), Catch::Matchers::WithinRel(1e-15, 1e-9));
+    CHECK_THAT(rxn.effective_rate_s(T_K, empty_conc), Catch::Matchers::WithinRel(1e-15, 1e-9));
     
     // Add order term: [H2O]^1 = 2e25 m⁻³
     ReactionOrderTerm term;
@@ -199,7 +200,7 @@ TEST_CASE("Reaction - Effective rate calculation", "[reaction][calculation]") {
     
     // k_eff = k * [H2O]^1 = 1e-15 * 2e25 = 2e10
     std::unordered_map<std::string, double> conc{{"H2O", 2e25}};
-    CHECK_THAT(rxn.effective_rate_s(conc), Catch::Matchers::WithinRel(2e10, 1e-3));
+    CHECK_THAT(rxn.effective_rate_s(T_K, conc), Catch::Matchers::WithinRel(2e10, 1e-3));
 }
 
 TEST_CASE("Reaction - Multiple order terms", "[reaction][calculation]") {
@@ -221,8 +222,9 @@ TEST_CASE("Reaction - Multiple order terms", "[reaction][calculation]") {
     rxn.order_terms.push_back(term_b);
     
     // k_eff = k * (1e24)^2 * (3e25)^1 = 1e-15 * 1e48 * 3e25 = 3e58
+    double T_K = 300.0;
     std::unordered_map<std::string, double> conc{{"A", 1e24}, {"B", 3e25}};
-    CHECK_THAT(rxn.effective_rate_s(conc), Catch::Matchers::WithinRel(3e58, 1e-3));
+    CHECK_THAT(rxn.effective_rate_s(T_K, conc), Catch::Matchers::WithinRel(3e58, 1e-3));
 }
 
 TEST_CASE("ReactionDatabase - Get reactions for species", "[reaction][database]") {

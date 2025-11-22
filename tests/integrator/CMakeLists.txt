@@ -20,3 +20,11 @@ target_link_libraries(test_boris_strategy PRIVATE icarion_core Catch2::Catch2Wit
 target_include_directories(test_boris_strategy PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME test_boris_strategy COMMAND test_boris_strategy)
+
+# Phase 5A: SimulationEngine tests
+
+add_executable(test_domain_manager test_domain_manager.cpp)
+target_link_libraries(test_domain_manager PRIVATE icarion_core Catch2::Catch2WithMain)
+target_include_directories(test_domain_manager PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME test_domain_manager COMMAND test_domain_manager)

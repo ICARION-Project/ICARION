@@ -820,8 +820,8 @@ strategy->step(ion, t, dt, compute_accel, &domain);
 ```
 
 **Current Status (Phase 4):**
-- ✅ Factory implemented and tested
-- ⏳ Not yet integrated into main.cpp (Phase 5 work)
+- Factory implemented and tested
+- Not yet integrated into main.cpp (Phase 5 work)
 
 ### Integration Loop Examples
 

@@ -253,6 +253,13 @@ TEST_CASE("RK4Strategy: Factory creation", "[integrator][factory]") {
         REQUIRE(strategy->name() == "RK45");
         REQUIRE(strategy->is_adaptive() == true);
     }
+    
+    SECTION("Boris implemented (Phase 4B)") {
+        auto strategy = IntegrationStrategyFactory::create("Boris");
+        REQUIRE(strategy != nullptr);
+        REQUIRE(strategy->name() == "Boris");
+        REQUIRE(strategy->is_adaptive() == false);
+    }
 }
 
 TEST_CASE("RK4Strategy: SSOT compliance", "[integrator][ssot]") {

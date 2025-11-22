@@ -6,6 +6,7 @@
 #include "IForce.h"
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
+#include "utils/constants.h"
 
 namespace ICARION::physics {
 
@@ -153,13 +154,6 @@ private:
         const IonState& ion1,
         const IonState& ion2
     ) const;
-    
-    // =========================================================================
-    // Constants
-    // =========================================================================
-    
-    /// Coulomb constant: k_e = 1/(4πε₀) = 8.987551787e9 N·m²/C²
-    static constexpr double k_coulomb_ = 8.987551787e9;
     
     // =========================================================================
     // Member Variables

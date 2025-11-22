@@ -6,8 +6,10 @@
 
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/physics/forces/IForce.h"
+#include "core/config/types/DomainConfig.h"
 
 using namespace ICARION::physics;
+using namespace ICARION::config;
 using Catch::Approx;
 
 // ============================================================================
@@ -283,16 +285,19 @@ TEST_CASE("ForceRegistry - Null force handling", "[forces][registry]") {
     }
 }
 
-TEST_CASE("ForceRegistry - Force context", "[forces][registry]") {
-    // Test that context is passed through correctly
+TEST_CASE("ForceRegistry - Force context (SSOT)", "[forces][registry]") {
+    // Test that context is passed through correctly (SSOT-compliant)
     
     class ContextAwareForce : public IForce {
     public:
         Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
             (void)ion; (void)t;  // Unused
             
-            // Return force proportional to temperature
-            return Vec3{ctx.temperature_K, 0, 0};
+            // SSOT: Read temperature from domain->environment
+            if (ctx.domain) {
+                return Vec3{ctx.domain->environment.temperature_K, 0, 0};
+            }
+            return Vec3{0, 0, 0};
         }
         
         std::string name() const override { return "ContextAware"; }
@@ -304,16 +309,24 @@ TEST_CASE("ForceRegistry - Force context", "[forces][registry]") {
     IonState ion;
     ion.mass_kg = 1e-26;
     
-    SECTION("Default context (T = 300 K)") {
+    SECTION("Context with domain (T = 300 K)") {
+        DomainConfig domain;
+        domain.environment.temperature_K = 300.0;
+        
         ForceContext ctx;
+        ctx.domain = &domain;
+        
         Vec3 force = registry.compute_total_force(ion, 0.0, ctx);
         
         REQUIRE(force.x == Approx(300.0));
     }
     
-    SECTION("Custom context (T = 500 K)") {
+    SECTION("Context with domain (T = 500 K)") {
+        DomainConfig domain;
+        domain.environment.temperature_K = 500.0;
+        
         ForceContext ctx;
-        ctx.temperature_K = 500.0;
+        ctx.domain = &domain;
         
         Vec3 force = registry.compute_total_force(ion, 0.0, ctx);
         

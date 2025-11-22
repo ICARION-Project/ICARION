@@ -26,6 +26,10 @@
 #include <cmath>
 #include <algorithm>
 
+namespace {
+    constexpr double MIN_RADIAL_DIST_SQ = 1e-18;  ///< Minimum r² for Orbitrap field calculation [m²] (avoid division by zero)
+}
+
 /**
  * @brief Computes radial RF field in a quadrupole (x and y), zero along z.
  * 
@@ -101,7 +105,7 @@ Vec3 ACField(const IonState& ion, double voltage, double omega, double radius, d
  */
 Vec3 OrbitrapField(const IonState& ion, double k, double r_char, double length_m)
 {
-    double r2 = std::max(1e-18, ion.pos.x*ion.pos.x + ion.pos.y*ion.pos.y);
+    double r2 = std::max(MIN_RADIAL_DIST_SQ, ion.pos.x*ion.pos.x + ion.pos.y*ion.pos.y);
     double C = 1.0 - r_char * r_char / r2;
     double z_center = ion.pos.z - 0.5 * length_m; 
     

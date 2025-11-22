@@ -1,0 +1,134 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
+/**
+ * =====================================================================
+ *
+ *   Ion Collision And Reaction IntegratiON (ICARION)
+ *   ------------------------------------------------
+ *   Modular framework for simulating ion trajectories in custom
+ *   electric fields and background gas environments.
+ *
+ *   @file       IIntegrationStrategy.h
+ *   @brief      Integration strategy interface (Phase 4A)
+ *
+ *   @details
+ *   Modern replacement for legacy integrate_one_step().
+ *   Uses ForceRegistry for force computation (SSOT-compliant).
+ *
+ *   **SSOT Principles:**
+ *   - Uses const config::DomainConfig& (not GlobalParams)
+ *   - Uses ForceRegistry (not compute_accelerations())
+ *   - Zero-copy config references
+ *   - No parameter duplication
+ *
+ *   @date       2025-11-22
+ *   @version    1.0.0
+ *   @authors    ICARION Development Team
+ *
+ * =====================================================================
+ */
+#pragma once
+
+#include <string>
+#include <vector>
+
+#include "core/types/IonState.h"
+#include "core/config/types/DomainConfig.h"
+#include "core/physics/forces/ForceRegistry.h"
+
+namespace ICARION {
+namespace integrator {
+
+/**
+ * @brief Integration strategy interface
+ * 
+ * Defines contract for numerical integration methods (RK4, RK45, Boris, etc.).
+ * Replaces legacy integrate_one_step() with modular, testable design.
+ * 
+ * **Design Principles:**
+ * - Strategy Pattern: Swap integrators without changing client code
+ * - SSOT Compliance: Uses DomainConfig directly (no parameter conversion)
+ * - Dependency Injection: ForceRegistry passed as parameter
+ * - Zero-cost Abstraction: Virtual call overhead negligible vs. computation
+ * 
+ * **Example Usage:**
+ * ```cpp
+ * // Create strategy
+ * auto strategy = std::make_unique<RK4Strategy>();
+ * 
+ * // Create force registry
+ * physics::ForceRegistry registry;
+ * registry.add_force(std::make_unique<ElectricFieldForce>(domain));
+ * registry.add_force(std::make_unique<MagneticFieldForce>(domain.fields.magnetic));
+ * 
+ * // Integrate one timestep
+ * strategy->step(ion, t, dt, registry, domain, all_ions);
+ * ```
+ */
+class IIntegrationStrategy {
+public:
+    virtual ~IIntegrationStrategy() = default;
+    
+    /**
+     * @brief Advance ion state by one timestep
+     * 
+     * @param ion Ion state (position, velocity, mass, charge) [in/out]
+     *            Updated in-place with new position/velocity
+     * @param t Current simulation time [s]
+     * @param dt Timestep size [s]
+     * @param force_registry Force computation engine
+     * @param domain Domain configuration (fields, boundaries, environment)
+     * @param all_ions All ion states at current time (for space charge)
+     * 
+     * **SSOT Compliance:**
+     * - `domain`: const DomainConfig& (not GlobalParams!)
+     * - `force_registry`: Uses ForceRegistry (not compute_accelerations()!)
+     * - No parameter duplication
+     * 
+     * **Responsibilities:**
+     * - Compute intermediate stages (k1, k2, ... for RK methods)
+     * - Update ion position and velocity
+     * - Ensure numerical stability
+     * 
+     * **Not Responsible For:**
+     * - Boundary checks (handled by SimulationEngine)
+     * - Collision events (handled by CollisionHandler)
+     * - Reaction events (handled by ReactionHandler)
+     * - Output writing (handled by OutputManager)
+     * 
+     * **Thread Safety:**
+     * - Read-only access to domain, force_registry, all_ions
+     * - Modifies only `ion` parameter (caller must ensure thread safety)
+     */
+    virtual void step(
+        IonState& ion,
+        double t,
+        double dt,
+        const physics::ForceRegistry& force_registry,
+        const config::DomainConfig& domain,
+        const std::vector<IonState>& all_ions
+    ) = 0;
+    
+    /**
+     * @brief Get human-readable strategy name
+     * 
+     * @return Strategy identifier (e.g., "RK4", "RK45", "Boris")
+     * 
+     * Used for logging, debugging, and output file metadata.
+     */
+    virtual std::string name() const = 0;
+    
+    /**
+     * @brief Check if strategy supports adaptive timestepping
+     * 
+     * @return true if adaptive (RK45, DOPRI5), false if fixed (RK4, Boris)
+     * 
+     * Adaptive strategies can implement IAdaptiveIntegrationStrategy
+     * to provide error estimation and timestep control.
+     */
+    virtual bool is_adaptive() const = 0;
+};
+
+} // namespace integrator
+} // namespace ICARION

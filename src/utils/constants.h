@@ -14,7 +14,8 @@ const double AMU_TO_KG          = 1.66053906660e-27;  // 1 atomic mass unit in k
 const double ELEM_CHARGE_C      = 1.602176634e-19;    // Elementary charge (Coulombs)
 const double BOLTZMANN_CONSTANT = 1.380649e-23;       // Boltzmann constant (J/K)
 const double LOSCHMIDT_CONSTANT = 2.6867811e25;       // Loschmidt constant (m⁻³ at STP)
-constexpr double EPSILON_0      = 8.854187817e-12;    // Perimittivität (F/m)
+constexpr double EPSILON_0      = 8.854187817e-12;    // Permittivity of free space (F/m)
+constexpr double COULOMB_CONST  = 8.987551787e9;      // Coulomb constant k_e = 1/(4πε₀) (N·m²/C²)
 
 // Unit conversion constants:
 const double CM2_TO_M2          = 1e-4;               // cm² to m² conversion

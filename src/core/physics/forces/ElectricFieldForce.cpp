@@ -10,6 +10,10 @@
 #include <algorithm>
 #include <stdexcept>
 
+namespace {
+    constexpr double MIN_VOLTAGE_THRESHOLD = 1e-12;  ///< Minimum voltage [V] to consider field active (numerical safety)
+}
+
 namespace ICARION {
 namespace physics {
 
@@ -144,7 +148,7 @@ Vec3 ElectricFieldForce::compute_lqit_field(const IonState& ion, double t) const
     const auto& geom = domain_->geometry;
     
     // (1) RF + DC quadrupole field (radial) - matches RFField()
-    if (std::fabs(rf.voltage_V) > 1e-12) {
+    if (std::fabs(rf.voltage_V) > MIN_VOLTAGE_THRESHOLD) {
         const double r0_sq = geom.radius_m * geom.radius_m;
         const double omega = rf.angular_frequency_rad_s;  // Use precomputed omega
         const double U_eff = dc.quad_V + rf.voltage_V * std::cos(omega * t);
@@ -154,7 +158,7 @@ Vec3 ElectricFieldForce::compute_lqit_field(const IonState& ion, double t) const
     }
     
     // (2) AC excitation field - matches ACField()
-    if (std::fabs(ac.voltage_V) > 1e-12) {
+    if (std::fabs(ac.voltage_V) > MIN_VOLTAGE_THRESHOLD) {
         const double omega_ac = ac.angular_frequency_rad_s;  // Use precomputed omega
         const double mag = -ac.voltage_V / geom.radius_m * std::cos(omega_ac * t);
         E_total.x += mag;  // Fixed x-direction
@@ -163,7 +167,7 @@ Vec3 ElectricFieldForce::compute_lqit_field(const IonState& ion, double t) const
     // (3) DC endcap field (axial confinement) - harmonic potential approximation
     // E_z = -2αz (z measured from trap center), where α = U_DC / L²
     // This creates a parabolic potential well: Φ(z) = α·z²
-    if (std::fabs(dc.axial_V) > 1e-12) {
+    if (std::fabs(dc.axial_V) > MIN_VOLTAGE_THRESHOLD) {
         const double L = geom.length_m;
         const double alpha = dc.axial_V / (L * L);
         
@@ -191,7 +195,7 @@ Vec3 ElectricFieldForce::compute_ims_field(const IonState& ion, double t) const 
     
     // (2) Optional radial RF field (for ion focusing)
     const auto& rf = domain_->fields.rf;
-    if (std::fabs(rf.voltage_V) > 1e-12) {
+    if (std::fabs(rf.voltage_V) > MIN_VOLTAGE_THRESHOLD) {
         const double r0_sq = domain_->geometry.radius_m * domain_->geometry.radius_m;
         const double omega = rf.angular_frequency_rad_s;
         const double U_eff = domain_->fields.dc.quad_V + rf.voltage_V * std::cos(omega * t);

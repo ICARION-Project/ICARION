@@ -391,6 +391,147 @@ TEST_CASE("Reaction system integration") {
 
 ---
 
+## 🚀 FUTURE ENHANCEMENTS (Phase 3 - Later)
+
+### **Phase 3B+: Competing Reaction Channels** 🔴 **CRITICAL**
+
+**Problem:** Current implementation tests reactions sequentially → First reaction biased!
+
+**Physics:** When ion has multiple reactions (k₁, k₂, ..., kₙ):
+- **Total rate:** k_total = Σ kᵢ
+- **Total probability:** P_total = 1 - exp(-k_total × dt)
+- **Channel selection:** P(channel i) = kᵢ / k_total
+
+**Algorithm:**
+```cpp
+// Step 1: Compute k_total
+double k_total = 0.0;
+for (auto& rxn : reactions) {
+    k_effs.push_back(compute_k_eff(rxn));
+    k_total += k_effs.back();
+}
+
+// Step 2: Total reaction probability
+double P = 1 - exp(-k_total * dt);
+if (rng() >= P) return false;
+
+// Step 3: Weighted channel selection
+double r = rng() * k_total;
+double cumulative = 0.0;
+for (size_t i = 0; i < reactions.size(); ++i) {
+    cumulative += k_effs[i];
+    if (r < cumulative) {
+        // React via channel i
+        return true;
+    }
+}
+```
+
+**Implementation:** Phase 3B (before integrator integration)
+
+---
+
+### **Phase 3D: Temperature-Dependent Rate Constants**
+
+**Motivation:** Ion-molecule reactions often have T-dependence:
+- **Arrhenius:** k(T) = A × exp(-Eₐ / (kB T)) (activated reactions)
+- **Capture:** k(T) = C × (T/300)ⁿ (ion-dipole capture)
+
+**Config Extension:**
+```cpp
+struct Reaction {
+    enum class RateType { Constant, Arrhenius, Capture } rate_type;
+    double rate_constant_m3s;  // k₀ (or A for Arrhenius)
+    
+    // Arrhenius parameters
+    double activation_energy_J;  // Eₐ
+    
+    // Capture parameters
+    double temperature_exponent;  // n
+};
+```
+
+**JSON Example:**
+```json
+{
+  "id": "rxn_arrhenius",
+  "reactant": "H3O+",
+  "product": "NH4+",
+  "rate_type": "arrhenius",
+  "rate_constant_m3s": 2.0e-9,
+  "activation_energy_J": 1.5e-20
+}
+```
+
+**Implementation:** Phase 3D (after basic integration works)
+
+---
+
+### **Phase 3E: Multi-Gas Mixtures**
+
+**Motivation:** Realistic environments have gas mixtures (e.g., He + H₂O, N₂ + VOCs)
+
+**Config Extension:**
+```cpp
+struct EnvironmentConfig {
+    struct GasComponent {
+        std::string species_id;
+        double mole_fraction;
+        double density_m_3;
+    };
+    
+    std::vector<GasComponent> gas_mixture;
+    
+    double get_density(const std::string& species_id) const;
+};
+```
+
+**JSON Example:**
+```json
+{
+  "environment": {
+    "temperature_K": 300,
+    "pressure_Pa": 101325,
+    "gas_mixture": [
+      {"species": "He", "mole_fraction": 0.95},
+      {"species": "H2O", "mole_fraction": 0.05}
+    ]
+  },
+  "reactions": [
+    {
+      "reactant": "H3O+",
+      "product": "H5O2+",
+      "rate_constant_m3s": 1.2e-28,
+      "order": [
+        {"species": "H2O", "exponent": 1, "concentration_m3": -1.0},
+        {"species": "He", "exponent": 1, "concentration_m3": -1.0}
+      ]
+    }
+  ]
+}
+```
+
+**Handler Adaptation:**
+```cpp
+double conc_m3 = (term.concentration_m3 < 0.0)
+    ? env.get_density(term.species)  // ✅ Lookup in gas_mixture!
+    : term.concentration_m3;
+```
+
+**Implementation:** Phase 3E (requires EnvironmentConfig redesign)
+
+---
+
+## 📊 PRIORITY RANKING
+
+| **Priority** | **Feature** | **Effort** | **Impact** | **Phase** |
+|-------------|-----------|----------|----------|---------|
+| 🔴 **P0 CRITICAL** | Competing channels | 1 hour | **HIGH** (correctness!) | 3B |
+| 🟡 **P1 High** | Temperature dependence | 2 hours | Medium (common reactions) | 3D |
+| 🟢 **P2 Medium** | Multi-gas mixtures | 3 hours | Medium (realistic sims) | 3E |
+
+---
+
 **Document Created:** 2025-11-22  
 **Last Updated:** 2025-11-22  
 **Author:** GitHub Copilot + User (chsch95)

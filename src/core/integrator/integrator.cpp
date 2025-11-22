@@ -41,6 +41,10 @@
 #include "core/physics/collisions/geometryUtils.h"  // SSOT for geometry loading & conversion
 #include "core/config/types/EnvironmentConfig.h"
 
+// Reaction system refactored in Phase 3
+#include "core/physics/reactions/ReactionHandlerFactory.h"
+#include "core/physics/reactions/IReactionHandler.h"
+
 
 #include <algorithm>
 #include <cmath>
@@ -320,6 +324,11 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
         logger->log(msg.str());
     }
 
+    // Create PhysicsConfig from GlobalParams (used by collision and reaction handlers)
+    ICARION::config::PhysicsConfig physics_config;
+    physics_config.collision_model = gParams.collisionModel;
+    physics_config.enable_reactions = gParams.enable_reactions;
+    
     // Create collision handler using factory (Phase 2D refactor)
     std::unique_ptr<ICARION::physics::ICollisionHandler> collision_handler;
     if (gParams.collisionModel != CollisionModel::Friction) {
@@ -342,12 +351,6 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
             }
         }
         
-        // Create PhysicsConfig from GlobalParams
-        ICARION::config::PhysicsConfig physics_config;
-        // SSOT: Direct assignment (Phase 2E) - core::CollisionModel is alias to config::CollisionModel
-        physics_config.collision_model = gParams.collisionModel;
-        physics_config.enable_reactions = gParams.enable_reactions;
-        
         // Create handler from factory
         collision_handler = ICARION::physics::CollisionHandlerFactory::create(
             physics_config, &geometry_map);
@@ -361,6 +364,18 @@ std::vector<IonState> integrate_trajectory(std::vector<IonState>& ions, double t
             }
             logger->log(msg.str());
         }
+    }
+    
+    // Create reaction handler using factory (Phase 3B refactor)
+    // NOTE: Not yet wired into integrate_one_step due to database type mismatch
+    // Will be connected in Phase 3C after SpeciesDatabase migration
+    std::unique_ptr<ICARION::physics::IReactionHandler> reaction_handler;
+    reaction_handler = ICARION::physics::ReactionHandlerFactory::create(physics_config, logger != nullptr);
+    
+    if (logger) {
+        std::ostringstream msg;
+        msg << "Reaction handler created: enable_reactions=" << gParams.enable_reactions;
+        logger->log(msg.str());
     }
 
     // --- Solver setup ---

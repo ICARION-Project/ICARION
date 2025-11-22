@@ -9,6 +9,8 @@
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
+#include "core/config/types/FieldsConfig.h"
+#include "core/config/types/EnvironmentConfig.h"
 #include "utils/constants.h"
 
 #include <cmath>
@@ -34,12 +36,12 @@ IonState make_ion(double vx, double vy, double vz, double mass_amu = 100.0, doub
 // ============================================================================
 
 TEST_CASE("MagneticFieldForce - Constructor validation", "[forces][magnetic]") {
-    SECTION("Analytical mode with valid params") {
-        MagneticFieldParams params;
-        params.uniform_field_T = {0.0, 0.0, 7.0};
-        params.enabled = true;
+    SECTION("Analytical mode with valid config") {
+        ICARION::config::MagneticFieldConfig config;
+        config.field_strength_T = {0.0, 0.0, 7.0};
+        config.enabled = true;
         
-        REQUIRE_NOTHROW(MagneticFieldForce(params));
+        REQUIRE_NOTHROW(MagneticFieldForce(config));
     }
     
     SECTION("Field provider mode requires non-null provider") {
@@ -51,11 +53,11 @@ TEST_CASE("MagneticFieldForce - Constructor validation", "[forces][magnetic]") {
 }
 
 TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]") {
-    MagneticFieldParams params;
-    params.uniform_field_T = {0.0, 0.0, 1.0};  // 1 T along z-axis
-    params.enabled = true;
+    ICARION::config::MagneticFieldConfig config;
+    config.field_strength_T = {0.0, 0.0, 1.0};  // 1 T along z-axis
+    config.enabled = true;
     
-    MagneticFieldForce force(params);
+    MagneticFieldForce force(config);
     ForceContext ctx;
     
     SECTION("Force name") {
@@ -98,10 +100,10 @@ TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]"
     SECTION("Right-hand rule verification") {
         // v = (1, 0, 0), B = (0, 1, 0)
         // v×B = (0, 0, 1) → force in +z
-        MagneticFieldParams params_y;
-        params_y.uniform_field_T = {0.0, 1.0, 0.0};
-        params_y.enabled = true;
-        MagneticFieldForce force_y(params_y);
+        ICARION::config::MagneticFieldConfig config_y;
+        config_y.field_strength_T = {0.0, 1.0, 0.0};
+        config_y.enabled = true;
+        MagneticFieldForce force_y(config_y);
         
         IonState ion = make_ion(100, 0, 0);
         Vec3 F = force_y.compute(ion, 0.0, ctx);
@@ -114,11 +116,11 @@ TEST_CASE("MagneticFieldForce - Cyclotron motion", "[forces][magnetic]") {
     // For FTICR: ions undergo cyclotron motion in B-field
     // ω_c = q·B/m (cyclotron frequency)
     
-    MagneticFieldParams params;
-    params.uniform_field_T = {0.0, 0.0, 7.0};  // 7 T (typical FTICR)
-    params.enabled = true;
+    ICARION::config::MagneticFieldConfig config;
+    config.field_strength_T = {0.0, 0.0, 7.0};  // 7 T (typical FTICR)
+    config.enabled = true;
     
-    MagneticFieldForce force(params);
+    MagneticFieldForce force(config);
     ForceContext ctx;
     
     IonState ion = make_ion(1000, 0, 0, 100.0);  // 100 amu, v_x = 1 km/s
@@ -137,12 +139,12 @@ TEST_CASE("MagneticFieldForce - Cyclotron motion", "[forces][magnetic]") {
 }
 
 TEST_CASE("MagneticFieldForce - Linear gradient field", "[forces][magnetic]") {
-    MagneticFieldParams params;
-    params.uniform_field_T = {0.0, 0.0, 1.0};      // 1 T base field
-    params.gradient_T_per_m = {0.0, 0.0, 0.1};     // 0.1 T/m gradient
-    params.enabled = true;
+    ICARION::config::MagneticFieldConfig config;
+    config.field_strength_T = {0.0, 0.0, 1.0};      // 1 T base field
+    config.field_gradient_T_m = {0.0, 0.0, 0.1};     // 0.1 T/m gradient
+    config.enabled = true;
     
-    MagneticFieldForce force(params);
+    MagneticFieldForce force(config);
     ForceContext ctx;
     
     SECTION("Field increases with position") {
@@ -162,11 +164,11 @@ TEST_CASE("MagneticFieldForce - Linear gradient field", "[forces][magnetic]") {
 }
 
 TEST_CASE("MagneticFieldForce - Disabled force", "[forces][magnetic]") {
-    MagneticFieldParams params;
-    params.uniform_field_T = {0.0, 0.0, 10.0};
-    params.enabled = false;  // Disabled!
+    ICARION::config::MagneticFieldConfig config;
+    config.field_strength_T = {0.0, 0.0, 10.0};
+    config.enabled = false;  // Disabled!
     
-    MagneticFieldForce force(params);
+    MagneticFieldForce force(config);
     ForceContext ctx;
     
     IonState ion = make_ion(1000, 0, 0);
@@ -181,12 +183,13 @@ TEST_CASE("MagneticFieldForce - Disabled force", "[forces][magnetic]") {
 // DampingForce Tests
 // ============================================================================
 
-TEST_CASE("DampingForce - Friction model (explicit gamma)", "[forces][damping]") {
-    DampingParams params;
-    params.model = DampingModel::Friction;
-    params.gamma_coefficient = 1e6;  // 1/s (explicit damping coefficient)
+TEST_CASE("DampingForce - Friction model (mobility-based)", "[forces][damping]") {
+    ICARION::config::EnvironmentConfig env;
+    env.pressure_Pa = 101325.0;
+    env.temperature_K = 300.0;
+    env.compute_derived_properties();
     
-    DampingForce force(params);
+    DampingForce force(env, DampingModel::Friction);
     ForceContext ctx;
     
     SECTION("Force name") {
@@ -195,10 +198,15 @@ TEST_CASE("DampingForce - Friction model (explicit gamma)", "[forces][damping]")
     
     SECTION("Force opposes velocity") {
         IonState ion = make_ion(1000, 0, 0);  // v_x = 1 km/s, m = 100 Da
+        ion.reduced_mobility_cm2_Vs = 2.0;  // Need mobility for Friction model
         Vec3 F = force.compute(ion, 0.0, ctx);
         
-        // F = -γ·m·v [N]
-        double expected_F_x = -params.gamma_coefficient * ion.mass_kg * 1000.0;
+        // F = -γ·m·v [N] where γ = q/(K·m)
+        // K = K₀ · (n/n₀) where n = gas_density, n₀ = LOSCHMIDT_CONSTANT
+        double K0_m2_Vs = ion.reduced_mobility_cm2_Vs * 1e-4;
+        double K_m2_Vs = K0_m2_Vs * LOSCHMIDT_CONSTANT / env.particle_density_m_3;
+        double gamma = ion.ion_charge_C / (K_m2_Vs * ion.mass_kg);
+        double expected_F_x = -gamma * ion.mass_kg * 1000.0;
         
         REQUIRE(F.x == Approx(expected_F_x));
         REQUIRE(F.y == Approx(0.0).margin(1e-25));
@@ -227,19 +235,15 @@ TEST_CASE("DampingForce - Friction model (explicit gamma)", "[forces][damping]")
 }
 
 TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]") {
-    // Test HardSphere damping with explicit parameters
-    DampingParams params;
-    params.model = DampingModel::HardSphere;
-    params.gas_density_m3 = 2.5e25;           // ~1 atm at 300K
-    params.mean_thermal_velocity_m_s = 500.0;  // ~N2 at 300K
-    params.neutral_mass_kg = 28.0 * AMU_TO_KG; // N2
-    params.CCS_m2 = 1e-18;                     // 100 Ų
+    // Test HardSphere damping with EnvironmentConfig
+    ICARION::config::EnvironmentConfig env;
+    env.pressure_Pa = 101325.0;  // 1 atm
+    env.temperature_K = 300.0;
+    env.gas_species = "N2";
+    env.compute_derived_properties();
     
-    DampingForce force(params);
+    DampingForce force(env, DampingModel::HardSphere);
     ForceContext ctx;
-    ctx.gas_density_m3 = params.gas_density_m3;
-    ctx.mean_thermal_velocity_m_s = params.mean_thermal_velocity_m_s;
-    ctx.neutral_mass_kg = params.neutral_mass_kg;
     
     SECTION("Force name") {
         REQUIRE(force.name() == "Damping(HardSphere)");
@@ -247,7 +251,7 @@ TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]"
     
     SECTION("Force opposes velocity (deterministic)") {
         IonState ion = make_ion(1000, 0, 0);  // v_x = 1 km/s
-        ion.CCS_m2 = params.CCS_m2;
+        ion.CCS_m2 = 1e-18;  // 100 Ų
         
         Vec3 F = force.compute(ion, 0.0, ctx);
         
@@ -264,7 +268,7 @@ TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]"
     
     SECTION("Force proportional to velocity") {
         IonState ion = make_ion(500, 0, 0);
-        ion.CCS_m2 = params.CCS_m2;
+        ion.CCS_m2 = 1e-18;  // 100 Ų
         
         Vec3 F1 = force.compute(ion, 0.0, ctx);
         
@@ -277,10 +281,10 @@ TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]"
 }
 
 TEST_CASE("DampingForce - No damping", "[forces][damping]") {
-    DampingParams params;
-    params.model = DampingModel::None;
+    ICARION::config::EnvironmentConfig env;
+    env.compute_derived_properties();
     
-    DampingForce force(params);
+    DampingForce force(env, DampingModel::None);
     ForceContext ctx;
     
     SECTION("Force name") {
@@ -304,19 +308,21 @@ TEST_CASE("DampingForce - No damping", "[forces][damping]") {
 TEST_CASE("Combined Magnetic + Damping", "[forces][combined]") {
     // Simulate FTICR-like scenario: B-field + friction damping
     
-    MagneticFieldParams b_params;
-    b_params.uniform_field_T = {0.0, 0.0, 7.0};
-    b_params.enabled = true;
+    ICARION::config::MagneticFieldConfig mag_config;
+    mag_config.field_strength_T = {0.0, 0.0, 7.0};
+    mag_config.enabled = true;
     
-    DampingParams d_params;
-    d_params.model = DampingModel::Friction;
-    d_params.gamma_coefficient = 1e5;  // 1/s (explicit)
+    ICARION::config::EnvironmentConfig env;
+    env.pressure_Pa = 101325.0;
+    env.temperature_K = 300.0;
+    env.compute_derived_properties();
     
-    MagneticFieldForce mag_force(b_params);
-    DampingForce damp_force(d_params);
+    MagneticFieldForce mag_force(mag_config);
+    DampingForce damp_force(env, DampingModel::Friction);
     
     ForceContext ctx;
     IonState ion = make_ion(1000, 500, 0);  // Velocity in x-y plane
+    ion.reduced_mobility_cm2_Vs = 2.0;  // Need mobility
     
     Vec3 F_mag = mag_force.compute(ion, 0.0, ctx);
     Vec3 F_damp = damp_force.compute(ion, 0.0, ctx);

@@ -18,6 +18,9 @@
 #include "core/physics/forces/SpaceChargeForce.h"
 #include "core/types/IonState.h"
 #include "instrument/InstrumentTypes.h"
+#include "core/config/types/DomainConfig.h"
+#include "core/config/types/FieldsConfig.h"
+#include "core/config/types/EnvironmentConfig.h"
 
 #include "utils/constants.h"
 
@@ -38,18 +41,18 @@ TEST_CASE("Integration: Electric + Magnetic forces combine", "[integration]") {
     ForceRegistry registry;
     std::vector<IonState> ions;
     
-    // Setup electric field (IMS)
-    AnalyticalFieldParams e_params;
-    e_params.instrument_type = InstrumentType::IMS;
-    e_params.length_m = 0.1;
-    e_params.dc_axial_voltage_V = 1000.0;
-    registry.add_force(std::make_unique<ElectricFieldForce>(e_params));
+    // Setup electric field (IMS) - SSOT config
+    ICARION::config::DomainConfig domain;
+    domain.instrument = ICARION::config::Instrument::IMS;
+    domain.geometry.length_m = 0.1;
+    domain.fields.dc.axial_V = 1000.0;
+    registry.add_force(std::make_unique<ElectricFieldForce>(domain));
     
-    // Setup magnetic field
-    MagneticFieldParams m_params;
-    m_params.uniform_field_T = Vec3{0, 0, 1.0};
-    m_params.enabled = true;
-    registry.add_force(std::make_unique<MagneticFieldForce>(m_params));
+    // Setup magnetic field - SSOT config
+    ICARION::config::MagneticFieldConfig mag_config;
+    mag_config.field_strength_T = Vec3{0, 0, 1.0};
+    mag_config.enabled = true;
+    registry.add_force(std::make_unique<MagneticFieldForce>(mag_config));
     
     // Ion moving perpendicular to B
     IonState ion;
@@ -77,22 +80,23 @@ TEST_CASE("Integration: All forces (Electric + Magnetic + Damping + SpaceCharge)
     ForceRegistry registry;
     std::vector<IonState> ions;
     
-    // Add all force types
-    AnalyticalFieldParams e_params;
-    e_params.instrument_type = InstrumentType::IMS;
-    e_params.length_m = 0.1;
-    e_params.dc_axial_voltage_V = 500.0;
-    registry.add_force(std::make_unique<ElectricFieldForce>(e_params));
+    // Add all force types - SSOT configs
+    ICARION::config::DomainConfig domain;
+    domain.instrument = ICARION::config::Instrument::IMS;
+    domain.geometry.length_m = 0.1;
+    domain.fields.dc.axial_V = 500.0;
+    registry.add_force(std::make_unique<ElectricFieldForce>(domain));
     
-    MagneticFieldParams m_params;
-    m_params.uniform_field_T = Vec3{0, 0, 0.5};
-    m_params.enabled = true;
-    registry.add_force(std::make_unique<MagneticFieldForce>(m_params));
+    ICARION::config::MagneticFieldConfig mag_config;
+    mag_config.field_strength_T = Vec3{0, 0, 0.5};
+    mag_config.enabled = true;
+    registry.add_force(std::make_unique<MagneticFieldForce>(mag_config));
     
-    DampingParams d_params;
-    d_params.model = DampingModel::Friction;
-    d_params.gamma_coefficient = 1e5;
-    registry.add_force(std::make_unique<DampingForce>(d_params));
+    ICARION::config::EnvironmentConfig env;
+    env.pressure_Pa = 101325.0;
+    env.temperature_K = 300.0;
+    env.compute_derived_properties();
+    registry.add_force(std::make_unique<DampingForce>(env, DampingModel::Friction));
     
     registry.add_force(std::make_unique<SpaceChargeForce>(1e-10));
     
@@ -142,24 +146,26 @@ TEST_CASE("Integration: Force superposition principle", "[integration]") {
     ForceContext ctx;
     ctx.all_ions = &ions;
     
-    // Compute forces individually
-    AnalyticalFieldParams e_params;
-    e_params.instrument_type = InstrumentType::IMS;
-    e_params.length_m = 0.1;
-    e_params.dc_axial_voltage_V = 800.0;
-    ElectricFieldForce electric(e_params);
+    // Compute forces individually - SSOT configs
+    ICARION::config::DomainConfig domain;
+    domain.instrument = ICARION::config::Instrument::IMS;
+    domain.geometry.length_m = 0.1;
+    domain.fields.dc.axial_V = 800.0;
+    ElectricFieldForce electric(domain);
     Vec3 F_electric = electric.compute(ions[0], 0.0, ctx);
     
-    MagneticFieldParams m_params;
-    m_params.uniform_field_T = Vec3{0, 0, 0.3};
-    m_params.enabled = true;
-    MagneticFieldForce magnetic(m_params);
+    ICARION::config::MagneticFieldConfig mag_config;
+    mag_config.field_strength_T = Vec3{0, 0, 0.3};
+    mag_config.enabled = true;
+    MagneticFieldForce magnetic(mag_config);
     Vec3 F_magnetic = magnetic.compute(ions[0], 0.0, ctx);
     
-    DampingParams d_params;
-    d_params.model = DampingModel::Friction;
-    d_params.gamma_coefficient = 2e5;
-    DampingForce damping(d_params);
+    ICARION::config::EnvironmentConfig env;
+    env.pressure_Pa = 101325.0;
+    env.temperature_K = 300.0;
+    env.compute_derived_properties();
+    ions[0].reduced_mobility_cm2_Vs = 2.0;  // Need mobility for Friction model
+    DampingForce damping(env, DampingModel::Friction);
     Vec3 F_damping = damping.compute(ions[0], 0.0, ctx);
     
     // Sum individual forces
@@ -169,11 +175,11 @@ TEST_CASE("Integration: Force superposition principle", "[integration]") {
         F_electric.z + F_magnetic.z + F_damping.z
     );
     
-    // Compute via registry
+    // Compute via registry - SSOT configs
     ForceRegistry registry;
-    registry.add_force(std::make_unique<ElectricFieldForce>(e_params));
-    registry.add_force(std::make_unique<MagneticFieldForce>(m_params));
-    registry.add_force(std::make_unique<DampingForce>(d_params));
+    registry.add_force(std::make_unique<ElectricFieldForce>(domain));
+    registry.add_force(std::make_unique<MagneticFieldForce>(mag_config));
+    registry.add_force(std::make_unique<DampingForce>(env, DampingModel::Friction));
     
     Vec3 F_total = registry.compute_total_force(ions[0], 0.0, ctx);
     

@@ -69,13 +69,15 @@ std::string ElectricFieldForce::name() const {
     // SSOT: Read instrument from config
     using Inst = ICARION::config::Instrument;
     switch (domain_->instrument) {
-        case Inst::LQIT:         return "ElectricField(LQIT)";
-        case Inst::IMS:          return "ElectricField(IMS)";
-        case Inst::TOF:          return "ElectricField(TOF)";
-        case Inst::FTICR:        return "ElectricField(FTICR)";
-        case Inst::Orbitrap:     return "ElectricField(Orbitrap)";
-        case Inst::QuadrupoleRF: return "ElectricField(QuadrupoleRF)";
-        default:                 return "ElectricField(Unknown)";
+        case Inst::LQIT:              return "ElectricField(LQIT)";
+        case Inst::IMS:               return "ElectricField(IMS)";
+        case Inst::TOF:               return "ElectricField(TOF)";
+        case Inst::FTICR:             return "ElectricField(FTICR)";
+        case Inst::Orbitrap:          return "ElectricField(Orbitrap)";
+        case Inst::QuadrupoleRF:      return "ElectricField(QuadrupoleRF)";
+        case Inst::NoFixedInstrument: return "ElectricField(NoFixedInstrument)";
+        case Inst::UnknownInstrument: return "ElectricField(Unknown)";
+        default:                      return "ElectricField(Unknown)";
     }
 }
 
@@ -109,6 +111,7 @@ Vec3 ElectricFieldForce::compute_analytical_field(const IonState& ion, double t)
         case Inst::QuadrupoleRF:
             return compute_quadrupole_rf_field(ion, t);
         
+        case Inst::NoFixedInstrument:
         case Inst::UnknownInstrument:
             // Generic instrument - no analytical field
             return Vec3{0.0, 0.0, 0.0};

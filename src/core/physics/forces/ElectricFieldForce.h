@@ -24,64 +24,13 @@
 class IFieldProvider;
 
 namespace ICARION {
+
+// Forward declaration for config types
+namespace config {
+    struct DomainConfig;
+}
+
 namespace physics {
-
-// ============================================================================
-// ⚠️ DEPRECATED: AnalyticalFieldParams violates SSOT principle!
-// ============================================================================
-// This struct duplicates parameters from FullConfig → DomainConfig → FieldsConfig.
-// 
-// **WHY THIS IS BAD:**
-// - Parameters defined in 2 places (FullConfig + AnalyticalFieldParams)
-// - Changes to config don't automatically propagate
-// - Risk of inconsistency (config says 1000V, params say 500V - which is right?)
-// 
-// **TODO (Phase 2):**
-// - Replace with: ElectricFieldForce(const DomainConfig& domain, ...)
-// - Read directly from domain_.fields.rf.voltage_V etc.
-// - Delete this struct entirely
-// 
-// **KEPT FOR NOW:** To avoid breaking tests during Phase 1.
-// Will be removed in Phase 2 when integrator is also refactored to use FullConfig.
-// ============================================================================
-
-/**
- * @brief Analytical field parameters for instrument-specific calculations
- * 
- * @deprecated Violates SSOT (Single Source of Truth) principle.
- * Use DomainConfig directly in Phase 2 refactor.
- * 
- * Different instruments use different subsets of these parameters.
- * Unused parameters can be left at default values (0.0).
- */
-struct AnalyticalFieldParams {
-    // Common parameters
-    ICARION::instrument::InstrumentType instrument_type = 
-        ICARION::instrument::InstrumentType::UnknownInstrument;
-    double radius_m = 0.0;        ///< Trap/cell radius [m]
-    double length_m = 0.0;        ///< Axial length [m]
-    
-    // RF field (LQIT, QuadrupoleRF)
-    double rf_voltage_V = 0.0;           ///< RF amplitude [V]
-    double rf_frequency_Hz = 0.0;        ///< RF frequency [Hz]
-    double dc_quad_voltage_V = 0.0;      ///< DC quadrupole offset [V]
-    
-    // DC field (IMS, TOF, axial confinement)
-    double dc_axial_voltage_V = 0.0;     ///< DC voltage along axis [V]
-    
-    // AC field (resonant excitation)
-    double ac_voltage_V = 0.0;           ///< AC amplitude [V]
-    double ac_frequency_Hz = 0.0;        ///< AC frequency [Hz]
-    Vec3 ac_direction = {1.0, 0.0, 0.0}; ///< AC field direction (DEPRECATED: always x for v1.0)
-    
-    // Orbitrap-specific
-    double orbitrap_k = 0.0;             ///< Field curvature [V/m²]
-    double orbitrap_r_char = 0.0;        ///< Characteristic radius [m]
-    
-    // FTICR-specific
-    double fticr_voltage_V = 0.0;        ///< Trapping voltage [V]
-    double fticr_char_length_m = 0.0;    ///< Characteristic length [m]
-};
 
 /**
  * @class ElectricFieldForce
@@ -101,30 +50,26 @@ struct AnalyticalFieldParams {
  * 
  * **Usage:**
  * ```cpp
- * // Analytical mode (LQIT) - DEPRECATED PATTERN (Phase 1)
- * AnalyticalFieldParams params;
- * params.instrument_type = InstrumentType::LQIT;
- * params.radius_m = 0.005;
- * params.rf_voltage_V = 1000.0;
- * params.rf_frequency_Hz = 1e6;
- * auto force = std::make_unique<ElectricFieldForce>(params);
+ * // Analytical mode (SSOT-compliant)
+ * config::DomainConfig domain = load_config("config.json");
+ * auto force = std::make_unique<ElectricFieldForce>(domain);
  * 
  * // Field provider mode
  * auto field_provider = std::make_unique<GridFieldProvider>(...);
  * auto force = std::make_unique<ElectricFieldForce>(std::move(field_provider));
  * ```
  * 
- * @note **TODO Phase 2:** Refactor to use DomainConfig directly (SSOT).
+ * @note Reads fields directly from DomainConfig (SSOT).
  */
 class ElectricFieldForce : public IForce {
 public:
     /**
-     * @brief Construct from analytical field parameters
-     * @param params Instrument-specific field parameters
+     * @brief Construct from domain configuration (SSOT)
+     * @param domain Domain configuration (instrument, fields, geometry)
      * 
-     * @deprecated Phase 2: Replace with ElectricFieldForce(const DomainConfig& domain)
+     * ⚠️ Config reference must outlive this object!
      */
-    explicit ElectricFieldForce(const AnalyticalFieldParams& params);
+    explicit ElectricFieldForce(const ICARION::config::DomainConfig& domain);
     
     /**
      * @brief Construct from field provider (grid/BEM/FEM)
@@ -163,7 +108,7 @@ private:
     
     // Instrument-specific field calculations (all read from domain_)
     Vec3 compute_lqit_field(const IonState& ion, double t) const;
-    Vec3 compute_ims_field(const IonState& ion) const;
+    Vec3 compute_ims_field(const IonState& ion, double t) const;  // Time-dependent (RF field)
     Vec3 compute_tof_field(const IonState& ion) const;
     Vec3 compute_fticr_field(const IonState& ion) const;
     Vec3 compute_orbitrap_field(const IonState& ion) const;
@@ -172,7 +117,7 @@ private:
     // Field calculation mode
     bool use_field_provider_ = false;
     std::shared_ptr<::IFieldProvider> field_provider_ = nullptr;
-    AnalyticalFieldParams analytical_params_;  // ⚠️ DEPRECATED (Phase 2: replace with const DomainConfig&)
+    const ICARION::config::DomainConfig* domain_ = nullptr;  // SSOT: config reference
 };
 
 } // namespace physics

@@ -22,12 +22,13 @@
 class IFieldProvider;
 
 namespace ICARION {
-namespace physics {
 
 // Forward declaration for config types
 namespace config {
     struct MagneticFieldConfig;
 }
+
+namespace physics {
 
 /**
  * @class MagneticFieldForce
@@ -68,7 +69,7 @@ public:
      * 
      * ⚠️ Config reference must outlive this object!
      */
-    explicit MagneticFieldForce(const config::MagneticFieldConfig& magnetic_config);
+    explicit MagneticFieldForce(const ICARION::config::MagneticFieldConfig& magnetic_config);
     
     /**
      * @brief Construct from field provider (grid/BEM/FEM)
@@ -108,7 +109,7 @@ private:
     // Field calculation mode
     bool use_field_provider_ = false;
     std::shared_ptr<::IFieldProvider> field_provider_ = nullptr;
-    const config::MagneticFieldConfig* magnetic_config_ = nullptr;  // SSOT: config reference
+    const ICARION::config::MagneticFieldConfig* magnetic_config_ = nullptr;  // SSOT: config reference
 };
 
 } // namespace physics

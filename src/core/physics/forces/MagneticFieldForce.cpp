@@ -15,7 +15,7 @@ namespace physics {
 // Constructors
 // ============================================================================
 
-MagneticFieldForce::MagneticFieldForce(const config::MagneticFieldConfig& magnetic_config)
+MagneticFieldForce::MagneticFieldForce(const ICARION::config::MagneticFieldConfig& magnetic_config)
     : use_field_provider_(false)
     , magnetic_config_(&magnetic_config)  // SSOT: store config reference
 {
@@ -82,11 +82,14 @@ Vec3 MagneticFieldForce::compute_analytical_field(const Vec3& pos) const {
     
     // SSOT: Read directly from config!
     // Uniform field component (primary)
-    Vec3 B_field{0.0, 0.0, magnetic_config_->field_strength_T};
+    Vec3 B_field = magnetic_config_->field_strength_T;
     
     // Gradient component (optional): B(r) = B₀ + ∇B·r
-    if (magnetic_config_->gradient_T_m != 0.0) {
-        B_field.z += magnetic_config_->gradient_T_m * pos.z;
+    const Vec3& grad = magnetic_config_->field_gradient_T_m;
+    if (grad.x != 0.0 || grad.y != 0.0 || grad.z != 0.0) {
+        B_field.x += grad.x * pos.x;
+        B_field.y += grad.y * pos.y;
+        B_field.z += grad.z * pos.z;
     }
     
     return B_field;

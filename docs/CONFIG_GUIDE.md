@@ -165,16 +165,17 @@ Species databases define physical properties of ions and neutrals in user-friend
 
 ### Reaction Database
 
-Reaction databases define ion-molecule reactions with concentration-dependent rates:
+Reaction databases define ion-molecule reactions with **temperature-dependent** and concentration-dependent rates:
 
 ```json
 {
   "reactions": [
     {
-      "id": "rxn_001_h3o_to_h5o2",
+      "id": "rxn_001_constant",
       "reactant": "H3O+",
       "product": "H5O2+",
       "rate_constant_m3s": 3.5e-9,
+      "rate_model": "Constant",
       "order": [
         {
           "species": "H2O",
@@ -182,9 +183,40 @@ Reaction databases define ion-molecule reactions with concentration-dependent ra
           "concentration_m3": 2.5e25
         }
       ],
-      "description": "Proton transfer from H3O+ to water cluster",
-      "reference": "Smith et al., J. Chem. Phys. (2020)",
-      "temperature_K": 300.0
+      "description": "Constant rate (no T-dependence)"
+    },
+    {
+      "id": "rxn_002_arrhenius",
+      "reactant": "H3O+",
+      "product": "NH4+",
+      "rate_constant_m3s": 1.5e-9,
+      "rate_model": "Arrhenius",
+      "activation_energy_eV": 0.12,
+      "order": [
+        {
+          "species": "NH3",
+          "exponent": 1
+        }
+      ],
+      "description": "Proton transfer with activation barrier",
+      "reference": "Doe et al., Int. J. Mass Spectrom. (2021)"
+    },
+    {
+      "id": "rxn_003_capture",
+      "reactant": "H3O+",
+      "product": "H3O+·H2O",
+      "rate_constant_m3s": 2.0e-9,
+      "rate_model": "ModifiedArrhenius",
+      "temperature_exponent": -0.5,
+      "reference_temperature_K": 300.0,
+      "activation_energy_eV": 0.0,
+      "order": [
+        {
+          "species": "H2O",
+          "exponent": 1
+        }
+      ],
+      "description": "Ion-dipole capture (T^-0.5, anti-Arrhenius)"
     }
   ]
 }
@@ -195,9 +227,19 @@ Reaction databases define ion-molecule reactions with concentration-dependent ra
 - `id`: Unique reaction identifier
 - `reactant`: Species ID (must exist in species database)
 - `product`: Species ID (must exist in species database)
-- `rate_constant_m3s`: Base rate constant [m³/s]
+- `rate_constant_m3s`: Base rate constant (k₀ or A) with correct dimensions [m³/s for 2nd-order, m⁶/s for 3rd-order]
 
-**Optional fields:**
+**Optional fields (Temperature Dependence):**
+
+- `rate_model`: Temperature dependence model (default: `"Constant"`)
+  - **`"Constant"`**: k(T) = k₀ (no T-dependence)
+  - **`"Arrhenius"`**: k(T) = A × exp(-Eₐ / (kB·T))
+  - **`"ModifiedArrhenius"`**: k(T) = A × (T/T₀)ⁿ × exp(-Eₐ / (kB·T))
+- `activation_energy_eV`: Activation energy Eₐ in eV (Arrhenius/ModifiedArrhenius)
+- `temperature_exponent`: Temperature exponent n (ModifiedArrhenius only)
+- `reference_temperature_K`: Reference temperature T₀ in Kelvin (ModifiedArrhenius only, default: 300 K)
+
+**Optional fields (Concentration Dependence):**
 
 - `order`: Array of concentration-dependent terms
   - `species`: Species ID for concentration dependence
@@ -205,14 +247,28 @@ Reaction databases define ion-molecule reactions with concentration-dependent ra
   - `concentration_m3`: Fixed concentration [m⁻³] for pseudo-first-order
 - `description`: Human-readable description
 - `reference`: Literature reference
-- `temperature_K`: Temperature at which rate was measured
 
 **Effective rate calculation:**
 
-The effective rate includes concentration dependencies:
+The effective rate includes **both temperature and concentration dependencies**:
 ```
-k_eff = k * [S₁]^n₁ * [S₂]^n₂ * ...
+k_eff(T) = k(T) × [S₁]^n₁ × [S₂]^n₂ × ...
+
+where k(T) depends on rate_model:
+  Constant:         k(T) = k₀
+  Arrhenius:        k(T) = A × exp(-Eₐ/(kB·T))
+  ModifiedArrhenius: k(T) = A × (T/T₀)ⁿ × exp(-Eₐ/(kB·T))
 ```
+
+**Examples:**
+
+- **Arrhenius (rate increases with T):** Proton transfer H₃O⁺ + NH₃ → NH₄⁺ with Eₐ = 0.12 eV
+  - At 300 K: k = 1.8×10⁻¹¹ m³/s
+  - At 400 K: k = 3.5×10⁻¹¹ m³/s (2× faster!)
+  
+- **Modified Arrhenius (anti-Arrhenius, rate decreases with T):** Ion-dipole capture H₃O⁺ + H₂O → H₃O⁺·H₂O with n = -0.5
+  - At 200 K: k = 2.45×10⁻⁹ m³/s (faster at low T!)
+  - At 400 K: k = 1.73×10⁻⁹ m³/s (slower at high T)
 
 ### Using Databases in Configs
 

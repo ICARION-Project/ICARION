@@ -35,8 +35,31 @@
           },
           "rate_constant_m3s": {
             "type": "number",
-            "description": "Base rate constant in m³/s (pseudo-first-order)",
+            "description": "Base rate constant (k₀ or A) with correct dimensions [m³/s for 2nd-order, m⁶/s for 3rd-order]",
             "exclusiveMinimum": 0
+          },
+          "rate_model": {
+            "type": "string",
+            "description": "Temperature dependence model (default: Constant)",
+            "enum": ["Constant", "Arrhenius", "ModifiedArrhenius"],
+            "default": "Constant"
+          },
+          "activation_energy_eV": {
+            "type": "number",
+            "description": "Activation energy in eV (Arrhenius and ModifiedArrhenius models)",
+            "minimum": 0,
+            "default": 0
+          },
+          "temperature_exponent": {
+            "type": "number",
+            "description": "Temperature exponent n for ModifiedArrhenius: k(T) = A × (T/T₀)ⁿ × exp(-Eₐ/(kB·T))",
+            "default": 0
+          },
+          "reference_temperature_K": {
+            "type": "number",
+            "description": "Reference temperature T₀ in Kelvin (ModifiedArrhenius model)",
+            "exclusiveMinimum": 0,
+            "default": 300.0
           },
           "order": {
             "type": "array",
@@ -92,10 +115,11 @@
     {
       "reactions": [
         {
-          "id": "rxn_001_h3o_to_h5o2",
+          "id": "rxn_001_constant_rate",
           "reactant": "H3O+",
           "product": "H5O2+",
           "rate_constant_m3s": 3.5e-15,
+          "rate_model": "Constant",
           "order": [
             {
               "species": "H2O",
@@ -103,18 +127,42 @@
               "concentration_m3": 2.5e25
             }
           ],
-          "description": "Proton transfer from H3O+ to water cluster",
-          "reference": "Smith et al., J. Chem. Phys. (2020)",
-          "temperature_K": 300.0
+          "description": "Constant rate (no T-dependence)",
+          "reference": "Smith et al., J. Chem. Phys. (2020)"
         },
         {
-          "id": "rxn_002_h5o2_dissociation",
-          "reactant": "H5O2+",
-          "product": "H3O+",
-          "rate_constant_m3s": 1.2e-16,
-          "order": [],
-          "description": "Dissociation of water cluster",
-          "temperature_K": 300.0
+          "id": "rxn_002_arrhenius",
+          "reactant": "H3O+",
+          "product": "NH4+",
+          "rate_constant_m3s": 1.5e-9,
+          "rate_model": "Arrhenius",
+          "activation_energy_eV": 0.12,
+          "order": [
+            {
+              "species": "NH3",
+              "exponent": 1
+            }
+          ],
+          "description": "Proton transfer with activation barrier (Arrhenius)",
+          "reference": "Doe et al., Int. J. Mass Spectrom. (2021)"
+        },
+        {
+          "id": "rxn_003_capture",
+          "reactant": "H3O+",
+          "product": "H3O+·H2O",
+          "rate_constant_m3s": 2.0e-9,
+          "rate_model": "ModifiedArrhenius",
+          "temperature_exponent": -0.5,
+          "reference_temperature_K": 300.0,
+          "activation_energy_eV": 0.0,
+          "order": [
+            {
+              "species": "H2O",
+              "exponent": 1
+            }
+          ],
+          "description": "Ion-dipole capture (T^-0.5 dependence, anti-Arrhenius)",
+          "reference": "Johnson et al., Phys. Chem. Chem. Phys. (2022)"
         }
       ]
     }

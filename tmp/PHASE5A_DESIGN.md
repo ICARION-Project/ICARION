@@ -124,11 +124,14 @@ class OutputManager {
 public:
     /**
      * @brief Construct output manager
-     * @param filename HDF5 output file path
-     * @param write_interval_dt Time interval between writes [s]
+     * @param hdf5_filename HDF5 trajectory output file path
+     * @param log_filename Text log file path (optional, nullptr = no text log)
+     * @param write_interval_dt Time interval between HDF5 writes [s]
      * @param buffer_max Max timesteps in RAM before flush
      */
-    OutputManager(const std::string& filename, double write_interval_dt, 
+    OutputManager(const std::string& hdf5_filename,
+                  const std::string* log_filename,
+                  double write_interval_dt, 
                   size_t buffer_max = 50);
     
     /**
@@ -140,11 +143,23 @@ public:
                     const std::vector<IonState>& ions);
     
     /**
+     * @brief Log progress message to text log (optional)
+     * @param message Progress message (e.g., "50% completed")
+     */
+    void log_progress(const std::string& message);
+    
+    /**
      * @brief Log timestep snapshot (buffers in RAM)
      * @param t Current time [s]
      * @param ions Current ion states
      */
     void log_step(double t, const std::vector<IonState>& ions);
+    
+    /**
+     * @brief Log progress message (to text log)
+     * @param message Progress message (e.g., "50% completed")
+     */
+    void log_progress(const std::string& message);
     
     /**
      * @brief Check if write is needed (based on time or buffer size)
@@ -164,27 +179,29 @@ public:
     void finalize(double t_final, const std::vector<IonState>& final_ions);
     
 private:
-    std::string filename_;
+    std::string hdf5_filename_;
     double write_interval_dt_;
     double next_write_time_;
     size_t buffer_max_;
     
-    // Buffers
+    // HDF5 trajectory buffers
     std::vector<double> times_buffer_;
     std::vector<std::vector<IonState>> trajectory_buffer_;
     
-    // HDF5Writer v2 interface (to be wired in Phase 5B)
-    // std::unique_ptr<io::HDF5Writer> writer_;
+    // Text log output (optional)
+    std::unique_ptr<io::RunLogger> text_logger_;
 };
 
 } // namespace ICARION::integrator
 ```
 
 **Key Design Decisions:**
+- **Unified output:** Manages both HDF5 trajectory data AND text logging
 - **Buffered writes:** Avoid HDF5 overhead on every timestep
 - **Time-based + size-based:** Flush when interval reached OR buffer full
 - **Metadata on init:** Species and params written once at start
-- **Finalize on exit:** Ensures last timestep always written
+- **Finalize on exit:** Ensures last timestep always written + completion summary
+- **Optional text log:** Can disable RunLogger for performance (pass nullptr)
 
 ---
 
@@ -219,9 +236,9 @@ public:
     /**
      * @brief Get domain by index
      * @param idx Domain index
-     * @return Reference to domain
+     * @return Reference to domain (SSOT: config::DomainConfig)
      */
-    const InstrumentDomain& get_domain(int idx) const;
+    const config::DomainConfig& get_domain(int idx) const;
     
     /**
      * @brief Transform position from global to local coordinates
@@ -321,12 +338,36 @@ integration_strategy_ = strategies::IntegrationStrategyFactory::create(
 
 **Phase 2 API:**
 ```cpp
-// In SimulationEngine::process_ion()
+// Inside SimulationEngine::run() - Main loop with progress logging
+size_t step_count = 0;
+while (t_global < t_end_) {
+    // Ion processing...
+    
+    // HDF5 output
+    if (output_manager_->should_write(t_global)) {
+        output_manager_->log_step(t_global, ions);
+        output_manager_->flush();
+    }
+    
+    // Progress logging (every 1000 steps)
+    if (step_count % 1000 == 0) {
+        double progress = (t_global - t_start_) / (t_end_ - t_start_) * 100.0;
+        std::ostringstream msg;
+        msg << std::fixed << std::setprecision(1)
+            << progress << "% completed (t = " << t_global * 1000.0 << " ms)";
+        output_manager_->log_progress(msg.str());
+    }
+    
+    t_global += dt_;
+    step_count++;
+}
+
+// Inside SimulationEngine::process_ion() - Collision handling
 if (collision_handler_) {
     config::EnvironmentConfig env;
     env.temperature_K = ion.domain_temperature_K;
     env.pressure_Pa = ion.domain_particle_density_m3 * BOLTZMANN_CONSTANT * ion.domain_temperature_K;
-    env.gas_species = domain_manager_->get_domain(ion.current_domain_index).env.gas_species;
+    env.gas_species = domain_manager_->get_domain(ion.current_domain_index).environment.gas_species;
     env.gas_velocity_m_s = ion.domain_gas_velocity_m_s;
     env.compute_derived_properties();
     
@@ -409,14 +450,16 @@ TEST(SimulationEngineIntegration, CompareWithLegacy) {
 
 ## 📅 Implementation Plan
 
-### **Step 1: DomainManager** (4 hours)
-- Extract domain lookup, coordinate transforms from legacy code
-- Implement aperture crossing logic
-- Write unit tests (test_domain_manager.cpp)
+### **Step 1: DomainManager** ✅ COMPLETE (Nov 22, 2025)
+- ✅ Extract domain lookup, coordinate transforms from legacy code
+- ✅ Implement aperture crossing logic
+- ✅ Write unit tests (test_domain_manager.cpp - 8 tests, 100% passing)
+- ✅ SSOT migration: Uses config::DomainConfig (not InstrumentDomain)
 
-### **Step 2: OutputManager** (4 hours)
-- Implement buffered output with time-based triggering
-- Wire up HDF5Writer v2 API (placeholder initially)
+### **Step 2: OutputManager** (5 hours)
+- Implement buffered HDF5 output with time-based triggering
+- Wire up HDF5Writer v2 API
+- Integrate RunLogger for text logging (progress, summaries)
 - Write unit tests (test_output_manager.cpp)
 
 ### **Step 3: SimulationEngine Core** (8 hours)

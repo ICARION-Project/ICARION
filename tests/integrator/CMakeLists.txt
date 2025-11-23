@@ -28,3 +28,9 @@ target_link_libraries(test_domain_manager PRIVATE icarion_core Catch2::Catch2Wit
 target_include_directories(test_domain_manager PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME test_domain_manager COMMAND test_domain_manager)
+
+add_executable(test_output_manager test_output_manager.cpp)
+target_link_libraries(test_output_manager PRIVATE icarion_core Catch2::Catch2WithMain)
+target_include_directories(test_output_manager PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME test_output_manager COMMAND test_output_manager)

@@ -35,6 +35,20 @@ struct SimulationConfig {
     bool enable_openmp = false;         ///< OpenMP threading
     unsigned int rng_seed = 42;         ///< Random number generator seed
     
+    // === Numerical Safety ===
+    bool enable_safety_logging = false; ///< Enable detailed safety violation logging
+    bool verbose_safety = false;        ///< Verbose safety output (performance impact)
+    
+    struct SafetyChecks {
+        bool enable_nan_checks = true;       ///< Check for NaN/Inf values
+        bool enable_bounds_checks = false;   ///< Check position/velocity bounds
+        double max_position_m = 10.0;        ///< Maximum position magnitude [m]
+        double max_velocity_ms = 1e6;        ///< Maximum velocity magnitude [m/s]
+        double max_acceleration_ms2 = 1e12;  ///< Maximum acceleration magnitude [m/s²]
+        bool throw_on_violation = false;     ///< Throw exception on violation (vs deactivate ion)
+        bool attempt_recovery = false;       ///< Attempt to recover invalid values
+    } safety_checks;
+    
     // === Checkpointing ===
     std::string continue_from = "";     ///< HDF5 file to resume from
     double continue_time_s = 0.0;       ///< Additional time to simulate

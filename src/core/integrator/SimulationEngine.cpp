@@ -3,6 +3,8 @@
 
 #include "SimulationEngine.h"
 #include "core/utils/safety/numericalSafetyGuards.h"
+#include "core/utils/safety/numericalSafetyLogger.h"
+#include "core/utils/mathUtils.h"
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -51,6 +53,22 @@ SimulationEngine::SimulationEngine(
         config_.simulation.dt_s * config_.simulation.write_interval,  // Write interval in seconds
         50  // Buffer max
     );
+    
+    // Initialize numerical safety logger if enabled
+    if (config_.simulation.enable_safety_logging) {
+        std::string safety_log = config_.output.folder + "/numerical_safety.log";
+        safety::NumericalSafetyLogger::getInstance(safety_log, config_.simulation.verbose_safety);
+        
+        // Configure logger (enable_logging, verbose_mode, buffer_size, max_history)
+        safety::NumericalSafetyLogger::getInstance().configure(
+            true,  // enable_logging
+            config_.simulation.verbose_safety,  // verbose_mode
+            1000,  // buffer_size (default)
+            10000  // max_history (default)
+        );
+        
+        output_manager_->log_progress("Numerical safety logging enabled: " + safety_log);
+    }
 }
 
 void SimulationEngine::initialize(const std::vector<IonState>& ions) {
@@ -246,11 +264,93 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         // 10. Update ion time
         ion.t += dt;
         
-        // 11. Safety check (NaN/Inf detection)
-        if (!ICARION::safety::is_finite(ion.pos) || !ICARION::safety::is_finite(ion.vel)) {
-            std::cerr << "Warning: Ion " << i << " has invalid state (NaN/Inf) at t = " 
-                      << ion.t << " s, deactivating" << std::endl;
+        // 11. Numerical safety checks
+        bool position_valid = ICARION::safety::is_finite(ion.pos);
+        bool velocity_valid = ICARION::safety::is_finite(ion.vel);
+        
+        if (!position_valid || !velocity_valid) {
+            // Log detailed violation if safety logging is enabled
+            if (config_.simulation.enable_safety_logging) {
+                safety::ViolationEvent event;
+                event.type = !position_valid ? 
+                    (std::isnan(ion.pos.x + ion.pos.y + ion.pos.z) ? 
+                        safety::ViolationType::NAN_POSITION : safety::ViolationType::INF_POSITION) :
+                    (std::isnan(ion.vel.x + ion.vel.y + ion.vel.z) ? 
+                        safety::ViolationType::NAN_VELOCITY : safety::ViolationType::INF_VELOCITY);
+                
+                event.timestamp = std::chrono::steady_clock::now();
+                event.ion_index = i;
+                event.step_number = current_step_;
+                event.simulation_time = ion.t;
+                event.timestep = dt;
+                event.position = ion.pos;
+                event.velocity = ion.vel;
+                event.violation_context = "Post-integration state check in domain " + std::to_string(domain_idx);
+                event.violation_magnitude = !position_valid ? norm(ion.pos) : norm(ion.vel);
+                event.recovery_attempted = false;
+                event.recovery_successful = false;
+                
+                safety::NumericalSafetyLogger::getInstance().logViolation(event);
+            }
+            
+            // Deactivate ion
             ion.active = false;
+            
+            // Log to standard output if not using safety logger
+            if (!config_.simulation.enable_safety_logging) {
+                std::cerr << "Warning: Ion " << i << " has invalid state (";
+                if (!position_valid) std::cerr << "NaN/Inf in position";
+                if (!position_valid && !velocity_valid) std::cerr << ", ";
+                if (!velocity_valid) std::cerr << "NaN/Inf in velocity";
+                std::cerr << ") at t = " << ion.t << " s, deactivating" << std::endl;
+            }
+        }
+        
+        // Optional bounds checking (if enabled)
+        if (config_.simulation.safety_checks.enable_bounds_checks && 
+            (position_valid && velocity_valid)) {
+            
+            double pos_mag = norm(ion.pos);
+            double vel_mag = norm(ion.vel);
+            
+            bool bounds_violated = false;
+            safety::ViolationType violation_type;
+            
+            if (pos_mag > config_.simulation.safety_checks.max_position_m) {
+                bounds_violated = true;
+                violation_type = safety::ViolationType::BOUNDS_POSITION;
+            } else if (vel_mag > config_.simulation.safety_checks.max_velocity_ms) {
+                bounds_violated = true;
+                violation_type = safety::ViolationType::BOUNDS_VELOCITY;
+            }
+            
+            if (bounds_violated) {
+                if (config_.simulation.enable_safety_logging) {
+                    safety::ViolationEvent event;
+                    event.type = violation_type;
+                    event.timestamp = std::chrono::steady_clock::now();
+                    event.ion_index = i;
+                    event.step_number = current_step_;
+                    event.simulation_time = ion.t;
+                    event.timestep = dt;
+                    event.position = ion.pos;
+                    event.velocity = ion.vel;
+                    event.violation_context = "Bounds check exceeded in domain " + std::to_string(domain_idx);
+                    event.violation_magnitude = (violation_type == safety::ViolationType::BOUNDS_POSITION) 
+                        ? pos_mag : vel_mag;
+                    event.recovery_attempted = false;
+                    event.recovery_successful = false;
+                    
+                    safety::NumericalSafetyLogger::getInstance().logViolation(event);
+                }
+                
+                if (config_.simulation.safety_checks.throw_on_violation) {
+                    throw std::runtime_error("Bounds violation for ion " + std::to_string(i) + 
+                                           " at t=" + std::to_string(ion.t));
+                }
+                
+                ion.active = false;
+            }
         }
         }  // End of parallel for loop
     }  // End of parallel region
@@ -330,6 +430,23 @@ std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
     
     // Flush output and write completion metadata
     output_manager_->finalize(current_time_, ions);
+    
+    // Generate numerical safety report if logging was enabled
+    if (config_.simulation.enable_safety_logging) {
+        std::string report_file = config_.output.folder + "/numerical_safety_report.txt";
+        safety::NumericalSafetyLogger::getInstance().generateSafetyReport(report_file);
+        
+        // Log summary statistics
+        auto stats = safety::NumericalSafetyLogger::getInstance().getStatistics();
+        std::ostringstream safety_msg;
+        safety_msg << "Numerical safety: " << stats.total_violations << " violations detected";
+        if (stats.recovery_attempts > 0) {
+            safety_msg << ", " << stats.successful_recoveries << "/" 
+                      << stats.recovery_attempts << " recoveries successful";
+        }
+        output_manager_->log_progress(safety_msg.str());
+        output_manager_->log_progress("Safety report written: " + report_file);
+    }
     
     return ions;
 }

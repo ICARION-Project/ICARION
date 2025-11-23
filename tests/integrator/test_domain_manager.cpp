@@ -216,8 +216,10 @@ TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
     }
     
     SECTION("Hyperbolic constraint at z != 0") {
-        // With r_char = 25mm > r_out, the hyperbolic surfaces maintain
-        // r_in ≈ 12mm and r_out ≈ 20mm even at z != 0
+        // The electrode surfaces r_in(z) and r_out(z) depend on z via the
+        // logarithmic-hyperbolic equation: z² = 0.5·(r² - R²) + R_m² · ln(R/r)
+        // For r_char=25mm > r_out=20mm, this z-dependence is very weak
+        // (gap changes by <0.01% for z=0..20mm), but it's NOT zero!
         double z = 0.007;
         REQUIRE(manager.find_domain_index(Vec3{0.015, 0, z}) == 0);  // Still inside
         REQUIRE(manager.find_domain_index(Vec3{0.011, 0, z}) == -1); // Too close to inner

@@ -36,6 +36,14 @@ namespace integrator {
  * - Aperture crossing detection (ion transitions between domains)
  * - Domain property updates (temperature, pressure, gas velocity)
  * 
+ * **Floating-Point Tolerance:**
+ * Domain boundary checks use epsilon tolerance (1e-12 m = 1 pm) to handle:
+ * - Ions starting exactly at z=0 (IMS, SIFDT) may have z≈-1e-16 due to FP roundoff
+ * - Integration errors accumulating near boundaries
+ * - Coordinate transform precision loss
+ * 
+ * This prevents false-positive "ion left domain" for ions legitimately inside.
+ * 
  * Thread-safe for read-only operations (OpenMP parallel integration).
  */
 class DomainManager {
@@ -140,6 +148,36 @@ public:
      * Called when ion transitions from one domain to another.
      */
     void update_domain_properties(IonState& ion, int domain_idx) const;
+    
+    /**
+     * @brief Terminate ion at boundary (set position to intersection, velocity to 0)
+     * @param ion Ion state (modified: pos corrected, vel=0, active=false)
+     * @param domain_idx Current domain index
+     * @param pos_before_local Local position before integration step [m]
+     * @param pos_after_local Local position after integration step [m]
+     * 
+     * When an ion leaves the domain (detected via is_inside_domain check),
+     * this method:
+     * 1. Computes intersection point between trajectory line and domain boundary
+     * 2. Sets ion position to intersection (not extrapolated pos_after)
+     * 3. Sets velocity to zero (ion absorbed/stopped at boundary)
+     * 4. Deactivates ion (ion.active = false)
+     * 
+     * **Why this matters:**
+     * - Prevents unphysical positions in trajectory output (pos outside domain)
+     * - Makes final position physically meaningful (where ion actually hit)
+     * - Useful for analyzing loss patterns (e.g., radial losses in drift tubes)
+     * 
+     * **Boundary types handled:**
+     * - Radial boundary (r > radius_m): Ion hit cylindrical wall
+     * - Axial boundaries (z < 0 or z > length_m): Ion exited entrance/exit
+     * - Aperture (r > end_aperture_m at z=length_m): Ion blocked by aperture
+     * 
+     * Coordinates are in LOCAL frame (must transform to global after).
+     */
+    void terminate_ion_at_boundary(IonState& ion, int domain_idx,
+                                    const Vec3& pos_before_local,
+                                    const Vec3& pos_after_local) const;
     
     /**
      * @brief Get number of domains

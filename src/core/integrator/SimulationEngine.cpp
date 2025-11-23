@@ -155,20 +155,35 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         pos_local = ion_local.pos;
         vel_local = ion_local.vel;
         
-        // 8. Check aperture crossing (domain transitions)
+        // 8. Check if ion left domain (boundary collision detection)
         Vec3 pos_after = pos_local;
         
-        // If ion moved past domain boundary, check aperture
+        // First check aperture crossing (domain exit at z=length_m)
         if (pos_after.z >= domain_config.geometry.length_m && pos_before.z < domain_config.geometry.length_m) {
-            // check_aperture_crossing is void, deactivates ion internally if needed
-            domain_manager_->check_aperture_crossing(
-                ion, domain_idx, pos_before, pos_after
-            );
+            domain_manager_->check_aperture_crossing(ion, domain_idx, pos_before, pos_after);
             
-            // Skip further processing if ion was deactivated
+            // If blocked by aperture, terminate at boundary
             if (!ion.active) {
-                continue;
+                domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
+                continue;  // Ion absorbed, skip further processing
             }
+        }
+        
+        // Then check all other boundaries (radial wall, entrance plane)
+        // Note: is_inside_domain checks domain AFTER transform back to global
+        // So we check in local coordinates first
+        constexpr double EPSILON = 1e-12;  // Same as DomainManager
+        bool still_inside = (pos_after.z >= -EPSILON && 
+                            pos_after.z < domain_config.geometry.length_m);
+        if (still_inside) {
+            double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
+            still_inside = (r < domain_config.geometry.radius_m);
+        }
+        
+        if (!still_inside) {
+            // Ion left domain (hit wall or exited entrance)
+            domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
+            continue;  // Ion absorbed, skip transform
         }
         
         // 9. Transform back to global coordinates

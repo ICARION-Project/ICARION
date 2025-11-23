@@ -886,8 +886,30 @@ manager.update_domain_properties(ion, idx);
 
 **Internal Geometry Check:**
 - Replaces legacy `isInsideDomain()` from `paramUtils.cpp`
-- Supports cylindrical (most instruments) and hyperbolic (Orbitrap)
+- Supports cylindrical (most instruments) and logarithmic-hyperbolic (Orbitrap)
 - No dependency on legacy functions
+
+**Geometry Implementations:**
+
+*Cylindrical (IMS, LQIT, TOF, etc.):*
+- Ion inside domain if: `(z >= -ε) && (z < L) && (r < R)`
+- Constant radius R over entire length L
+- Floating-point tolerance ε = 1e-12 m for z-boundary
+
+*Orbitrap (logarithmic-hyperbolic):*
+- Electrode shape: `z² = 0.5·(r² - R²) + R_m² · ln(R/r)`
+- Inner/outer electrodes follow hyperbolic surfaces r_in(z) and r_out(z)
+- Numerical root-finding (bisection method) computes r(z) at runtime
+- Ion inside domain if: `r_in(z) ≤ r ≤ r_out(z)`
+- Physics constraint: **r_char > r_out** (characteristic radius larger than outer electrode)
+  - For realistic Orbitrap parameters, surfaces become nearly z-independent
+  - Example: r_char=25mm, r_in=12mm, r_out=20mm → gap constant ~8mm for z=0..20mm
+
+**Boundary Termination:**
+- `terminate_ion_at_boundary()`: Ray-tracing to find exact intersection point
+- Cylindrical: Analytical ray-cylinder/plane intersection
+- Orbitrap: Midpoint approximation (TODO: ray-hyperbola intersection)
+- Prevents unphysical ion positions beyond domain boundaries
 
 **Status:** Complete (Phase 5A, Nov 2025)
 

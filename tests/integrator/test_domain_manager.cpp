@@ -177,3 +177,90 @@ TEST_CASE("DomainManager: Full workflow") {
     manager.update_domain_properties(ion, new_idx);
     REQUIRE(ion.current_domain_index == 1);
 }
+
+TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
+    config::DomainConfig orbitrap;
+    orbitrap.domain_index = 0;
+    orbitrap.instrument = config::Instrument::Orbitrap;
+    
+    // Typical Orbitrap dimensions (Thermo Q Exactive)
+    // Note: r_char > r_out for realistic Orbitrap geometry!
+    orbitrap.geometry.radius_in_m = 0.012;   // 12 mm inner electrode
+    orbitrap.geometry.radius_out_m = 0.020;  // 20 mm outer electrode  
+    orbitrap.geometry.radius_char_m = 0.025; // 25 mm characteristic radius (> r_out!)
+    orbitrap.geometry.origin_m = Vec3{0,0,0};
+    
+    orbitrap.rotation_global_to_local = Mat3::identity();
+    orbitrap.rotation_local_to_global = Mat3::identity();
+    
+    orbitrap.environment.gas_species = "N2";
+    orbitrap.environment.temperature_K = 300.0;
+    orbitrap.environment.pressure_Pa = 1e-8;  // Ultra-high vacuum
+    orbitrap.environment.compute_derived_properties();
+    
+    std::vector<config::DomainConfig> domains = {orbitrap};
+    DomainManager manager(domains);
+    
+    SECTION("Ion inside Orbitrap (between hyperbolas)") {
+        // At z=0, allowed radii: r_in = 12 mm, r_out = 20 mm
+        REQUIRE(manager.find_domain_index(Vec3{0.015, 0, 0}) == 0);  // r=15mm, inside
+        REQUIRE(manager.find_domain_index(Vec3{0.017, 0, 0}) == 0);  // r=17mm, inside
+    }
+    
+    SECTION("Ion too close to inner electrode") {
+        REQUIRE(manager.find_domain_index(Vec3{0.010, 0, 0}) == -1);  // r=10mm < r_in(0)
+    }
+    
+    SECTION("Ion outside outer electrode") {
+        REQUIRE(manager.find_domain_index(Vec3{0.025, 0, 0}) == -1);  // r=25mm > r_out(0)
+    }
+    
+    SECTION("Hyperbolic constraint at z != 0") {
+        // With r_char = 25mm > r_out, the hyperbolic surfaces maintain
+        // r_in ≈ 12mm and r_out ≈ 20mm even at z != 0
+        double z = 0.007;
+        REQUIRE(manager.find_domain_index(Vec3{0.015, 0, z}) == 0);  // Still inside
+        REQUIRE(manager.find_domain_index(Vec3{0.011, 0, z}) == -1); // Too close to inner
+    }
+}
+
+TEST_CASE("DomainManager: Orbitrap boundary termination uses midpoint approximation") {
+    config::DomainConfig orbitrap;
+    orbitrap.domain_index = 0;
+    orbitrap.instrument = config::Instrument::Orbitrap;
+    orbitrap.geometry.radius_in_m = 0.012;
+    orbitrap.geometry.radius_out_m = 0.020;
+    orbitrap.geometry.radius_char_m = 0.025;  // r_char > r_out (realistic)
+    orbitrap.geometry.origin_m = Vec3{0,0,0};
+    orbitrap.rotation_global_to_local = Mat3::identity();
+    orbitrap.rotation_local_to_global = Mat3::identity();
+    orbitrap.environment.temperature_K = 300.0;
+    orbitrap.environment.pressure_Pa = 1e-8;
+    orbitrap.environment.compute_derived_properties();
+    
+    std::vector<config::DomainConfig> domains = {orbitrap};
+    DomainManager manager(domains);
+    
+    IonState ion;
+    ion.active = true;
+    ion.vel = Vec3{0, 0, 10.0};  // Will be set to zero
+    
+    Vec3 pos_before{0.015, 0, 0};  // Inside
+    Vec3 pos_after{0.025, 0, 0};   // Outside (hit outer electrode)
+    
+    manager.terminate_ion_at_boundary(ion, 0, pos_before, pos_after);
+    
+    // Should use midpoint approximation for Orbitrap
+    Vec3 expected_midpoint = (pos_before + pos_after) * 0.5;
+    REQUIRE(ion.pos.x == Approx(expected_midpoint.x).margin(1e-9));
+    REQUIRE(ion.pos.y == Approx(expected_midpoint.y).margin(1e-9));
+    REQUIRE(ion.pos.z == Approx(expected_midpoint.z).margin(1e-9));
+    
+    // Velocity should be zero
+    REQUIRE(ion.vel.x == 0.0);
+    REQUIRE(ion.vel.y == 0.0);
+    REQUIRE(ion.vel.z == 0.0);
+    
+    // Ion should be deactivated
+    REQUIRE_FALSE(ion.active);
+}

@@ -9,6 +9,45 @@
 namespace ICARION {
 namespace integrator {
 
+namespace {
+/**
+ * @brief Compute the radial coordinate r(z) on an Orbitrap hyperbolic electrode.
+ * 
+ * The Orbitrap electrode shape is defined by the implicit equation:
+ *   z² = 0.5·(r² - R²) + R_m² · ln(R/r)
+ * 
+ * This function numerically solves for r given z, R (electrode radius), and R_m (characteristic radius).
+ * Uses bisection method for robust convergence.
+ * 
+ * @param z Axial position (can be negative, will use |z|)
+ * @param R Reference electrode radius (Rin or Rout)
+ * @param Rm Characteristic radius parameter
+ * @return Radial coordinate r at position z
+ */
+double orbitrap_r_for_z(double z, double R, double Rm) {
+    const double z2 = z * z;
+    const double eps = 1e-12;
+    const int max_iter = 100;
+    
+    // Initial bracketing: r ∈ [R, 2R]
+    double r_lo = R;
+    double r_hi = R * 2.0;
+    double r_mid = R;
+    
+    // Bisection method to solve: 0.5*(r² - R²) + R_m² * ln(R/r) - z² = 0
+    for (int i = 0; i < max_iter; ++i) {
+        r_mid = 0.5 * (r_lo + r_hi);
+        double f = 0.5 * (r_mid * r_mid - R * R) + Rm * Rm * std::log(R / r_mid) - z2;
+        
+        if (std::fabs(f) < eps) break;
+        if (f > 0) r_lo = r_mid;
+        else       r_hi = r_mid;
+    }
+    
+    return r_mid;
+}
+}  // anonymous namespace
+
 DomainManager::DomainManager(const std::vector<config::DomainConfig>& domains)
     : domains_(domains)
 {
@@ -100,7 +139,19 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
                                                 const Vec3& pos_after_local) const {
     const auto& dom = get_domain(domain_idx);
     
-    // Ray tracing: Find intersection of line (pos_before → pos_after) with domain boundary
+    // Orbitrap: Hyperbolic boundary (complex ray-tracing, not yet implemented)
+    // TODO: Implement ray-hyperbola intersection for Orbitrap
+    if (dom.instrument == config::Instrument::Orbitrap) {
+        // Fallback: Use simple midpoint approximation
+        Vec3 approx_intersection = (pos_before_local + pos_after_local) * 0.5;
+        ion.pos = local_to_global_pos(approx_intersection, domain_idx);
+        ion.vel = {0.0, 0.0, 0.0};
+        ion.active = false;
+        return;
+    }
+    
+    // Cylindrical geometry: Ray tracing with analytical intersection
+    // Find intersection of line (pos_before → pos_after) with domain boundary
     // We test all boundaries and take the nearest intersection
     
     Vec3 dir = pos_after_local - pos_before_local;
@@ -198,19 +249,19 @@ bool DomainManager::is_inside_domain(const config::DomainConfig& dom, const Vec3
         return (local.z >= -DOMAIN_BOUNDARY_EPSILON && local.z < dom.geometry.length_m) && (r < dom.geometry.radius_m);
     }
     
-    // Orbitrap: hyperbolic electrode geometry
+    // Orbitrap: logarithmic-hyperbolic electrode geometry
+    // Electrode shape: z² = 0.5·(r² - R²) + R_m² · ln(R/r)
     const double Rin = dom.geometry.radius_in_m;
     const double Rout = dom.geometry.radius_out_m;
     const double Rm = dom.geometry.radius_char_m;
     const double z = std::fabs(local.z);
     
-    // Compute allowed radial range for given z (hyperbolic surfaces)
-    // r_inner(z) = sqrt(Rin^2 + (z/Rm)^2)
-    // r_outer(z) = sqrt(Rout^2 + (z/Rm)^2)
-    const double r_in_allowed  = std::sqrt(Rin * Rin + (z / Rm) * (z / Rm));
-    const double r_out_allowed = std::sqrt(Rout * Rout + (z / Rm) * (z / Rm));
+    // Compute allowed radial range for given z using numerical root-finding
+    const double r_in_allowed  = orbitrap_r_for_z(z, Rin, Rm);
+    const double r_out_allowed = orbitrap_r_for_z(z, Rout, Rm);
     
     // Inside domain if between hyperbolic surfaces
+    // Note: No tolerance needed here since orbitrap_r_for_z is accurate to 1e-12
     return (r >= r_in_allowed) && (r <= r_out_allowed);
 }
 

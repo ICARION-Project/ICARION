@@ -186,9 +186,12 @@ public:
      * - Useful for analyzing loss patterns (e.g., radial losses in drift tubes)
      * 
      * **Boundary types handled:**
-     * - Radial boundary (r > radius_m): Ion hit cylindrical wall
-     * - Axial boundaries (z < 0 or z > length_m): Ion exited entrance/exit
-     * - Aperture (r > end_aperture_m at z=length_m): Ion blocked by aperture
+     * - Cylindrical instruments (IMS, TOF, LQIT, SLIM, etc.):
+     *   * Radial boundary (r > radius_m): Ion hit cylindrical wall
+     *   * Axial boundaries (z < 0 or z > length_m): Ion exited entrance/exit
+     *   * Aperture (r > end_aperture_m at z=length_m): Ion blocked by aperture
+     * - Orbitrap (hyperbolic electrodes):
+     *   * Uses midpoint approximation (analytical ray-hyperbola intersection TODO)
      * 
      * Coordinates are in LOCAL frame (must transform to global after).
      */

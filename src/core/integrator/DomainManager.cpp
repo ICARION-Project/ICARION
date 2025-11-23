@@ -9,12 +9,6 @@
 namespace ICARION {
 namespace integrator {
 
-// Floating-point tolerance for domain boundary checks
-// Important for IMS/SIFDT: Ions starting at z=0 may have z≈-1e-16 due to FP errors
-namespace {
-    constexpr double DOMAIN_BOUNDARY_EPSILON = 1e-12;  // 1 pm tolerance
-}
-
 DomainManager::DomainManager(const std::vector<config::DomainConfig>& domains)
     : domains_(domains)
 {
@@ -111,7 +105,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
     
     Vec3 dir = pos_after_local - pos_before_local;
     double dir_len = std::sqrt(dir.x*dir.x + dir.y*dir.y + dir.z*dir.z);
-    if (dir_len < 1e-15) {
+    if (dir_len < NUMERICAL_ZERO) {
         // Degenerate case: no movement, just place at pos_before
         ion.pos = local_to_global_pos(pos_before_local, domain_idx);
         ion.vel = {0.0, 0.0, 0.0};
@@ -132,7 +126,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
     const double c = pos_before_local.x*pos_before_local.x + 
                      pos_before_local.y*pos_before_local.y - R*R;
     
-    if (a > 1e-15) {  // Ray has radial component
+    if (a > NUMERICAL_ZERO) {  // Ray has radial component
         const double discriminant = b*b - 4.0*a*c;
         if (discriminant >= 0.0) {
             const double sqrt_disc = std::sqrt(discriminant);
@@ -154,7 +148,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
     }
     
     // 2. Check entrance plane: z = 0
-    if (std::abs(dir.z) > 1e-15) {
+    if (std::abs(dir.z) > NUMERICAL_ZERO) {
         double t = (0.0 - pos_before_local.z) / dir.z;
         if (t > 0.0 && t < t_min) {
             Vec3 candidate = pos_before_local + dir * t;
@@ -167,7 +161,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
     }
     
     // 3. Check exit plane: z = length_m
-    if (std::abs(dir.z) > 1e-15) {
+    if (std::abs(dir.z) > NUMERICAL_ZERO) {
         double t = (dom.geometry.length_m - pos_before_local.z) / dir.z;
         if (t > 0.0 && t < t_min) {
             Vec3 candidate = pos_before_local + dir * t;

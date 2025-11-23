@@ -172,8 +172,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         // Then check all other boundaries (radial wall, entrance plane)
         // Note: is_inside_domain checks domain AFTER transform back to global
         // So we check in local coordinates first
-        constexpr double EPSILON = 1e-12;  // Same as DomainManager
-        bool still_inside = (pos_after.z >= -EPSILON && 
+        bool still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON && 
                             pos_after.z < domain_config.geometry.length_m);
         if (still_inside) {
             double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);

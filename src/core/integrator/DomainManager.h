@@ -27,6 +27,23 @@ namespace ICARION {
 namespace integrator {
 
 /**
+ * @brief Floating-point tolerance for domain boundary checks [m]
+ * 
+ * Important for IMS/SIFDT: Ions starting at z=0 may have z≈-1e-16 due to FP roundoff.
+ * Value: 1e-12 m = 1 picometer (negligible compared to typical domain sizes)
+ */
+constexpr double DOMAIN_BOUNDARY_EPSILON = 1e-12;
+
+/**
+ * @brief Numerical tolerance for ray-tracing calculations
+ * 
+ * Used to avoid division by zero in intersection computations.
+ * Rays with direction magnitude < NUMERICAL_ZERO are treated as degenerate.
+ * Value: 1e-15 (≈ sqrt(machine epsilon for double precision))
+ */
+constexpr double NUMERICAL_ZERO = 1e-15;
+
+/**
  * @class DomainManager
  * @brief Manages spatial domains and coordinate transformations
  * 

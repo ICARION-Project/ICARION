@@ -25,8 +25,52 @@
 #pragma once
 #include "core/types/Vec3.h"   
 #include <cstdint>
-#include "paramUtils.h"
-#include "InstrumentEnums.h"
+#include "core/config/types/InstrumentTypes.h"
+
+// ============================================================================
+// GPU-compatible Instrument Enum (SSOT: InstrumentType is canonical)
+// ============================================================================
+/**
+ * @brief GPU-compatible instrument type enum
+ * 
+ * Plain enum (not enum class) for CUDA kernel compatibility.
+ * Values must match ICARION::instrument::InstrumentType exactly.
+ * 
+ * SSOT: InstrumentType (core/config/types/InstrumentTypes.h) is the single source of truth.
+ * This enum is automatically validated at compile-time via static_assert.
+ */
+enum InstrumentGPU : int { 
+    LQIT = 0,              ///< Linear Quadrupole Ion Trap
+    IMS = 1,               ///< Ion Mobility Spectrometry
+    Orbitrap = 2,          ///< Orbitrap Mass Analyzer
+    QuadrupoleRF = 3,      ///< Quadrupole RF (includes SLIM)
+    TOF = 4,               ///< Time-of-Flight
+    FT_ICR = 5,            ///< Fourier Transform Ion Cyclotron Resonance
+    NoFixedInstrument = 6, ///< Generic/custom instrument
+    UnknownInstrument = 7  ///< Unrecognized instrument type
+};
+
+// SSOT Validation: Ensure GPU enum matches CPU InstrumentType
+using InstrumentType = ICARION::instrument::InstrumentType;
+
+static_assert(static_cast<int>(InstrumentType::LQIT) == static_cast<int>(InstrumentGPU::LQIT), 
+    "SSOT violation: InstrumentGPU::LQIT must match InstrumentType::LQIT");
+static_assert(static_cast<int>(InstrumentType::IMS) == static_cast<int>(InstrumentGPU::IMS), 
+    "SSOT violation: InstrumentGPU::IMS must match InstrumentType::IMS");
+static_assert(static_cast<int>(InstrumentType::Orbitrap) == static_cast<int>(InstrumentGPU::Orbitrap), 
+    "SSOT violation: InstrumentGPU::Orbitrap must match InstrumentType::Orbitrap");
+static_assert(static_cast<int>(InstrumentType::QuadrupoleRF) == static_cast<int>(InstrumentGPU::QuadrupoleRF), 
+    "SSOT violation: InstrumentGPU::QuadrupoleRF must match InstrumentType::QuadrupoleRF");
+static_assert(static_cast<int>(InstrumentType::TOF) == static_cast<int>(InstrumentGPU::TOF), 
+    "SSOT violation: InstrumentGPU::TOF must match InstrumentType::TOF");
+static_assert(static_cast<int>(InstrumentType::FTICR) == static_cast<int>(InstrumentGPU::FT_ICR), 
+    "SSOT violation: InstrumentGPU::FT_ICR must match InstrumentType::FTICR");
+static_assert(static_cast<int>(InstrumentType::NoFixedInstrument) == static_cast<int>(InstrumentGPU::NoFixedInstrument), 
+    "SSOT violation: InstrumentGPU::NoFixedInstrument must match InstrumentType::NoFixedInstrument");
+static_assert(static_cast<int>(InstrumentType::UnknownInstrument) == static_cast<int>(InstrumentGPU::UnknownInstrument), 
+    "SSOT violation: InstrumentGPU::UnknownInstrument must match InstrumentType::UnknownInstrument");
+
+// ============================================================================
 
 /* RF parameters */
 struct RFParamsGPU {

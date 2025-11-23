@@ -7,7 +7,7 @@
 // Created: 2025-11-22 (Phase 3 Refactor)
 
 #include "StochasticReactionHandler.h"
-#include "core/io/logger.h"
+#include "core/log/Logger.h"
 #include "utils/constants.h"
 #include <algorithm>
 #include <cmath>
@@ -87,7 +87,7 @@ bool StochasticReactionHandler::handle_reaction(
             const auto* selected_reaction = applicable_reactions[i];
             
             if (enable_logging_) {
-                io::debug_log(
+                log::debug_log(
                     "[StochasticReactionHandler] Reaction: " + selected_reaction->reactant + 
                     " -> " + selected_reaction->product + 
                     " (k_eff=" + std::to_string(k_effs[i]) + " s⁻¹, " +
@@ -167,7 +167,7 @@ void StochasticReactionHandler::update_ion_species(
 ) const {
     // SSOT: Look up product properties in SpeciesDatabase
     if (!species_db.has(product_id)) {
-        io::debug_log(
+        log::debug_log(
             "[StochasticReactionHandler] WARNING: Product species '" + product_id + 
             "' not found in database - keeping reactant"
         );
@@ -185,7 +185,7 @@ void StochasticReactionHandler::update_ion_species(
     ion.reduced_mobility_cm2_Vs = product.mobility_m2Vs / CM2_TO_M2;  // Convert back to reduced units
     
     if (enable_logging_) {
-        io::debug_log(
+        log::debug_log(
             "[StochasticReactionHandler] Ion updated: " + product_id + 
             " mass=" + std::to_string(ion.mass_kg) + " kg"
         );

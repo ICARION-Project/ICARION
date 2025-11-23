@@ -23,7 +23,7 @@
  * =====================================================================
  */
 #include "poissonSolver.h"
-#include "core/io/logger.h"
+#include "core/log/Logger.h"
 #include <cmath>
 #include <iostream>
 #include <algorithm>
@@ -162,9 +162,9 @@ void PoissonSolver::solveGaussSeidel(double eps0, double tol, int max_iter) {
     } while (res > tol && iter < max_iter);
 
     m_lastResidual = res;
-    ICARION::io::debug_log(std::string("[PoissonSolver] Converged in ") + std::to_string(iter) + " iterations, residual " + std::to_string(res));
+    ICARION::log::debug_log(std::string("[PoissonSolver] Converged in ") + std::to_string(iter) + " iterations, residual " + std::to_string(res));
     if (iter % 100 == 0)
-        ICARION::io::debug_log(std::string("[iter ") + std::to_string(iter) + "] mean(phi)=" + std::to_string(
+        ICARION::log::debug_log(std::string("[iter ") + std::to_string(iter) + "] mean(phi)=" + std::to_string(
             std::accumulate(m_grid.phi.begin(), m_grid.phi.end(), 0.0) / m_grid.phi.size()) + ", residual=" + std::to_string(res));
 
     if (iter == max_iter)
@@ -237,13 +237,13 @@ void PoissonSolver::solveRedBlack(double eps0, double tol, int max_iter) {
         ++iter;
 
         if (iter % 100 == 0) {
-            ICARION::io::debug_log(std::string("[Red-Black iter ") + std::to_string(iter) + "] residual=" + std::to_string(res));
+            ICARION::log::debug_log(std::string("[Red-Black iter ") + std::to_string(iter) + "] residual=" + std::to_string(res));
         }
 
     } while (res > tol && iter < max_iter);
 
     m_lastResidual = res;
-    ICARION::io::debug_log(std::string("[PoissonSolver Red-Black] Converged in ") + std::to_string(iter) + " iterations, residual " + std::to_string(res));
+    ICARION::log::debug_log(std::string("[PoissonSolver Red-Black] Converged in ") + std::to_string(iter) + " iterations, residual " + std::to_string(res));
 
     if (iter == max_iter)
         std::cerr << "[PoissonSolver] Warning: reached max iterations (" << max_iter << ")\n";
@@ -353,12 +353,12 @@ void PoissonSolver::solveConjugateGradient(double eps0, double tol, int max_iter
         ++iter;
         
         if (iter % 50 == 0) {
-            ICARION::io::debug_log(std::string("[CG iter ") + std::to_string(iter) + "] residual=" + std::to_string(res));
+            ICARION::log::debug_log(std::string("[CG iter ") + std::to_string(iter) + "] residual=" + std::to_string(res));
         }
     }
     
     m_lastResidual = res;
-    ICARION::io::debug_log(std::string("[PoissonSolver CG] Converged in ") + std::to_string(iter) + " iterations, residual " + std::to_string(res));
+    ICARION::log::debug_log(std::string("[PoissonSolver CG] Converged in ") + std::to_string(iter) + " iterations, residual " + std::to_string(res));
               
     if (iter == max_iter)
         std::cerr << "[PoissonSolver CG] Warning: reached max iterations (" << max_iter << ")\n";
@@ -373,7 +373,7 @@ void PoissonSolver::solveConjugateGradient(double eps0, double tol, int max_iter
 void PoissonSolver::solveMultiGrid(double eps0, double tol, int max_iter) {
     // For simplicity, fall back to CG for now
     // Full multigrid implementation requires significant infrastructure
-    ICARION::io::debug_log("[Multigrid] Using CG fallback for now...");
+    ICARION::log::debug_log("[Multigrid] Using CG fallback for now...");
     solveConjugateGradient(eps0, tol, max_iter);
 }
 

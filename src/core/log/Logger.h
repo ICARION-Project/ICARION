@@ -208,5 +208,17 @@ private:
         if (cond) ICARION::log::Logger::integrator()->debug(msg, ##__VA_ARGS__)
 #endif
 
+/**
+ * @brief Simple debug logger for legacy code compatibility
+ * @param msg Message to log
+ * 
+ * Used by core computation modules for debugging output.
+ * Only outputs when log level is DEBUG (--verbose or --log-level DEBUG).
+ * 
+ * Delegates to structured Logger system.
+ * Falls back to stderr if Logger not yet initialized.
+ */
+void debug_log(const std::string& msg);
+
 }  // namespace log
 }  // namespace ICARION

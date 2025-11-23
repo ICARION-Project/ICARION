@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "geometryUtils.h"
-#include "core/io/logger.h"
+#include "core/log/Logger.h"
 #include <filesystem>
 #include <stdexcept>
 
@@ -39,7 +39,7 @@ GeometryMap load_geometry_map(
             GeometryData geom = convert_molecule_to_geometry(molecule);
             
             if (!geom.first.empty()) {
-                io::debug_log(
+                log::debug_log(
                     "[GeometryUtils] Loaded geometry for species '" + species_id + 
                     "': " + std::to_string(geom.first.size()) + " atoms"
                 );
@@ -49,7 +49,7 @@ GeometryMap load_geometry_map(
                 if (strict_mode) {
                     throw std::runtime_error("[GeometryUtils] " + msg);
                 }
-                io::debug_log("[GeometryUtils] " + msg + " - will fallback to CCS");
+                log::debug_log("[GeometryUtils] " + msg + " - will fallback to CCS");
                 // Empty geometry signals fallback
                 geometry_map[species_id] = GeometryData{{}, {}};
             }
@@ -60,7 +60,7 @@ GeometryMap load_geometry_map(
             if (strict_mode) {
                 throw std::runtime_error("[GeometryUtils] " + msg);
             }
-            io::debug_log("[GeometryUtils] " + msg + " - will fallback to CCS");
+            log::debug_log("[GeometryUtils] " + msg + " - will fallback to CCS");
             // Insert empty geometry (signals fallback)
             geometry_map[species_id] = GeometryData{{}, {}};
         }

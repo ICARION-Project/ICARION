@@ -8,7 +8,7 @@
 #include "EnvironmentConfig.h"
 #include "FieldsConfig.h"
 #include "SolverEnums.h"
-#include "instrument/InstrumentTypes.h"
+#include "core/config/types/InstrumentTypes.h"
 #include "core/utils/mathUtils.h"
 #include "../validation/ValidationResult.h"
 #include <string>

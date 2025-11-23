@@ -6,7 +6,7 @@
 
 #include "../types/PhysicsEnums.h"
 #include "../types/SolverEnums.h"
-#include "instrument/InstrumentTypes.h"
+#include "core/config/types/InstrumentTypes.h"
 #include <string>
 #include <unordered_map>
 #include <algorithm>

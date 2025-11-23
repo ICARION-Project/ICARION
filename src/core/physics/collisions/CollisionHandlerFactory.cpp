@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "CollisionHandlerFactory.h"
-#include "core/io/logger.h"
+#include "core/log/Logger.h"
 #include <sstream>
 
 namespace ICARION::physics {
@@ -28,7 +28,7 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
             }
             
             if (enable_logging) {
-                ICARION::io::debug_log(
+                ICARION::log::debug_log(
                     "[CollisionHandlerFactory] Creating EHSSCollisionHandler "
                     "with geometry map"
                 );
@@ -42,7 +42,7 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
         
         case CollisionModel::HSS: {
             if (enable_logging) {
-                ICARION::io::debug_log(
+                ICARION::log::debug_log(
                     "[CollisionHandlerFactory] Creating HSSCollisionHandler "
                     "(isotropic scattering)"
                 );
@@ -68,7 +68,7 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
                     std::ostringstream msg;
                     msg << "[CollisionHandlerFactory] Creating OUCollisionHandler "
                         << "for deterministic model (gamma=" << gamma_for_ou << ")";
-                    ICARION::io::debug_log(msg.str());
+                    ICARION::log::debug_log(msg.str());
                 }
                 
                 return std::make_unique<OUCollisionHandler>(gamma_for_ou);
@@ -76,7 +76,7 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
             
             // No OU thermalization - deterministic damping only via DampingForce
             if (enable_logging) {
-                ICARION::io::debug_log(
+                ICARION::log::debug_log(
                     "[CollisionHandlerFactory] Deterministic model without OU - "
                     "returning nullptr (use DampingForce only)"
                 );
@@ -86,7 +86,7 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
         
         case CollisionModel::NoCollisions: {
             if (enable_logging) {
-                ICARION::io::debug_log(
+                ICARION::log::debug_log(
                     "[CollisionHandlerFactory] NoCollisions model - returning nullptr"
                 );
             }

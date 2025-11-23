@@ -20,10 +20,11 @@
 
 #include "core/config/types/FullConfig.h"
 #include "core/types/IonState.h"
-#include "core/io/logger.h"
+#include "core/log/Logger.h"
 #include <string>
 #include <vector>
 #include <memory>
+#include <fstream>
 
 namespace ICARION::io { class HDF5Writer; }
 
@@ -191,7 +192,7 @@ private:
     
     // Text logging (optional)
     std::string log_filename_;
-    std::unique_ptr<io::RunLogger> text_logger_;
+    std::ofstream text_log_file_;
     
     // State tracking
     bool initialized_ = false;

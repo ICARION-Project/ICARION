@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "DomainManager.h"
-#include "instrument/InstrumentTypes.h"  // Instrument enum
+#include "core/config/types/InstrumentTypes.h"  // Instrument enum
 #include <stdexcept>
 #include <cmath>
 

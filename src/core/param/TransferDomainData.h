@@ -26,7 +26,6 @@
 #pragma once
 #include "paramUtils.h"
 #include "GPUParams.h"
-#include "InstrumentEnums.h"
 
 /**
  * @brief Convert a CPU InstrumentDomain into a GPU-compatible DomainGPU.

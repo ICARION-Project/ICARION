@@ -175,5 +175,16 @@ Timer::~Timer() {
     Logger::perf()->debug("{} took {} ms", name_, duration_ms);
 }
 
+// Legacy debug_log function for backward compatibility
+void debug_log(const std::string& msg) {
+    auto logger = Logger::main();
+    if (logger) {
+        logger->debug("{}", msg);
+    } else {
+        // Fallback for early initialization (before Logger::init())
+        std::cerr << "[DEBUG] " << msg << std::endl;
+    }
+}
+
 }  // namespace log
 }  // namespace ICARION

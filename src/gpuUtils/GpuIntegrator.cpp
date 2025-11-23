@@ -44,7 +44,6 @@
 #include "gpuUtils/integrate_rk4_optimized.cuh"
 // DISABLED: Experimental parity kernel
 // #include "gpuUtils/integrate_rk4_parity_kernel.cuh"
-#include "paramUtils/InstrumentEnums.h"
 #include "core/debug/Debug.h"
 
 // Optional debug harness (C linkage, defined in gpu_debug_single.cu)

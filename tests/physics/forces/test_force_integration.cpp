@@ -17,7 +17,7 @@
 #include "core/physics/forces/DampingForce.h"
 #include "core/physics/forces/SpaceChargeForce.h"
 #include "core/types/IonState.h"
-#include "instrument/InstrumentTypes.h"
+#include "core/config/types/InstrumentTypes.h"
 #include "core/config/types/DomainConfig.h"
 #include "core/config/types/FieldsConfig.h"
 #include "core/config/types/EnvironmentConfig.h"

@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
+#include <chrono>
+#include <iomanip>
 
 // Git hash from CMake (via compile definition)
 #ifndef GIT_HASH
@@ -78,11 +80,21 @@ void OutputManager::initialize(
     
     // 2. Initialize text logger (if enabled)
     if (!log_filename_.empty()) {
-        text_logger_ = std::make_unique<io::RunLogger>(log_filename_);
-        text_logger_->writeHeader();
+        text_log_file_.open(log_filename_, std::ios::out | std::ios::trunc);
+        if (!text_log_file_.is_open()) {
+            throw std::runtime_error("Failed to create text log: " + log_filename_);
+        }
         
-        // Note: writeGlobalParams() and writeInstrumentDomains() removed (legacy)
-        // Text logger now only used for progress messages via log()
+        // Write header banner
+        text_log_file_ << "============================================================\n";
+        text_log_file_ << "       ICARION Ion Collision And Reaction IntegratiON       \n";
+        text_log_file_ << "============================================================\n";
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::tm tm = *std::localtime(&now_c);
+        text_log_file_ << "Simulation started: ";
+        text_log_file_ << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << "\n\n";
+        text_log_file_.flush();
     }
     
     initialized_ = true;
@@ -105,8 +117,14 @@ void OutputManager::log_step(double t, const std::vector<IonState>& ions) {
 }
 
 void OutputManager::log_progress(const std::string& message) {
-    if (text_logger_) {
-        text_logger_->log(message);
+    if (text_log_file_.is_open()) {
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::tm tm = *std::localtime(&now_c);
+        text_log_file_ << "[";
+        text_log_file_ << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
+        text_log_file_ << "] " << message << "\n";
+        text_log_file_.flush();
     }
 }
 
@@ -184,8 +202,52 @@ void OutputManager::finalize(double t_final, const std::vector<IonState>& final_
     }
     
     // 4. Write text log completion summary
-    if (text_logger_) {
-        text_logger_->finalize(final_ions, hdf5_filename_);
+    if (text_log_file_.is_open()) {
+        // Compute ion statistics
+        size_t total = final_ions.size();
+        size_t active = std::count_if(final_ions.begin(), final_ions.end(),
+                                      [](const IonState& i){ return i.active; });
+        size_t lost = total - active;
+        double frac_lost = total > 0 ? 100.0 * static_cast<double>(lost) / total : 0.0;
+        
+        // Compute HDF5 file size
+        double file_size_MB = 0.0;
+        std::ifstream f(hdf5_filename_, std::ifstream::ate | std::ifstream::binary);
+        if (f.is_open()) {
+            file_size_MB = static_cast<double>(f.tellg()) / (1024.0 * 1024.0);
+        }
+        
+        // Write summary
+        text_log_file_ << "------------------------------------------------------------\n";
+        text_log_file_ << "Summary:\n";
+        text_log_file_ << "  Active ions remaining    : " << active << "\n";
+        text_log_file_ << "  Lost ions (boundary)     : " << lost
+                       << " (" << std::fixed << std::setprecision(1) << frac_lost << " %)\n";
+        text_log_file_ << "  Output file size         : "
+                       << std::setprecision(1) << file_size_MB << " MB\n";
+        text_log_file_ << "------------------------------------------------------------\n\n";
+        
+        // Write completion timestamp
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::tm tm = *std::localtime(&now_c);
+        text_log_file_ << "------------------------------------------------------------\n";
+        text_log_file_ << "Simulation finished: ";
+        text_log_file_ << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << "\n";
+        text_log_file_ << "------------------------------------------------------------\n";
+        text_log_file_ << "Project repository:\n";
+        text_log_file_ << "  https://github.com/ICARION-Project/ICARION\n";
+        text_log_file_ << "Please cite ICARION once the reference paper is available.\n";
+        text_log_file_ << "------------------------------------------------------------\n";
+        
+        text_log_file_.close();
+        
+        auto logger = ICARION::log::Logger::main();
+        if (logger) {
+            logger->info("Text log written to {}", log_filename_);
+        } else {
+            std::cout << "Log written to " << log_filename_ << std::endl;
+        }
     }
     
     initialized_ = false;

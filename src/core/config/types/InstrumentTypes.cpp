@@ -22,7 +22,7 @@
  * =====================================================================
  */
  
-#include "instrument/InstrumentTypes.h"
+#include "core/config/types/InstrumentTypes.h"
 
 #include <algorithm>
 #include <cctype>

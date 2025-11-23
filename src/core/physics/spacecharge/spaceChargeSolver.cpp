@@ -22,7 +22,7 @@
  */
 #include "spaceChargeSolver.h"
 #include <iostream>
-#include "core/io/logger.h"
+#include "core/log/Logger.h"
 
 /* Constructor */
 SpaceChargeSolver::SpaceChargeSolver(int Nx, int Ny, int Nz,
@@ -38,7 +38,7 @@ SpaceChargeSolver::SpaceChargeSolver(int Nx, int Ny, int Nz,
     if (grid_size < 100000) {  // Small to medium grids
         m_update_frequency = 20;  // Update every 20 timesteps
         m_movement_threshold = 5e-6;  // 5 μm movement threshold
-        ICARION::io::debug_log(std::string("[SpaceChargeSolver] Optimized for many timesteps mode (update every ") + std::to_string(m_update_frequency) + " steps)");
+        ICARION::log::debug_log(std::string("[SpaceChargeSolver] Optimized for many timesteps mode (update every ") + std::to_string(m_update_frequency) + " steps)");
     }
 }
 
@@ -117,14 +117,14 @@ void SpaceChargeSolver::update(const std::vector<IonState>& ions)
         tolerance = 1e-4;
         max_iter = 300;
         if (num_ions != m_last_ion_count) {
-            ICARION::io::debug_log(std::string("[SpaceCharge] Medium solve for ") + std::to_string(num_ions) + " ions");
+            ICARION::log::debug_log(std::string("[SpaceCharge] Medium solve for ") + std::to_string(num_ions) + " ions");
         }
     } else {
         // Many ions: ultra-fast mode
         tolerance = 1e-3;
         max_iter = 100;
         if (num_ions != m_last_ion_count) {
-            ICARION::io::debug_log(std::string("[SpaceCharge] Fast solve for ") + std::to_string(num_ions) + " ions");
+            ICARION::log::debug_log(std::string("[SpaceCharge] Fast solve for ") + std::to_string(num_ions) + " ions");
         }
     }
     
@@ -170,7 +170,7 @@ Vec3 SpaceChargeSolver::fieldAt(const Vec3& pos) const
 }
 
 void SpaceChargeSolver::configureForManyTimesteps(int typical_ion_count) {
-    ICARION::io::debug_log(std::string("[SpaceChargeSolver] Configuring for many timesteps with ~") + std::to_string(typical_ion_count) + " ions");
+    ICARION::log::debug_log(std::string("[SpaceChargeSolver] Configuring for many timesteps with ~") + std::to_string(typical_ion_count) + " ions");
     
     m_high_performance = true;
     m_cache_fields = true;
@@ -189,17 +189,17 @@ void SpaceChargeSolver::configureForManyTimesteps(int typical_ion_count) {
         m_movement_threshold = 2e-6;    // 2 μm threshold
     }
     
-    ICARION::io::debug_log(std::string("  - Update frequency: every ") + std::to_string(m_update_frequency) + " timesteps");
-    ICARION::io::debug_log(std::string("  - Movement threshold: ") + std::to_string(m_movement_threshold*1e6) + " μm");
+    ICARION::log::debug_log(std::string("  - Update frequency: every ") + std::to_string(m_update_frequency) + " timesteps");
+    ICARION::log::debug_log(std::string("  - Movement threshold: ") + std::to_string(m_movement_threshold*1e6) + " μm");
 }
 
 void SpaceChargeSolver::configureForManyIons(int typical_ion_count) {
-    ICARION::io::debug_log(std::string("[SpaceChargeSolver] Configuring for many ions (~") + std::to_string(typical_ion_count) + ")");
+    ICARION::log::debug_log(std::string("[SpaceChargeSolver] Configuring for many ions (~") + std::to_string(typical_ion_count) + ")");
               
     m_high_performance = true;
     m_cache_fields = true;
     m_update_frequency = 1;         // Update every timestep
     m_movement_threshold = 0.0;     // Always update
     
-    ICARION::io::debug_log("  - Update frequency: every timestep");
+    ICARION::log::debug_log("  - Update frequency: every timestep");
 }

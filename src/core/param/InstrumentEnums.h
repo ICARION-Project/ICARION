@@ -2,43 +2,65 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 /**
- * =====================================================================
- *
- *   ICARION: A Modular Framework for Ion Collision and Reaction Integration
- * =====================================================================
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        InstrumentEnums.h
- *   @brief       Defines enumeration for supported instrument types.
- *
- *   @details
- *   Defines the `InstrumentGPU` enum listing supported instrument types
- *   for GPU compatibility.
- *
- *   @date        2025-10-17
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
+ * @file InstrumentEnums.h
+ * @brief GPU-compatible instrument type enum (SSOT compliant)
+ * 
+ * @details
+ * Defines InstrumentGPU enum for GPU kernels. This is synchronized with
+ * the canonical CPU-side InstrumentType enum from instrument/InstrumentTypes.h
+ * 
+ * SSOT: Single source of truth is InstrumentType in InstrumentTypes.h
+ * This file provides GPU-compatible plain enum with compile-time validation.
+ * 
+ * @version 2.0 - SSOT Migration (2025-11-23)
+ * @author ICARION Development Team
  */
-//LEGACY-CODE, remove in FUTURE!
-#pragma once
-#include "paramUtils.h"
-// Keep ordering identical to CPU-side `enum class Instrument` in paramUtils.h
-// CPU order: LQIT=0, IMS=1, Orbitrap=2, QuadrupoleRF=3, TOF=4, FT_ICR=5, NoFixedInstrument=6, UnknownInstrument=7
-enum InstrumentGPU : int { LQIT=0, IMS=1, Orbitrap=2, QuadrupoleRF=3, TOF=4, FT_ICR=5, NoFixedInstrument=6, UnknownInstrument=7 };
 
-// Safety checks: ensure CPU-side `enum class Instrument` ordering remains identical
-// to the GPU-side `InstrumentGPU` enum. If these static_asserts fail the build,
-// someone has reordered the CPU enum without updating the GPU mapping.
-static_assert(static_cast<int>(Instrument::LQIT) == static_cast<int>(InstrumentGPU::LQIT), "Instrument ordering mismatch: LQIT");
-static_assert(static_cast<int>(Instrument::IMS) == static_cast<int>(InstrumentGPU::IMS), "Instrument ordering mismatch: IMS");
-static_assert(static_cast<int>(Instrument::Orbitrap) == static_cast<int>(InstrumentGPU::Orbitrap), "Instrument ordering mismatch: Orbitrap");
-static_assert(static_cast<int>(Instrument::QuadrupoleRF) == static_cast<int>(InstrumentGPU::QuadrupoleRF), "Instrument ordering mismatch: QuadrupoleRF");
-static_assert(static_cast<int>(Instrument::TOF) == static_cast<int>(InstrumentGPU::TOF), "Instrument ordering mismatch: TOF");
-static_assert(static_cast<int>(Instrument::FTICR) == static_cast<int>(InstrumentGPU::FT_ICR), "Instrument ordering mismatch: FTICR");
-static_assert(static_cast<int>(Instrument::NoFixedInstrument) == static_cast<int>(InstrumentGPU::NoFixedInstrument), "Instrument ordering mismatch: NoFixedInstrument");
-static_assert(static_cast<int>(Instrument::UnknownInstrument) == static_cast<int>(InstrumentGPU::UnknownInstrument), "Instrument ordering mismatch: UnknownInstrument");
+#pragma once
+#include "instrument/InstrumentTypes.h"
+
+/**
+ * @brief GPU-compatible instrument type enum
+ * 
+ * Plain enum (not enum class) for CUDA kernel compatibility.
+ * Values must match ICARION::instrument::InstrumentType exactly.
+ * 
+ * SSOT: InstrumentType (instrument/InstrumentTypes.h) is the single source of truth.
+ * This enum is automatically validated at compile-time via static_assert.
+ */
+enum InstrumentGPU : int { 
+    LQIT = 0,              ///< Linear Quadrupole Ion Trap
+    IMS = 1,               ///< Ion Mobility Spectrometry
+    Orbitrap = 2,          ///< Orbitrap Mass Analyzer
+    QuadrupoleRF = 3,      ///< Quadrupole RF (includes SLIM)
+    TOF = 4,               ///< Time-of-Flight
+    FT_ICR = 5,            ///< Fourier Transform Ion Cyclotron Resonance
+    NoFixedInstrument = 6, ///< Generic/custom instrument
+    UnknownInstrument = 7  ///< Unrecognized instrument type
+};
+
+// ============================================================================
+// SSOT Validation: Ensure GPU enum matches CPU InstrumentType
+// ============================================================================
+// These static_asserts enforce synchronization with the canonical InstrumentType.
+// If these fail, someone changed InstrumentType without updating InstrumentGPU.
+
+using InstrumentType = ICARION::instrument::InstrumentType;
+
+static_assert(static_cast<int>(InstrumentType::LQIT) == static_cast<int>(InstrumentGPU::LQIT), 
+    "SSOT violation: InstrumentGPU::LQIT must match InstrumentType::LQIT");
+static_assert(static_cast<int>(InstrumentType::IMS) == static_cast<int>(InstrumentGPU::IMS), 
+    "SSOT violation: InstrumentGPU::IMS must match InstrumentType::IMS");
+static_assert(static_cast<int>(InstrumentType::Orbitrap) == static_cast<int>(InstrumentGPU::Orbitrap), 
+    "SSOT violation: InstrumentGPU::Orbitrap must match InstrumentType::Orbitrap");
+static_assert(static_cast<int>(InstrumentType::QuadrupoleRF) == static_cast<int>(InstrumentGPU::QuadrupoleRF), 
+    "SSOT violation: InstrumentGPU::QuadrupoleRF must match InstrumentType::QuadrupoleRF");
+static_assert(static_cast<int>(InstrumentType::TOF) == static_cast<int>(InstrumentGPU::TOF), 
+    "SSOT violation: InstrumentGPU::TOF must match InstrumentType::TOF");
+static_assert(static_cast<int>(InstrumentType::FTICR) == static_cast<int>(InstrumentGPU::FT_ICR), 
+    "SSOT violation: InstrumentGPU::FT_ICR must match InstrumentType::FTICR");
+static_assert(static_cast<int>(InstrumentType::NoFixedInstrument) == static_cast<int>(InstrumentGPU::NoFixedInstrument), 
+    "SSOT violation: InstrumentGPU::NoFixedInstrument must match InstrumentType::NoFixedInstrument");
+static_assert(static_cast<int>(InstrumentType::UnknownInstrument) == static_cast<int>(InstrumentGPU::UnknownInstrument), 
+    "SSOT violation: InstrumentGPU::UnknownInstrument must match InstrumentType::UnknownInstrument");
 

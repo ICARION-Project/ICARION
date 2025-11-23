@@ -4,7 +4,7 @@
 #include "EHSSCollisionHandler.h"
 #include "collisionHelpers.h"
 #include "utils/constants.h"
-#include "core/io/logger.h"
+#include "core/log/Logger.h"
 #include <cmath>
 #include <stdexcept>
 
@@ -102,7 +102,7 @@ bool EHSSCollisionHandler::handle_collision(
     } else {
         // Fallback to isotropic hard-sphere scattering
         // (if no geometry available or geometry is empty)
-        ICARION::io::debug_log(
+        ICARION::log::debug_log(
             "[EHSSCollisionHandler] Warning: No geometry found for species '" + 
             ion.species_id + "', falling back to isotropic HSS collision"
         );

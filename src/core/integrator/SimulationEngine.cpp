@@ -99,8 +99,8 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         for (int i = 0; i < n_ions; ++i) {
             IonState& ion = ions[i];
             
-            // Skip inactive or unborn ions
-            if (!ion.active || !ion.born) {
+            // Skip inactive ions (still process ions waiting to be born)
+            if (!ion.active) {
                 continue;
             }
         
@@ -177,7 +177,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         // 7. Integrate trajectory (IIntegrationStrategy)
         // Note: IIntegrationStrategy::step() computes forces internally via ForceRegistry
         // So we don't need to pass acceleration separately
-        integrator_->step(ion_local, dt, current_time_, *force_registry_, domain_config, ions);
+        integrator_->step(ion_local, current_time_, dt, *force_registry_, domain_config, ions);
         
         pos_local = ion_local.pos;
         vel_local = ion_local.vel;
@@ -194,20 +194,47 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
                 domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
                 continue;  // Ion absorbed, skip further processing
             }
+            
+            // Ion passed through aperture
+            // Check if this is the last domain (no next domain available)
+            bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
+            
+            if (is_last_domain) {
+                // No next domain - ion exits simulation
+                ion.active = false;
+                domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
+                continue;
+            }
+            
+            // Multi-domain: Transform to global and let next timestep find new domain
+            ion.pos = domain_manager_->local_to_global_pos(pos_local, domain_idx);
+            ion.vel = domain_manager_->local_to_global_vel(vel_local, domain_idx);
+            ion.t += dt;
+            continue;  // Skip remaining checks, next step will find new domain
         }
         
         // Then check all other boundaries (radial wall, entrance plane)
-        // Note: is_inside_domain checks domain AFTER transform back to global
-        // So we check in local coordinates first
-        bool still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON && 
-                            pos_after.z < domain_config.geometry.length_m);
+        // Note: Allow small tolerance at z_max for multi-domain transitions
+        bool still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON);
+        
+        // Check z_max: strict for last domain, tolerant for others
+        bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
+        if (is_last_domain) {
+            // Last domain: strict boundary (no tolerance for exit)
+            still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
+        } else {
+            // Intermediate domain: allow small tolerance for aperture crossing
+            still_inside = still_inside && (pos_after.z <= domain_config.geometry.length_m + DOMAIN_BOUNDARY_EPSILON);
+        }
+        
+        // Check radial boundary
         if (still_inside) {
             double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
-            still_inside = (r < domain_config.geometry.radius_m);
+            still_inside = (r <= domain_config.geometry.radius_m + DOMAIN_BOUNDARY_EPSILON);
         }
         
         if (!still_inside) {
-            // Ion left domain (hit wall or exited entrance)
+            // Ion left domain (hit wall or exited entrance/exit)
             domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
             continue;  // Ion absorbed, skip transform
         }
@@ -235,11 +262,14 @@ bool SimulationEngine::should_continue(const std::vector<IonState>& ions, double
         return false;
     }
     
-    // Stop if all ions inactive
-    bool any_active = std::any_of(ions.begin(), ions.end(), 
-        [](const IonState& ion) { return ion.active && ion.born; });
+    // Continue if any ion is active OR waiting to be born
+    const double t_max = config_.simulation.total_time_s;
+    bool any_active_or_waiting = std::any_of(ions.begin(), ions.end(), 
+        [t_max](const IonState& ion) { 
+            return (ion.active && ion.born) || (!ion.born && ion.birth_time_s <= t_max); 
+        });
     
-    return any_active;
+    return any_active_or_waiting;
 }
 
 void SimulationEngine::log_progress(double t) {

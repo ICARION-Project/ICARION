@@ -34,3 +34,9 @@ target_link_libraries(test_output_manager PRIVATE icarion_core Catch2::Catch2Wit
 target_include_directories(test_output_manager PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME test_output_manager COMMAND test_output_manager)
+
+add_executable(test_simulation_engine test_simulation_engine.cpp)
+target_link_libraries(test_simulation_engine PRIVATE icarion_core Catch2::Catch2WithMain)
+target_include_directories(test_simulation_engine PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME test_simulation_engine COMMAND test_simulation_engine)

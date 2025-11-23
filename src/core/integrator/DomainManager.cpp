@@ -25,16 +25,24 @@ namespace {
  * @return Radial coordinate r at position z
  */
 double orbitrap_r_for_z(double z, double R, double Rm) {
+    // Solve: z² = 0.5·(r² - R²) + R_m² · ln(R/r)
+    // 
+    // WARNING: This implementation is ported from legacy paramUtils.cpp and has
+    // known issues with bisection convergence when the solution lies outside [R, 2R].
+    // The bisection may not converge to the true root if:
+    //   - f(R) and f(2R) have the same sign (no bracketing)
+    //   - Rm is not in a "reasonable" range relative to R
+    // 
+    // This produces incorrect boundaries for certain parameter combinations!
+    // TODO(Phase 6): Implement robust root-finding with adaptive bracketing
     const double z2 = z * z;
     const double eps = 1e-12;
     const int max_iter = 100;
     
-    // Initial bracketing: r ∈ [R, 2R]
     double r_lo = R;
     double r_hi = R * 2.0;
     double r_mid = R;
     
-    // Bisection method to solve: 0.5*(r² - R²) + R_m² * ln(R/r) - z² = 0
     for (int i = 0; i < max_iter; ++i) {
         r_mid = 0.5 * (r_lo + r_hi);
         double f = 0.5 * (r_mid * r_mid - R * R) + Rm * Rm * std::log(R / r_mid) - z2;

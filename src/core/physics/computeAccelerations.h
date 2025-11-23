@@ -26,8 +26,6 @@
 
 #include <vector>
 
-#include "integrator/integrator.h"
-
 #include "utils/constants.h"
 #include "core/types/IonState.h"
 #include "core/physics/fields/defineFields.h"

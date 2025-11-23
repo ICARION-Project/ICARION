@@ -11,7 +11,6 @@
 #include <utility>
 #include <vector>
 #include "core/param/paramUtils.h"
-#include "core/integrator/integrator.h"
 #include "core/types/IonState.h"
 #include "core/io/speciesLoader.h"
 

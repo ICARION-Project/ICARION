@@ -32,7 +32,6 @@
 #include <string>
 #include <vector>
 #include "core/param/paramUtils.h"
-#include "integrator/integrator.h"
 #include "core/types/IonState.h"
 #include "H5Cpp.h"
 

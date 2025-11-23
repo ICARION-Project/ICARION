@@ -44,8 +44,6 @@
 #include <random>
 #include <utility>
 #include <vector>
-#include <vector>
-#include "core/param/paramUtils.h"
 #include "core/utils/mathUtils.h"
 
 // -----------------------------

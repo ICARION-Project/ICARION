@@ -26,7 +26,6 @@
 #include <unordered_map>
 #include <memory>
 
-#include "core/param/paramUtils.h"
 #include "fieldsolver/io/SolverConfig.h"
 // Field provider abstraction (optional injected field source)
 #include "fieldsolver/utils/IFieldProvider.h"

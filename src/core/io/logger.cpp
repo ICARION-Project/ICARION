@@ -66,41 +66,8 @@ RunLogger::RunLogger(const std::string& output_file_base) {
 }
 
 // The new config system uses ICARION::config enums with EnumMapper
-static std::string solver_to_string(SolverType s) {
-    switch (s) {
-        case SolverType::RK4:    return "RK4";
-        case SolverType::RK45:   return "RK45";
-        case SolverType::Boris:  return "Boris";
-        default: return "Unknown";
-    }
-}
-
-static std::string collision_model_to_string(CollisionModel c) {
-    switch (c) {
-        case CollisionModel::NoCollisions: return "NoCollisions";
-        case CollisionModel::Friction:     return "Friction";
-        case CollisionModel::HSD:   return "HardSphere";
-        case CollisionModel::Langevin:     return "Langevin";
-        case CollisionModel::EHSS:         return "EHSS";
-        case CollisionModel::HSS:          return "HSS";
-        case CollisionModel::UnknownCollisionModel: return "Unknown collision model";
-        default: return "Unknown";
-    }
-}
-
-static std::string instrument_to_string(Instrument i) {
-    switch (i) {
-        case Instrument::FTICR:   return "FT-ICR";
-        case Instrument::Orbitrap: return "Orbitrap";
-        case Instrument::LQIT:     return "LQIT";
-        case Instrument::IMS:    return "IMS";
-        case Instrument::QuadrupoleRF: return "Quadrupole";
-        case Instrument::TOF:     return "TOF";
-        case Instrument::NoFixedInstrument: return "No fixed instrument";
-        case Instrument::UnknownInstrument: return "Unknown instrument";
-        default: return "Unknown";
-    }
-}
+// Note: solver_to_string, collision_model_to_string, instrument_to_string removed
+// (legacy - were only used by writeInstrumentDomains which is now deleted)
 
 // --- Write banner ---
 void RunLogger::writeHeader() {
@@ -149,71 +116,7 @@ void RunLogger::writeGlobalParams(const GlobalParams& g, const std::vector<IonSt
 }
 #endif
 
-// --- Write instrument domains ---
-void RunLogger::writeInstrumentDomains(const std::vector<InstrumentDomain>& domains) {
-    file_ << "[Instrument Domains]\n";
-    file_ << "------------------------------------------------------------\n";
-    for (size_t i = 0; i < domains.size(); ++i) {
-        const auto& d = domains[i];
-        file_ << ">>> Domain #" << i << " (" << instrument_to_string(d.instrument) << ")\n";
-        file_ << "Solver                  : " << solver_to_string(d.solver_type) << "\n";
-        file_ << "  Geometry:\n";
-        file_ << "    Origin [m]      : (" << d.geom.origin_m.x << ", "
-                                             << d.geom.origin_m.y << ", "
-                                             << d.geom.origin_m.z << ")\n";
-        file_ << "    Length [m]      : " << d.geom.length_m << "\n";
-        file_ << "    Radius [m]      : " << d.geom.radius_m << "\n";
-        if (d.geom.end_aperture_m > 0.0) {
-            file_ << "  End aperture [m] : " << d.geom.end_aperture_m << "\n";
-        }
-        if (i < domains.size()-1) {
-            file_ << "  -> Connected to next domain through aperture #" << i << "\n";
-        }
-        if (d.fieldArrayLoaded) {
-            file_ << "  Field Array loaded from file: " << d.FA_file << "\n";
-        }
-        if (d.instrument == Instrument::Orbitrap) {
-            file_ << "    Inner radius [m]: " << d.geom.radius_in_m << "\n";
-            file_ << "    Outer radius [m]: " << d.geom.radius_out_m << "\n";
-            file_ << "    Char radius [m] : " << d.geom.radius_char_m << "\n";
-        }
-        file_ << "    Voltages and Fields:\n";
-        file_ << "    DC axial [V]    : " << d.DC.axial_V << "\n";
-        file_ << "    DC radial [V]   : " << d.DC.radial_V << "\n";
-        if (d.DC.enable_radial_voltage_sweep) {
-            file_ << "    DC radial sweep enabled: slope [V/s]: " << d.DC.radial_slope_V_s
-                  << ", start time [s]: " << d.DC.radial_start_time_s
-                  << ", rise time [s]: " << d.DC.radial_rise_time_s << "\n";
-        }
-        file_ << "    DC EN_Td [Td]   : " << d.DC.EN_Td << "\n";
-        file_ << "    RF voltage [V]  : " << d.RF.voltage_V << "\n";
-        file_ << "    RF frequency[Hz]: " << d.RF.frequency_Hz << "\n";
-        file_ << "    AC excitation[V]: " << d.AC.voltage_V << "\n";
-        file_ << "    AC frequency[Hz]: " << d.AC.frequency_Hz << "\n";
-        if (d.AC.enable_voltage_sweep) {
-            file_ << "    AC voltage sweep enabled: slope [V/s]: " << d.AC.amplitude_slope_V_s
-                  << ", start time [s]: " << d.AC.start_time_s
-                  << ", rise time [s]: " << d.AC.rise_time_s << "\n";
-        }
-        if (d.B.enabled) {
-            file_ << "    Magnetic [T]    : (" << d.B.field_strength_T.x << ", "
-                                                 << d.B.field_strength_T.y << ", "
-                                                 << d.B.field_strength_T.z << ")\n";
-        }
-        file_ << "  Environment:\n";
-        file_ << "    Pressure [Pa]   : " << d.env.pressure_Pa << "\n";
-        file_ << "    Temperature [K] : " << d.env.temperature_K << "\n";
-        file_ << "    Particle density [m^-3]: " << d.env.particle_density_m_3 << "\n";
-        file_ << "    Neutral species : " << d.env.neutral_species_id << "\n";
-        file_ << "    Gas velocity [m/s]: (" << d.env.gas_velocity_m_s.x << ", "
-                                                 << d.env.gas_velocity_m_s.y << ", "
-                                                 << d.env.gas_velocity_m_s.z << ")\n";
-        file_ << "------------------------------------------------------------\n";
-    }
-    file_ << "\nLive Log:\n";
-    file_ << "------------------------------------------------------------\n";
-    file_.flush();
-}
+// Note: writeInstrumentDomains() removed (legacy GlobalParams/InstrumentDomain)
 
 // --- Runtime message ---
 void RunLogger::log(const std::string& msg) {

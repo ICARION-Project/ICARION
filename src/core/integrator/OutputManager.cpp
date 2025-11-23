@@ -2,9 +2,8 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "OutputManager.h"
-#include "core/io/hdf5Writer.h"  // Legacy HDF5Writer (TODO: migrate to v2 in Phase 5B)
-#include "core/config/adapter/LegacyAdapter.h"  // Temporary for GlobalParams conversion
-#include "H5Cpp.h"
+#include "core/io/hdf5Writer_v2.h"
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 
@@ -51,27 +50,18 @@ void OutputManager::initialize(
         throw std::runtime_error("OutputManager: Already initialized");
     }
     
-    // 1. Create HDF5 file and write metadata
+    // 1. Create HDF5 file with metadata using HDF5Writer
     try {
-        H5::H5File file(hdf5_filename_, H5F_ACC_TRUNC);
-        
-        // Convert FullConfig → GlobalParams (temporary until Phase 5B)
-        // TODO: Extend write_params_to_HDF5 to accept FullConfig directly
-        auto legacy_params = config::LegacyAdapter::to_global_params(config);
-        auto legacy_domains = config::LegacyAdapter::to_instrument_domains(config);
-        
-        ICARION::io::write_params_to_HDF5(file, legacy_params, legacy_domains);
-        
-        // Write species metadata
-        if (!ions.empty()) {
-            ICARION::io::write_species_metadata(file, ions);
-        }
-        
-        file.close();
-        
-    } catch (const H5::Exception& e) {
+        io::HDF5Writer::create_file(
+            hdf5_filename_,
+            config,
+            ions,
+            "unknown",  // TODO: Get git hash
+            "Release"   // TODO: Get build info
+        );
+    } catch (const std::exception& e) {
         throw std::runtime_error("OutputManager: Failed to create HDF5 file: " + 
-                                 std::string(e.getDetailMsg()));
+                                 std::string(e.what()));
     }
     
     // 2. Initialize text logger (if enabled)
@@ -79,13 +69,8 @@ void OutputManager::initialize(
         text_logger_ = std::make_unique<io::RunLogger>(log_filename_);
         text_logger_->writeHeader();
         
-        // Write params (requires SpeciesDatabase + ReactionList - TODO: integrate in Phase 5B)
-        // For now, skip writeGlobalParams() (requires full species/reaction data)
-        // Only log progress messages via log()
-        
-        // Write domain info
-        auto legacy_domains = config::LegacyAdapter::to_instrument_domains(config);
-        text_logger_->writeInstrumentDomains(legacy_domains);
+        // Note: writeGlobalParams() and writeInstrumentDomains() removed (legacy)
+        // Text logger now only used for progress messages via log()
     }
     
     initialized_ = true;
@@ -124,8 +109,14 @@ void OutputManager::flush() {
     }
     
     try {
-        // Write to HDF5
-        ICARION::io::append_to_HDF5(hdf5_filename_, times_buffer_, trajectory_buffer_);
+        // Write buffered snapshots using HDF5Writer static methods
+        for (size_t i = 0; i < times_buffer_.size(); ++i) {
+            io::HDF5Writer::append_trajectory(
+                hdf5_filename_,
+                times_buffer_[i],
+                trajectory_buffer_[i]
+            );
+        }
         
         // Clear buffers
         times_buffer_.clear();
@@ -135,9 +126,9 @@ void OutputManager::flush() {
         next_write_time_ += write_interval_dt_;
         total_writes_++;
         
-    } catch (const H5::Exception& e) {
+    } catch (const std::exception& e) {
         throw std::runtime_error("OutputManager: HDF5 flush failed: " + 
-                                 std::string(e.getDetailMsg()));
+                                 std::string(e.what()));
     }
 }
 
@@ -157,34 +148,22 @@ void OutputManager::finalize(double t_final, const std::vector<IonState>& final_
         flush();
     }
     
-    // 3. Write HDF5 completion metadata
+    // 3. Finalize HDF5 file (writes completion metadata)
     try {
-        H5::H5File file(hdf5_filename_, H5F_ACC_RDWR);
-        
-        // Count active ions
         size_t active_count = std::count_if(
             final_ions.begin(), final_ions.end(),
             [](const IonState& ion) { return ion.active && ion.born; }
         );
         
-        // Write completion flag
-        hsize_t dims[1] = {1};
-        H5::DataSpace scalar_space(1, dims);
-        H5::Attribute completion_attr = file.createAttribute(
-            "simulation_completed", H5::PredType::NATIVE_HBOOL, scalar_space);
-        hbool_t completed = true;
-        completion_attr.write(H5::PredType::NATIVE_HBOOL, &completed);
-        
-        // Write active ions count
-        H5::Attribute active_attr = file.createAttribute(
-            "final_active_ions", H5::PredType::NATIVE_HSIZE, scalar_space);
-        active_attr.write(H5::PredType::NATIVE_HSIZE, &active_count);
-        
-        file.close();
-        
-    } catch (const H5::Exception& e) {
-        std::cerr << "Warning: Failed to write HDF5 completion metadata: " 
-                  << e.getDetailMsg() << std::endl;
+        io::HDF5Writer::finalize(
+            hdf5_filename_,
+            true,  // success
+            t_final,
+            active_count
+        );
+    } catch (const std::exception& e) {
+        std::cerr << "Warning: Failed to finalize HDF5 file: " 
+                  << e.what() << std::endl;
     }
     
     // 4. Write text log completion summary

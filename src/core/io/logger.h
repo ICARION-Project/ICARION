@@ -28,7 +28,6 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include "core/param/paramUtils.h"
 #include "core/types/IonState.h"
 #include "core/io/speciesLoader.h"
 
@@ -47,16 +46,7 @@ public:
     /** @brief Write header banner and timestamp */
     void writeHeader();
     
-    /** 
-     * @brief Write global parameters (DEPRECATED - uses legacy ReactionEntry)
-     * @note This function is disabled pending migration to new reaction system
-     */
-    // void writeGlobalParams(const GlobalParams& gParams, const std::vector<IonState>& ions,
-    //                        const ICARION::io::SpeciesDatabase& speciesDB,
-    //                        const std::vector<ReactionEntry>& reaction_list);
-    
-    /** @brief Write instrument domain configurations */
-    void writeInstrumentDomains(const std::vector<InstrumentDomain>& domains);
+    // Note: writeGlobalParams() and writeInstrumentDomains() removed (legacy)
     
     /** @brief Log arbitrary message with timestamp */
     void log(const std::string& msg);

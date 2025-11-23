@@ -25,6 +25,8 @@
 #include <vector>
 #include <memory>
 
+namespace ICARION::io { class HDF5Writer; }
+
 namespace ICARION {
 namespace integrator {
 

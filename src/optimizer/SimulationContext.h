@@ -27,7 +27,6 @@
 #include <memory>
 
 #include "core/param/paramUtils.h"
-#include "core/physics/reactions/reactionUtils.h"
 #include "fieldsolver/io/SolverConfig.h"
 // Field provider abstraction (optional injected field source)
 #include "fieldsolver/utils/IFieldProvider.h"
@@ -38,7 +37,7 @@ struct SimulationContext {
 	GlobalParams gParams;
 	std::vector<InstrumentDomain> domains;
 	std::unordered_map<std::string, Species> speciesDB;
-	std::vector<ReactionEntry> reaction_list;
+	// std::vector<ReactionEntry> reaction_list;  // DISABLED: ReactionEntry is legacy
 	std::vector<IonState> ions;
 
 	// Backward-compatible auxiliary fields (migrated from the old legacy
@@ -70,12 +69,12 @@ struct SimulationContext {
 
 	SimulationContext() = default;
 
+	// Constructor without ReactionEntry (legacy type removed)
 	SimulationContext(const GlobalParams& g,
 					  const std::vector<InstrumentDomain>& d,
 					  const std::unordered_map<std::string, Species>& s,
-					  const std::vector<ReactionEntry>& r,
 					  const std::vector<IonState>& i)
-		: gParams(g), domains(d), speciesDB(s), reaction_list(r), ions(i) {}
+		: gParams(g), domains(d), speciesDB(s), ions(i) {}
 
 	// Basic validation to catch common misconfigurations early.
 	bool validate(std::string* out_msg = nullptr) const {

@@ -29,7 +29,6 @@
 #include <string>
 #include <vector>
 #include "core/param/paramUtils.h"
-#include "core/physics/reactions/reactionUtils.h"
 #include "core/types/IonState.h"
 #include "core/io/speciesLoader.h"
 
@@ -48,10 +47,13 @@ public:
     /** @brief Write header banner and timestamp */
     void writeHeader();
     
-    /** @brief Write global parameters, initial ion states, species DB, and reactions */
-    void writeGlobalParams(const GlobalParams& gParams, const std::vector<IonState>& ions,
-                           const ICARION::io::SpeciesDatabase& speciesDB,
-                           const std::vector<ReactionEntry>& reaction_list);
+    /** 
+     * @brief Write global parameters (DEPRECATED - uses legacy ReactionEntry)
+     * @note This function is disabled pending migration to new reaction system
+     */
+    // void writeGlobalParams(const GlobalParams& gParams, const std::vector<IonState>& ions,
+    //                        const ICARION::io::SpeciesDatabase& speciesDB,
+    //                        const std::vector<ReactionEntry>& reaction_list);
     
     /** @brief Write instrument domain configurations */
     void writeInstrumentDomains(const std::vector<InstrumentDomain>& domains);

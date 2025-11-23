@@ -39,7 +39,6 @@
 #include "core/param/paramUtils.h"
 #include "core/io/fieldArrayLoader.h"
 #include "json/json.h"
-#include "core/physics/reactions/reactionUtils.h"
 
 namespace ICARION {
 namespace utils {

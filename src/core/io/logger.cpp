@@ -110,10 +110,11 @@ void RunLogger::writeHeader() {
     file_ << "Simulation started: " << timestamp() << "\n\n";
 }
 
-// --- Write global parameters ---
+// --- Write global parameters (DEPRECATED - disabled) ---
+#if 0
 void RunLogger::writeGlobalParams(const GlobalParams& g, const std::vector<IonState>& ions,
                                   const ICARION::io::SpeciesDatabase& speciesDB,
-                                  const std::vector<ReactionEntry>& reaction_list) {
+                                  const std::vector<int>& reaction_list) {  // Changed to int to avoid ReactionEntry
     char buf[HOST_NAME_MAX];
 
     file_ << "User               : " << getenv("USER") << "\n";
@@ -146,6 +147,7 @@ void RunLogger::writeGlobalParams(const GlobalParams& g, const std::vector<IonSt
     file_ << "------------------------------------------------------------\n\n";
     file_.flush();
 }
+#endif
 
 // --- Write instrument domains ---
 void RunLogger::writeInstrumentDomains(const std::vector<InstrumentDomain>& domains) {

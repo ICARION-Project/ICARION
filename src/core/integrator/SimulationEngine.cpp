@@ -82,14 +82,27 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
     const int n_ions = static_cast<int>(ions.size());
     
     // Parallel ion processing (OpenMP if enabled)
-    #pragma omp parallel for if(config_.simulation.enable_openmp) schedule(dynamic)
-    for (int i = 0; i < n_ions; ++i) {
-        IonState& ion = ions[i];
+    #pragma omp parallel if(config_.simulation.enable_openmp)
+    {
+        // Thread-local RNG for stochastic processes (collision, reaction)
+        // SSOT: Seed from config_.simulation.seed + thread_id
+        #ifdef _OPENMP
+        int thread_id = omp_get_thread_num();
+        #else
+        int thread_id = 0;
+        #endif
         
-        // Skip inactive or unborn ions
-        if (!ion.active || !ion.born) {
-            continue;
-        }
+        uint64_t thread_seed = config_.simulation.rng_seed + static_cast<uint64_t>(thread_id);
+        EhssRng local_rng(thread_seed);
+        
+        #pragma omp for schedule(dynamic)
+        for (int i = 0; i < n_ions; ++i) {
+            IonState& ion = ions[i];
+            
+            // Skip inactive or unborn ions
+            if (!ion.active || !ion.born) {
+                continue;
+            }
         
         // 1. Find current domain
         int domain_idx = domain_manager_->find_domain_index(ion.pos);
@@ -118,22 +131,36 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             ion_local.pos = pos_local;
             ion_local.vel = vel_local;
             
-            // TODO: Thread-local RNG (currently using dummy - unsafe in parallel)
-            static EhssRng dummy_rng(42);  // FIXME: Thread-unsafe!
-            collision_handler_->handle_collision(ion_local, dt, dummy_rng, domain_config.environment);
+            // Thread-safe RNG
+            collision_handler_->handle_collision(ion_local, dt, local_rng, domain_config.environment);
             
             pos_local = ion_local.pos;
             vel_local = ion_local.vel;
         }
         
         // 5. Handle reactions (if enabled)
-        if (reaction_handler_) {
+        // SSOT: Direct access to config databases (no parameter copies!)
+        if (reaction_handler_ && !config_.reaction_db.reactions.empty()) {
             IonState ion_local = ion;
             ion_local.pos = pos_local;
             ion_local.vel = vel_local;
             
-            // TODO: Thread-local RNG
-            // reaction_handler_->handle_reaction(ion_local, dt, ...);
+            // Call reaction handler with SSOT databases
+            bool reaction_occurred = reaction_handler_->handle_reaction(
+                ion_local,
+                dt,
+                local_rng,
+                config_.reaction_db,  // ReactionDatabase (SSOT)
+                config_.species_db,   // SpeciesDatabase (SSOT)
+                domain_config.environment  // Temperature, density, etc.
+            );
+            
+            // If reaction changed species, update ion properties
+            if (reaction_occurred) {
+                ion.species_id = ion_local.species_id;
+                ion.mass_kg = ion_local.mass_kg;
+                ion.ion_charge_C = ion_local.ion_charge_C;
+            }
             
             pos_local = ion_local.pos;
             vel_local = ion_local.vel;
@@ -198,7 +225,8 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
                       << ion.t << " s, deactivating" << std::endl;
             ion.active = false;
         }
-    }
+        }  // End of parallel for loop
+    }  // End of parallel region
 }
 
 bool SimulationEngine::should_continue(const std::vector<IonState>& ions, double t) const {

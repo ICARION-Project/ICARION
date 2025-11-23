@@ -50,7 +50,7 @@ namespace {
             ion.pos = {0.0, 0.0, static_cast<double>(i) * 0.001};
             ion.vel = {0.0, 0.0, 100.0};
             ion.active = true;
-            ion.born = false;
+            ion.born = true;  // Must be born to be counted as active
             ion.species_id = "TestIon";
             ions.push_back(ion);
         }
@@ -146,13 +146,14 @@ TEST_CASE("OutputManager - Time-based write trigger", "[OutputManager]") {
     REQUIRE(manager.buffer_size() == 2);
     REQUIRE_FALSE(manager.should_write(5e-5));
     
-    // Log step after time interval
-    manager.log_step(1.5e-4, ions);  // 150 μs (exceeds 100 μs interval)
+    // Check that time interval would trigger write
+    REQUIRE(manager.should_write(1.5e-4));  // 150 μs exceeds 100 μs interval
     
-    REQUIRE(manager.should_write(1.5e-4));
+    // Log step after time interval (triggers auto-flush)
+    manager.log_step(1.5e-4, ions);
     
-    // Auto-flush triggered
-    REQUIRE(manager.buffer_size() == 1);  // Buffer cleared, new snapshot added
+    // Auto-flush triggered - buffer cleared, new snapshot added
+    REQUIRE(manager.buffer_size() == 1);
     
     // Cleanup
     manager.finalize(1.5e-4, ions);

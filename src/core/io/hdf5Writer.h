@@ -1,5 +1,5 @@
 /**
- * @file hdf5Writer_v2.h
+ * @file hdf5Writer.h
  * @brief Modern HDF5 writer using FullConfig
  * 
  * Clean implementation based on new configuration system.

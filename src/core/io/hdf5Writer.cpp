@@ -3,7 +3,7 @@
  * @brief Implementation of modern HDF5 writer using FullConfig
  */
 
-#include "hdf5Writer_v2.h"
+#include "hdf5Writer.h"
 #include "core/log/Logger.h"
 #include "core/config/conversion/EnumMapper.h"
 #include "core/utils/hash.h"
@@ -285,6 +285,20 @@ void HDF5Writer::finalize(
         char timestamp_buf[64];
         strftime(timestamp_buf, sizeof(timestamp_buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now_time));
         write_string(completion, "completion_timestamp", timestamp_buf);
+        
+        // Also write as root-level attributes for backward compatibility
+        hsize_t dims[1] = {1};
+        H5::DataSpace scalar_space(1, dims);
+        
+        H5::Attribute completion_attr = file.createAttribute(
+            "simulation_completed", H5::PredType::NATIVE_HBOOL, scalar_space);
+        hbool_t completed = success;
+        completion_attr.write(H5::PredType::NATIVE_HBOOL, &completed);
+        
+        H5::Attribute active_attr = file.createAttribute(
+            "final_active_ions", H5::PredType::NATIVE_HSIZE, scalar_space);
+        hsize_t active = static_cast<hsize_t>(active_ions);
+        active_attr.write(H5::PredType::NATIVE_HSIZE, &active);
         
         file.close();
         log::Logger::hdf5()->info("HDF5 file finalized");

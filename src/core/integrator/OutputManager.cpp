@@ -2,10 +2,22 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "OutputManager.h"
-#include "core/io/hdf5Writer_v2.h"
+#include "core/io/hdf5Writer.h"
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
+
+// Git hash from CMake (via compile definition)
+#ifndef GIT_HASH
+#define GIT_HASH "unknown"
+#endif
+
+// Build info
+#ifdef NDEBUG
+#define BUILD_TYPE "Release"
+#else
+#define BUILD_TYPE "Debug"
+#endif
 
 namespace ICARION {
 namespace integrator {
@@ -56,8 +68,8 @@ void OutputManager::initialize(
             hdf5_filename_,
             config,
             ions,
-            "unknown",  // TODO: Get git hash
-            "Release"   // TODO: Get build info
+            GIT_HASH,
+            BUILD_TYPE
         );
     } catch (const std::exception& e) {
         throw std::runtime_error("OutputManager: Failed to create HDF5 file: " + 
@@ -82,14 +94,14 @@ void OutputManager::log_step(double t, const std::vector<IonState>& ions) {
         throw std::runtime_error("OutputManager: Not initialized (call initialize() first)");
     }
     
+    // Check if flush needed BEFORE adding (allows buffer to fill to buffer_max)
+    if (should_write_before_add(t)) {
+        flush();
+    }
+    
     // Buffer snapshot
     times_buffer_.push_back(t);
     trajectory_buffer_.push_back(ions);
-    
-    // Auto-flush if needed
-    if (should_write(t)) {
-        flush();
-    }
 }
 
 void OutputManager::log_progress(const std::string& message) {
@@ -99,7 +111,12 @@ void OutputManager::log_progress(const std::string& message) {
 }
 
 bool OutputManager::should_write(double t_current) const {
-    // Flush if buffer full OR time interval exceeded
+    // Check if write is needed (used by external callers)
+    return (times_buffer_.size() >= buffer_max_) || (t_current >= next_write_time_);
+}
+
+bool OutputManager::should_write_before_add(double t_current) const {
+    // Check BEFORE adding to buffer (allows buffer to reach buffer_max exactly)
     return (times_buffer_.size() >= buffer_max_) || (t_current >= next_write_time_);
 }
 

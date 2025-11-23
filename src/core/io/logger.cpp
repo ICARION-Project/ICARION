@@ -59,8 +59,8 @@ std::string RunLogger::timestamp() const {
 }
 
 // --- Constructor ---
-RunLogger::RunLogger(const std::string& output_file_base) {
-    filepath_ = output_file_base + ".log";
+RunLogger::RunLogger(const std::string& log_filepath) {
+    filepath_ = log_filepath;
     file_.open(filepath_, std::ios::out | std::ios::trunc);
     if (!file_.is_open()) throw std::runtime_error("Failed to create log file: " + filepath_);
 }
@@ -72,7 +72,7 @@ RunLogger::RunLogger(const std::string& output_file_base) {
 // --- Write banner ---
 void RunLogger::writeHeader() {
     file_ << "============================================================\n";
-    file_ << "             ICARION Ion Collision And Reaction IntegratiON\n";
+    file_ << "       ICARION Ion Collision And Reaction IntegratiON       \n";
     file_ << "============================================================\n";
     file_ << "Simulation started: " << timestamp() << "\n\n";
 }

@@ -121,6 +121,18 @@ public:
      */
     bool should_write(double t_current) const;
     
+private:
+    /**
+     * @brief Internal check before adding to buffer
+     * @param t_current Current simulation time [s]
+     * @return true if flush should be triggered before adding new element
+     * 
+     * Same logic as should_write(), but used internally in log_step()
+     * to allow buffer to fill to buffer_max exactly.
+     */
+    bool should_write_before_add(double t_current) const;
+    
+public:
     /**
      * @brief Flush buffers to HDF5 file
      * 

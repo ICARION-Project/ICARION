@@ -99,23 +99,26 @@ void SimulationEngine::apply_ion_birth(std::vector<IonState>& ions, double t) {
 void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) {
     const int n_ions = static_cast<int>(ions.size());
     
+    // Ion-based RNG for reproducibility (independent of OpenMP scheduling)
+    // Each ion gets its own RNG seeded deterministically from: base_seed + ion_index
+    // This ensures:
+    // - Reproducible results regardless of thread count or scheduling
+    // - Same ion always sees same random sequence
+    // - Thread-safe (each thread accesses different ion RNG)
+    std::vector<EhssRng> rng_by_ion;
+    rng_by_ion.reserve(n_ions);
+    for (int i = 0; i < n_ions; ++i) {
+        uint64_t ion_seed = config_.simulation.rng_seed + static_cast<uint64_t>(i);
+        rng_by_ion.emplace_back(ion_seed);
+    }
+    
     // Parallel ion processing (OpenMP if enabled)
     #pragma omp parallel if(config_.simulation.enable_openmp)
     {
-        // Thread-local RNG for stochastic processes (collision, reaction)
-        // SSOT: Seed from config_.simulation.seed + thread_id
-        #ifdef _OPENMP
-        int thread_id = omp_get_thread_num();
-        #else
-        int thread_id = 0;
-        #endif
-        
-        uint64_t thread_seed = config_.simulation.rng_seed + static_cast<uint64_t>(thread_id);
-        EhssRng local_rng(thread_seed);
-        
         #pragma omp for schedule(dynamic)
         for (int i = 0; i < n_ions; ++i) {
             IonState& ion = ions[i];
+            EhssRng& ion_rng = rng_by_ion[i];  // Ion-specific RNG
             
             // Skip inactive ions (still process ions waiting to be born)
             if (!ion.active) {
@@ -150,7 +153,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             ion_local.vel = vel_local;
             
             // Thread-safe RNG
-            collision_handler_->handle_collision(ion_local, dt, local_rng, domain_config.environment);
+            collision_handler_->handle_collision(ion_local, dt, ion_rng, domain_config.environment);
             
             pos_local = ion_local.pos;
             vel_local = ion_local.vel;
@@ -167,7 +170,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             bool reaction_occurred = reaction_handler_->handle_reaction(
                 ion_local,
                 dt,
-                local_rng,
+                ion_rng,
                 config_.reaction_db,  // ReactionDatabase (SSOT)
                 config_.species_db,   // SpeciesDatabase (SSOT)
                 domain_config.environment  // Temperature, density, etc.
@@ -194,7 +197,6 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         
         // 7. Integrate trajectory (IIntegrationStrategy)
         // Note: IIntegrationStrategy::step() computes forces internally via ForceRegistry
-        // So we don't need to pass acceleration separately
         integrator_->step(ion_local, current_time_, dt, *force_registry_, domain_config, ions);
         
         pos_local = ion_local.pos;

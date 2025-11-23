@@ -6,27 +6,25 @@
  *   A modular C++ framework for simulating ion trajectories 
  *   in user-defined electric fields and background gas environments.
  *
- *   @file        ICARION.cpp
+ *   @file        main.cpp
  *   @brief       Entry point and orchestration layer of ICARION.
  *
  *   @details
  *   ICARION serves as the main execution driver for an ion trajectory simulation.
- *   It performs setup, data import, and solver executation in a defined pipeline:
+ *   It performs setup, data import, and solver execution in a defined pipeline:
  *
- *   1. Parse global parameters from the provided JSON configuration file.
- *   2. Load instrument domains and their geometry, environment and field setting.
- *   3. Initialize species and reaction database (if enabled).
- *   4. Initialize the ion ensemble from the cloud definition.
- *   5. Execute the time integration using the selected solver (RK4 or RK45), 
- *      depending on the instrument definition.
- *   6. Export results to HDF5 format.
+ *   1. Parse command-line arguments and apply overrides.
+ *   2. Load configuration from JSON file (SSOT: FullConfig).
+ *   3. Initialize ions from configuration.
+ *   4. Create SimulationEngine with FullConfig (dependency injection).
+ *   5. Run simulation via SimulationEngine::run().
+ *   6. Report results and completion status.
  *
  *   The output consists of time-resolved trajectories, arrival time distributions,
- *   and optionalky reaction histories.
+ *   and optionally reaction histories (HDF5 format).
  *
- *
- *   @date        2025-10-06
- *   @version     0.1
+ *   @date        2025-11-23
+ *   @version     1.0
  *   @author      Christoph Schäfer
  *   @license     MIT License
  *
@@ -36,585 +34,313 @@
 #include <chrono>
 #include <exception>
 #include <iostream>
-#include <fstream>
-#include <sstream>
+#include <algorithm>
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
-#include "integrator/integrator.h"
-#include "core/io/hdf5Writer.h"
-#include "core/io/hdf5Writer_v2.h"  // Modern HDF5 writer (future replacement)
-#include "core/param/paramUtils.h"
-#include "utils/cli_parser.h"  // CLI argument parser
-#include "core/log/Logger.h"  // Structured logging
-#include "core/utils/simulationsUtils.h"  // print_domain_summary, print_results
-#include "core/utils/startupBanner.h"  // Professional startup banner
-#include "core/physics/reactions/reactionUtils.h"  // ReactionEntry struct only
-#include "core/io/fieldArrayLoader.h"
-#include "core/io/speciesLoader.h"  // io::SpeciesDatabase (temporary until Phase 5)
-
-// New config system (Phase 4)
+// Core systems (Phase 5: SSOT-compliant)
 #include "core/config/loader/ConfigLoader.h"
-#include "core/config/adapter/LegacyAdapter.h"
 #include "core/config/utils/ConfigOverride.h"
+#include "core/integrator/SimulationEngine.h"
+#include "core/integrator/strategies/RK4Strategy.h"
+#include "core/integrator/strategies/RK45Strategy.h"
+#include "core/integrator/strategies/BorisStrategy.h"
+#include "core/physics/forces/ForceRegistry.h"
+#include "core/physics/collisions/CollisionHandlerFactory.h"
+#include "core/physics/reactions/ReactionHandlerFactory.h"
+#include "core/log/Logger.h"
+#include "utils/cli_parser.h"
+#include "core/utils/startupBanner.h"
 
 /**
- * @file ICARION.cpp
+ * @file main.cpp
  * @brief Entry point for the ICARION simulation.
  *
- * Initializes and executes a complete ICARION run.
+ * Initializes and executes a complete ICARION run using SimulationEngine.
  *
  * @param[in] argc Number of command-line arguments.
  * @param[in] argv Command-line arguments (expects JSON configuration path).
  * @return 0 on success, 1 on any runtime error.
  *
- * @throws std::runtime_error If parameter parsing, data loading, or solver execution fails.
+ * @throws std::runtime_error If configuration loading or simulation fails.
  *
- * @note The JSON file must define:
- *   - Global parameters (`global` section)
- *   - One or more instrument domains (`domains` array)
- *   - Optionally, species and reaction files.
+ * @note The JSON file must define a complete FullConfig structure.
  *
- * @see load_global_params()
- * @see integrate_trajectory()
- * @see load_single_domain()
- * @see load_field_array()
- * @see load_speciesDB()
- * @see load_reactions()
+ * @see config::ConfigLoader
+ * @see integrator::SimulationEngine
  */
 
 int main(int argc, char* argv[]) {
-    // Parse command-line arguments
-    ICARION::cli::CLIOptions opts = ICARION::cli::parse_arguments(argc, argv);
+    using namespace ICARION;
     
-    // Handle --help and --version (already printed by parser)
-    if (opts.show_help || opts.show_version) {
-        return 0;
-    }
-    
-    // === Initialize logging FIRST (before any other operations) ===
-    ICARION::log::Logger::init(
-        opts.log_level,
-        opts.log_file.value_or(""),
-        opts.log_format);
-    
-    // Print startup banner (only for text format, not JSON)
-    if (opts.log_format == "text") {
-        ICARION::utils::print_startup_banner(
-            ICARION_VERSION,
-            GIT_HASH,
-            opts.config_file,
+    try {
+        // === 1. Parse command-line arguments ===
+        cli::CLIOptions opts = cli::parse_arguments(argc, argv);
+        
+        // Handle --help and --version (already printed by parser)
+        if (opts.show_help || opts.show_version) {
+            return 0;
+        }
+        
+        // === 2. Initialize logging ===
+        log::Logger::init(
             opts.log_level,
-            opts.log_file.value_or("")
-        );
-    } else {
-        // JSON format: log structured startup info
-        ICARION::log::Logger::main()->info("ICARION v{} starting", ICARION_VERSION);
-        ICARION::log::Logger::main()->info("Git commit: {}", GIT_HASH);
-        ICARION::log::Logger::main()->info("Config file: {}", opts.config_file);
-    }
-    
-    // === Handle information flags ===
-    if (opts.dump_build_info) {
-        ICARION::cli::print_build_info();
-        return 0;
-    }
-    
-    if (opts.dump_hdf5_schema) {
-        ICARION::cli::print_hdf5_schema();
-        return 0;
-    }
-    
-    if (opts.dump_config_schema) {
-        ICARION::cli::print_config_schema();
-        return 0;
-    }
-    
-    if (opts.list_collision_models) {
-        ICARION::cli::list_collision_models();
-        return 0;
-    }
-    
-    if (opts.list_integrators) {
-        ICARION::cli::list_integrators();
-        return 0;
-    }
-    
-    if (opts.check_deps) {
-        ICARION::cli::check_dependencies();
-        return 0;
-    }
-    
-    if (opts.validate_schema) {
-        ICARION::cli::validate_schema(opts.config_file);
-        return 0;
-    }
+            opts.log_file.value_or(""),
+            opts.log_format);
+        
+        // Print startup banner (text format only)
+        if (opts.log_format == "text") {
+            utils::print_startup_banner(
+                ICARION_VERSION,
+                GIT_HASH,
+                opts.config_file,
+                opts.log_level,
+                opts.log_file.value_or("")
+            );
+        } else {
+            log::Logger::main()->info("ICARION v{} starting", ICARION_VERSION);
+            log::Logger::main()->info("Git commit: {}", GIT_HASH);
+            log::Logger::main()->info("Config file: {}", opts.config_file);
+        }
+        
+        // === Handle information flags ===
+        if (opts.dump_build_info) {
+            cli::print_build_info();
+            return 0;
+        }
+        
+        if (opts.dump_hdf5_schema) {
+            cli::print_hdf5_schema();
+            return 0;
+        }
+        
+        if (opts.dump_config_schema) {
+            cli::print_config_schema();
+            return 0;
+        }
+        
+        if (opts.list_collision_models) {
+            cli::list_collision_models();
+            return 0;
+        }
+        
+        if (opts.list_integrators) {
+            cli::list_integrators();
+            return 0;
+        }
+        
+        if (opts.check_deps) {
+            cli::check_dependencies();
+            return 0;
+        }
+        
+        if (opts.validate_schema) {
+            cli::validate_schema(opts.config_file);
+            return 0;
+        }
     
     // === Apply logging options (Phase 1) ===
     // Note: Logger system handles file output via spdlog, no freopen needed
     // Old file redirection code removed (replaced by Logger::init with --log-file)
 
-    // === Handle --validate-config (Phase 4) ===
-    if (opts.validate_config) {
-        using ICARION::log::Logger;
-        
-        Logger::main()->info("=== ICARION Configuration Validation ===");
-        Logger::main()->info("Config file: {}", opts.config_file);
-        
-        try {
-            // Load config using new system
-            auto config = ICARION::config::ConfigLoader::load(opts.config_file);
+        // === Handle --validate-config ===
+        if (opts.validate_config) {
+            log::Logger::main()->info("=== ICARION Configuration Validation ===");
+            log::Logger::main()->info("Config file: {}", opts.config_file);
             
-            // Validate (already done in load(), but we want to show results)
-            auto validation = config.validate();
-            
-            Logger::main()->info("--- Validation Results ---");
-            if (validation.valid && validation.warnings.empty()) {
-                Logger::main()->info("✓ Configuration is valid (no warnings)");
-                return 0;
-            }
-            
-            if (validation.valid) {
-                Logger::main()->info("✓ Configuration is valid (with warnings)");
-            } else {
-                Logger::main()->error("✗ Configuration has errors");
-            }
-            
-            if (!validation.warnings.empty()) {
-                Logger::main()->warn("Warnings:");
-                for (const auto& warn : validation.warnings) {
-                    Logger::main()->warn("  ⚠  {}", warn);
+            try {
+                auto config = config::ConfigLoader::load(opts.config_file);
+                auto validation = config.validate();
+                
+                log::Logger::main()->info("--- Validation Results ---");
+                if (validation.valid && validation.warnings.empty()) {
+                    log::Logger::main()->info("✓ Configuration is valid (no warnings)");
+                    return 0;
                 }
-            }
-            
-            if (!validation.errors.empty()) {
-                Logger::main()->error("Errors:");
-                for (const auto& err : validation.errors) {
-                    Logger::main()->error("  ✗  {}", err);
+                
+                if (validation.valid) {
+                    log::Logger::main()->info("✓ Configuration is valid (with warnings)");
+                } else {
+                    log::Logger::main()->error("✗ Configuration has errors");
                 }
+                
+                if (!validation.warnings.empty()) {
+                    log::Logger::main()->warn("Warnings:");
+                    for (const auto& warn : validation.warnings) {
+                        log::Logger::main()->warn("  ⚠  {}", warn);
+                    }
+                }
+                
+                if (!validation.errors.empty()) {
+                    log::Logger::main()->error("Errors:");
+                    for (const auto& err : validation.errors) {
+                        log::Logger::main()->error("  ✗  {}", err);
+                    }
+                }
+                
+                return validation.valid ? 0 : 1;
+                
+            } catch (const std::exception& e) {
+                log::Logger::main()->error("✗ Configuration validation failed: {}", e.what());
+                return 1;
             }
-            
-            return validation.valid ? 0 : 1;
-            
-        } catch (const std::exception& e) {
-            Logger::main()->error("✗ Configuration validation failed: {}", e.what());
-            return 1;
         }
-    }
 
-    try {
-        // === 1. Load configuration (new system with legacy adapter) ===
-        // TODO: Remove LegacyAdapter once integrator/physics/IO are refactored
-        auto full_config = ICARION::config::ConfigLoader::load(opts.config_file);
+        // === 3. Load configuration (SSOT: FullConfig) ===
+        log::Logger::main()->info("Loading configuration: {}", opts.config_file);
         
-        // === Apply CLI overrides (Phase 1: --set support) ===
+        config::FullConfig config = config::ConfigLoader::load(opts.config_file);
+        
+        // === Apply CLI overrides ===
         if (!opts.overrides.empty()) {
-            ICARION::config::ConfigOverride::apply(full_config, opts.overrides);
-            // Recompute derived values after overrides
-            full_config.finalize_all();
+            log::Logger::main()->info("Applying {} CLI overrides", opts.overrides.size());
+            config::ConfigOverride::apply(config, opts.overrides);
+            config.finalize_all();
         }
         
-        // === Apply output overrides (Phase 1) ===
         if (opts.output_file.has_value()) {
-            std::cout << "[CLI] Output file override: " << opts.output_file.value() << "\n";
-            full_config.output.trajectory_file = opts.output_file.value();
+            log::Logger::main()->info("Output file override: {}", opts.output_file.value());
+            config.output.trajectory_file = opts.output_file.value();
         }
         
         if (opts.output_dir.has_value()) {
-            std::cout << "[CLI] Output directory override: " << opts.output_dir.value() << "\n";
-            full_config.output.folder = opts.output_dir.value();
+            log::Logger::main()->info("Output directory override: {}", opts.output_dir.value());
+            config.output.folder = opts.output_dir.value();
         }
         
-        // Convert to legacy GlobalParams
-        // TODO Phase 3E: Remove after Force System migration (feature/force-system-ssot branch)
-        // Modern approach: Pass full_config directly to integrate_trajectory()
-        // Blocker: Force System (compute_accelerations, CollisionForce) still uses GlobalParams
-        // Resolution: Migrate Force System to SSOT config types (Phase 3E)
-        GlobalParams gParams = ICARION::config::LegacyAdapter::to_global_params(full_config);
-        
-        // Override RNG seed if --seed was provided
         if (opts.seed.has_value()) {
-            std::cout << "[CLI] Overriding RNG seed: " << opts.seed.value() << "\n";
-            gParams.rng_seed = opts.seed.value();
+            log::Logger::main()->info("RNG seed override: {}", opts.seed.value());
+            config.simulation.rng_seed = opts.seed.value();
         }
         
-        // Override reaction flag if --no-reactions was provided
         if (opts.no_reactions) {
-            std::cout << "[CLI] Disabling reactions (--no-reactions)\n";
-            gParams.enable_reactions = false;
+            log::Logger::main()->info("Disabling reactions (--no-reactions)");
+            config.physics.enable_reactions = false;
         }
         
-        // Read full configuration JSON string for metadata/logging
-        std::string config_json;
-        std::ifstream config_file(opts.config_file);
-        if (config_file.is_open()) {
-            std::stringstream buffer;
-            buffer << config_file.rdbuf();
-            config_json = buffer.str();
-            config_file.close();
-        }
-
-        // === 3. Load instrument domains (via legacy adapter) ===
-        std::vector<InstrumentDomain> domains = ICARION::config::LegacyAdapter::to_instrument_domains(full_config);
-        
-        // Load field arrays (if specified)
-        for (auto& dom : domains) {
-            if (!dom.FA_file.empty()) {
-                dom.fieldArray = load_field_array(dom.FA_file);
-                dom.fieldArrayLoaded = dom.fieldArray.is_valid();
+        // === Validate configuration ===
+        auto validation = config.validate();
+        if (!validation.valid) {
+            log::Logger::main()->error("Configuration validation failed:");
+            for (const auto& err : validation.errors) {
+                log::Logger::main()->error("  - {}", err);
             }
-            if (!dom.FA_terms.empty()) {
-                size_t ok = 0;
-                for (auto& t : dom.FA_terms) {
-                    try {
-                        t.field = load_field_array(t.file);
-                        t.loaded = t.field.is_valid();
-                        if (t.loaded) ok++;
-                    } catch (...) {
-                        t.loaded = false;
-                    }
-                }
-                dom.fieldArrayLoaded = (ok == dom.FA_terms.size() && ok > 0) || dom.fieldArrayLoaded;
+            return 1;
+        }
+        
+        if (!validation.warnings.empty()) {
+            for (const auto& warn : validation.warnings) {
+                log::Logger::main()->warn("  ⚠  {}", warn);
             }
         }
-        ICARION::log::Logger::config()->info("Loaded {} instrument domains", domains.size());
-        ICARION::utils::print_domain_summary(domains);
-
-        // === Save input config for reproducibility ===
-        // Log the input configuration to output folder so simulation can be exactly reproduced
-        std::string config_log_path = gParams.output_file;
-        // Replace .h5 extension with _config.json
-        size_t ext_pos = config_log_path.find_last_of('.');
-        if (ext_pos != std::string::npos) {
-            config_log_path = config_log_path.substr(0, ext_pos) + "_config.json";
-        } else {
-            config_log_path += "_config.json";
-        }
         
-        std::ofstream config_log(config_log_path);
-        if (config_log.is_open()) {
-            config_log << config_json;
-            config_log.close();
-            ICARION::log::Logger::main()->info("✓ Input configuration saved to: {}", config_log_path);
-        } else {
-            ICARION::log::Logger::main()->warn("Could not save input configuration to {}", config_log_path);
-        }
+        // === Print simulation summary ===
+        log::Logger::main()->info("");
+        log::Logger::main()->info("=== Simulation Parameters ===");
+        log::Logger::main()->info("Timestep:     {:.2e} s ({:.2f} ns)", 
+                                  config.simulation.dt_s, config.simulation.dt_s * 1e9);
+        log::Logger::main()->info("Total time:   {:.2e} s ({:.2f} µs)", 
+                                  config.simulation.total_time_s, config.simulation.total_time_s * 1e6);
+        log::Logger::main()->info("Domains:      {}", config.domains.size());
+        log::Logger::main()->info("Species:      {}", config.species_db.size());
+        log::Logger::main()->info("Reactions:    {}", config.reaction_db.size());
+        log::Logger::main()->info("Output file:  {}", config.output.trajectory_file);
+        log::Logger::main()->info("RNG seed:     {}", config.simulation.rng_seed);
+        log::Logger::main()->info("=============================");
+        log::Logger::main()->info("");
         
-        // === Print simulation parameters summary ===
-        using ICARION::log::Logger;
-        
-        Logger::main()->info("");
-        Logger::main()->info("=== Simulation Parameters Summary ===");
-        Logger::main()->info("Timestep:        {} ns", gParams.dt_s * 1e9);
-        Logger::main()->info("Total steps:     {}", gParams.sim_time_steps);
-        Logger::main()->info("Max time:        {} µs", gParams.dt_s * gParams.sim_time_steps * 1e6);
-        Logger::main()->info("Write interval:  {}", gParams.write_interval);
-        
-        std::string collision_model;
-        switch (gParams.collisionModel) {
-            case ICARION::core::CollisionModel::NoCollisions: collision_model = "NoCollisions"; break;
-            case ICARION::core::CollisionModel::HSD: collision_model = "HardSphere"; break;
-            case ICARION::core::CollisionModel::Langevin: collision_model = "Langevin"; break;
-            case ICARION::core::CollisionModel::Friction: collision_model = "Friction"; break;
-            case ICARION::core::CollisionModel::EHSS: collision_model = "EHSS"; break;
-            case ICARION::core::CollisionModel::HSS: collision_model = "HSS"; break;
-            default: collision_model = "Unknown"; break;
-        }
-        Logger::main()->info("Collision model: {}", collision_model);
-        Logger::main()->info("Reactions:       {}", gParams.enable_reactions ? "enabled" : "disabled");
-        Logger::main()->info("Space charge:    {}", gParams.enable_space_charge ? "enabled" : "disabled");
-        Logger::main()->info("GPU:             {}", gParams.enable_gpu ? "enabled" : "disabled");
-        Logger::main()->info("OpenMP:          {}", gParams.parallelization ? "enabled" : "disabled");
-        Logger::main()->info("RNG seed:        {}", gParams.rng_seed);
-        Logger::main()->info("Output file:     {}", gParams.output_file);
-        Logger::main()->info("=====================================");
-        Logger::main()->info("");
-
-        run_guard_check_global(gParams);
-
-        // === 4. Load physical models ===
-        // Species and reactions are ALREADY loaded in full_config by ConfigLoader!
-        // (ConfigLoader calls full_config.load_databases() automatically)
-        Logger::main()->info("");
-        Logger::main()->info("=== Physical Models ===");
-        Logger::config()->info("Species loaded: {}", full_config.species_db.size());
-        Logger::config()->info("Reactions loaded: {}", full_config.reaction_db.size());
-        
-        // --- Convert species for integrator (temporary until Phase 5) ---
-        ICARION::io::SpeciesDatabase speciesDB;
-        
-        for (const auto& [id, props] : full_config.species_db.species) {
-            ICARION::io::Species species;
-            species.id = id;
-            species.name = props.name.value_or(id);
-            species.mass_u = props.mass_amu;
-            species.mass_kg = props.mass_kg;
-            species.charge_e = props.charge;
-            species.charge_C = props.charge_C;
-            species.mobility_m2Vs = props.mobility_m2Vs;
-            species.CCS_m2 = props.CCS_m2;
-            species.geometry_file = props.geometry_file;
-            
-            // Calculate reduced mass (if domain available)
-            if (!domains.empty()) {
-                double neutral_mass_kg = domains[0].env.neutral_mass_kg;
-                species.reduced_mass_kg = (species.mass_kg * neutral_mass_kg) / 
-                                         (species.mass_kg + neutral_mass_kg);
-            } else {
-                species.reduced_mass_kg = species.mass_kg;  // Fallback
-            }
-            
-            speciesDB.add(species);
-        }
-        
-        // --- Convert reactions for integrator (inline, no adapter class) ---
-        // TODO Phase 3D: Remove after database migration (feature/database-unification branch)
-        // Modern approach: Pass full_config.reaction_db directly to integrate_trajectory()
-        // Blocker: integrate_trajectory() still expects legacy vector<ReactionEntry>
-        // Resolution: Update integrate_trajectory() signature in Phase 3D
-        std::vector<ReactionEntry> reaction_list;
-        
-        if (gParams.enable_reactions && full_config.reaction_db.size() > 0) {
-            reaction_list.reserve(full_config.reaction_db.reactions.size());
-            
-            size_t skipped = 0;
-            for (const auto& rxn : full_config.reaction_db.reactions) {
-                // Validate: single-reactant → single-product only
-                if (rxn.reactant.empty() || rxn.product.empty()) {
-                    Logger::config()->warn("Skipping reaction '{}' - missing reactant or product", rxn.id);
-                    skipped++;
-                    continue;
-                }
-                
-                // Create legacy entry
-                ReactionEntry entry;
-                entry.reactant = rxn.reactant;
-                entry.product = rxn.product;
-                entry.rate_constant = rxn.rate_constant;
-                entry.neutral_concentration = 0.0;  // Computed dynamically in integrator
-                
-                // Convert order terms
-                for (const auto& term : rxn.order_terms) {
-                    ReactionOrderTerm legacy_term;
-                    legacy_term.species = term.species;
-                    legacy_term.exponent = term.exponent;
-                    entry.order.push_back(legacy_term);
-                }
-                
-                reaction_list.push_back(entry);
-            }
-            
-            if (skipped > 0) {
-                Logger::config()->info("✓ {} reactions converted for integrator ({} skipped)", reaction_list.size(), skipped);
-            } else {
-                Logger::config()->info("✓ {} reactions converted for integrator", reaction_list.size());
-            }
-            
-        } else if (!gParams.enable_reactions) {
-            Logger::config()->info("ℹ Reactions disabled (enable_reactions=false)");
-        } else {
-            ICARION::log::Logger::config()->info("No reactions loaded");
-        }
-
-        // === Dry-run mode: Validate configuration and exit ===
+        // === Dry-run mode ===
         if (opts.dry_run) {
-            Logger::main()->info("");
-            Logger::main()->info("=== Dry-run mode: Configuration validation ===");
-            Logger::config()->info("JSON configuration loaded successfully");
-            Logger::config()->info("Species database loaded: {} species", speciesDB.size());
-            Logger::config()->info("Reactions loaded: {} reactions", reaction_list.size());
-            Logger::main()->info("✓ Domains configured: {} domain(s)", domains.size());
-            Logger::main()->info("✓ RNG seed: {}", gParams.rng_seed);
-            Logger::main()->info("✓ Output file: {}", gParams.output_file);
-            Logger::main()->info("");
-            Logger::main()->info("Configuration valid. Exiting without running simulation.");
+            log::Logger::main()->info("Dry-run mode: Configuration valid. Exiting.");
             return 0;
         }
-
-        // === 5. Initialize ions (or load from checkpoint) ===
-        std::vector<IonState> ions;
-        double t_start = gParams.t_eval.front();
-        double t_end = gParams.t_eval.back();
         
-        if (!gParams.continue_from.empty()) {
-            std::cout << "Continue mode: Loading state from " << gParams.continue_from << "\n";
-            
-            // Load ions from HDF5 checkpoint
-            ions = ICARION::io::load_final_state_from_HDF5(gParams.continue_from);
-            
-            // Read final time from HDF5 metadata
-            try {
-                H5::H5File file(gParams.continue_from, H5F_ACC_RDONLY);
-                H5::Attribute attr = file.openAttribute("final_time_s");
-                double checkpoint_time;
-                attr.read(H5::PredType::NATIVE_DOUBLE, &checkpoint_time);
-                file.close();
-                
-                t_start = checkpoint_time;
-                t_end = checkpoint_time + gParams.continue_time_s;
-                
-                std::cout << "  Checkpoint time: " << checkpoint_time << " s\n";
-                std::cout << "  Continuing for:  " << gParams.continue_time_s << " s\n";
-                std::cout << "  New end time:    " << t_end << " s\n";
-                
-            } catch (const std::exception& e) {
-                throw std::runtime_error("Failed to read checkpoint metadata: " + std::string(e.what()));
-            }
-            
-        } else {
-            // Normal initialization from ion configuration
-            std::mt19937 rng(gParams.rng_seed);
-            ions = full_config.generate_ions(rng);
-            ICARION::log::Logger::main()->info("Generated {} ions from configuration", ions.size());
+        // === 4. Initialize ions ===
+        size_t total_ion_count = 0;
+        for (const auto& spec : config.ions.species) {
+            total_ion_count += spec.count;
         }
-
-        // === 6. Run simulation ===
-        LOG_TIMER("simulation_total");
+        log::Logger::main()->info("Generating {} ions", total_ion_count);
         
-        ICARION::log::Logger::main()->info("Starting integration ({} ions, {:.6f} s total time, dt={:.2e} s)",
-                                            ions.size(), t_end - t_start, gParams.dt_s);
+        std::mt19937 rng(config.simulation.rng_seed);
+        std::vector<IonState> ions = config.generate_ions(rng);
+        log::Logger::main()->info("✓ {} ions generated", ions.size());
         
-        auto start = std::chrono::high_resolution_clock::now();
-        std::vector<IonState> final_ions = integrate_trajectory(
-            ions, 
-            t_start, 
-            t_end, 
-            gParams.dt_s, 
-            gParams,
-            speciesDB, 
-            reaction_list, 
-            domains,
-            RK45Settings(),
-            nullptr  // No more RunLogger
+        // === 5. Create physics dependencies ===
+        log::Logger::main()->info("Initializing physics modules");
+        
+        // Create ForceRegistry (empty, will be populated by SimulationEngine)
+        auto force_registry = std::make_shared<physics::ForceRegistry>();
+        
+        // Create integration strategy (from config.simulation.integrator)
+        std::shared_ptr<integrator::IIntegrationStrategy> integration_strategy;
+        if (config.simulation.integrator == "RK4" || config.simulation.integrator == "rk4") {
+            integration_strategy = std::make_shared<integrator::RK4Strategy>();
+            log::Logger::main()->info("Using RK4 integrator");
+        } else if (config.simulation.integrator == "RK45" || config.simulation.integrator == "rk45") {
+            integration_strategy = std::make_shared<integrator::RK45Strategy>();
+            log::Logger::main()->info("Using RK45 integrator");
+        } else if (config.simulation.integrator == "Boris" || config.simulation.integrator == "boris") {
+            integration_strategy = std::make_shared<integrator::BorisStrategy>();
+            log::Logger::main()->info("Using Boris integrator");
+        } else {
+            // Default fallback
+            log::Logger::main()->warn("Unknown integrator '{}', defaulting to RK45", 
+                                      config.simulation.integrator);
+            integration_strategy = std::make_shared<integrator::RK45Strategy>();
+        }
+        
+        // Create collision handler (from config.physics.collision_model)
+        std::shared_ptr<physics::ICollisionHandler> collision_handler = 
+            physics::CollisionHandlerFactory::create(config.physics);
+        
+        // Create reaction handler (from config.physics.enable_reactions)
+        std::shared_ptr<physics::IReactionHandler> reaction_handler = 
+            physics::ReactionHandlerFactory::create(config.physics);
+        
+        // === 6. Create SimulationEngine ===
+        log::Logger::main()->info("Initializing SimulationEngine");
+        
+        integrator::SimulationEngine engine(
+            config,
+            force_registry,
+            integration_strategy,
+            collision_handler,
+            reaction_handler
         );
         
-        auto             end    = std::chrono::high_resolution_clock::now();
+        // === 7. Run simulation ===
+        log::Logger::main()->info("Starting simulation (t_max = {:.2e} s)", 
+                                  config.simulation.total_time_s);
         
-        // === 8. Write completion metadata ===
-        int active_count = 0;
-        for (const auto& ion : final_ions) {
-            if (ion.active) active_count++;
-        }
+        auto start = std::chrono::high_resolution_clock::now();
         
-        try {
-            // === Legacy HDF5 API (write_simulation_metadata) ===
-            // TODO: Replace with HDF5Writer::finalize() once integrator is refactored
-            //
-            // Future API with HDF5Writer v2:
-            // ------------------------------
-            // The new HDF5Writer v2 provides a clean API with proper metadata:
-            // 
-            // 1. At simulation start (replace write_params_to_HDF5):
-            //    std::string git_hash = GIT_HASH;  // From CMake
-            //    std::string build_info = "gcc " + __VERSION__;
-            //    ICARION::io::HDF5Writer::create_file(
-            //        gParams.output_file + ".h5", 
-            //        full_config,  // FullConfig with all metadata
-            //        ions,         // Initial ion states
-            //        git_hash,     // Reproducibility
-            //        build_info    // Compiler info
-            //    );
-            //
-            // 2. During simulation (replace append_to_HDF5):
-            //    ICARION::io::HDF5Writer::append_trajectory(
-            //        gParams.output_file + ".h5",
-            //        current_time,
-            //        ions  // Current ion states
-            //    );
-            //
-            // 3. At completion (NEW - replaces write_simulation_metadata):
-            //    ICARION::io::HDF5Writer::finalize(
-            //        gParams.output_file + ".h5",
-            //        simulation_complete,
-            //        t_end,
-            //        active_count
-            //    );
-            //
-            // This eliminates trajectory_buffer complexity and provides:
-            // - Complete reproducibility metadata (git hash, RNG seed, compiler)
-            // - Tabular species/reaction data (pandas-compatible)
-            // - Hierarchical domain configuration
-            // - Proper HDF5 v2.0 format with compression
-            //
-            // See: docs/HDF5_OUTPUT_STRUCTURE.md for format specification
-            // See: tests/io/test_hdf5_writer_v2.cpp for usage examples
-            
-            // Ensure .h5 extension is only added once
-            std::string hdf5_path = gParams.output_file;
-            if (hdf5_path.size() < 3 || hdf5_path.substr(hdf5_path.size() - 3) != ".h5") {
-                hdf5_path += ".h5";
-            }
-            H5::H5File hdf5_file(hdf5_path, H5F_ACC_RDWR);
-            bool simulation_complete = (active_count == 0);  // All ions exited/deactivated
-            
-            // Get git hash at compile time if available
-            std::string git_hash;
-            #ifdef GIT_COMMIT_HASH
-                git_hash = GIT_COMMIT_HASH;
-            #endif
-            
-            ICARION::io::write_simulation_metadata(hdf5_file, simulation_complete, active_count, t_end, 
-                                     gParams.rng_seed, git_hash, config_json);
-            hdf5_file.close();
-            
-            if (!simulation_complete && gParams.auto_continue_if_active) {
-                ICARION::log::Logger::main()->warn("Simulation incomplete: {} ions still active at t={:.6f} s",
-                                                    active_count, t_end);
-                ICARION::log::Logger::main()->info("Consider using continue mode: \"continue_from\": \"{}.h5\", \"continue_time_s\": {}",
-                                                    gParams.output_file, gParams.continue_time_s);
-            }
-        } catch (const std::exception& e) {
-            ICARION::log::Logger::hdf5()->warn("Failed to write metadata: {}", e.what());
-        }
+        auto final_ions = engine.run(ions);
         
-        // === 10. Optional result printout ===
-        if (gParams.print_results) {
-            ICARION::utils::print_results(final_ions, 100);
-        }
-        
-        ICARION::log::Logger::hdf5()->info("HDF5 file written successfully");
-        
+        auto end = std::chrono::high_resolution_clock::now();
         double elapsed_s = std::chrono::duration<double>(end - start).count();
-        ICARION::log::Logger::main()->info("Simulation completed in {:.3f} s CPU time", elapsed_s);
-        // Ensure .h5 extension is only shown once
-        std::string output_display = gParams.output_file;
-        if (output_display.size() < 3 || output_display.substr(output_display.size() - 3) != ".h5") {
-            output_display += ".h5";
-        }
-        ICARION::log::Logger::main()->info("Output file: {}", output_display);
         
-        // Print completion summary (only for text format)
-        if (opts.log_format == "text") {
-            size_t num_steps = static_cast<size_t>((t_end - t_start) / gParams.dt_s);
-            
-            // Get file size
-            double file_size_mb = 0.0;
-            std::string file_path = gParams.output_file;
-            if (file_path.size() < 3 || file_path.substr(file_path.size() - 3) != ".h5") {
-                file_path += ".h5";
-            }
-            std::ifstream file(file_path, std::ios::binary | std::ios::ate);
-            if (file) {
-                file_size_mb = file.tellg() / (1024.0 * 1024.0);
-            }
-            
-            ICARION::utils::print_completion_summary(
-                elapsed_s,
-                ions.size(),
-                num_steps,
-                gParams.output_file,
-                active_count,
-                file_size_mb
-            );
-        }
+        // === 8. Report results ===
+        size_t active_count = std::count_if(
+            final_ions.begin(), final_ions.end(),
+            [](const auto& ion) { return ion.active; }
+        );
+        
+        log::Logger::main()->info("");
+        log::Logger::main()->info("=== Simulation Complete ===");
+        log::Logger::main()->info("CPU time:     {:.3f} s", elapsed_s);
+        log::Logger::main()->info("Active ions:  {}/{}", active_count, final_ions.size());
+        log::Logger::main()->info("Output file:  {}", config.output.trajectory_file);
+        log::Logger::main()->info("===========================");
+        
     } catch (const std::exception& e) {
-        ICARION::log::Logger::main()->error("Fatal error: {}", e.what());
-        ICARION::log::Logger::shutdown();
+        log::Logger::main()->error("Fatal error: {}", e.what());
+        log::Logger::shutdown();
         return 1;
     }
-
-    ICARION::log::Logger::shutdown();
+    
+    log::Logger::shutdown();
     return 0;
 }

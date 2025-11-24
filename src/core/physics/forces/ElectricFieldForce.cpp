@@ -12,6 +12,21 @@
 
 namespace {
     constexpr double MIN_VOLTAGE_THRESHOLD = 1e-12;  ///< Minimum voltage [V] to consider field active (numerical safety)
+    
+    /**
+     * @brief Helper to evaluate ValueOrWaveform at current time
+     * @param val ValueOrWaveform (static or waveform)
+     * @param t Current time [s]
+     * @param library Waveform library for references
+     * @return Evaluated value at time t
+     */
+    inline double eval_value(const ICARION::config::ValueOrWaveform& val, double t, 
+                             const std::map<std::string, ICARION::config::Waveform>& library) {
+        if (val.constant_value.has_value()) {
+            return val.constant_value.value();
+        }
+        return val.evaluate(t, library);
+    }
 }
 
 namespace ICARION {
@@ -146,30 +161,39 @@ Vec3 ElectricFieldForce::compute_lqit_field(const IonState& ion, double t) const
     const auto& dc = domain_->fields.dc;
     const auto& ac = domain_->fields.ac;
     const auto& geom = domain_->geometry;
+    const auto& lib = domain_->fields.waveform_library;
+    
+    // v1.0: Evaluate voltages/frequencies at current time
+    const double rf_voltage = eval_value(rf.voltage_V, t, lib);
+    const double rf_freq = eval_value(rf.frequency_Hz, t, lib);
+    const double ac_voltage = eval_value(ac.voltage_V, t, lib);
+    const double ac_freq = eval_value(ac.frequency_Hz, t, lib);
+    const double dc_quad = eval_value(dc.quad_V, t, lib);
+    const double dc_axial = eval_value(dc.axial_V, t, lib);
     
     // (1) RF + DC quadrupole field (radial) - matches RFField()
-    if (std::fabs(rf.voltage_V) > MIN_VOLTAGE_THRESHOLD) {
+    if (std::fabs(rf_voltage) > MIN_VOLTAGE_THRESHOLD) {
         const double r0_sq = geom.radius_m * geom.radius_m;
-        const double omega = rf.angular_frequency_rad_s;  // Use precomputed omega
-        const double U_eff = dc.quad_V + rf.voltage_V * std::cos(omega * t);
+        const double omega = 2.0 * M_PI * rf_freq;  // Compute omega from evaluated frequency
+        const double U_eff = dc_quad + rf_voltage * std::cos(omega * t);
         
         E_total.x =  2.0 * ion.pos.x * U_eff / r0_sq;
         E_total.y = -2.0 * ion.pos.y * U_eff / r0_sq;
     }
     
     // (2) AC excitation field - matches ACField()
-    if (std::fabs(ac.voltage_V) > MIN_VOLTAGE_THRESHOLD) {
-        const double omega_ac = ac.angular_frequency_rad_s;  // Use precomputed omega
-        const double mag = -ac.voltage_V / geom.radius_m * std::cos(omega_ac * t);
+    if (std::fabs(ac_voltage) > MIN_VOLTAGE_THRESHOLD) {
+        const double omega_ac = 2.0 * M_PI * ac_freq;  // Compute omega from evaluated frequency
+        const double mag = -ac_voltage / geom.radius_m * std::cos(omega_ac * t);
         E_total.x += mag;  // Fixed x-direction
     }
     
     // (3) DC endcap field (axial confinement) - harmonic potential approximation
     // E_z = -2αz (z measured from trap center), where α = U_DC / L²
     // This creates a parabolic potential well: Φ(z) = α·z²
-    if (std::fabs(dc.axial_V) > MIN_VOLTAGE_THRESHOLD) {
+    if (std::fabs(dc_axial) > MIN_VOLTAGE_THRESHOLD) {
         const double L = geom.length_m;
-        const double alpha = dc.axial_V / (L * L);
+        const double alpha = dc_axial / (L * L);
         
         // z measured from trap center
         const double z_centered = ion.pos.z - 0.5 * L;
@@ -189,16 +213,24 @@ Vec3 ElectricFieldForce::compute_lqit_field(const IonState& ion, double t) const
 Vec3 ElectricFieldForce::compute_ims_field(const IonState& ion, double t) const {
     // SSOT: Read from config
     Vec3 E_total{0.0, 0.0, 0.0};
+    const auto& dc = domain_->fields.dc;
+    const auto& rf = domain_->fields.rf;
+    const auto& lib = domain_->fields.waveform_library;
+    
+    // v1.0: Evaluate voltages at current time
+    const double dc_axial = eval_value(dc.axial_V, t, lib);
+    const double dc_quad = eval_value(dc.quad_V, t, lib);
+    const double rf_voltage = eval_value(rf.voltage_V, t, lib);
+    const double rf_freq = eval_value(rf.frequency_Hz, t, lib);
     
     // (1) Axial DC field
-    E_total.z = domain_->fields.dc.axial_V / domain_->geometry.length_m;
+    E_total.z = dc_axial / domain_->geometry.length_m;
     
     // (2) Optional radial RF field (for ion focusing)
-    const auto& rf = domain_->fields.rf;
-    if (std::fabs(rf.voltage_V) > MIN_VOLTAGE_THRESHOLD) {
+    if (std::fabs(rf_voltage) > MIN_VOLTAGE_THRESHOLD) {
         const double r0_sq = domain_->geometry.radius_m * domain_->geometry.radius_m;
-        const double omega = rf.angular_frequency_rad_s;
-        const double U_eff = domain_->fields.dc.quad_V + rf.voltage_V * std::cos(omega * t);
+        const double omega = 2.0 * M_PI * rf_freq;
+        const double U_eff = dc_quad + rf_voltage * std::cos(omega * t);
         
         E_total.x =  2.0 * ion.pos.x * U_eff / r0_sq;
         E_total.y = -2.0 * ion.pos.y * U_eff / r0_sq;
@@ -219,10 +251,12 @@ Vec3 ElectricFieldForce::compute_tof_field(const IonState& ion) const {
     
     // Field only in acceleration region (z < acc_length_m)
     if (ion.pos.z < acc_length) {
+        // v1.0: Evaluate axial voltage at t=0 (DC field)
+        const double dc_axial = eval_value(domain_->fields.dc.axial_V, 0.0, domain_->fields.waveform_library);
         return Vec3{
             0.0,
             0.0,
-            domain_->fields.dc.axial_V / acc_length
+            dc_axial / acc_length
         };
     } else {
         // Field-free drift region
@@ -244,7 +278,8 @@ Vec3 ElectricFieldForce::compute_fticr_field(const IonState& ion) const {
     // SSOT: FTICR uses radial_V for quadrupolar trapping
     // Quadrupolar trapping: φ(r,z) = V_trap/d² · (2z² - x² - y²)
     // Matches FTICRField() in defineFields.cpp
-    const double voltage = domain_->fields.dc.radial_V;
+    // v1.0: Evaluate radial voltage at t=0 (DC field)
+    const double voltage = eval_value(domain_->fields.dc.radial_V, 0.0, domain_->fields.waveform_library);
     
     // Characteristic distance d = sqrt(L²/8 + r²/4) - matches computeAccelerations
     const double L = domain_->geometry.length_m;
@@ -281,7 +316,8 @@ Vec3 ElectricFieldForce::compute_orbitrap_field(const IonState& ion) const {
     const double C = 1.0 - r_char_sq / r_sq;
     
     // SSOT: Correct k calculation from computeAccelerations.cpp
-    const double voltage = domain_->fields.dc.radial_V;  // Radial voltage
+    // v1.0: Evaluate radial voltage at t=0 (DC field)
+    const double voltage = eval_value(domain_->fields.dc.radial_V, 0.0, domain_->fields.waveform_library);  // Radial voltage
     const double r_in = domain_->geometry.radius_in_m;
     const double r_out = domain_->geometry.radius_out_m;
     const double k = 2.0 * voltage / (r_char_sq * std::log(r_out / r_in)

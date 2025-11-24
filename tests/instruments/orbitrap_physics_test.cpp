@@ -43,7 +43,17 @@ config::DomainConfig make_orbitrap_domain() {
     dom.geometry.radius_in_m = 0.010;
     dom.geometry.radius_out_m = 0.015;
     dom.geometry.radius_char_m = 0.014;  // ensure positive k denominator
-    dom.fields.dc.radial_V = 1200.0;
+    // Initialize all field values
+    dom.fields.dc.radial_V.constant_value = 1200.0;
+    dom.fields.dc.axial_V.constant_value = 0.0;
+    dom.fields.dc.quad_V.constant_value = 0.0;
+    dom.fields.dc.EN_Td.constant_value = 0.0;
+    dom.fields.rf.voltage_V.constant_value = 0.0;
+    dom.fields.rf.frequency_Hz.constant_value = 0.0;
+    dom.fields.rf.compute_derived();
+    dom.fields.ac.voltage_V.constant_value = 0.0;
+    dom.fields.ac.frequency_Hz.constant_value = 0.0;
+    dom.fields.ac.compute_derived();
     dom.environment.pressure_Pa = 1e-6;
     dom.environment.temperature_K = 300.0;
     dom.environment.gas_species = "He";
@@ -63,7 +73,7 @@ TEST_CASE("Orbitrap axial frequency matches analytic (20 oscillations)", "[instr
 
     const auto& dom = cfg.domains.front();
     const double r_char_sq = dom.geometry.radius_char_m * dom.geometry.radius_char_m;
-    const double k = 2.0 * dom.fields.dc.radial_V /
+    const double k = 2.0 * dom.fields.dc.radial_V.constant_value.value() /
         (r_char_sq * std::log(dom.geometry.radius_out_m / dom.geometry.radius_in_m)
          - 0.5 * (dom.geometry.radius_out_m * dom.geometry.radius_out_m
                   - dom.geometry.radius_in_m * dom.geometry.radius_in_m));
@@ -129,7 +139,7 @@ TEST_CASE("Orbitrap trapping keeps ion radially confined", "[instrument][orbitra
 
     const auto& dom = cfg.domains.front();
     const double r_char_sq = dom.geometry.radius_char_m * dom.geometry.radius_char_m;
-    const double k = 2.0 * dom.fields.dc.radial_V /
+    const double k = 2.0 * dom.fields.dc.radial_V.constant_value.value() /
         (r_char_sq * std::log(dom.geometry.radius_out_m / dom.geometry.radius_in_m)
          - 0.5 * (dom.geometry.radius_out_m * dom.geometry.radius_out_m
                   - dom.geometry.radius_in_m * dom.geometry.radius_in_m));

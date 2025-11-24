@@ -46,7 +46,11 @@ simulation.h5
     │   ├── solver                 # Solver type
     │   ├── geometry/              # Geometric parameters
     │   ├── environment/           # Gas conditions
-    │   └── fields/                # Electric fields
+    │   ├── fields/                # Electric fields
+    │   │   ├── waveforms/         # Waveform library (v1.1, if present)
+    │   │   ├── dc/                # DC field values (t=0 if waveform)
+    │   │   ├── rf/                # RF field values (t=0 if waveform)
+    │   │   └── ac/                # AC field values (t=0 if waveform)
     └── domain_1/
         └── ...
 ```
@@ -330,7 +334,9 @@ Configuration for each instrument domain.
 
 **Subgroup:** `/domains/domain_<i>/fields/`
 
-Contains subgroups for DC, RF, and AC fields with voltage, frequency, and phase parameters.
+Contains subgroups for DC, RF, and AC fields with voltage, frequency, and phase parameters. 
+
+**v1.1 Extension:** If time-varying waveforms are used, a `/fields/waveforms/` subgroup is created with one group per named waveform containing its type and parameters. DC/RF/AC fields store the t=0 evaluation for backward compatibility.
 
 ---
 

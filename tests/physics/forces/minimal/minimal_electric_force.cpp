@@ -46,7 +46,7 @@ void test_ims_drift_field() {
     // IMS parameters: 1 m drift tube, 400 V drift voltage (SSOT config)
     ICARION::config::DomainConfig domain;
     domain.instrument = ICARION::config::Instrument::IMS;
-    domain.fields.dc.axial_V = 400.0;
+    domain.fields.dc.axial_V.constant_value = 400.0;
     domain.geometry.length_m = 1.0;
     
     ElectricFieldForce force(domain);
@@ -87,10 +87,10 @@ void test_lqit_quadrupole() {
     // LQIT parameters (SSOT config)
     ICARION::config::DomainConfig domain;
     domain.instrument = ICARION::config::Instrument::LQIT;
-    domain.fields.rf.voltage_V = 100.0;
-    domain.fields.rf.frequency_Hz = 1e6;
-    domain.fields.rf.angular_frequency_rad_s = 2.0 * M_PI * 1e6;  // Precomputed
-    domain.fields.dc.quad_V = 0.0;
+    domain.fields.rf.voltage_V.constant_value = 100.0;
+    domain.fields.rf.frequency_Hz.constant_value = 1e6;
+    domain.fields.rf.compute_derived();
+    domain.fields.dc.quad_V.constant_value = 0.0;
     domain.geometry.radius_m = 0.01;
     domain.geometry.length_m = 0.05;
     

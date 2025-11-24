@@ -15,11 +15,23 @@ static std::filesystem::path find_global_database(
     const std::filesystem::path& base_path,
     const std::string& relative_db_path) {
     
-    std::filesystem::path search_path = base_path;
+    // First try: data/ subdirectory in current working directory (for build/ runs)
+    std::filesystem::path cwd = std::filesystem::current_path();
+    std::filesystem::path cwd_data = cwd / "data" / relative_db_path;
+    if (std::filesystem::exists(cwd_data)) {
+        return cwd_data;
+    }
     
-    // Search up to 5 levels up the directory tree
+    // Second try: ../data/ from current working directory (for build/ runs)
+    std::filesystem::path parent_data = cwd.parent_path() / "data" / relative_db_path;
+    if (std::filesystem::exists(parent_data)) {
+        return parent_data;
+    }
+    
+    // Third try: search up from base_path (for config file locations)
+    std::filesystem::path search_path = base_path;
     for (int i = 0; i < 5; ++i) {
-        std::filesystem::path candidate = search_path / relative_db_path;
+        std::filesystem::path candidate = search_path / "data" / relative_db_path;
         if (std::filesystem::exists(candidate)) {
             return candidate;
         }
@@ -36,9 +48,9 @@ static std::filesystem::path find_global_database(
 }
 
 void FullConfig::load_databases(const std::filesystem::path& base_path) {
-    // Global fallback database paths (relative to workspace root)
-    const std::string global_species_db = "data/species_database_v1.json";
-    const std::string global_reactions_db = "data/reactions_database_v1.json";
+    // Global fallback database paths (relative to workspace root or build/)
+    const std::string global_species_db = "species_database_v1.json";
+    const std::string global_reactions_db = "reactions_database_v1.json";
     
     // Load species database
     if (!species_database_path.empty()) {
@@ -115,23 +127,8 @@ std::vector<IonState> FullConfig::generate_ions(std::mt19937& rng) const {
         return result.ions;
     }
     
-    // Legacy fallback: load from ion_cloud_path
-    if (!ion_cloud_path.empty()) {
-        std::cout << "[IonLoader] Loading ions from legacy path: " << ion_cloud_path << "\n";
-        
-        IonGenerationResult result = IonLoader::load_from_file(ion_cloud_path, species_db);
-        
-        if (!result.validation.valid) {
-            std::cerr << "Ion loading validation failed:\n";
-            result.validation.print();
-            throw std::runtime_error("Ion loading failed from " + ion_cloud_path);
-        }
-        
-        return result.ions;
-    }
-    
     // No ion configuration
-    throw std::runtime_error("No ion configuration specified (neither 'ions' nor 'ion_cloud' field)");
+    throw std::runtime_error("No ion configuration specified ('ions' field required)");
 }
 
 } // namespace ICARION::config

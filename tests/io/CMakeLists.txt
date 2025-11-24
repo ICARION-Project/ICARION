@@ -22,3 +22,6 @@ target_include_directories(test_hdf5_writer
 
 # Add to test suite
 add_test(NAME HDF5Writer COMMAND test_hdf5_writer)
+set_tests_properties(HDF5Writer PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)

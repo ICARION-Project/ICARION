@@ -26,12 +26,6 @@ namespace {
 // ============================================================================
 
 TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
-    // Create ion cloud file
-    std::string ion_cloud_path = "/tmp/test_minimal_ions.json";
-    std::ofstream ion_file(ion_cloud_path);
-    ion_file << R"({"ions": [{"species": "test", "mass": 100, "charge": 1, "pos": [0,0,0], "vel": [0,0,0]}]})";
-    ion_file.close();
-    
     std::string config = R"({
         "simulation": {
             "dt_s": 1e-9,
@@ -46,7 +40,22 @@ TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
             "folder": "./output",
             "trajectory_file": "test.h5"
         },
-        "ion_cloud": "/tmp/test_minimal_ions.json",
+        "ions": {
+            "species": [
+                {
+                    "id": "H3O+",
+                    "count": 5,
+                    "position": {
+                        "type": "point",
+                        "center": [0.0, 0.0, 0.001]
+                    },
+                    "velocity": {
+                        "type": "thermal",
+                        "temperature_K": 300.0
+                    }
+                }
+            ]
+        },
         "domains": [
             {
                 "name": "test_domain",
@@ -82,18 +91,9 @@ TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
     REQUIRE(cfg.config_file_path[0] == '/');  // Absolute path starts with /
     REQUIRE(cfg.config_file_path.find(".json") != std::string::npos);
     REQUIRE(std::filesystem::exists(cfg.config_file_path));
-    
-    // Cleanup
-    std::filesystem::remove(ion_cloud_path);
 }
 
 TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domains]") {
-    // Create ion cloud file
-    std::string ion_cloud_path = "/tmp/test_two_domains_ions.json";
-    std::ofstream ion_file(ion_cloud_path);
-    ion_file << R"({"ions": [{"species": "test", "mass": 100, "charge": 1, "pos": [0,0,0], "vel": [0,0,0]}]})";
-    ion_file.close();
-    
     std::string config = R"({
         "simulation": {
             "dt_s": 5e-10,
@@ -112,7 +112,22 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
             "trajectory_file": "trajectories.h5",
             "print_progress": true
         },
-        "ion_cloud": "/tmp/test_two_domains_ions.json",
+        "ions": {
+            "species": [
+                {
+                    "id": "H3O+",
+                    "count": 5,
+                    "position": {
+                        "type": "point",
+                        "center": [0.0, 0.0, 0.001]
+                    },
+                    "velocity": {
+                        "type": "thermal",
+                        "temperature_K": 300.0
+                    }
+                }
+            ]
+        },
         "domains": [
             {
                 "name": "drift_region",
@@ -194,8 +209,8 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
     REQUIRE(cfg.domains[0].environment.pressure_Pa == Approx(101325.0));
     REQUIRE(cfg.domains[0].environment.temperature_K == Approx(300.0));
     REQUIRE(cfg.domains[0].environment.gas_species == "He");
-    REQUIRE(cfg.domains[0].fields.dc.axial_V == Approx(250.0));
-    REQUIRE(cfg.domains[0].fields.dc.EN_Td == Approx(10.0));
+    REQUIRE(cfg.domains[0].fields.dc.axial_V.constant_value == Approx(250.0));
+    REQUIRE(cfg.domains[0].fields.dc.EN_Td.constant_value == Approx(10.0));
     
     // Domain 1: TOF
     REQUIRE(cfg.domains[1].domain_index == 1);
@@ -203,15 +218,12 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
     REQUIRE(cfg.domains[1].geometry.radius_m == Approx(0.02));
     REQUIRE(cfg.domains[1].geometry.origin_m.z == Approx(0.15));
     REQUIRE(cfg.domains[1].environment.pressure_Pa == Approx(1e-6));
-    REQUIRE(cfg.domains[1].fields.dc.axial_V == Approx(5000.0));
+    REQUIRE(cfg.domains[1].fields.dc.axial_V.constant_value == Approx(5000.0));
     
     // Verify derived properties were computed
     REQUIRE(cfg.domains[0].environment.particle_density_m_3 > 0.0);
     REQUIRE(cfg.domains[0].environment.mean_thermal_velocity_m_s > 0.0);
     REQUIRE(cfg.domains[1].environment.particle_density_m_3 > 0.0);
-    
-    // Cleanup
-    std::filesystem::remove(ion_cloud_path);
 }
 
 TEST_CASE("ConfigLoader handles file not found", "[config][loader]") {

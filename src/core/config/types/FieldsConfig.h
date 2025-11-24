@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #ifndef ICARION_CONFIG_FIELDS_CONFIG_H
@@ -6,8 +6,10 @@
 
 #include "core/utils/mathUtils.h"
 #include "../validation/ValidationResult.h"
+#include "WaveformConfig.h"
 #include <vector>
 #include <string>
+#include <map>
 #include <cmath>
 #include <stdexcept>
 
@@ -17,23 +19,17 @@ namespace ICARION::config {
  * @brief DC field configuration
  * 
  * Supports both voltage specification and field strength (Townsend).
- * Future: Time-varying voltages (ramping, pulses).
+ * v1.0: Voltages now support time-varying waveforms.
  */
 struct DCFieldConfig {
-    // === Direct voltage specification ===
-    double axial_V = 0.0;               ///< Axial DC voltage [V]
-    double quad_V = 0.0;                ///< Quadrupole DC voltage [V]
-    double radial_V = 0.0;              ///< Radial DC voltage [V]
+    // === Direct voltage specification (v1.0: static or waveform) ===
+    ValueOrWaveform axial_V;            ///< Axial DC voltage [V]
+    ValueOrWaveform quad_V;             ///< Quadrupole DC voltage [V]
+    ValueOrWaveform radial_V;           ///< Radial DC voltage [V]
     
     // === Field strength specification (alternative to voltage) ===
-    double EN_Td = 0.0;                 ///< Reduced field strength [Td]
-    double EN_Vm2 = 0.0;                ///< E/N [V·m²]
-    
-    // Future: Time-varying support (voltage ramping)
-    // bool enable_ramp = false;
-    // double ramp_start_s = 0.0;
-    // double ramp_rate_V_s = 0.0;
-    // std::vector<std::pair<double, double>> voltage_schedule;  // {time, voltage}
+    ValueOrWaveform EN_Td;              ///< Reduced field strength [Td]
+    double EN_Vm2 = 0.0;                ///< E/N [V·m²] (computed from EN_Td)
     
     /**
      * @brief Validate DC field configuration
@@ -49,21 +45,24 @@ struct DCFieldConfig {
 /**
  * @brief RF field configuration
  * 
- * Future: Frequency chirps, amplitude modulation.
+ * v1.0: Voltage and frequency support time-varying waveforms (chirps, modulation).
  */
 struct RFFieldConfig {
-    double voltage_V = 0.0;             ///< RF amplitude [V] (0-to-peak)
-    double frequency_Hz = 0.0;          ///< RF frequency [Hz]
+    ValueOrWaveform voltage_V;          ///< RF amplitude [V] (0-to-peak, static or waveform)
+    ValueOrWaveform frequency_Hz;       ///< RF frequency [Hz] (static or waveform)
     double phase_rad = 0.0;             ///< Initial phase [rad]
     
-    // Derived (computed after load)
-    double angular_frequency_rad_s = 0.0;  ///< ω = 2π·f [rad/s]
+    // Derived (computed after load, only valid for static frequency)
+    double angular_frequency_rad_s = 0.0;  ///< ω = 2π·f [rad/s] (static only)
     
     /**
-     * @brief Compute derived quantities
+     * @brief Compute derived quantities (for static frequency only)
      */
     void compute_derived() {
-        angular_frequency_rad_s = 2.0 * M_PI * frequency_Hz;
+        // Only compute if frequency is static (not a waveform)
+        if (frequency_Hz.constant_value.has_value()) {
+            angular_frequency_rad_s = 2.0 * M_PI * frequency_Hz.constant_value.value();
+        }
     }
     
     /**
@@ -72,14 +71,18 @@ struct RFFieldConfig {
     ValidationResult validate() const {
         ValidationResult result;
         
-        if (voltage_V < 0.0) {
+        // Validation deferred to runtime for waveforms
+        // Static values checked here
+        if (voltage_V.constant_value.has_value() && voltage_V.constant_value.value() < 0.0) {
             result.add_error("RF voltage cannot be negative");
         }
-        if (frequency_Hz < 0.0) {
+        if (frequency_Hz.constant_value.has_value() && frequency_Hz.constant_value.value() < 0.0) {
             result.add_error("RF frequency cannot be negative");
         }
-        if (voltage_V > 0.0 && frequency_Hz == 0.0) {
-            result.add_error("RF voltage specified but frequency is zero");
+        if (voltage_V.constant_value.has_value() && frequency_Hz.constant_value.has_value()) {
+            if (voltage_V.constant_value.value() > 0.0 && frequency_Hz.constant_value.value() == 0.0) {
+                result.add_error("RF voltage specified but frequency is zero");
+            }
         }
         
         return result;
@@ -89,40 +92,27 @@ struct RFFieldConfig {
 /**
  * @brief AC excitation field configuration (primarily for LQIT)
  * 
- * Supports voltage and frequency sweeps.
- * Future: Replace sweeps with general waveform system.
+ * v1.0: Voltage and frequency support time-varying waveforms.
  */
 struct ACFieldConfig {
-    double voltage_V = 0.0;             ///< AC amplitude [V]
-    double frequency_Hz = 0.0;          ///< AC frequency [Hz]
+    ValueOrWaveform voltage_V;          ///< AC amplitude [V] (static or waveform)
+    ValueOrWaveform frequency_Hz;       ///< AC frequency [Hz] (static or waveform)
     
-    // Derived
-    double angular_frequency_rad_s = 0.0;  ///< ω = 2π·f [rad/s]
-    
-    // === Voltage sweep (linear) ===
-    bool enable_voltage_sweep = false;
-    double amplitude_slope_V_s = 0.0;   ///< Voltage ramp rate [V/s]
-    double start_time_s = 0.0;          ///< Sweep start time [s]
-    double rise_time_s = 0.0;           ///< Sweep duration [s]
-    
-    // === Frequency sweep (linear) ===
-    bool enable_frequency_sweep = false;
-    double frequency_start_Hz = 0.0;    ///< Initial frequency [Hz]
-    double frequency_sweep_slope_Hz_s = 0.0; ///< Frequency ramp rate [Hz/s]
+    // Derived (only valid for static frequency)
+    double angular_frequency_rad_s = 0.0;  ///< ω = 2π·f [rad/s] (static only)
     
     // === LQIT phase locking to RF ===
     bool lqit_lock_enable = false;
     double lqit_lock_phase_rad = 0.0;   ///< Phase offset to RF [rad]
     double lqit_lock_bandwidth_Hz = 0.0; ///< Lock bandwidth [Hz]
     
-    // === Arbitrary waveforms (future) ===
-    std::vector<std::pair<double, double>> voltage_time_table; ///< {time_s, voltage_V}
-    
     /**
-     * @brief Compute derived quantities
+     * @brief Compute derived quantities (for static frequency only)
      */
     void compute_derived() {
-        angular_frequency_rad_s = 2.0 * M_PI * frequency_Hz;
+        if (frequency_Hz.constant_value.has_value()) {
+            angular_frequency_rad_s = 2.0 * M_PI * frequency_Hz.constant_value.value();
+        }
     }
     
     /**
@@ -131,36 +121,12 @@ struct ACFieldConfig {
     ValidationResult validate() const {
         ValidationResult result;
         
-        if (voltage_V < 0.0) {
+        // Static value validation
+        if (voltage_V.constant_value.has_value() && voltage_V.constant_value.value() < 0.0) {
             result.add_error("AC voltage cannot be negative");
         }
-        if (frequency_Hz < 0.0) {
+        if (frequency_Hz.constant_value.has_value() && frequency_Hz.constant_value.value() < 0.0) {
             result.add_error("AC frequency cannot be negative");
-        }
-        
-        // Sweep validation
-        if (enable_voltage_sweep) {
-            if (rise_time_s <= 0.0) {
-                result.add_error("AC voltage sweep rise_time_s must be positive");
-            }
-            if (start_time_s < 0.0) {
-                result.add_error("AC voltage sweep start_time_s cannot be negative");
-            }
-        }
-        
-        if (enable_frequency_sweep) {
-            if (frequency_start_Hz < 0.0) {
-                result.add_error("AC frequency sweep start frequency cannot be negative");
-            }
-        }
-        
-        // Voltage time table validation
-        if (!voltage_time_table.empty()) {
-            for (size_t i = 1; i < voltage_time_table.size(); ++i) {
-                if (voltage_time_table[i].first <= voltage_time_table[i-1].first) {
-                    result.add_error("AC voltage_time_table must be sorted by time");
-                }
-            }
         }
         
         return result;
@@ -204,12 +170,16 @@ struct MagneticFieldConfig {
  * 
  * Aggregates DC, RF, AC, and magnetic fields.
  * Also includes precomputed field arrays (BEM/FEM results).
+ * v1.0: Includes waveform library for named waveforms.
  */
 struct FieldsConfig {
     DCFieldConfig dc;
     RFFieldConfig rf;
     ACFieldConfig ac;
     MagneticFieldConfig magnetic;
+    
+    // === Waveform library (v1.0) ===
+    std::map<std::string, Waveform> waveform_library;  ///< Named waveforms for @references
     
     // === Precomputed field arrays (BEM/FEM) ===
     

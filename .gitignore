@@ -12,6 +12,7 @@ cmake-build-*/
 *.h5
 *.log
 *.csv
+results/
 
 # IDE/Editor files
 .vscode/

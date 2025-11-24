@@ -1,23 +1,26 @@
 {
-  "title": "Ion-Molecule Reactions Example",
+  "title": "Test Inline Waveform Serialization",
+  "description": "IMS with inline waveform to test HDF5 serialization",
+  
   "simulation": {
-    "integrator": "RK4",
+    "total_time_s": 0.00001,
     "dt_s": 1e-9,
-    "total_time_s": 1e-3,
-    "write_interval": 1000
+    "integrator": "RK4",
+    "write_interval": 100
   },
+  
   "physics": {
     "collision_model": "HSS",
-    "enable_space_charge": false,
-    "enable_reactions": true
+    "enable_reactions": false,
+    "enable_space_charge": false
   },
+  
   "output": {
-    "folder": "./results/reaction_demo",
-    "trajectory_file": "reaction_demo_trajectory.h5",
+    "folder": "./results/test_inline_waveform",
+    "trajectory_file": "trajectories.h5",
     "print_progress": true
   },
-  "species_database": "../data/species_database_v1.json",
-  "reaction_database": "../data/reactions_database_v1.json",
+  
   "ions": {
     "species": [
       {
@@ -26,7 +29,7 @@
         "position": {
           "type": "gaussian",
           "center": [0.0, 0.0, 0.001],
-          "std": [0.001, 0.001, 0.0005]
+          "std": [0.0001, 0.0001, 0.0001]
         },
         "velocity": {
           "type": "thermal",
@@ -35,9 +38,10 @@
       }
     ]
   },
+  
   "domains": [
     {
-      "name": "reaction_cell",
+      "name": "test_domain",
       "instrument": "IMS",
       "geometry": {
         "origin_m": [0.0, 0.0, 0.0],
@@ -45,14 +49,20 @@
         "radius_m": 0.01
       },
       "env": {
-        "temperature_K": 300.0,
         "pressure_Pa": 101325.0,
+        "temperature_K": 300.0,
         "gas_species": "N2"
       },
       "fields": {
         "DC": {
-          "EN_Td": 0.0,
-          "axial_V": 0.0
+          "axial_V": {
+            "type": "linear",
+            "start": 0.0,
+            "end": 500.0,
+            "start_time_s": 0.0,
+            "end_time_s": 0.001,
+            "clamp": true
+          }
         }
       }
     }

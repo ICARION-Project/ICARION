@@ -1,6 +1,13 @@
 /**
  * @file hdf5Writer_v2.cpp
  * @brief Implementation of modern HDF5 writer using FullConfig
+ * 
+ * **v1.1 Improvements (Nov 2025):**
+ * - ✅ Consistent metadata hierarchy: All under /metadata/ (no root attributes)
+ * - ✅ Smart filtering: Only write species/reactions actually used in simulation
+ *   - Reduces file size for large databases (e.g., 1000+ reaction networks)
+ *   - Filters based on ion.species_id references
+ *   - Reactions filtered by reactant species presence
  */
 
 #include "hdf5Writer.h"
@@ -11,6 +18,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <set>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -46,10 +54,12 @@ void HDF5Writer::create_file(
         write_config_metadata(file, config);
         write_reproducibility_metadata(file, config, git_hash, build_info);
         write_system_metadata(file);
-        write_species_metadata(file, config.species_db);
+        
+        // Only write species/reactions actually used in this simulation
+        write_species_metadata(file, config.species_db, ions);
         
         if (config.physics.enable_reactions && !config.reaction_db.reactions.empty()) {
-            write_reactions_metadata(file, config.reaction_db);
+            write_reactions_metadata(file, config.reaction_db, ions, config.species_db);
         }
         
         // Write domains
@@ -275,7 +285,7 @@ void HDF5Writer::finalize(
         // Create completion subgroup
         H5::Group completion = meta.createGroup("completion");
         
-        write_scalar(completion, "success", success);
+        write_scalar(completion, "success", success ? 1 : 0);
         write_scalar(completion, "final_time_s", final_time);
         write_scalar(completion, "active_ions", static_cast<int>(active_ions));
         
@@ -286,19 +296,8 @@ void HDF5Writer::finalize(
         strftime(timestamp_buf, sizeof(timestamp_buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now_time));
         write_string(completion, "completion_timestamp", timestamp_buf);
         
-        // Also write as root-level attributes for backward compatibility
-        hsize_t dims[1] = {1};
-        H5::DataSpace scalar_space(1, dims);
-        
-        H5::Attribute completion_attr = file.createAttribute(
-            "simulation_completed", H5::PredType::NATIVE_HBOOL, scalar_space);
-        hbool_t completed = success;
-        completion_attr.write(H5::PredType::NATIVE_HBOOL, &completed);
-        
-        H5::Attribute active_attr = file.createAttribute(
-            "final_active_ions", H5::PredType::NATIVE_HSIZE, scalar_space);
-        hsize_t active = static_cast<hsize_t>(active_ions);
-        active_attr.write(H5::PredType::NATIVE_HSIZE, &active);
+        // Note: Root-level attributes removed in v1.1 for consistency
+        // All metadata now under /metadata/ hierarchy
         
         file.close();
         log::Logger::hdf5()->info("HDF5 file finalized");
@@ -500,36 +499,53 @@ void HDF5Writer::write_system_metadata(H5::H5File& file) {
 
 void HDF5Writer::write_species_metadata(
     H5::H5File& file,
-    const config::SpeciesDatabase& species_db
+    const config::SpeciesDatabase& species_db,
+    const std::vector<IonState>& ions
 ) {
     if (species_db.size() == 0) {
         log::Logger::hdf5()->warn("No species in database - skipping species metadata");
         return;
     }
     
+    // Collect unique species IDs from ions (only write species actually used)
+    std::set<std::string> used_species;
+    for (const auto& ion : ions) {
+        used_species.insert(ion.species_id);
+    }
+    
+    if (used_species.empty()) {
+        log::Logger::hdf5()->warn("No ions provided - skipping species metadata");
+        return;
+    }
+    
     H5::Group species_group = file.openGroup("/metadata").createGroup("species");
     
-    size_t n = species_db.size();
-    
-    // Collect data into arrays
+    // Collect data into arrays (only for used species)
     std::vector<std::string> names;
     std::vector<double> masses_kg;
     std::vector<double> charges_C;
     std::vector<double> mobilities_m2Vs;
     std::vector<double> ccs_m2;
     
-    names.reserve(n);
-    masses_kg.reserve(n);
-    charges_C.reserve(n);
-    mobilities_m2Vs.reserve(n);
-    ccs_m2.reserve(n);
-    
-    for (const auto& [name, species] : species_db.species) {
-        names.push_back(name);
+    for (const auto& species_name : used_species) {
+        auto it = species_db.species.find(species_name);
+        if (it == species_db.species.end()) {
+            log::Logger::hdf5()->warn("Ion references unknown species '{}' - skipping", species_name);
+            continue;
+        }
+        
+        const auto& species = it->second;
+        names.push_back(species_name);
         masses_kg.push_back(species.mass_kg);
         charges_C.push_back(species.charge_C);
         mobilities_m2Vs.push_back(species.mobility_m2Vs);
         ccs_m2.push_back(species.CCS_m2);
+    }
+    
+    size_t n = names.size();
+    if (n == 0) {
+        log::Logger::hdf5()->warn("No valid species found - skipping species metadata");
+        return;
     }
     
     // === Write as datasets (tabular format) ===
@@ -551,22 +567,27 @@ void HDF5Writer::write_species_metadata(
     write_array(species_group, "mobility_m2Vs", mobilities_m2Vs);
     write_array(species_group, "ccs_m2", ccs_m2);
     
-    log::Logger::hdf5()->debug("Wrote {} species to metadata", n);
+    log::Logger::hdf5()->info("Wrote {} species to metadata (filtered from {} total)", n, species_db.size());
 }
 
 void HDF5Writer::write_reactions_metadata(
     H5::H5File& file,
-    const config::ReactionDatabase& reaction_db
+    const config::ReactionDatabase& reaction_db,
+    const std::vector<IonState>& ions,
+    const config::SpeciesDatabase& species_db
 ) {
     if (reaction_db.reactions.empty()) {
         return;
     }
     
-    H5::Group rxn_group = file.openGroup("/metadata").createGroup("reactions");
+    // Collect unique species from ions
+    std::set<std::string> used_species;
+    for (const auto& ion : ions) {
+        used_species.insert(ion.species_id);
+    }
     
-    size_t n = reaction_db.reactions.size();
-    
-    // Collect data
+    // Filter reactions: only include if reactant species is present
+    // (product species may be created dynamically, so we don't filter on those)
     std::vector<std::string> ids;
     std::vector<std::string> reactant_1;
     std::vector<std::string> reactant_2;
@@ -575,13 +596,26 @@ void HDF5Writer::write_reactions_metadata(
     std::vector<int> types;
     
     for (const auto& rxn : reaction_db.reactions) {
+        // Only include reactions where reactant species is actually present
+        if (used_species.count(rxn.reactant) == 0) {
+            continue;  // Skip reactions with unused reactants
+        }
+        
         ids.push_back(rxn.id);
-        reactant_1.push_back(rxn.reactant);  // reactant is a string, not array
+        reactant_1.push_back(rxn.reactant);
         reactant_2.push_back("");  // No second reactant in current schema
-        product_1.push_back(rxn.product);  // product is a string, not array
+        product_1.push_back(rxn.product);
         rate_constants.push_back(rxn.rate_constant);
         types.push_back(2);  // Type 2 = two-body reaction (A+ + X -> B+)
     }
+    
+    size_t n = ids.size();
+    if (n == 0) {
+        log::Logger::hdf5()->info("No relevant reactions for used species - skipping reactions metadata");
+        return;
+    }
+    
+    H5::Group rxn_group = file.openGroup("/metadata").createGroup("reactions");
     
     // Write datasets
     hsize_t dims[1] = {n};
@@ -606,7 +640,7 @@ void HDF5Writer::write_reactions_metadata(
     H5::DataSet ds_type = rxn_group.createDataSet("type", H5::PredType::NATIVE_INT, space);
     ds_type.write(types.data(), H5::PredType::NATIVE_INT);
     
-    log::Logger::hdf5()->debug("Wrote {} reactions to metadata", n);
+    log::Logger::hdf5()->info("Wrote {} reactions to metadata (filtered from {} total)", n, reaction_db.reactions.size());
 }
 
 // ====================================================================

@@ -1,26 +1,27 @@
 {
   "title": "IMS with Auto-Loaded Global Databases (Fallback Demo)",
   "simulation": {
-    "integrator": "RK4",
+    "integrator": "rk4",
     "dt_s": 1e-9,
     "total_time_s": 1e-4,
     "write_interval": 100
   },
   "physics": {
-    "collision_model": "HSS",
-    "enable_space_charge": false,
-    "enable_reactions": true
+    "collision_model": "hs",
+    "enable_spacecharge": false,
+    "enable_reactions": true,
+    "enable_diffusion": true
   },
   "output": {
-    "folder": "./results/ims_fallback",
     "trajectory_file": "ims_fallback_trajectory.h5",
-    "print_progress": true
+    "format": "hdf5",
+    "compress": true
   },
-  "ions": {
+   "ions": {
     "species": [
       {
         "id": "H3O+",
-        "count": 10,
+        "count": 100,
         "position": {
           "type": "gaussian",
           "center": [0.0, 0.0, 0.001],
@@ -45,12 +46,11 @@
       "env": {
         "temperature_K": 300.0,
         "pressure_Pa": 101325.0,
-        "gas_species": "N2"
+        "gas": "N2"
       },
-      "fields": {
-        "DC": {
-          "axial_V": 100.0
-        }
+      "efield": {
+        "mode": "uniform",
+        "uniform_field_Vm": [500.0, 0.0, 0.0]
       }
     }
   ]

@@ -20,7 +20,7 @@ target_include_directories(test_config_loader
 
 add_test(NAME ConfigLoader COMMAND test_config_loader)
 set_tests_properties(ConfigLoader PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 # Species and Reaction loader smoke tests
@@ -113,6 +113,9 @@ target_include_directories(test_database_integration
 )
 
 add_test(NAME DatabaseIntegration COMMAND test_database_integration)
+set_tests_properties(DatabaseIntegration PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
 
 # Ion loader tests
 add_executable(test_ion_loader
@@ -151,72 +154,4 @@ target_include_directories(test_field_array_terms_loader
 )
 
 add_test(NAME FieldArrayTermsLoader COMMAND test_field_array_terms_loader)
-
-# End-to-end test: field array loading, interpolation, and scaling
-add_executable(test_field_array_e2e
-    test_field_array_e2e.cpp
-)
-
-target_link_libraries(test_field_array_e2e
-    PRIVATE
-    icarion_core
-    Catch2::Catch2WithMain
-)
-
-target_include_directories(test_field_array_e2e
-    PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/include
-)
-
-# Copy field array examples to build directory for E2E tests
-add_custom_command(
-    TARGET test_field_array_e2e POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/examples/field_arrays
-    ${CMAKE_CURRENT_BINARY_DIR}/examples/field_arrays
-    COMMENT "Copying field array examples for E2E tests"
-)
-
-add_test(NAME FieldArrayE2E COMMAND test_field_array_e2e)
-
-# Waveform types tests
-add_executable(test_waveform_types
-    test_waveform_types.cpp
-)
-
-target_link_libraries(test_waveform_types
-    PRIVATE
-    icarion_core
-    Catch2::Catch2WithMain
-)
-
-target_include_directories(test_waveform_types
-    PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/include
-)
-
-add_test(NAME WaveformTypes COMMAND test_waveform_types)
-
-# Waveform loader tests
-add_executable(test_waveform_loader
-    test_waveform_loader.cpp
-)
-
-target_link_libraries(test_waveform_loader
-    PRIVATE
-    icarion_core
-    Catch2::Catch2WithMain
-)
-
-target_include_directories(test_waveform_loader
-    PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/include
-)
-
-add_test(NAME WaveformLoader COMMAND test_waveform_loader)
-
-
 

@@ -48,3 +48,24 @@ set_tests_properties(ChargeDeposition PROPERTIES
     LABELS "physics;spacecharge;deposition"
     TIMEOUT 30
 )
+
+# Test executable for space charge integration (CIC + Poisson + Forces)
+add_executable(test_space_charge_integration
+    test_space_charge_integration.cpp
+)
+
+target_include_directories(test_space_charge_integration PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_space_charge_integration PRIVATE
+    Catch2::Catch2WithMain
+    icarion_core
+)
+
+add_test(NAME SpaceChargeIntegration COMMAND test_space_charge_integration)
+set_tests_properties(SpaceChargeIntegration PROPERTIES
+    LABELS "physics;spacecharge;integration"
+    TIMEOUT 60
+)

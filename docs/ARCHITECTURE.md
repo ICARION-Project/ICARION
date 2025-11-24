@@ -402,11 +402,28 @@ struct ForceContext {
 
 ### ForceRegistry (Composite Pattern)
 
+**Phase 12 Enhancement:** ForceRegistry now stores domain configuration internally.
+
 Manages multiple forces and computes total force via superposition:
 
 ```cpp
 class ForceRegistry : public IForce {
 public:
+    /**
+     * @brief Construct registry (empty, no domain) [DEPRECATED]
+     * @deprecated Use ForceRegistry(const config::DomainConfig&) instead
+     */
+    ForceRegistry() = default;
+    
+    /**
+     * @brief Construct registry with domain context (RECOMMENDED)
+     * @param domain Domain configuration (geometry, fields, environment)
+     * 
+     * Phase 12 enhancement: Registry stores domain reference internally.
+     * This eliminates need to pass domain through integration methods.
+     */
+    explicit ForceRegistry(const config::DomainConfig& domain);
+    
     /**
      * @brief Add a force to the registry
      * 
@@ -420,6 +437,14 @@ public:
      * F_total = F1 + F2 + F3 + ... (superposition)
      */
     Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
+    
+    /**
+     * @brief Get domain configuration (if available)
+     * @return Pointer to domain config, or nullptr if not set
+     * 
+     * Phase 12: Allows forces and integrators to access domain context.
+     */
+    const config::DomainConfig* domain() const;
     
     /**
      * @brief Clear all forces
@@ -443,8 +468,15 @@ public:
     
 private:
     std::vector<std::unique_ptr<IForce>> forces_;
+    const config::DomainConfig* domain_ = nullptr;  // Non-owning pointer (Phase 12)
 };
 ```
+
+**Benefits of Domain-Aware ForceRegistry (Phase 12):**
+- ✅ Better SSOT compliance (domain stored once, not passed through methods)
+- ✅ Cleaner method signatures (fewer parameters to pass)
+- ✅ Multi-domain support (each domain has its own registry)
+- ✅ Forces can access domain context without parameter pollution
 
 ### Implemented Force Types
 

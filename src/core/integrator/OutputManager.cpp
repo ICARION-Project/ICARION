@@ -45,12 +45,31 @@ OutputManager::OutputManager(
 }
 
 OutputManager::~OutputManager() {
-    // Ensure final flush on destruction (if not finalized)
-    if (!times_buffer_.empty()) {
+    // Ensure cleanup even if finalize() was never called (crash/exception)
+    if (initialized_ && !finalized_ && total_writes_ > 0) {
         try {
-            flush();
+            // Flush any remaining buffered data
+            if (!times_buffer_.empty()) {
+                flush();
+            }
+            
+            // Write incomplete simulation metadata
+            // Only if we actually wrote trajectory data (total_writes_ > 0)
+            try {
+                io::HDF5Writer::finalize(
+                    hdf5_filename_,
+                    false,      // success = false (incomplete)
+                    last_time_, // last known time
+                    0           // active_ions unknown (set to 0)
+                );
+            } catch (const std::exception& finalize_err) {
+                // Silently ignore - HDF5 file may not be in writable state
+                // This is acceptable since we're in destructor cleanup
+            }
+            
+            // Note: Text log may be incomplete, but that's acceptable
         } catch (const std::exception& e) {
-            std::cerr << "Warning: OutputManager destructor failed to flush: " 
+            std::cerr << "Warning: OutputManager destructor cleanup failed: " 
                       << e.what() << std::endl;
         }
     }
@@ -106,6 +125,9 @@ void OutputManager::log_step(double t, const std::vector<IonState>& ions) {
     if (!initialized_) {
         throw std::runtime_error("OutputManager: Not initialized (call initialize() first)");
     }
+    
+    // Track last time for incomplete metadata (if simulation crashes)
+    last_time_ = t;
     
     // Check if flush needed BEFORE adding (allows buffer to fill to buffer_max)
     if (should_write_before_add(t)) {
@@ -259,6 +281,7 @@ void OutputManager::finalize(double t_final, const std::vector<IonState>& final_
         }
     }
     
+    finalized_ = true;
     initialized_ = false;
 }
 

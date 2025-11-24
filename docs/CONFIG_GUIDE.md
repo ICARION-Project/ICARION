@@ -862,7 +862,9 @@ python schema/validate_config.py --reaction-db my_reactions.json
 
 ```json
 "physics": {
-  "collision_model": "HSS",            // Collision model
+  "collision_model": "HSS",            // Collision model (required)
+  "enable_reactions": false,           // Enable chemical reactions
+  "enable_space_charge": false,        // Enable Coulomb forces between ions
   "enable_ou_thermalization": false,   // Enable Ornstein-Uhlenbeck thermalization
   "force_ou_for_stochastic": false     // Force OU for stochastic models
 }
@@ -879,6 +881,15 @@ python schema/validate_config.py --reaction-db my_reactions.json
 - `"HSS"` - Hard Sphere Stochastic  
 - `"EHSS"` - Exact Hard Sphere Scattering (recommended for low pressures)
 
+**Feature Flags:**
+
+- **`enable_reactions`**: Enable stochastic chemical reactions (requires `reaction_database`)
+- **`enable_space_charge`**: Enable Coulomb (space charge) forces between ions
+  - **N < 1000**: Direct N-body summation (exact, O(N²))
+  - **N ≥ 1000**: Grid-based Poisson solver (fast, O(N log N))
+  - Auto-selects method based on ion count
+- **`enable_ou_thermalization`**: Apply Ornstein-Uhlenbeck velocity kicks for thermalization
+- **`force_ou_for_stochastic`**: Force OU thermalization even for stochastic collision models
 
 ### Output Section
 

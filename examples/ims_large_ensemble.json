@@ -5,8 +5,6 @@
     "write_interval": 5000,
     "integrator": "RK4",
     "enable_gpu": true,
-    "enable_reactions": false,
-    "enable_space_charge": true,
     "rng_seed": 42
   },
   "physics": {

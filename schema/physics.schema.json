@@ -12,6 +12,18 @@
       "description": "Collision model selector"
     },
     
+    "enable_reactions": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable stochastic chemical reactions"
+    },
+    
+    "enable_space_charge": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable space-charge (Coulomb) forces between ions"
+    },
+    
     "enable_ou_thermalization": {
       "type": "boolean",
       "default": false,

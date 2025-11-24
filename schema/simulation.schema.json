@@ -28,18 +28,6 @@
       "description": "Choice of integrator algorithm"
     },
     
-    "enable_reactions": {
-      "type": "boolean",
-      "default": false,
-      "description": "Enable stochastic chemical reactions on CPU"
-    },
-    
-    "enable_space_charge": {
-      "type": "boolean",
-      "default": false,
-      "description": "Enable space-charge effects"
-    },
-    
     "enable_gpu": {
       "type": "boolean",
       "default": false,

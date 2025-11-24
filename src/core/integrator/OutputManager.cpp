@@ -143,6 +143,9 @@ void OutputManager::flush() {
         return;  // Nothing to flush
     }
     
+    // Store last time before clearing buffer (for drift-free next_write_time_)
+    double last_flushed_time = times_buffer_.back();
+    
     try {
         // Write buffered snapshots using HDF5Writer static methods
         for (size_t i = 0; i < times_buffer_.size(); ++i) {
@@ -157,8 +160,9 @@ void OutputManager::flush() {
         times_buffer_.clear();
         trajectory_buffer_.clear();
         
-        // Update next write time
-        next_write_time_ += write_interval_dt_;
+        // Update next write time (avoid drift with adaptive timesteps)
+        // Use last flushed time as anchor, not incremental addition
+        next_write_time_ = last_flushed_time + write_interval_dt_;
         total_writes_++;
         
     } catch (const std::exception& e) {

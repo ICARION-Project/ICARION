@@ -43,6 +43,16 @@ namespace integrator {
  * - Periodic flush to HDF5 (time-based or buffer-full)
  * - Reduces I/O overhead for long simulations
  * 
+ * **Memory Usage Warning:**
+ * Current implementation stores full IonState vectors in RAM.
+ * For large ensembles (>100k ions), this can consume significant memory.
+ * 
+ * TODO(v1.1): Implement memory-efficient output modes:
+ * - positions_only mode (skip velocity, skip inactive ions)
+ * - reduced_precision mode (float instead of double)
+ * - sparse_logging mode (log every N-th ion)
+ * - streaming mode (extendible datasets, no buffering)
+ * 
  * **Text Logging (optional):**
  * - Progress messages ("50% completed")
  * - Ion statistics (active/lost counts)

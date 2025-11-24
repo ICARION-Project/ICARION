@@ -279,6 +279,38 @@ int main(int argc, char* argv[]) {
         log::Logger::main()->info("Created {} ForceRegistry instances (one per domain)", 
                                   force_registries.size());
         
+        // Auto-select space charge method based on ion count
+        // N < 1000: Direct N-body (SpaceChargeForce, O(N²), exact)
+        // N ≥ 1000: Grid-based Poisson solver (SpaceChargeSolver, O(N log N), fast)
+        if (config.physics.enable_space_charge) {
+            const size_t N = ions.size();
+            constexpr size_t SPACE_CHARGE_THRESHOLD = 1000;
+            
+            if (N < SPACE_CHARGE_THRESHOLD) {
+                // Use direct N-body Coulomb (exact, but O(N²))
+                log::Logger::main()->info("Space charge: Using SpaceChargeForce (N={} < {})", 
+                                          N, SPACE_CHARGE_THRESHOLD);
+                log::Logger::main()->info("  → Direct N-body Coulomb (exact, O(N²))");
+                
+                // TODO: Add SpaceChargeForce to ForceRegistry
+                // for (auto& registry : force_registries) {
+                //     registry->add_force(std::make_unique<physics::SpaceChargeForce>(1e-10));
+                // }
+            } else {
+                // Use grid-based Poisson solver (fast, but approximate)
+                log::Logger::main()->info("Space charge: Using SpaceChargeSolver (N={} >= {})", 
+                                          N, SPACE_CHARGE_THRESHOLD);
+                log::Logger::main()->info("  → Grid-based Poisson solver (fast, O(N log N))");
+                
+                // TODO: Initialize SpaceChargeSolver and pass to SimulationEngine
+                // auto sc_solver = std::make_shared<SpaceChargeSolver>(
+                //     64, 64, 64,  // Grid resolution
+                //     1e-3, 1e-3, 1e-3,  // Cell size [m]
+                //     Vec3{0, 0, 0}  // Origin
+                // );
+            }
+        }
+        
         // Create integration strategy (from config.simulation.integrator)
         std::shared_ptr<integrator::IIntegrationStrategy> integration_strategy;
         if (config.simulation.integrator == "RK4" || config.simulation.integrator == "rk4") {

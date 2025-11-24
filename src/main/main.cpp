@@ -271,8 +271,13 @@ int main(int argc, char* argv[]) {
         // === 5. Create physics dependencies ===
         log::Logger::main()->info("Initializing physics modules");
         
-        // Create ForceRegistry (empty, will be populated by SimulationEngine)
-        auto force_registry = std::make_shared<physics::ForceRegistry>();
+        // Create ForceRegistry for each domain (Phase 12 enhancement)
+        std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries;
+        for (const auto& domain : config.domains) {
+            force_registries.push_back(std::make_shared<physics::ForceRegistry>(domain));
+        }
+        log::Logger::main()->info("Created {} ForceRegistry instances (one per domain)", 
+                                  force_registries.size());
         
         // Create integration strategy (from config.simulation.integrator)
         std::shared_ptr<integrator::IIntegrationStrategy> integration_strategy;
@@ -305,7 +310,7 @@ int main(int argc, char* argv[]) {
         
         integrator::SimulationEngine engine(
             config,
-            force_registry,
+            force_registries,  // Vector of registries (one per domain)
             integration_strategy,
             collision_handler,
             reaction_handler

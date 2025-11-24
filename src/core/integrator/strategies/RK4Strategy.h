@@ -97,7 +97,7 @@ public:
      * - Typical safe choice: dt ~ T_oscillation / 20
      * 
      * **Thread Safety:**
-     * - Read-only access to force_registry, domain, all_ions
+     * - Read-only access to force_registry, all_ions
      * - Modifies only `ion` parameter
      * - Can parallelize over multiple ions (no shared state)
      */
@@ -106,7 +106,6 @@ public:
         double t,
         double dt,
         const physics::ForceRegistry& force_registry,
-        const config::DomainConfig& domain,
         const std::vector<IonState>& all_ions
     ) override;
     

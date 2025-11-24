@@ -20,19 +20,32 @@ namespace integrator {
 
 SimulationEngine::SimulationEngine(
     const config::FullConfig& config,
-    std::shared_ptr<physics::ForceRegistry> force_registry,
+    std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries,
     std::shared_ptr<IIntegrationStrategy> integrator,
     std::shared_ptr<physics::ICollisionHandler> collision_handler,
     std::shared_ptr<physics::IReactionHandler> reaction_handler
 ) : config_(config),
-    force_registry_(force_registry),
+    force_registries_(std::move(force_registries)),
     integrator_(integrator),
     collision_handler_(collision_handler),
     reaction_handler_(reaction_handler)
 {
-    if (!force_registry_) {
-        throw std::invalid_argument("SimulationEngine: ForceRegistry cannot be null");
+    // Validate force registries (must have one per domain)
+    if (force_registries_.size() != config_.domains.size()) {
+        throw std::invalid_argument(
+            "SimulationEngine: force_registries size (" + std::to_string(force_registries_.size()) + 
+            ") must match domains size (" + std::to_string(config_.domains.size()) + ")"
+        );
     }
+    
+    for (size_t i = 0; i < force_registries_.size(); ++i) {
+        if (!force_registries_[i]) {
+            throw std::invalid_argument(
+                "SimulationEngine: ForceRegistry[" + std::to_string(i) + "] cannot be null"
+            );
+        }
+    }
+    
     if (!integrator_) {
         throw std::invalid_argument("SimulationEngine: IntegrationStrategy cannot be null");
     }
@@ -187,22 +200,26 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             vel_local = ion_local.vel;
         }
         
-        // 6. Compute forces (ForceRegistry)
+        // 6. Get domain-specific ForceRegistry
+        const auto& force_registry = force_registries_[domain_idx];
+        
+        // 7. Compute forces (ForceRegistry with domain context)
         IonState ion_local = ion;
         ion_local.pos = pos_local;
         ion_local.vel = vel_local;
         
         physics::ForceContext ctx;  // TODO: Populate with field provider
-        Vec3 total_force = force_registry_->compute_total_force(ion_local, current_time_, ctx);
+        Vec3 total_force = force_registry->compute_total_force(ion_local, current_time_, ctx);
         
-        // 7. Integrate trajectory (IIntegrationStrategy)
+        // 8. Integrate trajectory (IIntegrationStrategy)
         // Note: IIntegrationStrategy::step() computes forces internally via ForceRegistry
-        integrator_->step(ion_local, current_time_, dt, *force_registry_, domain_config, ions);
+        // ForceRegistry now knows its domain, so we don't need to pass domain_config
+        integrator_->step(ion_local, current_time_, dt, *force_registry, ions);
         
         pos_local = ion_local.pos;
         vel_local = ion_local.vel;
         
-        // 8. Check if ion left domain (boundary collision detection)
+        // 9. Check if ion left domain (boundary collision detection)
         Vec3 pos_after = pos_local;
         
         // First check aperture crossing (domain exit at z=length_m)

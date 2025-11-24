@@ -133,7 +133,7 @@ public:
      * - Typical safety: dt < 0.1 * T_cyclotron
      * 
      * **Thread Safety:**
-     * - Read-only access to force_registry, domain, all_ions
+     * - Read-only access to force_registry, all_ions
      * - Modifies only `ion` parameter
      * - Can parallelize over ions (no shared state)
      */
@@ -142,7 +142,6 @@ public:
         double t,
         double dt,
         const physics::ForceRegistry& force_registry,
-        const config::DomainConfig& domain,
         const std::vector<IonState>& all_ions
     ) override;
     

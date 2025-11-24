@@ -114,7 +114,11 @@ TEST_CASE("Main integration: Complete simulation pipeline", "[integration][main]
         size_t initial_count = ions.size();
         
         // Create physics modules (same as main.cpp)
-        auto force_registry = std::make_shared<ForceRegistry>();
+        // Phase 12: Create ForceRegistry for each domain
+        std::vector<std::shared_ptr<ForceRegistry>> force_registries;
+        for (const auto& domain : config.domains) {
+            force_registries.push_back(std::make_shared<ForceRegistry>(domain));
+        }
         
         std::shared_ptr<IIntegrationStrategy> integration_strategy;
         if (config.simulation.integrator == "RK4" || config.simulation.integrator == "rk4") {
@@ -131,7 +135,7 @@ TEST_CASE("Main integration: Complete simulation pipeline", "[integration][main]
         // Create SimulationEngine
         SimulationEngine engine(
             config,
-            force_registry,
+            force_registries,  // Vector of registries (one per domain)
             integration_strategy,
             collision_handler,
             reaction_handler

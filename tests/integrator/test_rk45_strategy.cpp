@@ -155,7 +155,7 @@ TEST_CASE("RK45Strategy: Free fall with adaptive timestep", "[integrator][rk45]"
     ion.pos = Vec3{0, 0, 100};  // Start at 100 m height
     ion.vel = Vec3{0, 0, 0};    // Zero initial velocity
     
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<ConstantGravityForce>(9.81));
     
     std::vector<IonState> all_ions = {ion};
@@ -173,7 +173,7 @@ TEST_CASE("RK45Strategy: Free fall with adaptive timestep", "[integrator][rk45]"
     while (t < t_final) {
         double dt_step = std::min(dt, t_final - t);
         double dt_used = dt_step;  // Save before step_adaptive modifies it
-        strategy.step_adaptive(ion, t, dt_step, forces, domain, all_ions);
+        strategy.step_adaptive(ion, t, dt_step, forces, all_ions);
         t += dt_used;  // Use the dt we actually stepped with
         dt = dt_step;  // Get suggested dt for next step
     }
@@ -208,7 +208,7 @@ TEST_CASE("RK45Strategy: Harmonic oscillator with adaptive timestep", "[integrat
     ion.pos = Vec3{A, 0, 0};     // x0 = A
     ion.vel = Vec3{0, 0, 0};     // v0 = 0
     
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<HarmonicOscillatorForce>(k));
     
     std::vector<IonState> all_ions = {ion};
@@ -227,7 +227,7 @@ TEST_CASE("RK45Strategy: Harmonic oscillator with adaptive timestep", "[integrat
     int steps = 0;
     while (t < t_final && steps < 10000) {
         double dt_step = std::min(dt, t_final - t);
-        strategy.step(ion, t, dt_step, forces, domain, all_ions);
+        strategy.step(ion, t, dt_step, forces, all_ions);
         t += dt_step;
         dt = dt_step;
         steps++;
@@ -261,7 +261,7 @@ TEST_CASE("RK45Strategy: Exponential decay with error control", "[integrator][rk
     ion.pos = Vec3{0, 0, 0};
     ion.vel = Vec3{v0, 0, 0};
     
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<ExponentialDampingForce>(gamma));
     
     std::vector<IonState> all_ions = {ion};
@@ -280,7 +280,7 @@ TEST_CASE("RK45Strategy: Exponential decay with error control", "[integrator][rk
     while (t < t_final && steps < 10000) {
         double dt_step = std::min(dt, t_final - t);
         double dt_used = dt_step;
-        strategy.step_adaptive(ion, t, dt_step, forces, domain, all_ions);
+        strategy.step_adaptive(ion, t, dt_step, forces, all_ions);
         t += dt_used;
         dt = dt_step;
         steps++;
@@ -308,7 +308,7 @@ TEST_CASE("RK45Strategy: Convergence order verification", "[integrator][rk45][co
     double omega = 1.0;
     double k = omega * omega;
     
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<HarmonicOscillatorForce>(k));
     
     std::vector<IonState> all_ions;
@@ -335,7 +335,7 @@ TEST_CASE("RK45Strategy: Convergence order verification", "[integrator][rk45][co
         while (t < t_final) {
             double dt_step = std::min(dt, t_final - t);
             double dt_used = dt_step;
-            strategy.step_adaptive(ion, t, dt_step, forces, domain, all_ions);
+            strategy.step_adaptive(ion, t, dt_step, forces, all_ions);
             t += dt_used;
             dt = dt_step;
         }
@@ -369,7 +369,7 @@ TEST_CASE("RK45Strategy: Step rejection with tight tolerance", "[integrator][rk4
     double omega = 10.0;  // Fast oscillation
     double k = omega * omega;
     
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<HarmonicOscillatorForce>(k));
     
     std::vector<IonState> all_ions = {ion};
@@ -385,7 +385,7 @@ TEST_CASE("RK45Strategy: Step rejection with tight tolerance", "[integrator][rk4
     // Take a few steps
     for (int i = 0; i < 5; ++i) {
         double dt_used = dt;
-        strategy.step_adaptive(ion, t, dt, forces, domain, all_ions);
+        strategy.step_adaptive(ion, t, dt, forces, all_ions);
         t += dt_used;
     }
     
@@ -412,7 +412,7 @@ TEST_CASE("RK45Strategy: FSAL optimization", "[integrator][rk45][performance]") 
     ion1.vel = Vec3{0, 1.0, 0};
     ion2 = ion1;
     
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<HarmonicOscillatorForce>(1.0));
     
     std::vector<IonState> all_ions;
@@ -429,11 +429,11 @@ TEST_CASE("RK45Strategy: FSAL optimization", "[integrator][rk45][performance]") 
     double dt2 = 0.01;
     
     // Take two steps with each strategy
-    strategy1.step_adaptive(ion1, t, dt1, forces, domain, all_ions);
-    strategy1.step_adaptive(ion1, t + dt1, dt1, forces, domain, all_ions);
+    strategy1.step_adaptive(ion1, t, dt1, forces, all_ions);
+    strategy1.step_adaptive(ion1, t + dt1, dt1, forces, all_ions);
     
-    strategy2.step_adaptive(ion2, t, dt2, forces, domain, all_ions);
-    strategy2.step_adaptive(ion2, t + dt2, dt2, forces, domain, all_ions);
+    strategy2.step_adaptive(ion2, t, dt2, forces, all_ions);
+    strategy2.step_adaptive(ion2, t + dt2, dt2, forces, all_ions);
     
     // Results should be identical (FSAL property ensures consistency)
     REQUIRE_THAT(ion1.pos.x, WithinAbs(ion2.pos.x, 1e-12));
@@ -453,7 +453,7 @@ TEST_CASE("RK45Strategy: Statistics collection", "[integrator][rk45][stats]") {
     ion.pos = Vec3{1.0, 0, 0};
     ion.vel = Vec3{0, 0, 0};
     
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<HarmonicOscillatorForce>(1.0));
     
     std::vector<IonState> all_ions = {ion};
@@ -467,7 +467,7 @@ TEST_CASE("RK45Strategy: Statistics collection", "[integrator][rk45][stats]") {
     // Take 10 steps
     for (int i = 0; i < 10; ++i) {
         double dt_used = dt;
-        strategy.step_adaptive(ion, t, dt, forces, domain, all_ions);
+        strategy.step_adaptive(ion, t, dt, forces, all_ions);
         t += dt_used;
     }
     

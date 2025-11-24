@@ -1060,18 +1060,6 @@ auto final_ions = engine.run(ions);
 // Output automatically written to HDF5 file
 ```
 
-### Benefits vs. Legacy `integrate_trajectory()`
-
-| **Aspect** | **Legacy** | **SimulationEngine** |
-|-----------|-----------|---------------------|
-| Lines of code | ~1200 | ~400 |
-| Parameter passing | 12 parameters | 1 (FullConfig) |
-| SSOT compliance | ❌ (GlobalParams duplication) | ✅ (FullConfig reference) |
-| Testability | ❌ (global state) | ✅ (dependency injection) |
-| Modularity | ❌ (monolithic) | ✅ (pluggable components) |
-| Output management | Inline HDF5 calls | OutputManager |
-| Domain management | Inline logic | DomainManager |
-
 ### Ion-Based RNG (Phase 12 Enhancement)
 
 **Problem:** Thread-local RNG (seeded with thread_id) makes results dependent on OpenMP scheduling.
@@ -1105,7 +1093,7 @@ for (int i = 0; i < n_ions; ++i) {
 - Same ion always sees same random sequence
 - Thread-safe (each thread accesses different ion RNG)
 
-**Status:** ✅ Implemented (Nov 2025)
+**Status:** Implemented (Nov 2025)
 
 ### Files
 
@@ -1117,7 +1105,7 @@ for (int i = 0; i < n_ions; ++i) {
 - `tests/integrator/test_simulation_engine.cpp` (unit tests)
 - 10 test cases, 45+ assertions
 
-**Status:** ✅ Production-ready (Phase 5A complete, Nov 2025)
+**Status:** Production-ready (Phase 5A complete, Nov 2025)
 
 ---
 
@@ -1277,7 +1265,7 @@ manager.finalize(t_end, ions);
 - `tests/integrator/test_output_manager.cpp`
 - 8 test cases, 30+ assertions
 
-**Status:** ✅ Production-ready (Phase 5A complete, Nov 2025)
+**Status:** Production-ready (Phase 5A complete, Nov 2025)
 
 ---
 

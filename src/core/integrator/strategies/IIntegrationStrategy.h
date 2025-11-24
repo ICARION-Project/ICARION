@@ -77,14 +77,13 @@ public:
      *            Updated in-place with new position/velocity
      * @param t Current simulation time [s]
      * @param dt Timestep size [s]
-     * @param force_registry Force computation engine
-     * @param domain Domain configuration (fields, boundaries, environment)
+     * @param force_registry Force computation engine (knows its domain via domain() method)
      * @param all_ions All ion states at current time (for space charge)
      * 
-     * **SSOT Compliance:**
-     * - `domain`: const DomainConfig& (not GlobalParams!)
-     * - `force_registry`: Uses ForceRegistry (not compute_accelerations()!)
-     * - No parameter duplication
+     * **SSOT Compliance (Phase 12 Enhancement):**
+     * - `force_registry`: ForceRegistry now stores DomainConfig internally
+     * - No need to pass domain separately (eliminates parameter duplication!)
+     * - Domain accessible via force_registry.domain() if needed
      * 
      * **Responsibilities:**
      * - Compute intermediate stages (k1, k2, ... for RK methods)
@@ -98,7 +97,7 @@ public:
      * - Output writing (handled by OutputManager)
      * 
      * **Thread Safety:**
-     * - Read-only access to domain, force_registry, all_ions
+     * - Read-only access to force_registry, all_ions
      * - Modifies only `ion` parameter (caller must ensure thread safety)
      */
     virtual void step(
@@ -106,7 +105,6 @@ public:
         double t,
         double dt,
         const physics::ForceRegistry& force_registry,
-        const config::DomainConfig& domain,
         const std::vector<IonState>& all_ions
     ) = 0;
     

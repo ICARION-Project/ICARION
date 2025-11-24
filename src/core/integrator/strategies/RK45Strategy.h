@@ -137,7 +137,6 @@ public:
      * @param t Current time [s]
      * @param dt Timestep [s] (fixed from config)
      * @param force_registry Force computation engine
-     * @param domain Domain configuration (SSOT!)
      * @param all_ions All ions (for space charge)
      * 
      * This overrides the base interface with fixed dt.
@@ -148,7 +147,6 @@ public:
         double t,
         double dt,
         const physics::ForceRegistry& force_registry,
-        const config::DomainConfig& domain,
         const std::vector<IonState>& all_ions
     ) override;
     
@@ -199,7 +197,6 @@ public:
         double t,
         double& dt_inout,
         const physics::ForceRegistry& force_registry,
-        const config::DomainConfig& domain,
         const std::vector<IonState>& all_ions
     );
     
@@ -248,7 +245,6 @@ private:
         const IonState& ion,
         double t,
         const physics::ForceRegistry& force_registry,
-        const config::DomainConfig& domain,
         const std::vector<IonState>& all_ions
     );
     

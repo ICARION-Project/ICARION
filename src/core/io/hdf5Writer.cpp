@@ -13,6 +13,7 @@
 #include "hdf5Writer.h"
 #include "core/log/Logger.h"
 #include "core/config/conversion/EnumMapper.h"
+#include "core/config/types/WaveformConfig.h"
 #include "core/utils/hash.h"
 #include <chrono>
 #include <fstream>
@@ -693,29 +694,40 @@ void HDF5Writer::write_domain(
     // === Fields ===
     H5::Group fields = dom_group.createGroup("fields");
     
+    // Waveform library (v1.1: store for reproducibility)
+    if (!domain.fields.waveform_library.empty()) {
+        H5::Group waveform_group = fields.createGroup("waveforms");
+        write_waveform_library(waveform_group, domain.fields.waveform_library);
+    }
+    
+    // Helper lambda to safely extract t=0 value (returns 0.0 if not set)
+    auto get_t0_value = [&](const config::ValueOrWaveform& vow) -> double {
+        if (vow.constant_value.has_value()) {
+            return vow.constant_value.value();
+        }
+        try {
+            return vow.evaluate(0.0, domain.fields.waveform_library);
+        } catch (...) {
+            return 0.0;  // Field not configured
+        }
+    };
+    
     // DC (v1.0: write static value or t=0 evaluation)
     H5::Group dc = fields.createGroup("dc");
-    write_scalar(dc, "axial_V", domain.fields.dc.axial_V.constant_value.value_or(
-        domain.fields.dc.axial_V.evaluate(0.0, domain.fields.waveform_library)));
-    write_scalar(dc, "EN_Td", domain.fields.dc.EN_Td.constant_value.value_or(
-        domain.fields.dc.EN_Td.evaluate(0.0, domain.fields.waveform_library)));
-    write_scalar(dc, "quad_V", domain.fields.dc.quad_V.constant_value.value_or(
-        domain.fields.dc.quad_V.evaluate(0.0, domain.fields.waveform_library)));
+    write_scalar(dc, "axial_V", get_t0_value(domain.fields.dc.axial_V));
+    write_scalar(dc, "EN_Td", get_t0_value(domain.fields.dc.EN_Td));
+    write_scalar(dc, "quad_V", get_t0_value(domain.fields.dc.quad_V));
     
     // RF (v1.0: write static value or t=0 evaluation)
     H5::Group rf = fields.createGroup("rf");
-    write_scalar(rf, "voltage_V", domain.fields.rf.voltage_V.constant_value.value_or(
-        domain.fields.rf.voltage_V.evaluate(0.0, domain.fields.waveform_library)));
-    write_scalar(rf, "frequency_Hz", domain.fields.rf.frequency_Hz.constant_value.value_or(
-        domain.fields.rf.frequency_Hz.evaluate(0.0, domain.fields.waveform_library)));
+    write_scalar(rf, "voltage_V", get_t0_value(domain.fields.rf.voltage_V));
+    write_scalar(rf, "frequency_Hz", get_t0_value(domain.fields.rf.frequency_Hz));
     write_scalar(rf, "phase_rad", domain.fields.rf.phase_rad);
     
     // AC (v1.0: write static value or t=0 evaluation)
     H5::Group ac = fields.createGroup("ac");
-    write_scalar(ac, "voltage_V", domain.fields.ac.voltage_V.constant_value.value_or(
-        domain.fields.ac.voltage_V.evaluate(0.0, domain.fields.waveform_library)));
-    write_scalar(ac, "frequency_Hz", domain.fields.ac.frequency_Hz.constant_value.value_or(
-        domain.fields.ac.frequency_Hz.evaluate(0.0, domain.fields.waveform_library)));
+    write_scalar(ac, "voltage_V", get_t0_value(domain.fields.ac.voltage_V));
+    write_scalar(ac, "frequency_Hz", get_t0_value(domain.fields.ac.frequency_Hz));
 }
 
 // ====================================================================
@@ -840,6 +852,75 @@ void HDF5Writer::write_array(H5::Group& group, const std::string& name, const st
 void HDF5Writer::write_vec3(H5::Group& group, const std::string& name, const Vec3& vec) {
     std::vector<double> data = {vec.x, vec.y, vec.z};
     write_array(group, name, data);
+}
+
+void HDF5Writer::write_waveform_library(
+    H5::Group& parent,
+    const std::map<std::string, config::Waveform>& library
+) {
+    for (const auto& [name, waveform] : library) {
+        write_waveform(parent, name, waveform);
+    }
+    log::Logger::hdf5()->debug("Wrote {} waveforms to library", library.size());
+}
+
+void HDF5Writer::write_waveform(
+    H5::Group& parent,
+    const std::string& name,
+    const config::Waveform& waveform
+) {
+    H5::Group wf_group = parent.createGroup(name);
+    
+    std::visit([&](const auto& w) {
+        using T = std::decay_t<decltype(w)>;
+        
+        if constexpr (std::is_same_v<T, config::ConstantWaveform>) {
+            write_string(wf_group, "type", "constant");
+            write_scalar(wf_group, "value", w.value);
+        }
+        else if constexpr (std::is_same_v<T, config::LinearWaveform>) {
+            write_string(wf_group, "type", "linear");
+            write_scalar(wf_group, "start_value", w.start_value);
+            write_scalar(wf_group, "end_value", w.end_value);
+            write_scalar(wf_group, "start_time_s", w.start_time_s);
+            write_scalar(wf_group, "end_time_s", w.end_time_s);
+            write_scalar(wf_group, "clamp", w.clamp);
+        }
+        else if constexpr (std::is_same_v<T, config::QuadraticWaveform>) {
+            write_string(wf_group, "type", "quadratic");
+            write_scalar(wf_group, "a", w.a);
+            write_scalar(wf_group, "b", w.b);
+            write_scalar(wf_group, "c", w.c);
+            write_scalar(wf_group, "start_time_s", w.start_time_s);
+            write_scalar(wf_group, "end_time_s", w.end_time_s);
+        }
+        else if constexpr (std::is_same_v<T, config::SinusoidalWaveform>) {
+            write_string(wf_group, "type", "sinusoidal");
+            write_scalar(wf_group, "offset", w.offset);
+            write_scalar(wf_group, "amplitude", w.amplitude);
+            write_scalar(wf_group, "frequency_Hz", w.frequency_Hz);
+            write_scalar(wf_group, "phase_rad", w.phase_rad);
+        }
+        else if constexpr (std::is_same_v<T, config::PulsedWaveform>) {
+            write_string(wf_group, "type", "pulsed");
+            write_scalar(wf_group, "low_value", w.low_value);
+            write_scalar(wf_group, "high_value", w.high_value);
+            write_scalar(wf_group, "pulse_start_s", w.pulse_start_s);
+            write_scalar(wf_group, "pulse_width_s", w.pulse_width_s);
+        }
+        else if constexpr (std::is_same_v<T, config::ArbitraryWaveform>) {
+            write_string(wf_group, "type", "arbitrary");
+            write_array(wf_group, "times_s", w.times_s);
+            write_array(wf_group, "values", w.values);
+            std::string interp_str;
+            switch (w.interp) {
+                case config::ArbitraryWaveform::Interpolation::Linear: interp_str = "linear"; break;
+                case config::ArbitraryWaveform::Interpolation::Step: interp_str = "step"; break;
+                case config::ArbitraryWaveform::Interpolation::Cubic: interp_str = "cubic"; break;
+            }
+            write_string(wf_group, "interpolation", interp_str);
+        }
+    }, waveform.data);
 }
 
 } // namespace ICARION::io

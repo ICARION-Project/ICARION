@@ -420,17 +420,21 @@ Hierarchical Structure:
       mean_thermal_velocity_ms float64 Mean thermal velocity [m/s]
       gas_velocity_ms   float64[3]  Gas flow velocity [m/s] (x,y,z)
     /fields/
+      /waveforms/                       # v1.1: Waveform library (if present)
+        /<waveform_name>/
+          type          string      Waveform type (constant, linear, quadratic, sinusoidal, pulsed, arbitrary)
+          ...           varies      Type-specific parameters (start_value, end_value, frequency_Hz, etc.)
       /dc/
-        axial_V         float64     DC drift voltage [V]
-        EN_Td           float64     Reduced electric field [Td]
-        quad_V          float64     Quadrupole DC voltage [V] (LQIT)
+        axial_V         float64     DC drift voltage [V] (t=0 if waveform)
+        EN_Td           float64     Reduced electric field [Td] (t=0 if waveform)
+        quad_V          float64     Quadrupole DC voltage [V] (LQIT) (t=0 if waveform)
       /rf/
-        voltage_V       float64     RF amplitude [V]
-        frequency_Hz    float64     RF frequency [Hz]
+        voltage_V       float64     RF amplitude [V] (t=0 if waveform)
+        frequency_Hz    float64     RF frequency [Hz] (t=0 if waveform)
         phase_rad       float64     RF phase [rad]
       /ac/
-        voltage_V       float64     AC amplitude [V] (LQIT)
-        frequency_Hz    float64     AC frequency [Hz]
+        voltage_V       float64     AC amplitude [V] (LQIT) (t=0 if waveform)
+        frequency_Hz    float64     AC frequency [Hz] (t=0 if waveform)
   /domain_1/
     ...
   /domain_N/

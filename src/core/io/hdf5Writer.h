@@ -157,6 +157,26 @@ private:
         size_t index
     );
     
+    /**
+     * @brief Write waveform library to HDF5 group
+     * 
+     * Serializes waveforms for reproducibility.
+     * Each waveform becomes a subgroup with type and parameters.
+     */
+    static void write_waveform_library(
+        H5::Group& parent,
+        const std::map<std::string, config::Waveform>& library
+    );
+    
+    /**
+     * @brief Write single waveform to HDF5 group
+     */
+    static void write_waveform(
+        H5::Group& parent,
+        const std::string& name,
+        const config::Waveform& waveform
+    );
+    
     // === Ion metadata ===
     
     /**

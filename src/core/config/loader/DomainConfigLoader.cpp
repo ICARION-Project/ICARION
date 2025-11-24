@@ -157,8 +157,50 @@ FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json) {
         fields.magnetic = load_magnetic_fields(mag_json);
     }
     
-    // Field arrays (future)
-    // TODO: Load field_array_terms
+    // Field arrays
+    if (json.isMember("field_array_terms") && json["field_array_terms"].isArray()) {
+        for (const auto& term_json : json["field_array_terms"]) {
+            FieldsConfig::FieldArrayTerm term;
+            
+            // Required: file path
+            if (term_json.isMember("file") && term_json["file"].isString()) {
+                term.file = term_json["file"].asString();
+            } else {
+                throw std::runtime_error("field_array_term missing required 'file' field");
+            }
+            
+            // Scale type (default: Constant)
+            if (term_json.isMember("scale_type") && term_json["scale_type"].isString()) {
+                std::string kind_str = term_json["scale_type"].asString();
+                if (kind_str == "Constant") {
+                    term.kind = FieldsConfig::FieldArrayTerm::ScaleKind::Constant;
+                } else if (kind_str == "DC_Axial") {
+                    term.kind = FieldsConfig::FieldArrayTerm::ScaleKind::DC_Axial;
+                } else if (kind_str == "DC_Quad") {
+                    term.kind = FieldsConfig::FieldArrayTerm::ScaleKind::DC_Quad;
+                } else if (kind_str == "DC_Radial") {
+                    term.kind = FieldsConfig::FieldArrayTerm::ScaleKind::DC_Radial;
+                } else if (kind_str == "RF") {
+                    term.kind = FieldsConfig::FieldArrayTerm::ScaleKind::RF;
+                } else {
+                    throw std::runtime_error("Unknown scale_type: " + kind_str);
+                }
+            }
+            
+            // Optional: scaling parameters
+            if (term_json.isMember("constant_V") && term_json["constant_V"].isNumeric()) {
+                term.constant = term_json["constant_V"].asDouble();
+            }
+            if (term_json.isMember("phase_rad") && term_json["phase_rad"].isNumeric()) {
+                term.phase_rad = term_json["phase_rad"].asDouble();
+            }
+            if (term_json.isMember("frequency_Hz") && term_json["frequency_Hz"].isNumeric()) {
+                term.frequency_Hz = term_json["frequency_Hz"].asDouble();
+            }
+            
+            fields.field_array_terms.push_back(term);
+        }
+    }
     
     return fields;
 }

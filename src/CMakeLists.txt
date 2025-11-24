@@ -129,11 +129,4 @@ endif()
 add_executable(icarion_main main/main.cpp)
 target_link_libraries(icarion_main PRIVATE icarion_core)
 
-# Config loader smoke test
-add_executable(test_config_loader_smoke
-    ${CMAKE_CURRENT_SOURCE_DIR}/../test_config_loader.cpp
-)
-target_link_libraries(test_config_loader_smoke PRIVATE icarion_core)
-target_include_directories(test_config_loader_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
 message(STATUS "ICARION Core configuration completed.")

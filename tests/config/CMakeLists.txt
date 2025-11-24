@@ -129,3 +129,23 @@ target_include_directories(test_ion_loader
 )
 
 add_test(NAME IonLoader COMMAND test_ion_loader)
+
+# Field array terms loader tests
+add_executable(test_field_array_terms_loader
+    test_field_array_terms_loader.cpp
+)
+
+target_link_libraries(test_field_array_terms_loader
+    PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+
+target_include_directories(test_field_array_terms_loader
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+add_test(NAME FieldArrayTermsLoader COMMAND test_field_array_terms_loader)
+

@@ -71,13 +71,7 @@ FullConfig ConfigLoader::load_from_json(const Json::Value& root,
             root["reaction_database"].asString(), base_path);
     }
     
-    // Legacy ion_cloud path (deprecated, use "ions" instead)
-    if (root.isMember("ion_cloud")) {
-        config.ion_cloud_path = resolve_path(
-            root["ion_cloud"].asString(), base_path);
-    }
-    
-    // Modern ion configuration
+    // Ion configuration
     if (root.isMember("ions")) {
         config.ions = parse_ion_config(root["ions"], base_path);
     }

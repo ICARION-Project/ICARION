@@ -335,41 +335,6 @@ ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json, const 
         }
     }
     
-    // === DEPRECATED v1.0 Voltage sweep (backward compatibility) ===
-    if (json.isMember("enable_voltage_sweep") && json["enable_voltage_sweep"].isBool()) {
-        ac.enable_voltage_sweep = json["enable_voltage_sweep"].asBool();
-        
-        if (ac.enable_voltage_sweep) {
-            std::cerr << "WARNING: 'enable_voltage_sweep' is DEPRECATED (v1.0). Use 'voltage_V' with linear waveform instead (v1.1+).\n";
-            
-            if (json.isMember("amplitude_slope_V_s") && json["amplitude_slope_V_s"].isNumeric()) {
-                ac.amplitude_slope_V_s = json["amplitude_slope_V_s"].asDouble();
-            }
-            if (json.isMember("start_time_s") && json["start_time_s"].isNumeric()) {
-                ac.start_time_s = json["start_time_s"].asDouble();
-            }
-            if (json.isMember("rise_time_s") && json["rise_time_s"].isNumeric()) {
-                ac.rise_time_s = json["rise_time_s"].asDouble();
-            }
-        }
-    }
-    
-    // === DEPRECATED v1.0 Frequency sweep (backward compatibility) ===
-    if (json.isMember("enable_frequency_sweep") && json["enable_frequency_sweep"].isBool()) {
-        ac.enable_frequency_sweep = json["enable_frequency_sweep"].asBool();
-        
-        if (ac.enable_frequency_sweep) {
-            std::cerr << "WARNING: 'enable_frequency_sweep' is DEPRECATED (v1.0). Use 'frequency_Hz' with linear waveform instead (v1.1+).\n";
-            
-            if (json.isMember("frequency_start_Hz") && json["frequency_start_Hz"].isNumeric()) {
-                ac.frequency_start_Hz = json["frequency_start_Hz"].asDouble();
-            }
-            if (json.isMember("frequency_sweep_slope_Hz_s") && json["frequency_sweep_slope_Hz_s"].isNumeric()) {
-                ac.frequency_sweep_slope_Hz_s = json["frequency_sweep_slope_Hz_s"].asDouble();
-            }
-        }
-    }
-    
     // LQIT phase lock
     if (json.isMember("lqit_lock_enable") && json["lqit_lock_enable"].isBool()) {
         ac.lqit_lock_enable = json["lqit_lock_enable"].asBool();
@@ -380,19 +345,6 @@ ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json, const 
             }
             if (json.isMember("lqit_lock_bandwidth_Hz") && json["lqit_lock_bandwidth_Hz"].isNumeric()) {
                 ac.lqit_lock_bandwidth_Hz = json["lqit_lock_bandwidth_Hz"].asDouble();
-            }
-        }
-    }
-    
-    // === DEPRECATED v1.0 Voltage time table (backward compatibility) ===
-    if (json.isMember("voltage_time_table") && json["voltage_time_table"].isArray()) {
-        std::cerr << "WARNING: 'voltage_time_table' is DEPRECATED (v1.0). Use 'voltage_V' with arbitrary waveform type instead (v1.1+).\n";
-        
-        for (const auto& entry : json["voltage_time_table"]) {
-            if (entry.isArray() && entry.size() >= 2) {
-                double t = entry[0].asDouble();
-                double v = entry[1].asDouble();
-                ac.voltage_time_table.emplace_back(t, v);
             }
         }
     }

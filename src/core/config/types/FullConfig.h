@@ -38,7 +38,6 @@ struct FullConfig {
     // === Database/file paths ===
     std::string species_database_path = "";     ///< Species properties database (includes geometry data)
     std::string reaction_database_path = "";    ///< Reaction rates database
-    std::string ion_cloud_path = "";            ///< [DEPRECATED] Legacy ion cloud path - use ions instead
     
     // === Loaded databases (in-memory, populated after loading) ===
     SpeciesDatabase species_db;                 ///< Loaded species properties
@@ -66,9 +65,6 @@ struct FullConfig {
      * 
      * @param rng Random number generator for stochastic distributions
      * @return Generated ions with validation results
-     * 
-     * Generates ions based on the ions configuration. Falls back to
-     * legacy ion_cloud_path if ions config is not specified.
      */
     std::vector<IonState> generate_ions(std::mt19937& rng) const;
     
@@ -124,7 +120,7 @@ struct FullConfig {
         }
         
         // Ion configuration validation
-        if (!ions.is_valid() && ion_cloud_path.empty()) {
+        if (!ions.is_valid()) {
             result.add_error("No ion configuration specified - simulation will have no particles!");
         }
         

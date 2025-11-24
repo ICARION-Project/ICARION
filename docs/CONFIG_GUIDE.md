@@ -1179,7 +1179,7 @@ ICARION supports time-varying field parameters through a flexible waveform syste
 
 #### Quick Examples
 
-**Static Value (Backward Compatible):**
+**Static Value:**
 ```json
 "fields": {
   "AC": {
@@ -1469,24 +1469,21 @@ Waveforms can be used for:
 - `frequency_Hz` - RF frequency
 
 **AC Fields:**
-- `voltage_V` - AC voltage amplitude
+- `voltage_V` - AC voltage amplitude  
 - `frequency_Hz` - AC frequency
 
-#### Backward Compatibility
+#### Static and Dynamic Values
 
-**Old configs (v1.0) continue to work:**
+Fields can be specified as either static values or waveforms:
 
 ```json
-// OLD: Static values
+// Static value (simple)
 "AC": {
   "voltage_V": 100,
   "frequency_Hz": 1000000
 }
-```
 
-Automatically converted to:
-```json
-// NEW: ValueOrWaveform with constant_value
+// Same as waveform constant:
 "AC": {
   "voltage_V": {"constant_value": 100},
   "frequency_Hz": {"constant_value": 1000000}

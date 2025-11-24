@@ -115,23 +115,8 @@ std::vector<IonState> FullConfig::generate_ions(std::mt19937& rng) const {
         return result.ions;
     }
     
-    // Legacy fallback: load from ion_cloud_path
-    if (!ion_cloud_path.empty()) {
-        std::cout << "[IonLoader] Loading ions from legacy path: " << ion_cloud_path << "\n";
-        
-        IonGenerationResult result = IonLoader::load_from_file(ion_cloud_path, species_db);
-        
-        if (!result.validation.valid) {
-            std::cerr << "Ion loading validation failed:\n";
-            result.validation.print();
-            throw std::runtime_error("Ion loading failed from " + ion_cloud_path);
-        }
-        
-        return result.ions;
-    }
-    
     // No ion configuration
-    throw std::runtime_error("No ion configuration specified (neither 'ions' nor 'ion_cloud' field)");
+    throw std::runtime_error("No ion configuration specified ('ions' field required)");
 }
 
 } // namespace ICARION::config

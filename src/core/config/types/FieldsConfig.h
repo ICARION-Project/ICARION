@@ -92,8 +92,7 @@ struct RFFieldConfig {
 /**
  * @brief AC excitation field configuration (primarily for LQIT)
  * 
- * v1.0: Voltage and frequency now use waveform system.
- * v1.0 sweep flags DEPRECATED but still supported for backward compatibility.
+ * v1.0: Voltage and frequency support time-varying waveforms.
  */
 struct ACFieldConfig {
     ValueOrWaveform voltage_V;          ///< AC amplitude [V] (static or waveform)
@@ -102,24 +101,10 @@ struct ACFieldConfig {
     // Derived (only valid for static frequency)
     double angular_frequency_rad_s = 0.0;  ///< ω = 2π·f [rad/s] (static only)
     
-    // === DEPRECATED v1.0 Voltage sweep (use linear waveform instead) ===
-    bool enable_voltage_sweep = false;
-    double amplitude_slope_V_s = 0.0;   ///< DEPRECATED: Voltage ramp rate [V/s]
-    double start_time_s = 0.0;          ///< DEPRECATED: Sweep start time [s]
-    double rise_time_s = 0.0;           ///< DEPRECATED: Sweep duration [s]
-    
-    // === DEPRECATED v1.0 Frequency sweep (use linear waveform instead) ===
-    bool enable_frequency_sweep = false;
-    double frequency_start_Hz = 0.0;    ///< DEPRECATED: Initial frequency [Hz]
-    double frequency_sweep_slope_Hz_s = 0.0; ///< DEPRECATED: Frequency ramp rate [Hz/s]
-    
     // === LQIT phase locking to RF ===
     bool lqit_lock_enable = false;
     double lqit_lock_phase_rad = 0.0;   ///< Phase offset to RF [rad]
     double lqit_lock_bandwidth_Hz = 0.0; ///< Lock bandwidth [Hz]
-    
-    // === DEPRECATED v1.0 Arbitrary waveforms (use arbitrary waveform type instead) ===
-    std::vector<std::pair<double, double>> voltage_time_table; ///< DEPRECATED: {time_s, voltage_V}
     
     /**
      * @brief Compute derived quantities (for static frequency only)
@@ -142,34 +127,6 @@ struct ACFieldConfig {
         }
         if (frequency_Hz.constant_value.has_value() && frequency_Hz.constant_value.value() < 0.0) {
             result.add_error("AC frequency cannot be negative");
-        }
-        
-        // DEPRECATED sweep validation (for backward compatibility)
-        if (enable_voltage_sweep) {
-            result.add_warning("enable_voltage_sweep is DEPRECATED (v1.0). Use waveforms instead (v1.0+).");
-            if (rise_time_s <= 0.0) {
-                result.add_error("AC voltage sweep rise_time_s must be positive");
-            }
-            if (start_time_s < 0.0) {
-                result.add_error("AC voltage sweep start_time_s cannot be negative");
-            }
-        }
-        
-        if (enable_frequency_sweep) {
-            result.add_warning("enable_frequency_sweep is DEPRECATED (v1.0). Use waveforms instead (v1.0+).");
-            if (frequency_start_Hz < 0.0) {
-                result.add_error("AC frequency sweep start frequency cannot be negative");
-            }
-        }
-        
-        // DEPRECATED voltage time table validation (for backward compatibility)
-        if (!voltage_time_table.empty()) {
-            result.add_warning("voltage_time_table is DEPRECATED (v1.0). Use arbitrary waveform type instead (v1.0+).");
-            for (size_t i = 1; i < voltage_time_table.size(); ++i) {
-                if (voltage_time_table[i].first <= voltage_time_table[i-1].first) {
-                    result.add_error("AC voltage_time_table must be sorted by time");
-                }
-            }
         }
         
         return result;

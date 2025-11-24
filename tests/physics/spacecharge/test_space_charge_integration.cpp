@@ -101,14 +101,14 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
         // Method 2: Grid Poisson (SpaceChargeGrid)
         // ----------------------------------------------------------------------
         
-        // Grid setup: 128³ cells, 2mm domain (±1mm in each direction)
-        // Higher resolution needed for accurate 1mm separation
-        int nx = 128, ny = 128, nz = 128;
-        double domain_size = 0.002;  // 2mm
-        double dx = domain_size / nx;
+        // Grid setup: 64³ cells, 4mm domain (±2mm in each direction)
+        // Larger domain with good resolution for 1mm ion separation
+        int nx = 64, ny = 64, nz = 64;
+        double domain_size = 0.004;  // 4mm
+        double dx = domain_size / nx;  // 62.5μm cell size
         double dy = domain_size / ny;
         double dz = domain_size / nz;
-        Vec3 grid_origin{-0.001, -0.001, -0.001};  // Center at (0,0,0)
+        Vec3 grid_origin{-0.002, -0.002, -0.002};  // Center at (0,0,0)
         
         auto solver = std::make_shared<SpaceChargeSolver>(nx, ny, nz, dx, dy, dz, grid_origin);
         SpaceChargeGrid grid_force(solver);
@@ -136,10 +136,10 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
         
         INFO("Grid vs Analytical error: " << std::abs(F_grid_mag0 - F_analytical) / F_analytical * 100 << "%");
         
-        // Grid method should be within 60% of analytical for 2-ion case
-        // Note: Grid methods have large errors for tiny charge densities (2 ions)
-        // This is a known limitation - accuracy improves with more ions
-        REQUIRE_THAT(F_grid_mag0, WithinRel(F_analytical, 0.60));
+        // Grid method should be within 30% of analytical for 2-ion case
+        // Note: Grid methods have larger errors for low charge densities (N=2)
+        // Accuracy improves with more ions (N>100 typically <10% error)
+        REQUIRE_THAT(F_grid_mag0, WithinRel(F_analytical, 0.30));
         
         // ----------------------------------------------------------------------
         // Direct vs Grid Comparison
@@ -148,9 +148,9 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
         double direct_vs_grid_error = std::abs(F_direct_mag0 - F_grid_mag0) / F_direct_mag0;
         INFO("Direct vs Grid relative error: " << direct_vs_grid_error * 100 << "%");
         
-        // Direct and Grid should agree within 60% for 2-ion case (grid discretization + low charge density)
-        // Known limitation: Grid accuracy improves significantly with more ions (N>100)
-        REQUIRE(direct_vs_grid_error < 0.60);
+        // Direct and Grid should agree within 30% for 2-ion case
+        // Known limitation: Grid accuracy improves significantly with more ions (N>100 → <10%)
+        REQUIRE(direct_vs_grid_error < 0.30);
     }
     
     SECTION("Ten ions in random cluster") {

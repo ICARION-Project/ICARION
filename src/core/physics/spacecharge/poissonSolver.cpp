@@ -43,18 +43,14 @@ void PoissonSolver::setBoundaryConditions(const BoundaryConditions& bc) {
  * @brief Set the source term (charge density) for the Poisson equation.
  * @param rho Charge density array (size = Nx*Ny*Nz)
  * 
- * NOTE: Legacy implementation had wrong sign convention.
- * We negate rho here to fix: positive charges → positive potential.
+ * NOTE: Sign convention handled in solvers (all use -rho/eps0 as per Poisson equation).
+ * Do NOT negate here - would cause double negation!
  */
 void PoissonSolver::setSourceTerm(const std::vector<double>& rho) {
     if (rho.size() != m_grid.size())
         throw std::runtime_error("Source term size mismatch with grid dimensions.");
     
-    // FIX: Negate rho to get correct sign (positive charge → positive potential)
-    m_rho.resize(rho.size());
-    for (size_t i = 0; i < rho.size(); ++i) {
-        m_rho[i] = -rho[i];
-    }
+    m_rho = rho;  // Direct copy, no negation
 }
 
 /**
@@ -155,7 +151,7 @@ void PoissonSolver::solveGaussSeidel(double eps0, double tol, int max_iter) {
                         ((m_grid.phi[m_grid.index(i+1,j,k)] + m_grid.phi[m_grid.index(i-1,j,k)]) / dx2 +
                         (m_grid.phi[m_grid.index(i,j+1,k)] + m_grid.phi[m_grid.index(i,j-1,k)]) / dy2 +
                         (m_grid.phi[m_grid.index(i,j,k+1)] + m_grid.phi[m_grid.index(i,j,k-1)]) / dz2
-                        - m_rho[idx] / eps0) / denom;  // Note: m_rho already negated in setSourceTerm()
+                        + m_rho[idx] / eps0) / denom;  // Poisson: ∇²φ = -ρ/ε₀ → discretized: φ[i] involves +ρ/ε₀
                     
                     // SOR update: φ_new = φ_old + ω(φ_GS - φ_old)
                     double phi_new = phi_old + omega * (phi_gauss_seidel - phi_old);
@@ -211,7 +207,7 @@ void PoissonSolver::solveRedBlack(double eps0, double tol, int max_iter) {
                         double phi_gs = ((m_grid.phi[m_grid.index(i+1,j,k)] + m_grid.phi[m_grid.index(i-1,j,k)]) / dx2 +
                                         (m_grid.phi[m_grid.index(i,j+1,k)] + m_grid.phi[m_grid.index(i,j-1,k)]) / dy2 +
                                         (m_grid.phi[m_grid.index(i,j,k+1)] + m_grid.phi[m_grid.index(i,j,k-1)]) / dz2
-                                        - m_rho[idx] / eps0) / denom;  // m_rho already negated in setSourceTerm()
+                                        + m_rho[idx] / eps0) / denom;  // Poisson: ∇²φ = -ρ/ε₀ → +ρ/ε₀ in discretized form
                         double phi_new = phi_old + omega * (phi_gs - phi_old);
                         res_sum += std::fabs(phi_new - phi_old);
                         m_grid.phi[idx] = phi_new;
@@ -232,7 +228,7 @@ void PoissonSolver::solveRedBlack(double eps0, double tol, int max_iter) {
                         double phi_gs = ((m_grid.phi[m_grid.index(i+1,j,k)] + m_grid.phi[m_grid.index(i-1,j,k)]) / dx2 +
                                         (m_grid.phi[m_grid.index(i,j+1,k)] + m_grid.phi[m_grid.index(i,j-1,k)]) / dy2 +
                                         (m_grid.phi[m_grid.index(i,j,k+1)] + m_grid.phi[m_grid.index(i,j,k-1)]) / dz2
-                                        - m_rho[idx] / eps0) / denom;  // Note: m_rho already negated
+                                        + m_rho[idx] / eps0) / denom;  // Poisson: ∇²φ = -ρ/ε₀ → +ρ/ε₀ in discretized form
                         double phi_new = phi_old + omega * (phi_gs - phi_old);
                         res_sum += std::fabs(phi_new - phi_old);
                         m_grid.phi[idx] = phi_new;
@@ -290,7 +286,7 @@ void PoissonSolver::solveConjugateGradient(double eps0, double tol, int max_iter
                     (m_grid.phi[m_grid.index(i+1,j,k)] + m_grid.phi[m_grid.index(i-1,j,k)]) / dx2 -
                     (m_grid.phi[m_grid.index(i,j+1,k)] + m_grid.phi[m_grid.index(i,j-1,k)]) / dy2 -
                     (m_grid.phi[m_grid.index(i,j,k+1)] + m_grid.phi[m_grid.index(i,j,k-1)]) / dz2;
-                r[idx] = -m_rho[idx] / eps0 - Ax;
+                r[idx] = m_rho[idx] / eps0 - Ax;  // r = b - Ax, where b = ρ/ε₀ (note: Poisson is ∇²φ = -ρ/ε₀, but discretized form uses +ρ/ε₀)
             }
         }
     }

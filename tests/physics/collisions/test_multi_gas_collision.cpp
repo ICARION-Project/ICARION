@@ -12,6 +12,33 @@
 using Catch::Approx;
 using namespace ICARION;
 
+namespace {
+
+size_t count_collisions(physics::HSSCollisionHandler& handler,
+                        const config::EnvironmentConfig& env,
+                        int trials,
+                        uint64_t seed,
+                        double dt) {
+    EhssRng rng(seed);
+    IonState ion;
+    ion.species_id = "X+";
+    ion.mass_kg = 28.0 * AMU_TO_KG;
+    ion.ion_charge_C = ELEM_CHARGE_C;
+    ion.CCS_m2 = 1.0e-18;
+    ion.vel = Vec3{200.0, 0.0, 0.0};
+
+    size_t collisions = 0;
+    for (int i = 0; i < trials; ++i) {
+        IonState ion_copy = ion;
+        if (handler.handle_collision(ion_copy, dt, rng, env)) {
+            collisions++;
+        }
+    }
+    return collisions;
+}
+
+}  // namespace
+
 TEST_CASE("HSS uses gas-specific CCS map in mixture", "[collision][multigas]") {
     config::SpeciesDatabase db;
     config::SpeciesProperties sp;
@@ -82,4 +109,40 @@ TEST_CASE("HSS throws when mixture has no sigma", "[collision][multigas][safety]
     env.compute_derived_properties();
 
     REQUIRE_THROWS(handler.handle_collision(ion, 1e-7, rng, env));
+}
+
+TEST_CASE("HSS mixture thermalization proxy via collision counts", "[collision][multigas][thermalization]") {
+    config::SpeciesDatabase db;
+    config::SpeciesProperties sp;
+    sp.id = "X+";
+    sp.mass_amu = 28.0;
+    sp.charge = 1;
+    sp.CCS_m2 = 1.0e-18;
+    db.species[sp.id] = sp;
+
+    physics::HSSCollisionHandler handler(false, &db);
+
+    config::EnvironmentConfig env_n2;
+    env_n2.pressure_Pa = 100.0;
+    env_n2.temperature_K = 300.0;
+    env_n2.gas_mixture = {{"N2", 1.0, 1.0e-18, -1.0}};
+    env_n2.compute_derived_properties();
+
+    config::EnvironmentConfig env_o2 = env_n2;
+    env_o2.gas_mixture = {{"O2", 1.0, 2.0e-18, -1.0}};
+    env_o2.compute_derived_properties();
+
+    config::EnvironmentConfig env_mix = env_n2;
+    env_mix.gas_mixture = {{"N2", 0.5, 1.0e-18, -1.0}, {"O2", 0.5, 2.0e-18, -1.0}};
+    env_mix.compute_derived_properties();
+
+    const int trials = 2000;
+    const double dt = 1e-8;
+    size_t c_n2 = count_collisions(handler, env_n2, trials, 1, dt);
+    size_t c_o2 = count_collisions(handler, env_o2, trials, 2, dt);
+    size_t c_mix = count_collisions(handler, env_mix, trials, 3, dt);
+
+    REQUIRE(c_o2 > c_n2);
+    REQUIRE(c_mix > c_n2);
+    REQUIRE(c_mix < c_o2);
 }

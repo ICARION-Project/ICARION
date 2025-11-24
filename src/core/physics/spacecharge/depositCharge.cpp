@@ -142,31 +142,60 @@ std::vector<double> deposit_charge(const std::vector<IonState>& ions,
         }
         
     } else {
-        // Standard parallel deposition
+        // Standard CIC (Cloud-In-Cell) deposition with trilinear weighting
+        // Distributes charge over 8 surrounding grid nodes for smooth fields
         #pragma omp parallel for
         for (size_t ion_idx = 0; ion_idx < ions.size(); ++ion_idx) {
             const auto& ion = ions[ion_idx];
             if (!ion.active || !ion.born)
                 continue;
 
-            // --- lokale Koordinaten relativ zum Ursprung des Grids ---
-            double x_rel = (ion.pos.x - grid.origin_m.x);
-            double y_rel = (ion.pos.y - grid.origin_m.y);
-            double z_rel = (ion.pos.z - grid.origin_m.z);
+            // --- Position relative to grid origin ---
+            double x_rel = (ion.pos.x - grid.origin_m.x) * inv_dx;
+            double y_rel = (ion.pos.y - grid.origin_m.y) * inv_dy;
+            double z_rel = (ion.pos.z - grid.origin_m.z) * inv_dz;
 
-            // --- Index im Gitter ---
-            int i = static_cast<int>(std::floor(x_rel * inv_dx));
-            int j = static_cast<int>(std::floor(y_rel * inv_dy));
-            int k = static_cast<int>(std::floor(z_rel * inv_dz));
+            // --- Lower-left grid node (base indices) ---
+            int i0 = static_cast<int>(std::floor(x_rel));
+            int j0 = static_cast<int>(std::floor(y_rel));
+            int k0 = static_cast<int>(std::floor(z_rel));
 
-            if (i < 0 || j < 0 || k < 0 || i >= Nx || j >= Ny || k >= Nz)
-                continue; // Ion außerhalb des Grids
+            // --- Bounds check: Need i0, i0+1, j0, j0+1, k0, k0+1 all in bounds ---
+            if (i0 < 0 || j0 < 0 || k0 < 0 || i0 >= Nx-1 || j0 >= Ny-1 || k0 >= Nz-1)
+                continue; // Ion too close to boundary for CIC (would need 8 nodes)
 
-            int idx = grid.index(i,j,k);
+            // --- Fractional position within cell [0,1] ---
+            double fx = x_rel - i0;
+            double fy = y_rel - j0;
+            double fz = z_rel - k0;
 
-            // --- Atomic add for thread safety ---
-            #pragma omp atomic
-            rho[idx] += ion.ion_charge_C * inv_cell_volume;
+            // --- Trilinear weights (sum = 1.0) ---
+            // w[i][j][k] = weight for node (i0+i, j0+j, k0+k)
+            double w[2][2][2];
+            w[0][0][0] = (1.0 - fx) * (1.0 - fy) * (1.0 - fz);
+            w[1][0][0] = fx * (1.0 - fy) * (1.0 - fz);
+            w[0][1][0] = (1.0 - fx) * fy * (1.0 - fz);
+            w[1][1][0] = fx * fy * (1.0 - fz);
+            w[0][0][1] = (1.0 - fx) * (1.0 - fy) * fz;
+            w[1][0][1] = fx * (1.0 - fy) * fz;
+            w[0][1][1] = (1.0 - fx) * fy * fz;
+            w[1][1][1] = fx * fy * fz;
+
+            // --- Distribute charge to 8 surrounding nodes ---
+            const double charge_density = ion.ion_charge_C * inv_cell_volume;
+            
+            for (int di = 0; di <= 1; ++di) {
+                for (int dj = 0; dj <= 1; ++dj) {
+                    for (int dk = 0; dk <= 1; ++dk) {
+                        int idx = grid.index(i0 + di, j0 + dj, k0 + dk);
+                        double weighted_charge = charge_density * w[di][dj][dk];
+                        
+                        // Atomic add for thread safety
+                        #pragma omp atomic
+                        rho[idx] += weighted_charge;
+                    }
+                }
+            }
         }
     }
     double total_charge = 0.0;

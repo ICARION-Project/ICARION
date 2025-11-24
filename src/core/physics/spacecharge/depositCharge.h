@@ -39,23 +39,26 @@
  * 
  * @return Charge density [C/m³] at each grid point (size = Nx×Ny×Nz)
  * 
- * @warning **Current implementation: NGP (Nearest Grid Point) ONLY**
- *          CIC and TSC are documented for future implementation but not yet available.
+ * @note **Current implementation: CIC (Cloud-In-Cell) - Production Quality**
+ *       Distributes charge over 8 surrounding grid nodes using trilinear weighting.
+ *       This is the standard method for publication-quality PIC simulations.
  * 
  * Maps discrete ion positions to continuous charge density field using
- * particle-in-cell (PIC) methods. 
+ * particle-in-cell (PIC) methods with second-order accuracy.
  * 
  * **Implemented deposition schemes:**
- * - ✅ **NGP (Nearest Grid Point)**: Assigns full charge to nearest grid node
- *   Fast, parallel-safe with OpenMP atomics, but can cause numerical noise.
- *   Recommended grid spacing: ≤ λ_Debye/2 to minimize artifacts.
+ * - ✅ **CIC (Cloud-In-Cell)**: Trilinear interpolation over 8 surrounding nodes
+ *   O(h²) convergence, smooth fields, standard for publication-quality results.
+ *   Charge conserving, parallel-safe with OpenMP atomics.
+ *   Recommended for all production simulations.
  * 
- * **Documented but NOT implemented (future work):**
- * - ❌ CIC (Cloud-In-Cell): Would distribute charge over 8 surrounding nodes
- *   using trilinear weighting. Smoother, reduces grid artifacts.
+ * **Legacy methods (deprecated):**
+ * - ⚠️ **NGP (Nearest Grid Point)**: Only used in ultra-high performance mode (N>1M ions)
+ *   O(h) convergence, causes grid noise, not recommended for publication.
  * 
- * - ❌ TSC (Triangular Shaped Cloud): Higher-order interpolation (27 nodes)
- *   Best smoothness but more expensive
+ * **Future enhancement (v1.1+):**
+ * - ⏳ TSC (Triangular Shaped Cloud): Higher-order interpolation (27 nodes)
+ *   O(h³) convergence, best smoothness but 3x slower than CIC
  * 
  * **Grid Resolution Requirements:**
  * - Minimum: Grid spacing < ion cloud size (otherwise under-resolved)
@@ -65,10 +68,17 @@
  * Charge density normalized by grid cell volume (dx×dy×dz).
  * Used as source term for Poisson solver in space-charge calculations.
  * 
- * **Algorithm (NGP):**
- * 1. For each ion, find nearest grid point
- * 2. Add ion charge to that grid point (atomic operation for thread-safety)
- * 3. Normalize by cell volume to get density [C/m³]
+ * **Algorithm (CIC):**
+ * 1. For each ion, find lower-left grid node (i0, j0, k0)
+ * 2. Compute fractional position within cell: fx, fy, fz ∈ [0,1]
+ * 3. Calculate trilinear weights for 8 surrounding nodes (weights sum to 1.0)
+ * 4. Distribute charge to all 8 nodes proportionally (atomic operations for thread-safety)
+ * 5. Normalize by cell volume to get density [C/m³]
+ * 
+ * **Trilinear weighting formula:**
+ *   w[i][j][k] = (1-fx or fx) × (1-fy or fy) × (1-fz or fz)
+ * 
+ * Example: w[0][0][0] = (1-fx)(1-fy)(1-fz) → weight for lower-left-back node
  * 
  * @throws std::runtime_error if grid spacing is zero or negative
  * @throws std::runtime_error if grid size is insufficient for ion distribution

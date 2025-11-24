@@ -45,7 +45,12 @@ TEST_CASE("Integration: Electric + Magnetic forces combine", "[integration]") {
     ICARION::config::DomainConfig domain;
     domain.instrument = ICARION::config::Instrument::IMS;
     domain.geometry.length_m = 0.1;
-    domain.fields.dc.axial_V = 1000.0;
+    // Initialize all field values
+    domain.fields.dc.axial_V.constant_value = 1000.0;
+    domain.fields.dc.quad_V.constant_value = 0.0;
+    domain.fields.rf.voltage_V.constant_value = 0.0;
+    domain.fields.rf.frequency_Hz.constant_value = 0.0;
+    domain.fields.rf.compute_derived();
     registry.add_force(std::make_unique<ElectricFieldForce>(domain));
     
     // Setup magnetic field - SSOT config
@@ -84,7 +89,12 @@ TEST_CASE("Integration: All forces (Electric + Magnetic + Damping + SpaceCharge)
     ICARION::config::DomainConfig domain;
     domain.instrument = ICARION::config::Instrument::IMS;
     domain.geometry.length_m = 0.1;
-    domain.fields.dc.axial_V = 500.0;
+    // Initialize all field values
+    domain.fields.dc.axial_V.constant_value = 500.0;
+    domain.fields.dc.quad_V.constant_value = 0.0;
+    domain.fields.rf.voltage_V.constant_value = 0.0;
+    domain.fields.rf.frequency_Hz.constant_value = 0.0;
+    domain.fields.rf.compute_derived();
     registry.add_force(std::make_unique<ElectricFieldForce>(domain));
     
     ICARION::config::MagneticFieldConfig mag_config;
@@ -150,7 +160,12 @@ TEST_CASE("Integration: Force superposition principle", "[integration]") {
     ICARION::config::DomainConfig domain;
     domain.instrument = ICARION::config::Instrument::IMS;
     domain.geometry.length_m = 0.1;
-    domain.fields.dc.axial_V = 800.0;
+    // Initialize all field values
+    domain.fields.dc.axial_V.constant_value = 800.0;
+    domain.fields.dc.quad_V.constant_value = 0.0;
+    domain.fields.rf.voltage_V.constant_value = 0.0;
+    domain.fields.rf.frequency_Hz.constant_value = 0.0;
+    domain.fields.rf.compute_derived();
     ElectricFieldForce electric(domain);
     Vec3 F_electric = electric.compute(ions[0], 0.0, ctx);
     

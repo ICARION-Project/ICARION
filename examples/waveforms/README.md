@@ -139,37 +139,3 @@ cd build && ctest -R Waveform
 ## Documentation
 
 See `docs/CONFIG_GUIDE.md` section "Waveforms (Time-Varying Parameters)" for complete documentation.
-
-## Migration from v1.0
-
-Convert old sweep flags to new waveform format:
-
-```bash
-python3 scripts/migrate_to_waveforms.py old_config.json new_config.json
-```
-
-**Deprecated (v1.0):**
-```json
-{
-  "AC": {
-    "voltage_V": 0,
-    "enable_voltage_sweep": true,
-    "amplitude_slope_V_s": 500000,
-    "rise_time_s": 0.001
-  }
-}
-```
-
-**New (v1.1):**
-```json
-{
-  "AC": {
-    "voltage_V": {
-      "type": "linear",
-      "start": 0,
-      "end": 500,
-      "duration_s": 0.001
-    }
-  }
-}
-```

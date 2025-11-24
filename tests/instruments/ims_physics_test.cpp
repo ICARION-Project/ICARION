@@ -42,7 +42,17 @@ config::DomainConfig make_ims_domain(double length_m, double radius_m, double E_
     config::DomainConfig dom = make_single_domain(config::Instrument::IMS);
     dom.geometry.length_m = length_m;
     dom.geometry.radius_m = radius_m;
-    dom.fields.dc.axial_V = E_field * length_m;
+    // Initialize all field values
+    dom.fields.dc.axial_V.constant_value = E_field * length_m;
+    dom.fields.dc.quad_V.constant_value = 0.0;
+    dom.fields.dc.radial_V.constant_value = 0.0;
+    dom.fields.dc.EN_Td.constant_value = 0.0;
+    dom.fields.rf.voltage_V.constant_value = 0.0;
+    dom.fields.rf.frequency_Hz.constant_value = 0.0;
+    dom.fields.rf.compute_derived();
+    dom.fields.ac.voltage_V.constant_value = 0.0;
+    dom.fields.ac.frequency_Hz.constant_value = 0.0;
+    dom.fields.ac.compute_derived();
     dom.environment.pressure_Pa = pressure;
     dom.environment.temperature_K = temperature;
     dom.environment.gas_species = "N2";

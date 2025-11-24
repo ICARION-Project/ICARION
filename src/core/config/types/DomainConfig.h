@@ -95,7 +95,11 @@ struct DomainConfig {
         // Instrument-specific validation (warnings only for missing typical fields)
         switch (instrument) {
             case Instrument::LQIT:
-                if (fields.rf.voltage_V == 0.0 && fields.rf.frequency_Hz == 0.0) {
+                // Check if RF voltage and frequency are both zero (only for static values)
+                if (fields.rf.voltage_V.constant_value.has_value() && 
+                    fields.rf.frequency_Hz.constant_value.has_value() &&
+                    fields.rf.voltage_V.constant_value.value() == 0.0 && 
+                    fields.rf.frequency_Hz.constant_value.value() == 0.0) {
                     result.add_warning("LQIT domain '" + name + "' has no RF field. "
                                       "This is unusual but may be intentional for testing.");
                 }
@@ -118,7 +122,11 @@ struct DomainConfig {
                 break;
                 
             case Instrument::IMS:
-                if (fields.dc.EN_Td == 0.0 && fields.dc.axial_V == 0.0) {
+                // Check if EN_Td and axial_V are both zero (only for static values)
+                if (fields.dc.EN_Td.constant_value.has_value() && 
+                    fields.dc.axial_V.constant_value.has_value() &&
+                    fields.dc.EN_Td.constant_value.value() == 0.0 && 
+                    fields.dc.axial_V.constant_value.value() == 0.0) {
                     result.add_warning("IMS domain '" + name + "' has no drift field. "
                                       "Ion transport may rely solely on gas flow (e.g., SIFT mode).");
                 }

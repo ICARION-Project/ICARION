@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #ifndef ICARION_CONFIG_DOMAIN_LOADER_H
@@ -32,10 +32,10 @@ private:
     static EnvironmentConfig load_environment(const Json::Value& json);
     static FieldsConfig load_fields(const Json::Value& json);
     
-    // Field sub-components
-    static DCFieldConfig load_dc_fields(const Json::Value& json);
-    static RFFieldConfig load_rf_fields(const Json::Value& json);
-    static ACFieldConfig load_ac_fields(const Json::Value& json);
+    // Field sub-components (v1.1: now accept waveform library for reference resolution)
+    static DCFieldConfig load_dc_fields(const Json::Value& json, const std::map<std::string, Waveform>& waveform_library);
+    static RFFieldConfig load_rf_fields(const Json::Value& json, const std::map<std::string, Waveform>& waveform_library);
+    static ACFieldConfig load_ac_fields(const Json::Value& json, const std::map<std::string, Waveform>& waveform_library);
     static MagneticFieldConfig load_magnetic_fields(const Json::Value& json);
     
     // Helpers

@@ -2,8 +2,10 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "DomainConfigLoader.h"
+#include "WaveformLoader.h"
 #include "../conversion/UnitConverter.h"
 #include <stdexcept>
+#include <iostream>
 
 namespace ICARION::config {
 
@@ -162,19 +164,28 @@ EnvironmentConfig DomainConfigLoader::load_environment(const Json::Value& json) 
 FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json) {
     FieldsConfig fields;
     
+    // v1.1: Load waveform library first (for @reference resolution)
+    if (json.isMember("waveforms") && json["waveforms"].isObject()) {
+        try {
+            fields.waveform_library = WaveformLoader::load_library(json["waveforms"]);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load waveform library: ") + e.what());
+        }
+    }
+    
     // DC fields
     if (json.isMember("DC")) {
-        fields.dc = load_dc_fields(json["DC"]);
+        fields.dc = load_dc_fields(json["DC"], fields.waveform_library);
     }
     
     // RF fields
     if (json.isMember("RF")) {
-        fields.rf = load_rf_fields(json["RF"]);
+        fields.rf = load_rf_fields(json["RF"], fields.waveform_library);
     }
     
     // AC fields
     if (json.isMember("AC")) {
-        fields.ac = load_ac_fields(json["AC"]);
+        fields.ac = load_ac_fields(json["AC"], fields.waveform_library);
     }
     
     // Magnetic fields
@@ -231,40 +242,69 @@ FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json) {
     return fields;
 }
 
-DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json) {
+DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const std::map<std::string, Waveform>& waveform_library) {
     DCFieldConfig dc;
     
-    // Voltage specification
-    if (json.isMember("axial_V") && json["axial_V"].isNumeric()) {
-        dc.axial_V = json["axial_V"].asDouble();
+    // v1.1: Voltage specification (static or waveform)
+    if (json.isMember("axial_V")) {
+        try {
+            dc.axial_V = WaveformLoader::load_value_or_waveform(json["axial_V"], waveform_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load DC axial_V: ") + e.what());
+        }
     }
     
-    if (json.isMember("quad_V") && json["quad_V"].isNumeric()) {
-        dc.quad_V = json["quad_V"].asDouble();
+    if (json.isMember("quad_V")) {
+        try {
+            dc.quad_V = WaveformLoader::load_value_or_waveform(json["quad_V"], waveform_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load DC quad_V: ") + e.what());
+        }
     }
     
-    if (json.isMember("radial_V") && json["radial_V"].isNumeric()) {
-        dc.radial_V = json["radial_V"].asDouble();
+    if (json.isMember("radial_V")) {
+        try {
+            dc.radial_V = WaveformLoader::load_value_or_waveform(json["radial_V"], waveform_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load DC radial_V: ") + e.what());
+        }
     }
     
-    // Field strength specification (alternative)
-    if (json.isMember("EN_Td") && json["EN_Td"].isNumeric()) {
-        dc.EN_Td = json["EN_Td"].asDouble();
-        dc.EN_Vm2 = UnitConverter::townsend_to_Vm2(dc.EN_Td);
+    // Field strength specification (alternative) - v1.1: can also be waveform
+    if (json.isMember("EN_Td")) {
+        try {
+            dc.EN_Td = WaveformLoader::load_value_or_waveform(json["EN_Td"], waveform_library);
+            // If static, compute EN_Vm2
+            if (dc.EN_Td.constant_value.has_value()) {
+                dc.EN_Vm2 = UnitConverter::townsend_to_Vm2(dc.EN_Td.constant_value.value());
+            }
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load DC EN_Td: ") + e.what());
+        }
     }
     
     return dc;
 }
 
-RFFieldConfig DomainConfigLoader::load_rf_fields(const Json::Value& json) {
+RFFieldConfig DomainConfigLoader::load_rf_fields(const Json::Value& json, const std::map<std::string, Waveform>& waveform_library) {
     RFFieldConfig rf;
     
-    if (json.isMember("voltage_V") && json["voltage_V"].isNumeric()) {
-        rf.voltage_V = json["voltage_V"].asDouble();
+    // v1.1: voltage_V (static or waveform)
+    if (json.isMember("voltage_V")) {
+        try {
+            rf.voltage_V = WaveformLoader::load_value_or_waveform(json["voltage_V"], waveform_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load RF voltage_V: ") + e.what());
+        }
     }
     
-    if (json.isMember("frequency_Hz") && json["frequency_Hz"].isNumeric()) {
-        rf.frequency_Hz = json["frequency_Hz"].asDouble();
+    // v1.1: frequency_Hz (static or waveform for chirps)
+    if (json.isMember("frequency_Hz")) {
+        try {
+            rf.frequency_Hz = WaveformLoader::load_value_or_waveform(json["frequency_Hz"], waveform_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load RF frequency_Hz: ") + e.what());
+        }
     }
     
     if (json.isMember("phase_rad") && json["phase_rad"].isNumeric()) {
@@ -274,22 +314,34 @@ RFFieldConfig DomainConfigLoader::load_rf_fields(const Json::Value& json) {
     return rf;
 }
 
-ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json) {
+ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json, const std::map<std::string, Waveform>& waveform_library) {
     ACFieldConfig ac;
     
-    if (json.isMember("voltage_V") && json["voltage_V"].isNumeric()) {
-        ac.voltage_V = json["voltage_V"].asDouble();
+    // v1.1: voltage_V (static or waveform)
+    if (json.isMember("voltage_V")) {
+        try {
+            ac.voltage_V = WaveformLoader::load_value_or_waveform(json["voltage_V"], waveform_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load AC voltage_V: ") + e.what());
+        }
     }
     
-    if (json.isMember("frequency_Hz") && json["frequency_Hz"].isNumeric()) {
-        ac.frequency_Hz = json["frequency_Hz"].asDouble();
+    // v1.1: frequency_Hz (static or waveform)
+    if (json.isMember("frequency_Hz")) {
+        try {
+            ac.frequency_Hz = WaveformLoader::load_value_or_waveform(json["frequency_Hz"], waveform_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load AC frequency_Hz: ") + e.what());
+        }
     }
     
-    // Voltage sweep
+    // === DEPRECATED v1.0 Voltage sweep (backward compatibility) ===
     if (json.isMember("enable_voltage_sweep") && json["enable_voltage_sweep"].isBool()) {
         ac.enable_voltage_sweep = json["enable_voltage_sweep"].asBool();
         
         if (ac.enable_voltage_sweep) {
+            std::cerr << "WARNING: 'enable_voltage_sweep' is DEPRECATED (v1.0). Use 'voltage_V' with linear waveform instead (v1.1+).\n";
+            
             if (json.isMember("amplitude_slope_V_s") && json["amplitude_slope_V_s"].isNumeric()) {
                 ac.amplitude_slope_V_s = json["amplitude_slope_V_s"].asDouble();
             }
@@ -302,11 +354,13 @@ ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json) {
         }
     }
     
-    // Frequency sweep
+    // === DEPRECATED v1.0 Frequency sweep (backward compatibility) ===
     if (json.isMember("enable_frequency_sweep") && json["enable_frequency_sweep"].isBool()) {
         ac.enable_frequency_sweep = json["enable_frequency_sweep"].asBool();
         
         if (ac.enable_frequency_sweep) {
+            std::cerr << "WARNING: 'enable_frequency_sweep' is DEPRECATED (v1.0). Use 'frequency_Hz' with linear waveform instead (v1.1+).\n";
+            
             if (json.isMember("frequency_start_Hz") && json["frequency_start_Hz"].isNumeric()) {
                 ac.frequency_start_Hz = json["frequency_start_Hz"].asDouble();
             }
@@ -330,8 +384,10 @@ ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json) {
         }
     }
     
-    // Voltage time table (future waveform support)
+    // === DEPRECATED v1.0 Voltage time table (backward compatibility) ===
     if (json.isMember("voltage_time_table") && json["voltage_time_table"].isArray()) {
+        std::cerr << "WARNING: 'voltage_time_table' is DEPRECATED (v1.0). Use 'voltage_V' with arbitrary waveform type instead (v1.1+).\n";
+        
         for (const auto& entry : json["voltage_time_table"]) {
             if (entry.isArray() && entry.size() >= 2) {
                 double t = entry[0].asDouble();

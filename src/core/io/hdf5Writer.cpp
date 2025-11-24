@@ -2,9 +2,9 @@
  * @file hdf5Writer_v2.cpp
  * @brief Implementation of modern HDF5 writer using FullConfig
  * 
- * **v1.1 Improvements (Nov 2025):**
- * - ✅ Consistent metadata hierarchy: All under /metadata/ (no root attributes)
- * - ✅ Smart filtering: Only write species/reactions actually used in simulation
+ * **v1.0 Improvements (Nov 2025):**
+ * - Consistent metadata hierarchy: All under /metadata/ (no root attributes)
+ * - Smart filtering: Only write species/reactions actually used in simulation
  *   - Reduces file size for large databases (e.g., 1000+ reaction networks)
  *   - Filters based on ion.species_id references
  *   - Reactions filtered by reactant species presence
@@ -296,7 +296,7 @@ void HDF5Writer::finalize(
         strftime(timestamp_buf, sizeof(timestamp_buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now_time));
         write_string(completion, "completion_timestamp", timestamp_buf);
         
-        // Note: Root-level attributes removed in v1.1 for consistency
+        // Note: Root-level attributes removed in v1.0 for consistency
         // All metadata now under /metadata/ hierarchy
         
         file.close();
@@ -693,22 +693,29 @@ void HDF5Writer::write_domain(
     // === Fields ===
     H5::Group fields = dom_group.createGroup("fields");
     
-    // DC
+    // DC (v1.0: write static value or t=0 evaluation)
     H5::Group dc = fields.createGroup("dc");
-    write_scalar(dc, "axial_V", domain.fields.dc.axial_V);
-    write_scalar(dc, "EN_Td", domain.fields.dc.EN_Td);
-    write_scalar(dc, "quad_V", domain.fields.dc.quad_V);
+    write_scalar(dc, "axial_V", domain.fields.dc.axial_V.constant_value.value_or(
+        domain.fields.dc.axial_V.evaluate(0.0, domain.fields.waveform_library)));
+    write_scalar(dc, "EN_Td", domain.fields.dc.EN_Td.constant_value.value_or(
+        domain.fields.dc.EN_Td.evaluate(0.0, domain.fields.waveform_library)));
+    write_scalar(dc, "quad_V", domain.fields.dc.quad_V.constant_value.value_or(
+        domain.fields.dc.quad_V.evaluate(0.0, domain.fields.waveform_library)));
     
-    // RF
+    // RF (v1.0: write static value or t=0 evaluation)
     H5::Group rf = fields.createGroup("rf");
-    write_scalar(rf, "voltage_V", domain.fields.rf.voltage_V);
-    write_scalar(rf, "frequency_Hz", domain.fields.rf.frequency_Hz);
+    write_scalar(rf, "voltage_V", domain.fields.rf.voltage_V.constant_value.value_or(
+        domain.fields.rf.voltage_V.evaluate(0.0, domain.fields.waveform_library)));
+    write_scalar(rf, "frequency_Hz", domain.fields.rf.frequency_Hz.constant_value.value_or(
+        domain.fields.rf.frequency_Hz.evaluate(0.0, domain.fields.waveform_library)));
     write_scalar(rf, "phase_rad", domain.fields.rf.phase_rad);
     
-    // AC
+    // AC (v1.0: write static value or t=0 evaluation)
     H5::Group ac = fields.createGroup("ac");
-    write_scalar(ac, "voltage_V", domain.fields.ac.voltage_V);
-    write_scalar(ac, "frequency_Hz", domain.fields.ac.frequency_Hz);
+    write_scalar(ac, "voltage_V", domain.fields.ac.voltage_V.constant_value.value_or(
+        domain.fields.ac.voltage_V.evaluate(0.0, domain.fields.waveform_library)));
+    write_scalar(ac, "frequency_Hz", domain.fields.ac.frequency_Hz.constant_value.value_or(
+        domain.fields.ac.frequency_Hz.evaluate(0.0, domain.fields.waveform_library)));
 }
 
 // ====================================================================

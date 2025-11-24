@@ -4,30 +4,27 @@ This directory contains the formal JSON Schema definitions for ICARION configura
 
 ## Schema Versions
 
-- **v1.1** (current): Adds waveform support for time-varying parameters
 - **v1.0**: Initial release
 
 ## Structure
 
 ```
 schema/
-├── icarion-config.schema.json    # Master schema v1.1 (entry point)
+├── icarion-config.schema.json    # Master schema v1.0 (entry point)
 ├── simulation.schema.json        # Simulation parameters
 ├── physics.schema.json           # Physics configuration
 ├── output.schema.json            # Output settings
 ├── domain.schema.json            # Domain definition
 ├── geometry.schema.json          # Domain geometry
 ├── environment.schema.json       # Gas environment
-├── fields.schema.json            # Electric/magnetic fields (v1.1: waveform support)
-├── waveform.schema.json          # Waveform types (NEW in v1.1)
+├── fields.schema.json            # Electric/magnetic fields (v1.0: waveform support)
+├── waveform.schema.json          # Waveform types (NEW in v1.0)
 ├── ions.schema.json              # Ion initialization
 ├── species.schema.json           # Species database
 ├── reactions.schema.json         # Reactions database
 ├── common-types.schema.json      # Reusable type definitions
 └── validator.py                  # Python validation script
 ```
-
-## What's New in v1.1
 
 ### Waveform System
 
@@ -68,14 +65,6 @@ All voltage and frequency parameters now support:
 - `sinusoidal` - Sinusoidal modulation
 - `pulsed` - Rectangular pulse
 - `arbitrary` - Custom time-value pairs with interpolation
-
-### Deprecated Fields (v1.0)
-
-The following boolean sweep flags are **deprecated** but still supported:
-
-- `enable_voltage_sweep`, `amplitude_slope_V_s`, `start_time_s`, `rise_time_s`
-- `enable_frequency_sweep`, `start_freq_Hz`, `sweep_slope_Hz_per_s`
-- `enable_radial_sweep`, `radial_slope_V_s`, `radial_start_time_s`, `radial_rise_time_s`
 
 **Migration:** Use `waveform.schema.json` types instead. See `docs/CONFIG_GUIDE.md` for examples.
 ```

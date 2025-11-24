@@ -194,8 +194,8 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
     REQUIRE(cfg.domains[0].environment.pressure_Pa == Approx(101325.0));
     REQUIRE(cfg.domains[0].environment.temperature_K == Approx(300.0));
     REQUIRE(cfg.domains[0].environment.gas_species == "He");
-    REQUIRE(cfg.domains[0].fields.dc.axial_V == Approx(250.0));
-    REQUIRE(cfg.domains[0].fields.dc.EN_Td == Approx(10.0));
+    REQUIRE(cfg.domains[0].fields.dc.axial_V.constant_value == Approx(250.0));
+    REQUIRE(cfg.domains[0].fields.dc.EN_Td.constant_value == Approx(10.0));
     
     // Domain 1: TOF
     REQUIRE(cfg.domains[1].domain_index == 1);
@@ -203,7 +203,7 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
     REQUIRE(cfg.domains[1].geometry.radius_m == Approx(0.02));
     REQUIRE(cfg.domains[1].geometry.origin_m.z == Approx(0.15));
     REQUIRE(cfg.domains[1].environment.pressure_Pa == Approx(1e-6));
-    REQUIRE(cfg.domains[1].fields.dc.axial_V == Approx(5000.0));
+    REQUIRE(cfg.domains[1].fields.dc.axial_V.constant_value == Approx(5000.0));
     
     // Verify derived properties were computed
     REQUIRE(cfg.domains[0].environment.particle_density_m_3 > 0.0);

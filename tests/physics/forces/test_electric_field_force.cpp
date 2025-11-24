@@ -59,7 +59,7 @@ TEST_CASE("ElectricFieldForce - Constructor validation", "[forces][electric]") {
         ICARION::config::DomainConfig domain;
         domain.instrument = ICARION::config::Instrument::IMS;
         domain.geometry.length_m = 0.1;
-        domain.fields.dc.axial_V = 1000.0;
+        domain.fields.dc.axial_V.constant_value = 1000.0;
         
         REQUIRE_NOTHROW(ElectricFieldForce(domain));
     }
@@ -135,7 +135,12 @@ TEST_CASE("ElectricFieldForce - IMS (Ion Mobility Spectrometry)", "[forces][elec
     ICARION::config::DomainConfig domain;
     domain.instrument = ICARION::config::Instrument::IMS;
     domain.geometry.length_m = 0.1;  // 10 cm drift tube
-    domain.fields.dc.axial_V = 1000.0;  // 1000 V -> 10 kV/m
+    // Initialize all field values
+    domain.fields.dc.axial_V.constant_value = 1000.0;  // 1000 V -> 10 kV/m
+    domain.fields.dc.quad_V.constant_value = 0.0;  // Initialize
+    domain.fields.rf.voltage_V.constant_value = 0.0;  // Initialize
+    domain.fields.rf.frequency_Hz.constant_value = 0.0;  // Initialize
+    domain.fields.rf.compute_derived();
     
     ElectricFieldForce force(domain);
     
@@ -181,7 +186,7 @@ TEST_CASE("ElectricFieldForce - TOF (Time-of-Flight)", "[forces][electric][tof]"
     domain.instrument = ICARION::config::Instrument::TOF;
     domain.geometry.length_m = 1.0;  // 1 m flight tube
     domain.geometry.acc_length_m = 0.05;  // 5 cm acceleration region
-    domain.fields.dc.axial_V = 20000.0;  // 20 kV acceleration
+    domain.fields.dc.axial_V.constant_value = 20000.0;  // 20 kV acceleration
     
     ElectricFieldForce force(domain);
     
@@ -222,10 +227,15 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
     domain.instrument = ICARION::config::Instrument::LQIT;
     domain.geometry.radius_m = 0.005;  // 5 mm trap radius
     domain.geometry.length_m = 0.05;  // 5 cm length
-    domain.fields.rf.voltage_V = 1000.0;  // 1 kV RF
-    domain.fields.rf.frequency_Hz = 1e6;  // 1 MHz
-    domain.fields.rf.angular_frequency_rad_s = 2.0 * M_PI * 1e6;
-    domain.fields.dc.quad_V = 0.0;  // No DC offset
+    // Initialize all field values (required by ValueOrWaveform)
+    domain.fields.rf.voltage_V.constant_value = 1000.0;  // 1 kV RF
+    domain.fields.rf.frequency_Hz.constant_value = 1e6;  // 1 MHz
+    domain.fields.rf.compute_derived();
+    domain.fields.dc.quad_V.constant_value = 0.0;  // No DC offset
+    domain.fields.dc.axial_V.constant_value = 0.0;  // Initialize
+    domain.fields.ac.voltage_V.constant_value = 0.0;  // Initialize
+    domain.fields.ac.frequency_Hz.constant_value = 0.0;  // Initialize
+    domain.fields.ac.compute_derived();
     
     ElectricFieldForce force(domain);
     
@@ -258,7 +268,7 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
         Vec3 F0 = force.compute(ion, 0.0, ctx);
         
         // At t = T/4: cos(ωt) = 0 (quarter period)
-        double T = 1.0 / domain.fields.rf.frequency_Hz;
+        double T = 1.0 / domain.fields.rf.frequency_Hz.constant_value.value();
         Vec3 F_quarter = force.compute(ion, T / 4.0, ctx);
         
         // At t = T/2: cos(ωt) = -1 (half period)
@@ -272,7 +282,7 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
     
     SECTION("LQIT with DC offset") {
         ICARION::config::DomainConfig domain_dc = domain;
-        domain_dc.fields.dc.quad_V = 100.0;  // 100 V DC offset
+        domain_dc.fields.dc.quad_V.constant_value = 100.0;  // 100 V DC offset
         
         ElectricFieldForce force_dc(domain_dc);
         
@@ -290,7 +300,7 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
     
     SECTION("LQIT with DC endcap field") {
         ICARION::config::DomainConfig domain_axial = domain;
-        domain_axial.fields.dc.axial_V = 500.0;  // 500 V endcap potential
+        domain_axial.fields.dc.axial_V.constant_value = 500.0;  // 500 V endcap potential
         domain_axial.geometry.length_m = 0.1;  // 10 cm trap
         
         ElectricFieldForce force_axial(domain_axial);
@@ -317,11 +327,15 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
         domain_ac.instrument = ICARION::config::Instrument::LQIT;
         domain_ac.geometry.radius_m = 0.005;
         domain_ac.geometry.length_m = 0.1;
-        domain_ac.fields.rf.voltage_V = 0.0;  // No RF for clean AC test
-        domain_ac.fields.rf.angular_frequency_rad_s = 0.0;
-        domain_ac.fields.ac.voltage_V = 100.0;  // 100 V AC
-        domain_ac.fields.ac.frequency_Hz = 5e5;  // 500 kHz
-        domain_ac.fields.ac.angular_frequency_rad_s = 2.0 * M_PI * 5e5;  // Precomputed ω
+        // Initialize all field values
+        domain_ac.fields.rf.voltage_V.constant_value = 0.0;  // No RF for clean AC test
+        domain_ac.fields.rf.frequency_Hz.constant_value = 0.0;  // Initialize
+        domain_ac.fields.rf.compute_derived();
+        domain_ac.fields.dc.quad_V.constant_value = 0.0;  // Initialize
+        domain_ac.fields.dc.axial_V.constant_value = 0.0;  // Initialize
+        domain_ac.fields.ac.voltage_V.constant_value = 100.0;  // 100 V AC
+        domain_ac.fields.ac.frequency_Hz.constant_value = 5e5;  // 500 kHz
+        domain_ac.fields.ac.compute_derived();
         
         ElectricFieldForce force_ac(domain_ac);
         
@@ -330,11 +344,11 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
         
         // At t=0: cos(0) = 1, AC field magnitude: E_x = -V_ac / r0
         Vec3 F0 = force_ac.compute(ion, 0.0, ctx);
-        double expected_E_ac = -domain_ac.fields.ac.voltage_V / domain_ac.geometry.radius_m;
+        double expected_E_ac = -domain_ac.fields.ac.voltage_V.constant_value.value() / domain_ac.geometry.radius_m;
         REQUIRE(F0.x == Approx(ELEM_CHARGE_C * expected_E_ac));
         
         // At t=T/4: cos(ωt) = 0, AC field should be zero
-        double T = 1.0 / domain_ac.fields.ac.frequency_Hz;
+        double T = 1.0 / domain_ac.fields.ac.frequency_Hz.constant_value.value();
         Vec3 F_quarter = force_ac.compute(ion, T / 4.0, ctx);
         REQUIRE(std::fabs(F_quarter.x) <= 1e-18);
         
@@ -355,7 +369,7 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
 TEST_CASE("ElectricFieldForce - FTICR", "[forces][electric][fticr]") {
     ICARION::config::DomainConfig domain;
     domain.instrument = ICARION::config::Instrument::FTICR;
-    domain.fields.dc.radial_V = 10.0;  // 10 V trapping voltage
+    domain.fields.dc.radial_V.constant_value = 10.0;  // 10 V trapping voltage
     domain.geometry.radius_m = 0.05;  // 5 cm radius
     domain.geometry.length_m = 0.1;  // 10 cm cell length
     
@@ -401,7 +415,7 @@ TEST_CASE("ElectricFieldForce - FTICR", "[forces][electric][fticr]") {
 TEST_CASE("ElectricFieldForce - Orbitrap", "[forces][electric][orbitrap]") {
     ICARION::config::DomainConfig domain;
     domain.instrument = ICARION::config::Instrument::Orbitrap;
-    domain.fields.dc.radial_V = 3500.0;  // 3.5 kV
+    domain.fields.dc.radial_V.constant_value = 3500.0;  // 3.5 kV
     domain.geometry.radius_char_m = 0.01;  // 1 cm characteristic radius
     domain.geometry.radius_in_m = 0.008;   // 8 mm inner
     domain.geometry.radius_out_m = 0.012;  // 12 mm outer
@@ -439,7 +453,7 @@ TEST_CASE("ElectricFieldForce - Orbitrap", "[forces][electric][orbitrap]") {
         // Force proportional to displacement: F_z = -k * z_center
         // Compute k from config (same as ElectricFieldForce::compute_orbitrap_field)
         double r_char_sq = domain.geometry.radius_char_m * domain.geometry.radius_char_m;
-        double k = 2.0 * domain.fields.dc.radial_V / 
+        double k = 2.0 * domain.fields.dc.radial_V.constant_value.value() / 
                    (r_char_sq * std::log(domain.geometry.radius_out_m / domain.geometry.radius_in_m)
                     - 0.5 * (domain.geometry.radius_out_m * domain.geometry.radius_out_m 
                              - domain.geometry.radius_in_m * domain.geometry.radius_in_m));
@@ -472,9 +486,15 @@ TEST_CASE("ElectricFieldForce - QuadrupoleRF", "[forces][electric][quadrupole]")
     ICARION::config::DomainConfig domain;
     domain.instrument = ICARION::config::Instrument::QuadrupoleRF;
     domain.geometry.radius_m = 0.003;  // 3 mm
-    domain.fields.rf.voltage_V = 500.0;
-    domain.fields.rf.frequency_Hz = 5e5;  // 500 kHz
-    domain.fields.rf.angular_frequency_rad_s = 2.0 * M_PI * 5e5;
+    // Initialize all field values
+    domain.fields.rf.voltage_V.constant_value = 500.0;
+    domain.fields.rf.frequency_Hz.constant_value = 5e5;  // 500 kHz
+    domain.fields.rf.compute_derived();
+    domain.fields.dc.quad_V.constant_value = 0.0;  // Initialize
+    domain.fields.dc.axial_V.constant_value = 0.0;  // Initialize
+    domain.fields.ac.voltage_V.constant_value = 0.0;  // Initialize
+    domain.fields.ac.frequency_Hz.constant_value = 0.0;  // Initialize
+    domain.fields.ac.compute_derived();
     
     ElectricFieldForce force(domain);
     

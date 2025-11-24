@@ -1173,7 +1173,7 @@ cd build && ./tests/config/test_field_array_e2e
 
 ### Waveforms (Time-Varying Parameters)
 
-**Status:** Production-ready (v1.1+)
+**Status:** Production-ready (v1.0)
 
 ICARION supports time-varying field parameters through a flexible waveform system. Any voltage or frequency parameter can be static OR time-dependent.
 
@@ -1493,21 +1493,6 @@ Automatically converted to:
 }
 ```
 
-**Deprecated (v1.0 sweep flags):**
-
-Old boolean sweep flags are **deprecated** but still supported in v1.1:
-
-```json
-// DEPRECATED (still works, but emits warning)
-"AC": {
-  "voltage_V": 0,
-  "enable_voltage_sweep": true,
-  "amplitude_slope_V_s": 500000,
-  "start_time_s": 0,
-  "rise_time_s": 0.001
-}
-```
-
 **Migration:** Use linear waveforms instead (see Migration Script below).
 
 #### Complete Example
@@ -1577,20 +1562,6 @@ Old boolean sweep flags are **deprecated** but still supported in v1.1:
   ]
 }
 ```
-
-#### Migration Script
-
-Convert old configs to new waveform format:
-
-```bash
-python3 scripts/migrate_to_waveforms.py old_config.json new_config.json
-```
-
-**What it does:**
-- Converts `enable_voltage_sweep` → `linear` waveform
-- Converts `voltage_time_table` → `arbitrary` waveform
-- Preserves static values
-- Maintains backward compatibility
 
 #### Validation
 

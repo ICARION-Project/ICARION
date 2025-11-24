@@ -15,7 +15,7 @@ TEST_CASE("ConstantWaveform evaluates to constant", "[waveform][constant]") {
 }
 
 TEST_CASE("LinearWaveform: before start time", "[waveform][linear]") {
-    LinearWaveform w{0.0, 100.0, 1.0, 0.1, true};
+    LinearWaveform w{0.0, 100.0, 1.0, 1.1, true};  // start=0, end=100, t0=1.0, t1=1.1
     
     CHECK(w.evaluate(0.0) == 0.0);
     CHECK(w.evaluate(0.5) == 0.0);
@@ -23,7 +23,7 @@ TEST_CASE("LinearWaveform: before start time", "[waveform][linear]") {
 }
 
 TEST_CASE("LinearWaveform: during ramp", "[waveform][linear]") {
-    LinearWaveform w{0.0, 100.0, 1.0, 0.1, true};
+    LinearWaveform w{0.0, 100.0, 1.0, 1.1, true};  // start=0, end=100, t0=1.0, t1=1.1
     
     CHECK_THAT(w.evaluate(1.0), WithinAbs(0.0, 1e-9));
     CHECK_THAT(w.evaluate(1.05), WithinAbs(50.0, 1e-6));
@@ -31,7 +31,7 @@ TEST_CASE("LinearWaveform: during ramp", "[waveform][linear]") {
 }
 
 TEST_CASE("LinearWaveform: after end time (clamped)", "[waveform][linear]") {
-    LinearWaveform w{0.0, 100.0, 1.0, 0.1, true};
+    LinearWaveform w{0.0, 100.0, 1.0, 1.1, true};  // start=0, end=100, t0=1.0, t1=1.1
     
     CHECK_THAT(w.evaluate(1.1), WithinAbs(100.0, 1e-9));
     CHECK_THAT(w.evaluate(2.0), WithinAbs(100.0, 1e-9));
@@ -39,14 +39,14 @@ TEST_CASE("LinearWaveform: after end time (clamped)", "[waveform][linear]") {
 }
 
 TEST_CASE("LinearWaveform: after end time (unclamped)", "[waveform][linear]") {
-    LinearWaveform w{0.0, 100.0, 1.0, 0.1, false};
+    LinearWaveform w{0.0, 100.0, 1.0, 1.1, false};  // start=0, end=100, t0=1.0, t1=1.1
     
     CHECK_THAT(w.evaluate(1.1), WithinAbs(0.0, 1e-9));
     CHECK_THAT(w.evaluate(2.0), WithinAbs(0.0, 1e-9));
 }
 
 TEST_CASE("LinearWaveform: negative ramp", "[waveform][linear]") {
-    LinearWaveform w{100.0, 0.0, 0.0, 0.01, true};
+    LinearWaveform w{100.0, 0.0, 0.0, 0.01, true};  // start=100, end=0, t0=0.0, t1=0.01
     
     CHECK_THAT(w.evaluate(0.0), WithinAbs(100.0, 1e-9));
     CHECK_THAT(w.evaluate(0.005), WithinAbs(50.0, 1e-6));
@@ -172,7 +172,7 @@ TEST_CASE("Waveform variant: evaluate via std::visit", "[waveform][variant]") {
     CHECK(w1.evaluate(0.0) == 42.0);
     
     Waveform w2;
-    w2.data = LinearWaveform{0.0, 100.0, 0.0, 1.0, true};
+    w2.data = LinearWaveform{0.0, 100.0, 0.0, 1.0, true};  // 0→100 over [0, 1]
     CHECK_THAT(w2.evaluate(0.5), WithinAbs(50.0, 1e-6));
     
     Waveform w3;
@@ -195,7 +195,7 @@ TEST_CASE("ValueOrWaveform: constant value", "[waveform][value_or_waveform]") {
 TEST_CASE("ValueOrWaveform: inline waveform", "[waveform][value_or_waveform]") {
     ValueOrWaveform val;
     Waveform w;
-    w.data = LinearWaveform{0.0, 100.0, 0.0, 1.0, true};
+    w.data = LinearWaveform{0.0, 100.0, 0.0, 1.0, true};  // 0→100 over [0, 1]
     val.waveform = w;
     
     CHECK(val.is_valid());
@@ -218,7 +218,7 @@ TEST_CASE("ValueOrWaveform: waveform reference", "[waveform][value_or_waveform]"
     std::map<std::string, Waveform> lib;
     Waveform w;
     w.id = "my_ramp";
-    w.data = LinearWaveform{0.0, 200.0, 0.0, 2.0, true};
+    w.data = LinearWaveform{0.0, 200.0, 0.0, 2.0, true};  // 0→200 over [0, 2]
     lib["my_ramp"] = w;
     
     CHECK_THAT(val.evaluate(0.0, lib), WithinAbs(0.0, 1e-9));

@@ -66,12 +66,12 @@ LinearWaveform WaveformLoader::load_linear(const Json::Value& json) {
     LinearWaveform w;
     w.start_value = get_required<double>(json, "start", "linear");
     w.end_value = get_required<double>(json, "end", "linear");
-    w.duration_s = get_required<double>(json, "duration_s", "linear");
     w.start_time_s = get_optional<double>(json, "start_time_s", 0.0);
+    w.end_time_s = get_required<double>(json, "end_time_s", "linear");
     w.clamp = get_optional<bool>(json, "clamp", true);
     
-    if (w.duration_s <= 0.0) {
-        throw std::runtime_error("LinearWaveform: duration_s must be positive");
+    if (w.end_time_s <= w.start_time_s) {
+        throw std::runtime_error("LinearWaveform: end_time_s must be > start_time_s");
     }
     
     return w;

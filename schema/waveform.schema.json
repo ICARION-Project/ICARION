@@ -23,8 +23,8 @@
     
     "LinearWaveform": {
       "type": "object",
-      "description": "Linear ramp/sweep: y = start + (end - start) * t_normalized",
-      "required": ["type", "start", "end", "duration_s"],
+      "description": "Linear ramp/sweep: y = start + (end - start) * t_normalized. Active in [start_time_s, end_time_s]",
+      "required": ["type", "start", "end", "end_time_s"],
       "properties": {
         "type": {
           "const": "linear"
@@ -43,15 +43,15 @@
           "minimum": 0,
           "description": "Time when ramp starts [seconds]"
         },
-        "duration_s": {
+        "end_time_s": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "Ramp duration [seconds]"
+          "description": "Time when ramp ends [seconds]. Must be > start_time_s"
         },
         "clamp": {
           "type": "boolean",
           "default": true,
-          "description": "Hold end value after duration (true) or reset to start (false)"
+          "description": "Hold end value after end_time_s (true) or reset to start (false)"
         }
       },
       "additionalProperties": false
@@ -238,7 +238,7 @@
       "type": "linear",
       "start": 0,
       "end": 500,
-      "duration_s": 0.001
+      "end_time_s": 0.001
     },
     {
       "description": "Sinusoidal modulation",

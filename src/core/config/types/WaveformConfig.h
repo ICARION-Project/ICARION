@@ -38,21 +38,23 @@ struct LinearWaveform {
     double start_value = 0.0;
     double end_value = 0.0;
     double start_time_s = 0.0;
-    double duration_s = 0.0;
-    bool clamp = true;  ///< Hold end_value after duration
+    double end_time_s = 1e9;
+    bool clamp = true;  ///< Hold end_value after end_time
     
     double evaluate(double t) const {
         if (t < start_time_s) return start_value;
-        if (t >= start_time_s + duration_s) {
+        if (t >= end_time_s) {
             return clamp ? end_value : start_value;
         }
-        double t_norm = (t - start_time_s) / duration_s;
+        double duration = end_time_s - start_time_s;
+        double t_norm = (t - start_time_s) / duration;
         return start_value + (end_value - start_value) * t_norm;
     }
 };
 
 /**
  * @brief Quadratic ramp (acceleration profile)
+ * y = a + b·t + c·t²  (within [start_time_s, end_time_s])
  */
 struct QuadraticWaveform {
     double a = 0.0;  ///< Constant term

@@ -48,7 +48,7 @@ TEST_CASE("WaveformLoader: load linear waveform", "[waveform][loader]") {
         "type": "linear",
         "start": 0.0,
         "end": 500.0,
-        "duration_s": 0.001,
+        "end_time_s": 0.501,
         "start_time_s": 0.5,
         "clamp": false
     })";
@@ -60,7 +60,7 @@ TEST_CASE("WaveformLoader: load linear waveform", "[waveform][loader]") {
     const auto& lw = std::get<LinearWaveform>(w.data);
     CHECK(lw.start_value == 0.0);
     CHECK(lw.end_value == 500.0);
-    CHECK(lw.duration_s == 0.001);
+    CHECK(lw.end_time_s == 0.501);
     CHECK(lw.start_time_s == 0.5);
     CHECK(lw.clamp == false);
 }
@@ -70,7 +70,7 @@ TEST_CASE("WaveformLoader: linear with defaults", "[waveform][loader]") {
         "type": "linear",
         "start": 10,
         "end": 20,
-        "duration_s": 1.0
+        "end_time_s": 1.0
     })";
     
     Json::Value json = parse_json(json_str);
@@ -182,7 +182,7 @@ TEST_CASE("WaveformLoader: load waveform library", "[waveform][loader]") {
             "type": "linear",
             "start": 0,
             "end": 100,
-            "duration_s": 0.1
+            "end_time_s": 0.1
         },
         "sine1": {
             "type": "sinusoidal",
@@ -222,7 +222,7 @@ TEST_CASE("ValueOrWaveform: load inline waveform", "[waveform][loader][value_or_
         "type": "linear",
         "start": 0,
         "end": 100,
-        "duration_s": 1.0
+        "end_time_s": 1.0
     })";
     
     Json::Value json = parse_json(json_str);
@@ -272,12 +272,13 @@ TEST_CASE("WaveformLoader: unknown type throws", "[waveform][loader][error]") {
     CHECK_THROWS_AS(WaveformLoader::load(json), std::runtime_error);
 }
 
-TEST_CASE("WaveformLoader: invalid duration throws", "[waveform][loader][error]") {
+TEST_CASE("WaveformLoader: invalid time range throws", "[waveform][loader][error]") {
     std::string json_str = R"({
         "type": "linear",
         "start": 0,
         "end": 100,
-        "duration_s": -1.0
+        "start_time_s": 1.0,
+        "end_time_s": 0.5
     })";
     
     Json::Value json = parse_json(json_str);
@@ -326,7 +327,7 @@ TEST_CASE("WaveformLoader: loaded waveforms evaluate correctly", "[waveform][loa
         "type": "linear",
         "start": 0,
         "end": 100,
-        "duration_s": 1.0
+        "end_time_s": 1.0
     })";
     
     Json::Value json = parse_json(json_str);

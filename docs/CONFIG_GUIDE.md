@@ -1198,7 +1198,7 @@ ICARION supports time-varying field parameters through a flexible waveform syste
       "start": 0.0,
       "end": 500.0,
       "start_time_s": 0.0,
-      "duration_s": 0.001,
+      "end_time_s": 0.001,
       "clamp": true
     },
     "frequency_Hz": 1000000.0
@@ -1214,13 +1214,13 @@ ICARION supports time-varying field parameters through a flexible waveform syste
       "type": "linear",
       "start": 0,
       "end": 500,
-      "duration_s": 0.001
+      "end_time_s": 0.001
     },
     "rf_chirp": {
       "type": "linear",
       "start": 1000000,
       "end": 2000000,
-      "duration_s": 0.01
+      "end_time_s": 0.01
     }
   },
   "domains": [
@@ -1247,7 +1247,7 @@ ICARION supports 6 waveform types:
 | Type | Use Case | Parameters |
 |------|----------|------------|
 | `constant` | Static value | `value` |
-| `linear` | Voltage/frequency sweep | `start`, `end`, `duration_s`, `start_time_s` (opt), `clamp` (opt) |
+| `linear` | Voltage/frequency sweep | `start`, `end`, `end_time_s`, `start_time_s` (opt), `clamp` (opt) |
 | `quadratic` | Acceleration profile | `a`, `b`, `c`, `start_time_s` (opt), `end_time_s` (opt) |
 | `sinusoidal` | Amplitude modulation | `offset` (opt), `amplitude`, `frequency_Hz`, `phase_rad` (opt) |
 | `pulsed` | Single pulse | `low`, `high`, `pulse_start_s`, `pulse_width_s` |
@@ -1268,23 +1268,23 @@ ICARION supports 6 waveform types:
 
 ##### 2. Linear Waveform
 
-Linearly interpolates from `start` to `end` over `duration_s`:
+Linearly interpolates from `start` to `end` between `start_time_s` and `end_time_s`:
 
 ```json
 {
   "type": "linear",
   "start": 0.0,          // Starting value
   "end": 500.0,          // Ending value
-  "start_time_s": 0.0,   // When to start ramp (default: 0)
-  "duration_s": 0.001,   // Ramp duration [s]
-  "clamp": true          // Hold end value after duration (default: true)
+  "start_time_s": 0.0,   // Ramp start time [s] (default: 0)
+  "end_time_s": 0.001,   // Ramp end time [s] (required)
+  "clamp": true          // Hold end value after end_time_s (default: true)
 }
 ```
 
 **Behavior:**
 - `t < start_time_s`: Returns `start`
-- `start_time_s ≤ t ≤ start_time_s + duration_s`: Linear interpolation
-- `t > start_time_s + duration_s`:
+- `start_time_s ≤ t ≤ end_time_s`: Linear interpolation
+- `t > end_time_s`:
   - If `clamp=true`: Returns `end` (hold final value)
   - If `clamp=false`: Returns `start` (reset to initial)
 
@@ -1402,13 +1402,13 @@ Define waveforms once at the top level and reference them multiple times:
       "type": "linear",
       "start": 0,
       "end": 500,
-      "duration_s": 0.001
+      "end_time_s": 0.001
     },
     "fast_chirp": {
       "type": "linear",
       "start": 1e6,
       "end": 2e6,
-      "duration_s": 0.01
+      "end_time_s": 0.01
     }
   },
   "domains": [
@@ -1516,13 +1516,13 @@ Automatically converted to:
       "type": "linear",
       "start": 0,
       "end": 500,
-      "duration_s": 0.005
+      "end_time_s": 0.005
     },
     "freq_chirp": {
       "type": "linear",
       "start": 1000000,
       "end": 2000000,
-      "duration_s": 0.01
+      "end_time_s": 0.01
     },
     "modulation": {
       "type": "sinusoidal",

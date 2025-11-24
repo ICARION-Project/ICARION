@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0/icarion-config.schema.json",
-  "title": "ICARION v1.0 Configuration",
-  "description": "Complete configuration schema for ICARION ion trajectory simulations",
+  "$id": "https://icarion.io/schemas/v1.1/icarion-config.schema.json",
+  "title": "ICARION v1.1 Configuration",
+  "description": "Complete configuration schema for ICARION ion trajectory simulations (v1.1+ with waveform support)",
   "type": "object",
   
   "properties": {
@@ -44,6 +44,11 @@
     "ions": {
       "$ref": "ions.schema.json",
       "description": "Ion initialization configuration (optional, alternative to ion_cloud_path)"
+    },
+    
+    "waveforms": {
+      "$ref": "waveform.schema.json#/definitions/WaveformLibrary",
+      "description": "Named waveform library (v1.1+, optional). Define waveforms once and reference with @waveform_id"
     },
     
     "domains": {

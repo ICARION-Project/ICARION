@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0/fields.schema.json",
+  "$id": "https://icarion.io/schemas/v1.1/fields.schema.json",
   "title": "ICARION Domain Fields Configuration",
-  "description": "Electric and magnetic field configuration for domain",
+  "description": "Electric and magnetic field configuration for domain (v1.1+ with waveform support)",
   "type": "object",
   
   "properties": {
@@ -47,44 +47,56 @@
       "description": "DC field parameters",
       "properties": {
         "EN_Td": {
-          "$ref": "common-types.schema.json#/$defs/reduced_field_strength",
+          "oneOf": [
+            {"$ref": "common-types.schema.json#/$defs/reduced_field_strength"},
+            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+          ],
           "default": 0.0,
-          "description": "Reduced electric field strength in Townsend (1 Td = 10^-21 V·m²)"
+          "description": "Reduced electric field strength in Townsend (1 Td = 10^-21 V·m²). Can be static or time-varying (v1.1+)"
         },
         "axial_V": {
-          "$ref": "common-types.schema.json#/$defs/voltage",
+          "oneOf": [
+            {"$ref": "common-types.schema.json#/$defs/voltage"},
+            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+          ],
           "default": 0.0,
-          "description": "Axial DC voltage [V]"
+          "description": "Axial DC voltage [V]. Can be static value, inline waveform, or @waveform_ref (v1.1+)"
         },
         "radial_V": {
-          "$ref": "common-types.schema.json#/$defs/voltage",
+          "oneOf": [
+            {"$ref": "common-types.schema.json#/$defs/voltage"},
+            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+          ],
           "default": 0.0,
-          "description": "Radial DC voltage [V]"
+          "description": "Radial DC voltage [V]. Can be static value, inline waveform, or @waveform_ref (v1.1+)"
         },
         "quad_V": {
-          "$ref": "common-types.schema.json#/$defs/voltage",
+          "oneOf": [
+            {"$ref": "common-types.schema.json#/$defs/voltage"},
+            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+          ],
           "default": 0.0,
-          "description": "Quadrupolar DC voltage [V]"
+          "description": "Quadrupolar DC voltage [V]. Can be static value, inline waveform, or @waveform_ref (v1.1+)"
         },
         "enable_radial_sweep": {
           "type": "boolean",
           "default": false,
-          "description": "Enable radial DC voltage sweep"
+          "description": "DEPRECATED: Enable radial DC voltage sweep. Use waveforms instead (v1.1+)"
         },
         "radial_slope_V_s": {
           "type": "number",
           "default": 0.0,
-          "description": "Radial DC voltage sweep slope [V/s]"
+          "description": "DEPRECATED: Radial DC voltage sweep slope [V/s]. Use linear waveform instead"
         },
         "radial_start_time_s": {
           "$ref": "common-types.schema.json#/$defs/time_non_negative",
           "default": 0.0,
-          "description": "Radial DC voltage sweep start time [s]"
+          "description": "DEPRECATED: Radial DC voltage sweep start time [s]. Use linear waveform instead"
         },
         "radial_rise_time_s": {
           "$ref": "common-types.schema.json#/$defs/time_non_negative",
           "default": 0.0,
-          "description": "Radial DC voltage sweep rise time [s]"
+          "description": "DEPRECATED: Radial DC voltage sweep rise time [s]. Use linear waveform instead"
         }
       },
       "additionalProperties": false
@@ -95,14 +107,20 @@
       "description": "RF field parameters",
       "properties": {
         "voltage_V": {
-          "$ref": "common-types.schema.json#/$defs/voltage",
+          "oneOf": [
+            {"$ref": "common-types.schema.json#/$defs/voltage"},
+            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+          ],
           "default": 0.0,
-          "description": "RF amplitude in volts [V]"
+          "description": "RF amplitude in volts [V]. Can be static value, inline waveform, or @waveform_ref (v1.1+)"
         },
         "frequency_Hz": {
-          "$ref": "common-types.schema.json#/$defs/frequency",
+          "oneOf": [
+            {"$ref": "common-types.schema.json#/$defs/frequency"},
+            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+          ],
           "default": 0.0,
-          "description": "RF frequency in Hz"
+          "description": "RF frequency in Hz. Can be static or time-varying (chirp) (v1.1+)"
         },
         "phase_rad": {
           "$ref": "common-types.schema.json#/$defs/phase",
@@ -118,49 +136,55 @@
       "description": "AC excitation field parameters",
       "properties": {
         "voltage_V": {
-          "$ref": "common-types.schema.json#/$defs/voltage",
+          "oneOf": [
+            {"$ref": "common-types.schema.json#/$defs/voltage"},
+            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+          ],
           "default": 0.0,
-          "description": "AC excitation amplitude in volts [V]"
+          "description": "AC excitation amplitude in volts [V]. Can be static value, inline waveform, or @waveform_ref (v1.1+)"
         },
         "frequency_Hz": {
-          "$ref": "common-types.schema.json#/$defs/frequency",
+          "oneOf": [
+            {"$ref": "common-types.schema.json#/$defs/frequency"},
+            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+          ],
           "default": 0.0,
-          "description": "AC excitation frequency in Hz"
+          "description": "AC excitation frequency in Hz. Can be static or time-varying (v1.1+)"
         },
         "enable_voltage_sweep": {
           "type": "boolean",
           "default": false,
-          "description": "Enable AC voltage amplitude sweep"
+          "description": "DEPRECATED: Enable AC voltage amplitude sweep. Use linear waveform instead (v1.1+)"
         },
         "amplitude_slope_V_s": {
           "type": "number",
           "default": 0.0,
-          "description": "AC voltage amplitude sweep slope in V/s"
+          "description": "DEPRECATED: AC voltage amplitude sweep slope in V/s. Use linear waveform instead"
         },
         "start_time_s": {
           "$ref": "common-types.schema.json#/$defs/time_non_negative",
           "default": 0.0,
-          "description": "AC voltage sweep start time in seconds"
+          "description": "DEPRECATED: AC voltage sweep start time in seconds. Use linear waveform instead"
         },
         "rise_time_s": {
           "$ref": "common-types.schema.json#/$defs/time_non_negative",
           "default": 0.0,
-          "description": "AC voltage rise time in seconds"
+          "description": "DEPRECATED: AC voltage rise time in seconds. Use linear waveform instead"
         },
         "enable_frequency_sweep": {
           "type": "boolean",
           "default": false,
-          "description": "Enable AC frequency sweep"
+          "description": "DEPRECATED: Enable AC frequency sweep. Use linear waveform instead (v1.1+)"
         },
         "start_freq_Hz": {
           "$ref": "common-types.schema.json#/$defs/frequency",
           "default": 0.0,
-          "description": "AC frequency sweep start frequency in Hz"
+          "description": "DEPRECATED: AC frequency sweep start frequency in Hz. Use linear waveform instead"
         },
         "sweep_slope_Hz_per_s": {
           "type": "number",
           "default": 0.0,
-          "description": "AC frequency sweep slope in Hz/s"
+          "description": "DEPRECATED: AC frequency sweep slope in Hz/s. Use linear waveform instead"
         }
       },
       "additionalProperties": false

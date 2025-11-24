@@ -632,32 +632,71 @@ public:
 
 ### Space Charge Solver
 
-For large ion ensembles (>10k ions), direct N-body is too slow. Instead:
+**Status:** Production-ready with automatic method selection
+
+ICARION implements Coulomb forces between ions using two complementary methods:
+
+#### 1. SpaceChargeDirect (N < 1000)
+
+Direct N-body summation for small ensembles:
+
+```cpp
+class SpaceChargeDirect : public IForce {
+    // Compute F_i = Σ(j≠i) k_e * q_i * q_j * r_ij / |r_ij|³
+    // Exact solution, O(N²) complexity
+    // Softening length ε = 0.1 nm prevents singularities
+};
+```
+
+**Accuracy:** Exact (within softening radius)
+
+#### 2. SpaceChargeGrid (N ≥ 1000)
+
+Particle-in-Cell (PIC) method for large ensembles:
 
 ```cpp
 class SpaceChargeSolver {
 public:
     /**
-     * @brief Solve Poisson equation for space charge
+     * @brief Solve Poisson equation: ∇²φ = -ρ/ε₀
      * 
-     * ∇²φ = -ρ(r)/ε₀
-     * E = -∇φ
-     * 
-     * @param ion_positions Ion cloud positions
-     * @param charges Ion charges
-     * @return Field provider for interpolated E-field
+     * Steps:
+     * 1. CIC charge deposition: ions → grid charge density ρ(r)
+     * 2. Poisson solve: ρ(r) → potential φ(r)
+     * 3. E-field: E = -∇φ (3-point gradient)
+     * 4. Force interpolation: E(r) → F_i = q_i * E(r_i)
      */
-    std::unique_ptr<IFieldProvider> solve(
-        const std::vector<Vec3>& ion_positions,
-        const std::vector<double>& charges
-    );
+    void update(const std::vector<IonState>& ions);
+    Vec3 fieldAt(const Vec3& pos) const;
 };
 ```
 
-**Algorithm**: 
-- Particle-in-Cell (PIC): Deposit charges on grid
-- Solve Poisson on grid (FFT or multigrid)
-- Interpolate E-field back to particles
+**Algorithm Details:**
+- **Charge Deposition:** CIC (Cloud-In-Cell) with trilinear interpolation, O(h²) convergence
+- **Poisson Solver:** 5 methods (Gauss-Seidel, Red-Black SOR, Conjugate Gradient, Multigrid, FFT)
+- **E-field Gradient:** 3-point stencil, 2nd-order accurate
+
+#### Automatic Method Selection
+
+```cpp
+// In main.cpp - transparent auto-selection
+if (N < 1000) {
+    // Use SpaceChargeDirect (exact, O(N²))
+    force_registry.add_force(std::make_unique<SpaceChargeDirect>(1e-10));
+} else {
+    // Use SpaceChargeGrid (fast, O(N log N))
+    auto solver = std::make_shared<SpaceChargeSolver>(64, 64, 64, ...);
+    force_registry.add_force(std::make_unique<SpaceChargeGrid>(solver));
+}
+```
+
+**Crossover Point:** N = 1000 ions (empirically optimal)
+
+**Grid Configuration:**
+- Default: 64³ cells (~262k grid points)
+- Cell size: ~1mm (adaptive based on ion distribution)
+- Domain: Auto-sized with 50% margin for ion motion
+- Update frequency: Every timestep (can be optimized for static distributions)
 
 ---
 

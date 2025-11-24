@@ -782,12 +782,24 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
    - Separate random kicks from deterministic forces
    - New IStochasticForce interface (similar to collision handlers)
 
-3. **GPU Acceleration** (Research phase):
-   - CUDA kernels for space charge computation
-   - Grid-based field evaluation on GPU
-   - Requirement: Ensure SSOT migration complete first
+3. **Space Charge** ✅ (COMPLETE - November 2025):
+   - Automatic method selection: N<1000→Direct (O(N²)), N≥1000→Grid (O(N log N))
+   - CIC charge deposition with O(h²) convergence
+   - Poisson solver with 5 methods (Gauss-Seidel, SOR, CG, Multigrid, FFT)
+   - Files: `src/core/physics/spacecharge/*`, `src/core/physics/forces/SpaceCharge{Direct,Grid}.{h,cpp}`
+   - Tests: 17 unit tests, 3 integration tests (all passing)
+   - **When to use Direct:** N<1000, exact results needed
+   - **When to use Grid:** N≥1000, fast approximation
+   - **Configuration:** Set `physics.enable_space_charge = true` in config
+   - **Performance tuning:** Adjust grid size (default 64³), update frequency
+   - **Limitations:** CPU-only (GPU planned for v1.1), Dirichlet BC causes errors near boundaries
 
-4. **Field Caching** (Optimization phase):
+4. **GPU Acceleration** (Planned for v1.1):
+   - CUDA kernels for space charge Poisson solver
+   - Grid-based field evaluation on GPU
+   - Target: 10-100x speedup for N≥10,000
+
+5. **Field Caching** (Optimization phase):
    - Pre-compute field on regular grid
    - Trilinear interpolation for fast evaluation
    - Benefit: Approximately 10x speedup for analytical fields

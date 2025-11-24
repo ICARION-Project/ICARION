@@ -124,10 +124,9 @@ TEST_CASE("RK4Strategy: Basic properties", "[integrator][rk4]") {
 TEST_CASE("RK4Strategy: Free fall (constant acceleration)", "[integrator][rk4]") {
     // Setup
     RK4Strategy strategy;
-    ForceRegistry registry;
-    registry.add_force(std::make_unique<ConstantGravityForce>(9.81));
-    
     DomainConfig domain = create_test_domain();
+    ForceRegistry registry(domain);
+    registry.add_force(std::make_unique<ConstantGravityForce>(9.81));
     std::vector<IonState> all_ions;  // No space charge
     
     // Initial state: ion at rest at height 100m
@@ -142,7 +141,7 @@ TEST_CASE("RK4Strategy: Free fall (constant acceleration)", "[integrator][rk4]")
     
     // Integrate for 1 second
     for (int i = 0; i < 100; ++i) {
-        strategy.step(ion, t, dt, registry, domain, all_ions);
+        strategy.step(ion, t, dt, registry, all_ions);
         t += dt;
     }
     
@@ -163,11 +162,10 @@ TEST_CASE("RK4Strategy: Free fall (constant acceleration)", "[integrator][rk4]")
 TEST_CASE("RK4Strategy: Harmonic oscillator (periodic motion)", "[integrator][rk4]") {
     // Setup: mass-spring system with ω = 1 rad/s
     RK4Strategy strategy;
-    ForceRegistry registry;
+    DomainConfig domain = create_test_domain();
+    ForceRegistry registry(domain);
     double k = 1.0;  // Spring constant
     registry.add_force(std::make_unique<HarmonicOscillatorForce>(k));
-    
-    DomainConfig domain = create_test_domain();
     std::vector<IonState> all_ions;
     
     // Initial state: displaced 1m, at rest
@@ -186,7 +184,7 @@ TEST_CASE("RK4Strategy: Harmonic oscillator (periodic motion)", "[integrator][rk
     int steps = static_cast<int>(T / dt);
     
     for (int i = 0; i < steps; ++i) {
-        strategy.step(ion, t, dt, registry, domain, all_ions);
+        strategy.step(ion, t, dt, registry, all_ions);
         t += dt;
     }
     
@@ -200,11 +198,10 @@ TEST_CASE("RK4Strategy: Harmonic oscillator (periodic motion)", "[integrator][rk
 TEST_CASE("RK4Strategy: Exponential decay (damping)", "[integrator][rk4]") {
     // Setup: damped motion with γ = 0.5 s^-1
     RK4Strategy strategy;
-    ForceRegistry registry;
+    DomainConfig domain = create_test_domain();
+    ForceRegistry registry(domain);
     double gamma = 0.5;
     registry.add_force(std::make_unique<LinearDampingForce>(gamma));
-    
-    DomainConfig domain = create_test_domain();
     std::vector<IonState> all_ions;
     
     // Initial state: moving at 10 m/s
@@ -219,7 +216,7 @@ TEST_CASE("RK4Strategy: Exponential decay (damping)", "[integrator][rk4]") {
     
     // Integrate for 2 seconds
     for (int i = 0; i < 200; ++i) {
-        strategy.step(ion, t, dt, registry, domain, all_ions);
+        strategy.step(ion, t, dt, registry, all_ions);
         t += dt;
     }
     
@@ -265,11 +262,10 @@ TEST_CASE("RK4Strategy: Factory creation", "[integrator][factory]") {
 TEST_CASE("RK4Strategy: SSOT compliance", "[integrator][ssot]") {
     // Verify RK4 uses DomainConfig (not GlobalParams)
     RK4Strategy strategy;
-    ForceRegistry registry;
-    registry.add_force(std::make_unique<ConstantGravityForce>());
-    
     // Create DomainConfig (SSOT!)
     DomainConfig domain = create_test_domain();
+    ForceRegistry registry(domain);
+    registry.add_force(std::make_unique<ConstantGravityForce>());
     std::vector<IonState> all_ions;
     
     IonState ion;
@@ -279,5 +275,5 @@ TEST_CASE("RK4Strategy: SSOT compliance", "[integrator][ssot]") {
     ion.ion_charge_C = 1e-19;
     
     // This should compile and run (SSOT-compliant signature)
-    REQUIRE_NOTHROW(strategy.step(ion, 0.0, 0.01, registry, domain, all_ions));
+    REQUIRE_NOTHROW(strategy.step(ion, 0.0, 0.01, registry, all_ions));
 }

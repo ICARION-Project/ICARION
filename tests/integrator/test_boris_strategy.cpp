@@ -120,7 +120,7 @@ TEST_CASE("BorisStrategy: Constant electric field acceleration", "[integrator][b
     double E_x = 10.0;  // V/m
     Vec3 E_field{E_x, 0, 0};
     
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<ConstantElectricForce>(E_field));
     
     std::vector<IonState> all_ions = {ion};
@@ -133,7 +133,7 @@ TEST_CASE("BorisStrategy: Constant electric field acceleration", "[integrator][b
     int n_steps = 1000;
     
     for (int i = 0; i < n_steps; ++i) {
-        strategy.step(ion, t, dt, forces, domain, all_ions);
+        strategy.step(ion, t, dt, forces, all_ions);
         t += dt;
     }
     
@@ -159,7 +159,7 @@ TEST_CASE("BorisStrategy: Cyclotron motion in uniform B-field", "[integrator][bo
     auto ion = create_test_ion(1.0, 1.0);
     ion.vel = Vec3{1.0, 0, 0};  // Initial velocity in x-direction
     
-    ForceRegistry forces;  // No electric forces
+    ForceRegistry forces(domain);  // No electric forces
     std::vector<IonState> all_ions = {ion};
     
     BorisStrategy strategy;
@@ -178,7 +178,7 @@ TEST_CASE("BorisStrategy: Cyclotron motion in uniform B-field", "[integrator][bo
     double E0 = 0.5 * ion.mass_kg * v0_mag * v0_mag;
     
     for (int i = 0; i < n_steps; ++i) {
-        strategy.step(ion, t, dt, forces, domain, all_ions);
+        strategy.step(ion, t, dt, forces, all_ions);
         t += dt;
     }
     
@@ -211,7 +211,7 @@ TEST_CASE("BorisStrategy: E×B drift motion", "[integrator][boris]") {
     ion.vel = Vec3{0, 0, 0};  // Start at rest
     
     Vec3 E_field{E_x, 0, 0};
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<ConstantElectricForce>(E_field));
     
     std::vector<IonState> all_ions = {ion};
@@ -231,7 +231,7 @@ TEST_CASE("BorisStrategy: E×B drift motion", "[integrator][boris]") {
     int n_steps = 100000;  // 1000 seconds
     
     for (int i = 0; i < n_steps; ++i) {
-        strategy.step(ion, t, dt, forces, domain, all_ions);
+        strategy.step(ion, t, dt, forces, all_ions);
         t += dt;
     }
     
@@ -255,7 +255,7 @@ TEST_CASE("BorisStrategy: Long-term energy conservation", "[integrator][boris][s
     auto ion = create_test_ion(1.0, 1.0);
     ion.vel = Vec3{1.0, 0.5, 0};
     
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     std::vector<IonState> all_ions = {ion};
     
     BorisStrategy strategy;
@@ -273,7 +273,7 @@ TEST_CASE("BorisStrategy: Long-term energy conservation", "[integrator][boris][s
     int n_steps = n_periods * 50;
     
     for (int i = 0; i < n_steps; ++i) {
-        strategy.step(ion, t, dt, forces, domain, all_ions);
+        strategy.step(ion, t, dt, forces, all_ions);
         t += dt;
     }
     
@@ -301,7 +301,7 @@ TEST_CASE("BorisStrategy: Agreement with RK4 for E-field only", "[integrator][bo
     ion_rk4.vel = ion_boris.vel;
     
     Vec3 E_field{5.0, 0, 0};
-    ForceRegistry forces;
+    ForceRegistry forces(domain);
     forces.add_force(std::make_unique<ConstantElectricForce>(E_field));
     
     std::vector<IonState> all_ions_boris = {ion_boris};
@@ -315,8 +315,8 @@ TEST_CASE("BorisStrategy: Agreement with RK4 for E-field only", "[integrator][bo
     int n_steps = 100;
     
     for (int i = 0; i < n_steps; ++i) {
-        boris.step(ion_boris, t, dt, forces, domain, all_ions_boris);
-        rk4->step(ion_rk4, t, dt, forces, domain, all_ions_rk4);
+        boris.step(ion_boris, t, dt, forces, all_ions_boris);
+        rk4->step(ion_rk4, t, dt, forces, all_ions_rk4);
         t += dt;
     }
     

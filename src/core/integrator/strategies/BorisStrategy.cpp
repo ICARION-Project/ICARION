@@ -37,12 +37,17 @@ void BorisStrategy::step(
     double t,
     double dt,
     const physics::ForceRegistry& force_registry,
-    const config::DomainConfig& domain,
     const std::vector<IonState>& all_ions
 ) {
-    // Create context (SSOT: uses pointers to avoid copying DomainConfig)
+    // Get domain from ForceRegistry (SSOT!)
+    const config::DomainConfig* domain = force_registry.domain();
+    if (!domain) {
+        throw std::runtime_error("BorisStrategy: ForceRegistry has no domain configured");
+    }
+    
+    // Create context
     physics::ForceContext ctx;
-    ctx.domain = &domain;
+    ctx.domain = domain;
     ctx.all_ions = &all_ions;
     ctx.field_provider = nullptr;
     
@@ -58,9 +63,9 @@ void BorisStrategy::step(
     
     // Get magnetic field at current position
     Vec3 B{0, 0, 0};
-    if (domain.fields.magnetic.enabled) {
+    if (domain->fields.magnetic.enabled) {
         // Uniform magnetic field (most common case)
-        B = domain.fields.magnetic.field_strength_T;
+        B = domain->fields.magnetic.field_strength_T;
         // Note: field_gradient is ignored for now (uniform field approximation)
     }
     

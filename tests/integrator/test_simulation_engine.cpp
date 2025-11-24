@@ -91,37 +91,37 @@ IonState create_test_ion() {
 TEST_CASE("SimulationEngine: Construction and initialization", "[simulation][engine]") {
     auto cfg = create_test_config();
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     // Note: For testing without collisions, simply pass nullptr
     auto reaction_handler = std::make_shared<NoReactionHandler>();
     
     SECTION("Valid construction") {
         REQUIRE_NOTHROW(SimulationEngine(
-            cfg, force_registry, integrator, nullptr, reaction_handler
+            cfg, {force_registry}, integrator, nullptr, reaction_handler
         ));
     }
     
     SECTION("Null ForceRegistry throws") {
         REQUIRE_THROWS_AS(SimulationEngine(
-            cfg, nullptr, integrator, nullptr, reaction_handler
+            cfg, {}, integrator, nullptr, reaction_handler
         ), std::invalid_argument);
     }
     
     SECTION("Null IntegrationStrategy throws") {
         REQUIRE_THROWS_AS(SimulationEngine(
-            cfg, force_registry, nullptr, nullptr, reaction_handler
+            cfg, {force_registry}, nullptr, nullptr, reaction_handler
         ), std::invalid_argument);
     }
     
     SECTION("Null collision/reaction handlers allowed") {
         REQUIRE_NOTHROW(SimulationEngine(
-            cfg, force_registry, integrator, nullptr, nullptr
+            cfg, {force_registry}, integrator, nullptr, nullptr
         ));
     }
     
     SECTION("Config accessors") {
-        SimulationEngine engine(cfg, force_registry, integrator);
+        SimulationEngine engine(cfg, {force_registry}, integrator);
         
         REQUIRE(engine.get_config().simulation.dt_s == 1e-9);
         REQUIRE(engine.get_config().domains.size() == 1);
@@ -139,10 +139,10 @@ TEST_CASE("SimulationEngine: Single-domain free-flight trajectory", "[simulation
     cfg.simulation.total_time_s = 1e-6;  // 1 μs
     cfg.simulation.compute_derived();
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     
-    SimulationEngine engine(cfg, force_registry, integrator);
+    SimulationEngine engine(cfg, {force_registry}, integrator);
     
     SECTION("Single ion free flight") {
         std::vector<IonState> ions = {create_test_ion()};
@@ -193,10 +193,10 @@ TEST_CASE("SimulationEngine: Ion birth timing", "[simulation][engine]") {
     cfg.simulation.total_time_s = 5e-6;  // 5 μs
     cfg.simulation.compute_derived();
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     
-    SimulationEngine engine(cfg, force_registry, integrator);
+    SimulationEngine engine(cfg, {force_registry}, integrator);
     
     SECTION("Delayed birth") {
         std::vector<IonState> ions(3);
@@ -225,10 +225,10 @@ TEST_CASE("SimulationEngine: Multiple ions", "[simulation][engine]") {
     cfg.simulation.enable_openmp = true;  // Test parallel processing
     cfg.simulation.compute_derived();
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     
-    SimulationEngine engine(cfg, force_registry, integrator);
+    SimulationEngine engine(cfg, {force_registry}, integrator);
     
     SECTION("Parallel processing") {
         const int N = 100;
@@ -274,10 +274,13 @@ TEST_CASE("SimulationEngine: Multi-domain transition", "[simulation][engine][dom
     domain2.finalize();  // Compute bounding boxes for new domain
     cfg.domains.push_back(domain2);
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    // Create force registries for both domains
+    std::vector<std::shared_ptr<ForceRegistry>> force_registries;
+    force_registries.push_back(std::make_shared<ForceRegistry>(cfg.domains[0]));
+    force_registries.push_back(std::make_shared<ForceRegistry>(cfg.domains[1]));
     auto integrator = std::make_shared<RK4Strategy>();
     
-    SimulationEngine engine(cfg, force_registry, integrator);
+    SimulationEngine engine(cfg, force_registries, integrator);
     
     SECTION("Ion crosses aperture into second domain") {
         std::vector<IonState> ions = {create_test_ion()};
@@ -311,11 +314,11 @@ TEST_CASE("SimulationEngine: Collision handler integration", "[simulation][engin
     cfg.simulation.total_time_s = 1e-6;
     cfg.simulation.compute_derived();
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     // nullptr collision handler = no collisions
     
-    SimulationEngine engine(cfg, force_registry, integrator, nullptr);
+    SimulationEngine engine(cfg, {force_registry}, integrator, nullptr);
     
     SECTION("Nullptr collision handler does not modify trajectory") {
         std::vector<IonState> ions = {create_test_ion()};
@@ -338,11 +341,11 @@ TEST_CASE("SimulationEngine: Reaction handler integration", "[simulation][engine
     cfg.reaction_db.reactions.clear();
     cfg.species_db.species.clear();
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     auto reaction_handler = std::make_shared<NoReactionHandler>();
     
-    SimulationEngine engine(cfg, force_registry, integrator, nullptr, reaction_handler);
+    SimulationEngine engine(cfg, {force_registry}, integrator, nullptr, reaction_handler);
     
     SECTION("NoReactionHandler does not modify species") {
         std::vector<IonState> ions = {create_test_ion()};
@@ -364,10 +367,10 @@ TEST_CASE("SimulationEngine: Edge cases", "[simulation][engine][edge]") {
     cfg.simulation.total_time_s = 1e-6;
     cfg.simulation.compute_derived();
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     
-    SimulationEngine engine(cfg, force_registry, integrator);
+    SimulationEngine engine(cfg, {force_registry}, integrator);
     
     SECTION("Empty ion list") {
         std::vector<IonState> ions;
@@ -408,10 +411,10 @@ TEST_CASE("SimulationEngine: Numerical safety", "[simulation][engine][safety]") 
     cfg.simulation.total_time_s = 1e-6;
     cfg.simulation.compute_derived();
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     
-    SimulationEngine engine(cfg, force_registry, integrator);
+    SimulationEngine engine(cfg, {force_registry}, integrator);
     
     SECTION("Extremely high velocity does not cause NaN") {
         std::vector<IonState> ions = {create_test_ion()};
@@ -436,10 +439,10 @@ TEST_CASE("SimulationEngine: RNG thread safety", "[simulation][engine][openmp]")
     cfg.simulation.rng_seed = 42;
     cfg.simulation.compute_derived();
     
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     
-    SimulationEngine engine(cfg, force_registry, integrator);
+    SimulationEngine engine(cfg, {force_registry}, integrator);
     
     SECTION("Reproducible results with same seed") {
         const int N = 50;
@@ -452,7 +455,7 @@ TEST_CASE("SimulationEngine: RNG thread safety", "[simulation][engine][openmp]")
         auto result1 = engine.run(ions1);
         
         // Create new engine with same seed
-        SimulationEngine engine2(cfg, force_registry, integrator);
+        SimulationEngine engine2(cfg, {force_registry}, integrator);
         auto result2 = engine2.run(ions2);
         
         // Results should be identical (deterministic with fixed seed)

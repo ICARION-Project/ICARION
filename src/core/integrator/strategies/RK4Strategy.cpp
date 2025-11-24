@@ -30,12 +30,11 @@ void RK4Strategy::step(
     double t,
     double dt,
     const physics::ForceRegistry& force_registry,
-    const config::DomainConfig& domain,
     const std::vector<IonState>& all_ions
 ) {
-    // Create context (SSOT: uses pointers to avoid copying DomainConfig)
+    // Create context (SSOT: domain from ForceRegistry)
     physics::ForceContext ctx;
-    ctx.domain = &domain;
+    ctx.domain = force_registry.domain();  // Get domain from registry
     ctx.all_ions = &all_ions;
     ctx.field_provider = nullptr;  // Not using field provider for now
     

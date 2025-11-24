@@ -7,6 +7,7 @@
 #include <vector>
 #include "IForce.h"
 #include "ForceContext.h"
+#include "core/config/types/DomainConfig.h"
 
 namespace ICARION::physics {
 
@@ -46,9 +47,28 @@ namespace ICARION::physics {
 class ForceRegistry {
 public:
     /**
-     * @brief Default constructor (empty registry)
+     * @brief Default constructor (empty registry, no domain)
+     * @deprecated Use ForceRegistry(const config::DomainConfig&) instead
      */
     ForceRegistry() = default;
+    
+    /**
+     * @brief Construct registry with domain context (RECOMMENDED)
+     * 
+     * @param domain Domain configuration (geometry, fields, environment)
+     * 
+     * This constructor allows forces to access domain-specific context
+     * without needing it passed through every method call.
+     * 
+     * Example:
+     * @code
+     * ForceRegistry registry(domain_config);
+     * registry.add_force(std::make_unique<ElectricFieldForce>());
+     * // Force can now access domain via registry.domain()
+     * @endcode
+     */
+    explicit ForceRegistry(const config::DomainConfig& domain)
+        : domain_(&domain) {}
     
     /**
      * @brief Add force to registry
@@ -127,11 +147,30 @@ public:
         forces_.clear();
     }
     
+    /**
+     * @brief Get domain configuration (if available)
+     * 
+     * @return Pointer to domain config, or nullptr if not set
+     * 
+     * Allows forces to access domain context (geometry, fields, environment).
+     */
+    const config::DomainConfig* domain() const {
+        return domain_;
+    }
+    
 private:
     /**
      * @brief Vector of registered forces (owned by registry)
      */
     std::vector<std::unique_ptr<IForce>> forces_;
+    
+    /**
+     * @brief Domain configuration (optional, nullptr if not set)
+     * 
+     * Non-owning pointer (registry does not own domain config).
+     * Must remain valid for lifetime of registry.
+     */
+    const config::DomainConfig* domain_ = nullptr;
 };
 
 } // namespace ICARION::physics

@@ -15,8 +15,11 @@ This document describes the high-level architecture of ICARION, focusing on modu
 4. [Force System Architecture](#force-system-architecture)
 5. [Field Solver Architecture](#field-solver-architecture)
 6. [Integrator Architecture](#integrator-architecture)
-7. [Data Flow](#data-flow)
-8. [Design Patterns](#design-patterns)
+7. [Domain Management](#domain-management-phase-5a)
+8. [SimulationEngine Architecture](#simulationengine-architecture-phase-5a)
+9. [OutputManager Architecture](#outputmanager-architecture-phase-5a)
+10. [Data Flow](#data-flow)
+11. [Design Patterns](#design-patterns)
 
 ---
 
@@ -399,11 +402,28 @@ struct ForceContext {
 
 ### ForceRegistry (Composite Pattern)
 
+**Phase 12 Enhancement:** ForceRegistry now stores domain configuration internally.
+
 Manages multiple forces and computes total force via superposition:
 
 ```cpp
 class ForceRegistry : public IForce {
 public:
+    /**
+     * @brief Construct registry (empty, no domain) [DEPRECATED]
+     * @deprecated Use ForceRegistry(const config::DomainConfig&) instead
+     */
+    ForceRegistry() = default;
+    
+    /**
+     * @brief Construct registry with domain context (RECOMMENDED)
+     * @param domain Domain configuration (geometry, fields, environment)
+     * 
+     * Phase 12 enhancement: Registry stores domain reference internally.
+     * This eliminates need to pass domain through integration methods.
+     */
+    explicit ForceRegistry(const config::DomainConfig& domain);
+    
     /**
      * @brief Add a force to the registry
      * 
@@ -417,6 +437,14 @@ public:
      * F_total = F1 + F2 + F3 + ... (superposition)
      */
     Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
+    
+    /**
+     * @brief Get domain configuration (if available)
+     * @return Pointer to domain config, or nullptr if not set
+     * 
+     * Phase 12: Allows forces and integrators to access domain context.
+     */
+    const config::DomainConfig* domain() const;
     
     /**
      * @brief Clear all forces
@@ -440,8 +468,15 @@ public:
     
 private:
     std::vector<std::unique_ptr<IForce>> forces_;
+    const config::DomainConfig* domain_ = nullptr;  // Non-owning pointer (Phase 12)
 };
 ```
+
+**Benefits of Domain-Aware ForceRegistry (Phase 12):**
+- ✅ Better SSOT compliance (domain stored once, not passed through methods)
+- ✅ Cleaner method signatures (fewer parameters to pass)
+- ✅ Multi-domain support (each domain has its own registry)
+- ✅ Forces can access domain context without parameter pollution
 
 ### Implemented Force Types
 
@@ -912,6 +947,357 @@ manager.update_domain_properties(ion, idx);
 - Prevents unphysical ion positions beyond domain boundaries
 
 **Status:** Complete (Phase 5A, Nov 2025)
+
+**Files:**
+- `src/core/integrator/DomainManager.h` (API)
+- `src/core/integrator/DomainManager.cpp` (~150 lines)
+- `tests/integrator/test_domain_manager.cpp` (11 test cases)
+
+---
+
+## SimulationEngine Architecture (Phase 5A)
+
+**SimulationEngine** is the main simulation orchestrator, replacing legacy `integrate_trajectory()`.
+
+### Overview
+
+```text
+SimulationEngine (orchestrator)
+    │
+    ├── ForceRegistry (compute total force)
+    ├── IntegrationStrategy (RK4/RK45/Boris)
+    ├── CollisionHandler (EHSS/HSS/OU)
+    ├── ReactionHandler (ion-molecule reactions)
+    ├── OutputManager (HDF5 + text logging)
+    └── DomainManager (boundary checks, transitions)
+```
+
+### Key Features
+
+**1. Dependency Injection:**
+- All physics modules passed via constructor (testable!)
+- No global state (everything in `FullConfig`)
+
+**2. Modular Design:**
+- Clean separation: physics / I/O / domain management
+- Swap components easily (RK4 ↔ RK45, EHSS ↔ HSS)
+
+**3. SSOT Compliance:**
+- Uses `config::FullConfig` exclusively (no legacy `GlobalParams`)
+- Direct config access (no parameter duplication)
+
+**4. Parallel Execution:**
+- OpenMP ion loop (thread-safe)
+- Ion-based RNG (reproducible, independent of scheduling)
+
+### API Design
+
+```cpp
+namespace ICARION::integrator {
+
+class SimulationEngine {
+public:
+    /**
+     * @brief Construct simulation engine
+     * @param config Simulation configuration (SSOT)
+     * @param force_registry Force computation system
+     * @param integrator Trajectory integration strategy (RK4/RK45/Boris)
+     * @param collision_handler Collision physics (optional, nullptr = no collisions)
+     * @param reaction_handler Reaction chemistry (optional, nullptr = no reactions)
+     */
+    SimulationEngine(
+        const config::FullConfig& config,
+        std::shared_ptr<physics::ForceRegistry> force_registry,
+        std::shared_ptr<IIntegrationStrategy> integrator,
+        std::shared_ptr<physics::ICollisionHandler> collision_handler = nullptr,
+        std::shared_ptr<physics::IReactionHandler> reaction_handler = nullptr
+    );
+    
+    /**
+     * @brief Run complete simulation
+     * @param ions Initial ion ensemble
+     * @return Final ion states
+     */
+    std::vector<IonState> run(std::vector<IonState>& ions);
+    
+    // Accessors (for testing)
+    const config::FullConfig& get_config() const;
+    const DomainManager& get_domain_manager() const;
+    const OutputManager& get_output_manager() const;
+};
+
+} // namespace ICARION::integrator
+```
+
+### Main Simulation Loop
+
+**Workflow:**
+
+1. **Initialize** (setup subsystems)
+   - Create `DomainManager` from `config.domains`
+   - Create `OutputManager` with HDF5 file path
+   - Initialize numerical safety logging (if enabled)
+
+2. **Main Time Loop** (until `t_global >= t_end`)
+   - Apply ion birth logic (delayed emission)
+   - **Parallel ion processing** (OpenMP):
+     - Find domain (DomainManager)
+     - Transform to local coordinates
+     - Compute forces (ForceRegistry)
+     - Handle collisions (ICollisionHandler)
+     - Handle reactions (IReactionHandler)
+     - Integrate trajectory (IIntegrationStrategy)
+     - Check aperture crossings (DomainManager)
+     - Transform back to global coordinates
+   - Log trajectory snapshot (OutputManager)
+   - Update progress logging (every 10%)
+
+3. **Finalize** (completion)
+   - Flush output buffers
+   - Write completion metadata
+   - Log final statistics (active/lost ions)
+
+**Early Exit Conditions:**
+- All ions inactive (lost or detected)
+- Critical error (NaN positions, invalid domain index)
+
+### Example Usage
+
+```cpp
+// Load configuration
+auto config = config::ConfigLoader::load("config.json");
+
+// Create physics modules
+auto force_registry = std::make_shared<physics::ForceRegistry>();
+auto integrator = std::make_shared<RK4Strategy>();
+auto collision_handler = physics::CollisionHandlerFactory::create(config.physics, ...);
+auto reaction_handler = physics::ReactionHandlerFactory::create(config.physics, ...);
+
+// Create simulation engine
+integrator::SimulationEngine engine(
+    config,
+    force_registry,
+    integrator,
+    collision_handler,
+    reaction_handler
+);
+
+// Generate ions
+auto result = config.generate_ions(rng);
+std::vector<IonState> ions = std::move(result.ions);
+
+// Run simulation
+auto final_ions = engine.run(ions);
+
+// Output automatically written to HDF5 file
+```
+
+### Ion-Based RNG (Phase 12 Enhancement)
+
+**Problem:** Thread-local RNG (seeded with thread_id) makes results dependent on OpenMP scheduling.
+
+**Solution:** Ion-specific RNG (seeded with ion index):
+
+```cpp
+// Create RNG array before parallel region
+std::vector<EhssRng> rng_by_ion;
+rng_by_ion.reserve(n_ions);
+for (int i = 0; i < n_ions; ++i) {
+    uint64_t ion_seed = config.rng_seed + static_cast<uint64_t>(i);
+    rng_by_ion.emplace_back(ion_seed);
+}
+
+#pragma omp parallel
+{
+    #pragma omp for schedule(dynamic)
+    for (int i = 0; i < n_ions; ++i) {
+        IonState& ion = ions[i];
+        EhssRng& ion_rng = rng_by_ion[i];  // Ion-specific RNG
+        
+        // Use ion_rng for collisions/reactions
+        collision_handler->handle_collision(ion, dt, ion_rng, env);
+    }
+}
+```
+
+**Benefits:**
+- Reproducible results independent of thread count/scheduling
+- Same ion always sees same random sequence
+- Thread-safe (each thread accesses different ion RNG)
+
+**Status:** Implemented (Nov 2025)
+
+### Files
+
+**Implementation:**
+- `src/core/integrator/SimulationEngine.h` (API)
+- `src/core/integrator/SimulationEngine.cpp` (~400 lines)
+
+**Tests:**
+- `tests/integrator/test_simulation_engine.cpp` (unit tests)
+- 10 test cases, 45+ assertions
+
+**Status:** Production-ready (Phase 5A complete, Nov 2025)
+
+---
+
+## OutputManager Architecture (Phase 5A)
+
+**OutputManager** handles unified output: HDF5 trajectories + text logging.
+
+### Key Features
+
+**1. Buffered HDF5 Output:**
+- RAM buffering (default: 50 timesteps)
+- Time-based flush triggers (default: 1 ms)
+- Size-based flush triggers (buffer full)
+
+**2. Text Logging (optional):**
+- Progress messages ("50% completed")
+- Ion statistics (active/lost counts)
+- Completion summary
+- Can be disabled (empty log filename)
+
+**3. HDF5Writer v2 Integration:**
+- Wraps modern `io::HDF5Writer` API
+- Metadata export (species, parameters, git hash)
+- Chunked datasets (efficient large-file writes)
+
+### API Design
+
+```cpp
+namespace ICARION::integrator {
+
+class OutputManager {
+public:
+    /**
+     * @brief Construct output manager
+     * @param hdf5_filename HDF5 trajectory file path (required)
+     * @param log_filename Text log file path (empty = no text log)
+     * @param write_interval_dt Time interval between HDF5 writes [s]
+     * @param buffer_max Max timesteps in RAM before forced flush
+     */
+    OutputManager(
+        const std::string& hdf5_filename,
+        const std::string& log_filename = "",
+        double write_interval_dt = 0.001,  // Default: 1 ms
+        size_t buffer_max = 50
+    );
+    
+    /**
+     * @brief Initialize HDF5 file (write metadata)
+     * @param config Simulation configuration (SSOT)
+     * @param ions Initial ion ensemble (for species metadata)
+     */
+    void initialize(const config::FullConfig& config, 
+                    const std::vector<IonState>& ions);
+    
+    /**
+     * @brief Log trajectory snapshot (buffers in RAM)
+     * @param t Current time [s]
+     * @param ions Current ion states
+     */
+    void log_step(double t, const std::vector<IonState>& ions);
+    
+    /**
+     * @brief Log progress message (to text log)
+     * @param message Progress message (e.g., "50% completed")
+     */
+    void log_progress(const std::string& message);
+    
+    /**
+     * @brief Check if HDF5 write is needed
+     * @param t_current Current time [s]
+     * @return True if next write time reached OR buffer full
+     */
+    bool should_write(double t_current) const;
+    
+    /**
+     * @brief Flush buffers to HDF5 file
+     */
+    void flush();
+    
+    /**
+     * @brief Finalize output (write completion metadata)
+     * @param t_final Final time [s]
+     * @param final_ions Final ion states (for statistics)
+     */
+    void finalize(double t_final, const std::vector<IonState>& final_ions);
+    
+    // Accessors (for testing)
+    size_t buffer_size() const;
+    bool has_text_log() const;
+};
+
+} // namespace ICARION::integrator
+```
+
+### Buffering Strategy
+
+**Time-based flush:**
+
+```text
+t = 0.0 ms  →  log_step()  →  buffer
+t = 0.5 ms  →  log_step()  →  buffer
+t = 1.0 ms  →  log_step()  →  AUTO-FLUSH (write_interval_dt = 1 ms)
+t = 1.5 ms  →  log_step()  →  buffer
+t = 2.0 ms  →  log_step()  →  AUTO-FLUSH
+```
+
+**Size-based flush:**
+
+```text
+log_step()  →  buffer (size = 49)
+log_step()  →  AUTO-FLUSH (buffer_max = 50)
+```
+
+**Benefits:**
+- Reduces HDF5 I/O overhead (batch writes)
+- Prevents memory exhaustion (max buffer size)
+- Configurable trade-off (write frequency vs. memory)
+
+### Example Usage
+
+```cpp
+// Create output manager
+OutputManager manager(
+    "trajectory.h5",      // HDF5 file
+    "simulation.log",     // Text log
+    1e-3,                 // Flush every 1 ms
+    50                    // Buffer max = 50 timesteps
+);
+
+// Initialize (write metadata)
+manager.initialize(config, ions);
+
+// Main loop
+for (double t = 0.0; t < t_end; t += dt) {
+    // ... simulate ions ...
+    
+    // Log timestep
+    manager.log_step(t, ions);  // Auto-flush if needed
+    
+    // Progress logging
+    if (step % 1000 == 0) {
+        manager.log_progress("50% completed");
+    }
+}
+
+// Finalize (write completion metadata)
+manager.finalize(t_end, ions);
+```
+
+### Files
+
+**Implementation:**
+- `src/core/integrator/OutputManager.h` (API)
+- `src/core/integrator/OutputManager.cpp` (~250 lines)
+
+**Tests:**
+- `tests/integrator/test_output_manager.cpp`
+- 8 test cases, 30+ assertions
+
+**Status:** Production-ready (Phase 5A complete, Nov 2025)
 
 ---
 

@@ -73,19 +73,26 @@ public:
     /**
      * @brief Construct simulation engine
      * @param config Simulation configuration (SSOT)
-     * @param force_registry Force computation system
+     * @param force_registries Force computation systems (one per domain)
      * @param integrator Trajectory integration strategy (RK4, RK45, Boris)
      * @param collision_handler Collision physics (optional, nullptr = no collisions)
      * @param reaction_handler Reaction chemistry (optional, nullptr = no reactions)
+     * 
+     * **Per-Domain ForceRegistry (Phase 12 Enhancement):**
+     * - Each domain has its own ForceRegistry with domain-specific context
+     * - Eliminates need to pass domain config through integration methods
+     * - Improves SSOT compliance (domain config stored once in registry)
      * 
      * Physics modules are injected to enable:
      * - Testing with mock implementations
      * - Runtime algorithm selection (RK4 vs RK45 vs Boris)
      * - Modular collision model swapping (EHSS vs HSS vs OU)
+     * 
+     * @note force_registries.size() must equal config.domains.size()
      */
     SimulationEngine(
         const config::FullConfig& config,
-        std::shared_ptr<physics::ForceRegistry> force_registry,
+        std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries,
         std::shared_ptr<IIntegrationStrategy> integrator,
         std::shared_ptr<physics::ICollisionHandler> collision_handler = nullptr,
         std::shared_ptr<physics::IReactionHandler> reaction_handler = nullptr
@@ -134,7 +141,7 @@ private:
     config::FullConfig config_;
     
     // Physics modules (dependency injection)
-    std::shared_ptr<physics::ForceRegistry> force_registry_;
+    std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries_;  // One per domain
     std::shared_ptr<IIntegrationStrategy> integrator_;
     std::shared_ptr<physics::ICollisionHandler> collision_handler_;
     std::shared_ptr<physics::IReactionHandler> reaction_handler_;

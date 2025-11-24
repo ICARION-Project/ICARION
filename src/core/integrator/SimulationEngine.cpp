@@ -20,19 +20,32 @@ namespace integrator {
 
 SimulationEngine::SimulationEngine(
     const config::FullConfig& config,
-    std::shared_ptr<physics::ForceRegistry> force_registry,
+    std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries,
     std::shared_ptr<IIntegrationStrategy> integrator,
     std::shared_ptr<physics::ICollisionHandler> collision_handler,
     std::shared_ptr<physics::IReactionHandler> reaction_handler
 ) : config_(config),
-    force_registry_(force_registry),
+    force_registries_(std::move(force_registries)),
     integrator_(integrator),
     collision_handler_(collision_handler),
     reaction_handler_(reaction_handler)
 {
-    if (!force_registry_) {
-        throw std::invalid_argument("SimulationEngine: ForceRegistry cannot be null");
+    // Validate force registries (must have one per domain)
+    if (force_registries_.size() != config_.domains.size()) {
+        throw std::invalid_argument(
+            "SimulationEngine: force_registries size (" + std::to_string(force_registries_.size()) + 
+            ") must match domains size (" + std::to_string(config_.domains.size()) + ")"
+        );
     }
+    
+    for (size_t i = 0; i < force_registries_.size(); ++i) {
+        if (!force_registries_[i]) {
+            throw std::invalid_argument(
+                "SimulationEngine: ForceRegistry[" + std::to_string(i) + "] cannot be null"
+            );
+        }
+    }
+    
     if (!integrator_) {
         throw std::invalid_argument("SimulationEngine: IntegrationStrategy cannot be null");
     }
@@ -99,23 +112,26 @@ void SimulationEngine::apply_ion_birth(std::vector<IonState>& ions, double t) {
 void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) {
     const int n_ions = static_cast<int>(ions.size());
     
+    // Ion-based RNG for reproducibility (independent of OpenMP scheduling)
+    // Each ion gets its own RNG seeded deterministically from: base_seed + ion_index
+    // This ensures:
+    // - Reproducible results regardless of thread count or scheduling
+    // - Same ion always sees same random sequence
+    // - Thread-safe (each thread accesses different ion RNG)
+    std::vector<EhssRng> rng_by_ion;
+    rng_by_ion.reserve(n_ions);
+    for (int i = 0; i < n_ions; ++i) {
+        uint64_t ion_seed = config_.simulation.rng_seed + static_cast<uint64_t>(i);
+        rng_by_ion.emplace_back(ion_seed);
+    }
+    
     // Parallel ion processing (OpenMP if enabled)
     #pragma omp parallel if(config_.simulation.enable_openmp)
     {
-        // Thread-local RNG for stochastic processes (collision, reaction)
-        // SSOT: Seed from config_.simulation.seed + thread_id
-        #ifdef _OPENMP
-        int thread_id = omp_get_thread_num();
-        #else
-        int thread_id = 0;
-        #endif
-        
-        uint64_t thread_seed = config_.simulation.rng_seed + static_cast<uint64_t>(thread_id);
-        EhssRng local_rng(thread_seed);
-        
         #pragma omp for schedule(dynamic)
         for (int i = 0; i < n_ions; ++i) {
             IonState& ion = ions[i];
+            EhssRng& ion_rng = rng_by_ion[i];  // Ion-specific RNG
             
             // Skip inactive ions (still process ions waiting to be born)
             if (!ion.active) {
@@ -150,7 +166,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             ion_local.vel = vel_local;
             
             // Thread-safe RNG
-            collision_handler_->handle_collision(ion_local, dt, local_rng, domain_config.environment);
+            collision_handler_->handle_collision(ion_local, dt, ion_rng, domain_config.environment);
             
             pos_local = ion_local.pos;
             vel_local = ion_local.vel;
@@ -167,7 +183,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             bool reaction_occurred = reaction_handler_->handle_reaction(
                 ion_local,
                 dt,
-                local_rng,
+                ion_rng,
                 config_.reaction_db,  // ReactionDatabase (SSOT)
                 config_.species_db,   // SpeciesDatabase (SSOT)
                 domain_config.environment  // Temperature, density, etc.
@@ -184,23 +200,26 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             vel_local = ion_local.vel;
         }
         
-        // 6. Compute forces (ForceRegistry)
+        // 6. Get domain-specific ForceRegistry
+        const auto& force_registry = force_registries_[domain_idx];
+        
+        // 7. Compute forces (ForceRegistry with domain context)
         IonState ion_local = ion;
         ion_local.pos = pos_local;
         ion_local.vel = vel_local;
         
         physics::ForceContext ctx;  // TODO: Populate with field provider
-        Vec3 total_force = force_registry_->compute_total_force(ion_local, current_time_, ctx);
+        Vec3 total_force = force_registry->compute_total_force(ion_local, current_time_, ctx);
         
-        // 7. Integrate trajectory (IIntegrationStrategy)
+        // 8. Integrate trajectory (IIntegrationStrategy)
         // Note: IIntegrationStrategy::step() computes forces internally via ForceRegistry
-        // So we don't need to pass acceleration separately
-        integrator_->step(ion_local, current_time_, dt, *force_registry_, domain_config, ions);
+        // ForceRegistry now knows its domain, so we don't need to pass domain_config
+        integrator_->step(ion_local, current_time_, dt, *force_registry, ions);
         
         pos_local = ion_local.pos;
         vel_local = ion_local.vel;
         
-        // 8. Check if ion left domain (boundary collision detection)
+        // 9. Check if ion left domain (boundary collision detection)
         Vec3 pos_after = pos_local;
         
         // First check aperture crossing (domain exit at z=length_m)

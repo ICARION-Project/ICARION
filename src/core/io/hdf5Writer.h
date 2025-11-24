@@ -115,20 +115,25 @@ private:
      * @brief Write /metadata/species/
      * 
      * Tabular format: names, masses, charges, mobilities, CCS
+     * Only writes species referenced by ions (filters large databases)
      */
     static void write_species_metadata(
         H5::H5File& file,
-        const config::SpeciesDatabase& species_db
+        const config::SpeciesDatabase& species_db,
+        const std::vector<IonState>& ions
     );
     
     /**
      * @brief Write /metadata/reactions/
      * 
-     * Tabular format: reactants, products, rate constants
+     * Tabular format: id, reactants, products, rate constants, types
+     * Only writes reactions involving species present in ions (filters large databases)
      */
     static void write_reactions_metadata(
         H5::H5File& file,
-        const config::ReactionDatabase& reaction_db
+        const config::ReactionDatabase& reaction_db,
+        const std::vector<IonState>& ions,
+        const config::SpeciesDatabase& species_db
     );
     
     // === Domain writers ===

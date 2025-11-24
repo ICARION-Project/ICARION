@@ -307,7 +307,7 @@ void print_build_info() {
 
 void print_hdf5_schema() {
     std::cout << R"(
-ICARION HDF5 Output Schema v2.0 (FullConfig-based)
+ICARION HDF5 Output Schema v1.0 (FullConfig-based)
 ===================================================
 
 Hierarchical Structure:
@@ -363,6 +363,8 @@ Hierarchical Structure:
     charge_C            float64[N]  Charges [C]
     mobility_m2Vs       float64[N]  Reduced mobilities [m²/(V·s)]
     ccs_m2              float64[N]  Collision cross sections [m²]
+    
+    Note: Only species referenced by ions are written (filters large databases)
   
   /reactions/                       # Tabular format (if reactions enabled)
     id                  string[R]   Reaction identifiers
@@ -371,6 +373,8 @@ Hierarchical Structure:
     product_1           string[R]   First product species name
     rate_constant   float64[R]  Rate constant [m³/s]
     type                int32[R]    Reaction type enum (2=two-body)
+    
+    Note: Only reactions involving present species are written (filters large networks)
   
   /completion/                      # Written at simulation end
     success             bool        Simulation completed successfully?
@@ -478,8 +482,6 @@ Get compression info:    h5stat icarion_output.h5
 
 Notes:
 ------
-- Legacy format (v1.0) is not supported - please re-run old simulations
-- Trajectory append functionality requires integrator refactoring (Phase 2)
 - SHA256 hashing is implemented for config files, species/reaction DBs are embedded
 - All physical quantities use SI base units (meters, seconds, kilograms, etc.)
 - Timestamps are in UTC timezone for international collaboration

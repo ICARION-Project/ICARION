@@ -148,6 +148,8 @@ Species database in tabular format (pandas-compatible).
 
 **S** = Number of unique species
 
+**Note:** Only species referenced by ions in the simulation are written (not the entire database). This reduces file size for simulations using large species databases.
+
 **Python Example:**
 ```python
 import h5py
@@ -181,6 +183,8 @@ Reaction database in tabular format.
 | `type` | int | [R] | Reaction type enum | - |
 
 **R** = Number of reactions
+
+**Note:** Only reactions involving species present in the simulation are written (reactants must be in initial ions). This reduces file size for large reaction networks (e.g., 1000+ reactions).
 
 **Reaction Types:**
 - `0` = Three-body

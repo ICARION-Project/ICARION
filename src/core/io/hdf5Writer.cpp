@@ -1,6 +1,16 @@
 /**
  * @file hdf5Writer_v2.cpp
  * @brief Implementation of modern HDF5 writer using FullConfig
+ * 
+ * TODO(v1.1): Improve metadata organization consistency
+ * - Currently mixed: /metadata/* groups AND root-level attributes
+ * - Target: All metadata under /metadata/ hierarchy
+ * - Affected: simulation_completed, final_active_ions
+ * 
+ * TODO(v1.1): Write species/reactions from FullConfig databases
+ * - Currently: write_species_metadata() extracts from ion ensemble
+ * - Better SSOT: Use config.species_db and config.reaction_db directly
+ * - Ensures all species documented (not just those in initial ions)
  */
 
 #include "hdf5Writer.h"

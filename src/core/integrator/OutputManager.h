@@ -25,6 +25,7 @@
 #include <vector>
 #include <memory>
 #include <fstream>
+#include <mutex>
 
 namespace ICARION::io { class HDF5Writer; }
 
@@ -59,7 +60,10 @@ namespace integrator {
  * - Completion summary
  * - Can be disabled by passing empty log filename
  * 
- * Thread-safe for output operations (HDF5 writes are serialized).
+ * **Thread Safety:**
+ * - HDF5 writes are serialized (external to this class)
+ * - Text logging protected by internal mutex (std::lock_guard)
+ * - Safe for concurrent log_progress() calls from multiple threads
  */
 class OutputManager {
 public:
@@ -203,6 +207,7 @@ private:
     // Text logging (optional)
     std::string log_filename_;
     std::ofstream text_log_file_;
+    std::mutex text_log_mutex_;  ///< Thread-safety for text logging
     
     // State tracking
     bool initialized_ = false;

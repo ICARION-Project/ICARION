@@ -15,7 +15,7 @@ IMS drift tube with linear voltage increase from 0V to 500V over 1ms.
 
 **Run:**
 ```bash
-./build/icarion_cli examples/waveforms/linear_voltage_ramp.json
+./build/src/icarion_main examples/waveforms/linear_voltage_ramp.json
 ```
 
 ### 2. Frequency Chirp (`frequency_chirp.json`)
@@ -29,7 +29,7 @@ RF quadrupole with linear frequency sweep from 1MHz to 2MHz over 10ms.
 
 **Run:**
 ```bash
-./build/icarion_cli examples/waveforms/frequency_chirp.json
+./build/src/icarion_main examples/waveforms/frequency_chirp.json
 ```
 
 ### 3. Amplitude Modulation (`amplitude_modulation.json`)
@@ -43,7 +43,7 @@ AC field with sinusoidal amplitude modulation at 100Hz.
 
 **Run:**
 ```bash
-./build/icarion_cli examples/waveforms/amplitude_modulation.json
+./build/src/icarion_main examples/waveforms/amplitude_modulation.json
 ```
 
 ### 4. Reusable Named Waveforms (`reusable_waveforms.json`)
@@ -57,7 +57,7 @@ Multi-domain simulation with per-domain waveform libraries.
 
 **Run:**
 ```bash
-./build/icarion_cli examples/waveforms/reusable_waveforms.json
+./build/src/icarion_main examples/waveforms/reusable_waveforms.json
 ```
 
 ### 5. Arbitrary Waveform (`arbitrary_waveform.json`)
@@ -71,7 +71,7 @@ Custom voltage profile from time-value pairs with linear interpolation.
 
 **Run:**
 ```bash
-./build/icarion_cli examples/waveforms/arbitrary_waveform.json
+./build/src/icarion_main examples/waveforms/arbitrary_waveform.json
 ```
 
 ## Waveform Types Summary

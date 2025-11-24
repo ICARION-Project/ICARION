@@ -76,7 +76,7 @@ struct SpeciesProperties {
         if (CCS_A2) {
             CCS_m2 = *CCS_A2 * ANGSTROM2_TO_M2;
         }
-        
+
         // Polarizability (if present)
         if (polarizability_A3) {
             polarizability_m3 = *polarizability_A3 * ANGSTROM3_TO_M3;
@@ -124,7 +124,7 @@ struct SpeciesProperties {
         if (polarizability_A3 && *polarizability_A3 < 0.0) {
             result.add_error("Species '" + id + "': polarizability cannot be negative");
         }
-        
+
         return result;
     }
 };

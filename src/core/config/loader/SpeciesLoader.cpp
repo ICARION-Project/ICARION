@@ -107,7 +107,7 @@ SpeciesProperties SpeciesLoader::parse_species(const std::string& id, const Json
     species.reference_temperature_K = get_optional_double(json, "reference_temperature_K");
     species.reference_pressure_Pa = get_optional_double(json, "reference_pressure_Pa");
     species.ccs_method = get_optional_string(json, "ccs_method");
-    
+
     return species;
 }
 

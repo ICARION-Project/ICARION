@@ -209,14 +209,24 @@ TEST_CASE("OutputManager - Finalization metadata", "[OutputManager]") {
     
     manager.finalize(1e-3, ions);
     
-    // Verify HDF5 completion metadata
-    hbool_t completed = read_hdf5_attribute<hbool_t>(
-        hdf5_file.string(), "simulation_completed", H5::PredType::NATIVE_HBOOL);
-    REQUIRE(completed);
+    // Verify HDF5 completion metadata (now under /metadata/completion/ as datasets)
+    H5::H5File file(hdf5_file.string(), H5F_ACC_RDONLY);
+    H5::Group metadata_grp = file.openGroup("/metadata");
+    H5::Group completion_grp = metadata_grp.openGroup("completion");
     
-    hsize_t active_count = read_hdf5_attribute<hsize_t>(
-        hdf5_file.string(), "final_active_ions", H5::PredType::NATIVE_HSIZE);
+    H5::DataSet success_ds = completion_grp.openDataSet("success");
+    int success_val;
+    success_ds.read(&success_val, H5::PredType::NATIVE_INT);
+    REQUIRE(success_val == 1);
+    
+    H5::DataSet active_ds = completion_grp.openDataSet("active_ions");
+    int active_count;
+    active_ds.read(&active_count, H5::PredType::NATIVE_INT);
     REQUIRE(active_count == 8);  // 10 - 2 deactivated
+    
+    completion_grp.close();
+    metadata_grp.close();
+    file.close();
     
     // Cleanup
     std::filesystem::remove_all(test_dir);

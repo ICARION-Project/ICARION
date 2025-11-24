@@ -283,7 +283,7 @@ void HDF5Writer::finalize(
         // Create completion subgroup
         H5::Group completion = meta.createGroup("completion");
         
-        write_scalar(completion, "success", success);
+        write_scalar(completion, "success", success ? 1 : 0);
         write_scalar(completion, "final_time_s", final_time);
         write_scalar(completion, "active_ions", static_cast<int>(active_ions));
         

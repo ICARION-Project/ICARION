@@ -59,7 +59,8 @@ bool parse_args(int argc, char** argv,
                 double& ref_ccs_a2,
                 std::string& model,
                 bool& override,
-                int& n_orientations) {
+                int& n_orientations,
+                std::unordered_set<std::string>& target_species) {
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--input" && i + 1 < argc) {
@@ -76,11 +77,23 @@ bool parse_args(int argc, char** argv,
             override = true;
         } else if (arg == "--n-orientations" && i + 1 < argc) {
             n_orientations = std::stoi(argv[++i]);
+        } else if (arg == "--species" && i + 1 < argc) {
+            std::string list = argv[++i];
+            size_t start = 0;
+            while (start < list.size()) {
+                size_t pos = list.find(',', start);
+                std::string token = (pos == std::string::npos) ? list.substr(start) : list.substr(start, pos - start);
+                if (!token.empty()) {
+                    target_species.insert(token);
+                }
+                if (pos == std::string::npos) break;
+                start = pos + 1;
+            }
         } else if (arg == "--help" || arg == "-h") {
             return false;
         }
     }
-    if (input.empty() || output.empty() || ref_gas.empty() || ref_ccs_a2 <= 0.0) {
+    if (input.empty() || output.empty() || ref_gas.empty() || ref_ccs_a2 <= 0.0 || target_species.empty()) {
         return false;
     }
     if (model != "HSS" && model != "EHSS") {
@@ -129,9 +142,12 @@ int main(int argc, char** argv) {
     bool override = false;
     int n_orientations = 300;
 
-    if (!parse_args(argc, argv, input, output, ref_gas, ref_ccs_a2, model, override, n_orientations)) {
+    std::unordered_set<std::string> target_species;
+
+    if (!parse_args(argc, argv, input, output, ref_gas, ref_ccs_a2, model, override, n_orientations, target_species)) {
         std::cerr << "Usage: ccs_precompute --input species.json --output out.json "
-                  << "--ref-gas He --ref-ccs-A2 110.0 [--model HSS|EHSS] [--override] [--n-orientations 300]\n";
+                  << "--species H3O+,NH4+ --ref-gas He --ref-ccs-A2 110.0 "
+                  << "[--model HSS|EHSS] [--override] [--n-orientations 300]\n";
         return 1;
     }
 
@@ -163,6 +179,9 @@ int main(int argc, char** argv) {
 
     auto species_names = root["species"].getMemberNames();
     for (const auto& sid : species_names) {
+        if (!target_species.count(sid)) {
+            continue;  // do not touch other species
+        }
         auto& props = root["species"][sid];
         // Skip neutrals
         if (props.get("charge", 0).asInt() == 0) continue;
@@ -180,12 +199,16 @@ int main(int argc, char** argv) {
         }
 
         // EHSS approximation: OAPA projection using geometry_file if present
-        if (model == "EHSS" && props.isMember("geometry_file") && props["geometry_file"].isString()) {
-            std::string geom_path = props["geometry_file"].asString();
-            // resolve relative to input file directory
-            std::filesystem::path base = std::filesystem::path(input).parent_path();
-            std::filesystem::path abs_geom = base / geom_path;
-            if (std::filesystem::exists(abs_geom)) {
+        if (model == "EHSS") {
+            if (!props.isMember("geometry_file") || !props["geometry_file"].isString()) {
+                std::cerr << "[ccs_precompute] Warning: species '" << sid
+                          << "' has no geometry_file; skipping EHSS map\n";
+            } else {
+                std::string geom_path = props["geometry_file"].asString();
+                // resolve relative to input file directory
+                std::filesystem::path base = std::filesystem::path(input).parent_path();
+                std::filesystem::path abs_geom = base / geom_path;
+                if (std::filesystem::exists(abs_geom)) {
                 try {
                     auto molecule = ICARION::io::load_molecule(abs_geom.string());
                     auto geom = ICARION::physics::convert_molecule_to_geometry(molecule);
@@ -216,3 +239,5 @@ int main(int argc, char** argv) {
     std::cout << "Wrote updated species database to " << output << "\n";
     return 0;
 }
+}
+ 

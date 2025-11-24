@@ -39,6 +39,10 @@ struct SpeciesProperties {
     std::optional<double> reference_temperature_K; ///< Temperature for mobility/CCS [K]
     std::optional<double> reference_pressure_Pa;   ///< Pressure for mobility [Pa]
     std::optional<std::string> ccs_method;         ///< CCS determination method
+    std::optional<std::string> ccs_reference_gas;  ///< Reference gas for CCS maps
+    std::optional<std::string> ccs_model;          ///< Model label (HSS/EHSS) if maps provided
+    std::unordered_map<std::string, double> ccs_hss_m2;   ///< Gas-specific CCS (HSS) [m²]
+    std::unordered_map<std::string, double> ccs_ehss_m2;  ///< Gas-specific CCS (EHSS) [m²]
     
     // === Derived quantities (computed after load) ===
     double mass_kg = 0.0;                   ///< Mass [kg] (computed)

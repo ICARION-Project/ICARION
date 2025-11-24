@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "SimulationEngine.h"
+#include "DomainContext.h"
 #include "core/utils/safety/numericalSafetyGuards.h"
 #include "core/utils/safety/numericalSafetyLogger.h"
 #include "core/utils/mathUtils.h"
@@ -152,36 +153,33 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             domain_manager_->update_domain_properties(ion, domain_idx);
         }
         
-        // 3. Transform to local domain coordinates
-        Vec3 pos_local = domain_manager_->global_to_local_pos(ion.pos, domain_idx);
-        Vec3 vel_local = domain_manager_->global_to_local_vel(ion.vel, domain_idx);
+        // 3. Create domain context (transforms to local coordinates)
+        // RAII: Automatic sync back to global on scope exit
+        DomainContext ctx(ion, domain_idx, *domain_manager_);
         
         // Store pre-integration position for aperture crossing check
-        Vec3 pos_before = pos_local;
+        Vec3 pos_before = ctx.pos_local();
         
         // 4. Handle collisions (if enabled)
+        // Work in local coordinates: temporarily set ion.pos/vel to local, process, then restore
         if (collision_handler_) {
-            IonState ion_local = ion;
-            ion_local.pos = pos_local;
-            ion_local.vel = vel_local;
+            ion.pos = ctx.pos_local();
+            ion.vel = ctx.vel_local();
             
-            // Thread-safe RNG
-            collision_handler_->handle_collision(ion_local, dt, ion_rng, domain_config.environment);
+            collision_handler_->handle_collision(ion, dt, ion_rng, domain_config.environment);
             
-            pos_local = ion_local.pos;
-            vel_local = ion_local.vel;
+            ctx.pos_local() = ion.pos;
+            ctx.vel_local() = ion.vel;
         }
         
         // 5. Handle reactions (if enabled)
-        // SSOT: Direct access to config databases (no parameter copies!)
+        // Work in local coordinates: species properties updated in-place (SSOT!)
         if (reaction_handler_ && !config_.reaction_db.reactions.empty()) {
-            IonState ion_local = ion;
-            ion_local.pos = pos_local;
-            ion_local.vel = vel_local;
+            ion.pos = ctx.pos_local();
+            ion.vel = ctx.vel_local();
             
-            // Call reaction handler with SSOT databases
-            bool reaction_occurred = reaction_handler_->handle_reaction(
-                ion_local,
+            reaction_handler_->handle_reaction(
+                ion,
                 dt,
                 ion_rng,
                 config_.reaction_db,  // ReactionDatabase (SSOT)
@@ -189,40 +187,32 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
                 domain_config.environment  // Temperature, density, etc.
             );
             
-            // If reaction changed species, update ion properties
-            if (reaction_occurred) {
-                ion.species_id = ion_local.species_id;
-                ion.mass_kg = ion_local.mass_kg;
-                ion.ion_charge_C = ion_local.ion_charge_C;
-                ion.CCS_m2 = ion_local.CCS_m2;
-                ion.reduced_mobility_cm2_Vs = ion_local.reduced_mobility_cm2_Vs;
-            }
-            
-            pos_local = ion_local.pos;
-            vel_local = ion_local.vel;
+            ctx.pos_local() = ion.pos;
+            ctx.vel_local() = ion.vel;
+            // Note: Species properties (mass, CCS, etc.) already updated in ion by handler
         }
         
         // 6. Get domain-specific ForceRegistry
         const auto& force_registry = force_registries_[domain_idx];
         
         // 7. Compute forces (ForceRegistry with domain context)
-        IonState ion_local = ion;
-        ion_local.pos = pos_local;
-        ion_local.vel = vel_local;
+        ion.pos = ctx.pos_local();
+        ion.vel = ctx.vel_local();
         
-        physics::ForceContext ctx;  // TODO: Populate with field provider
-        Vec3 total_force = force_registry->compute_total_force(ion_local, current_time_, ctx);
+        physics::ForceContext force_ctx;  // TODO: Populate with field provider
+        Vec3 total_force = force_registry->compute_total_force(ion, current_time_, force_ctx);
         
         // 8. Integrate trajectory (IIntegrationStrategy)
         // Note: IIntegrationStrategy::step() computes forces internally via ForceRegistry
         // ForceRegistry now knows its domain, so we don't need to pass domain_config
-        integrator_->step(ion_local, current_time_, dt, *force_registry, ions);
+        integrator_->step(ion, current_time_, dt, *force_registry, ions);
         
-        pos_local = ion_local.pos;
-        vel_local = ion_local.vel;
+        // Update local coordinates after integration
+        ctx.pos_local() = ion.pos;
+        ctx.vel_local() = ion.vel;
         
         // 9. Check if ion left domain (boundary collision detection)
-        Vec3 pos_after = pos_local;
+        Vec3 pos_after = ctx.pos_local();
         
         // First check aperture crossing (domain exit at z=length_m)
         if (pos_after.z >= domain_config.geometry.length_m && pos_before.z < domain_config.geometry.length_m) {
@@ -245,9 +235,8 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
                 continue;
             }
             
-            // Multi-domain: Transform to global and let next timestep find new domain
-            ion.pos = domain_manager_->local_to_global_pos(pos_local, domain_idx);
-            ion.vel = domain_manager_->local_to_global_vel(vel_local, domain_idx);
+            // Multi-domain: Sync to global coordinates (DomainContext will handle transform)
+            ctx.sync_to_ion();
             ion.t += dt;
             continue;  // Skip remaining checks, next step will find new domain
         }
@@ -279,8 +268,9 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         }
         
         // 9. Transform back to global coordinates
-        ion.pos = domain_manager_->local_to_global_pos(pos_local, domain_idx);
-        ion.vel = domain_manager_->local_to_global_vel(vel_local, domain_idx);
+        // Note: DomainContext destructor will handle this automatically at scope exit
+        // But we need ion.pos/vel updated now for safety checks below
+        ctx.sync_to_ion();
         
         // 10. Update ion time
         ion.t += dt;

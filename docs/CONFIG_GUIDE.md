@@ -100,6 +100,26 @@ ICARION uses a hierarchical JSON configuration with four main sections:
 - A log message `ℹ No [species/reaction] database specified, using global fallback: ...` indicates fallback usage
 - If no database is found (neither specified nor fallback), databases remain empty (which is valid for simulations without reactions)
 
+### Gas-specific CCS maps (HSS/EHSS)
+
+You can store gas-dependent CCS values (generated via `ccs_precompute`):
+```json
+\"species\": {
+  \"H3O+\": {
+    \"mass_amu\": 19.0,
+    \"charge\": 1,
+    \"CCS_reference_gas\": \"He\",
+    \"CCS_model\": \"HSS\",
+    \"CCS_HSS\": { \"He\": 110.0, \"N2\": 130.0, \"O2\": 140.0 },   // Å²
+    \"CCS_EHSS\": { \"He\": 120.0 }  // optional, Å² (nutzt geometry_file wenn nicht vorhanden)
+  }
+}
+```
+
+- HSS: uses σ per gas from `CCS_HSS[gas]`, else mixture override `cross_section_m2`, else `ion.CCS_m2`.
+- EHSS: uses `CCS_EHSS[gas]` if present, else geometry, else (without geometry) throws.
+- Tool: `./ccs_precompute --input species.json --output out.json --species H3O+ --ref-gas He --ref-ccs-A2 110.0 [--model HSS|EHSS] [--override] [--n-orientations 300]`.
+
 ---
 
 ## Species and Reaction Databases (v1.0)

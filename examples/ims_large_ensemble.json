@@ -2,27 +2,27 @@
   "simulation": {
     "total_time_s": 5e-4,
     "dt_s": 1e-8,
-    "write_interval": 1000,
+    "write_interval": 5000,
     "integrator": "RK4",
     "enable_gpu": true,
     "enable_reactions": false,
     "enable_space_charge": true,
-    "rng_seed": 123
+    "rng_seed": 42
   },
   "physics": {
     "collision_model": "HSS",
     "enable_space_charge": true
   },
   "output": {
-    "folder": "../results/ims",
-    "trajectory_file": "ims_trajectories.h5",
+    "folder": "../results/ims_large",
+    "trajectory_file": "trajectories.h5",
     "print_progress": true
   },
   "ions": {
     "species": [
       {
         "id": "H3O+",
-        "count": 100,
+        "count": 2000,
         "position": {
           "type": "gaussian",
           "center": [0.0, 0.0, 0.001],

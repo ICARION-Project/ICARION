@@ -24,6 +24,34 @@
 #include <iostream>
 #include "core/log/Logger.h"
 
+// Adaptive update configuration constants
+namespace {
+    // Ion count thresholds for different optimization strategies
+    constexpr int SMALL_ION_COUNT = 100;       ///< Very small ion ensembles
+    constexpr int MEDIUM_ION_COUNT = 500;      ///< Small-medium ion ensembles
+    constexpr int LARGE_ION_COUNT = 2000;      ///< Large ion ensembles
+    constexpr int ADAPTIVE_THRESHOLD = 1000;   ///< Threshold for adaptive method selection
+    
+    // Update frequency settings (timesteps between updates)
+    constexpr int UPDATE_FREQ_VERY_INFREQUENT = 50;  ///< For <100 ions, many timesteps
+    constexpr int UPDATE_FREQ_INFREQUENT = 25;       ///< For <500 ions
+    constexpr int UPDATE_FREQ_MODERATE = 15;         ///< For <2000 ions
+    constexpr int UPDATE_FREQ_FREQUENT = 10;         ///< For >2000 ions
+    constexpr int UPDATE_FREQ_DEFAULT_SMALL = 20;    ///< Default for small grids
+    constexpr int UPDATE_FREQ_EVERY_STEP = 1;        ///< Update every timestep
+    
+    // Movement thresholds (meters) - trigger update if ions move more than this
+    constexpr double MOVEMENT_THRESHOLD_LARGE = 10e-6;   ///< 10 μm for very small ion counts
+    constexpr double MOVEMENT_THRESHOLD_MEDIUM = 5e-6;   ///< 5 μm for small ion counts
+    constexpr double MOVEMENT_THRESHOLD_SMALL = 3e-6;    ///< 3 μm for medium ion counts
+    constexpr double MOVEMENT_THRESHOLD_TINY = 2e-6;     ///< 2 μm for large ion counts
+    constexpr double MOVEMENT_THRESHOLD_DEFAULT = 5e-6;  ///< Default 5 μm
+    constexpr double MOVEMENT_THRESHOLD_ALWAYS = 0.0;    ///< Always update (no threshold)
+    
+    // Grid size threshold for performance optimization
+    constexpr size_t SMALL_MEDIUM_GRID_THRESHOLD = 100000;  ///< 100k cells
+}
+
 /* Constructor */
 SpaceChargeSolver::SpaceChargeSolver(int Nx, int Ny, int Nz,
                                      double dx, double dy, double dz,
@@ -33,11 +61,29 @@ SpaceChargeSolver::SpaceChargeSolver(int Nx, int Ny, int Nz,
 {
     m_grid.origin_m = origin;
     
+    // Validate grid parameters
+    if (Nx < 8 || Ny < 8 || Nz < 8) {
+        throw std::runtime_error("[SpaceChargeSolver] Grid too small (" + std::to_string(Nx) + "x" + 
+                               std::to_string(Ny) + "x" + std::to_string(Nz) + "). Minimum: 8x8x8");
+    }
+    
+    if (dx <= 0.0 || dy <= 0.0 || dz <= 0.0) {
+        throw std::runtime_error("[SpaceChargeSolver] Invalid grid spacing: dx=" + std::to_string(dx) +
+                               ", dy=" + std::to_string(dy) + ", dz=" + std::to_string(dz));
+    }
+    
+    // Warning for very coarse grids
+    if (Nx < 16 || Ny < 16 || Nz < 16) {
+        ICARION::log::debug_log(std::string("[SpaceChargeSolver] WARNING: Low resolution grid (") + 
+                               std::to_string(Nx) + "x" + std::to_string(Ny) + "x" + std::to_string(Nz) + 
+                               "). Accuracy may be limited. Consider 32x32x32 or higher.");
+    }
+    
     // Optimize defaults for few ions, many timesteps
     size_t grid_size = Nx * Ny * Nz;
-    if (grid_size < 100000) {  // Small to medium grids
-        m_update_frequency = 20;  // Update every 20 timesteps
-        m_movement_threshold = 5e-6;  // 5 μm movement threshold
+    if (grid_size < SMALL_MEDIUM_GRID_THRESHOLD) {
+        m_update_frequency = UPDATE_FREQ_DEFAULT_SMALL;
+        m_movement_threshold = MOVEMENT_THRESHOLD_DEFAULT;
         ICARION::log::debug_log(std::string("[SpaceChargeSolver] Optimized for many timesteps mode (update every ") + std::to_string(m_update_frequency) + " steps)");
     }
 }
@@ -76,7 +122,7 @@ void SpaceChargeSolver::update(const std::vector<IonState>& ions)
     // Intelligent update logic for few ions, many timesteps
     bool should_update = false;
     
-    if (num_ions <= 1000) {
+    if (num_ions <= ADAPTIVE_THRESHOLD) {
         // Few ions: Use adaptive updating based on movement
         if (m_high_performance) {
             should_update = (m_step_counter % m_update_frequency == 0) || needsUpdate(ions);
@@ -175,18 +221,18 @@ void SpaceChargeSolver::configureForManyTimesteps(int typical_ion_count) {
     m_high_performance = true;
     m_cache_fields = true;
     
-    if (typical_ion_count < 100) {
-        m_update_frequency = 50;        // Very infrequent updates
-        m_movement_threshold = 10e-6;   // 10 μm threshold
-    } else if (typical_ion_count < 500) {
-        m_update_frequency = 25;        // Update every 25 steps
-        m_movement_threshold = 5e-6;    // 5 μm threshold  
-    } else if (typical_ion_count < 2000) {
-        m_update_frequency = 15;        // Update every 15 steps
-        m_movement_threshold = 3e-6;    // 3 μm threshold
+    if (typical_ion_count < SMALL_ION_COUNT) {
+        m_update_frequency = UPDATE_FREQ_VERY_INFREQUENT;
+        m_movement_threshold = MOVEMENT_THRESHOLD_LARGE;
+    } else if (typical_ion_count < MEDIUM_ION_COUNT) {
+        m_update_frequency = UPDATE_FREQ_INFREQUENT;
+        m_movement_threshold = MOVEMENT_THRESHOLD_MEDIUM;
+    } else if (typical_ion_count < LARGE_ION_COUNT) {
+        m_update_frequency = UPDATE_FREQ_MODERATE;
+        m_movement_threshold = MOVEMENT_THRESHOLD_SMALL;
     } else {
-        m_update_frequency = 10;        // Update every 10 steps
-        m_movement_threshold = 2e-6;    // 2 μm threshold
+        m_update_frequency = UPDATE_FREQ_FREQUENT;
+        m_movement_threshold = MOVEMENT_THRESHOLD_TINY;
     }
     
     ICARION::log::debug_log(std::string("  - Update frequency: every ") + std::to_string(m_update_frequency) + " timesteps");
@@ -198,8 +244,8 @@ void SpaceChargeSolver::configureForManyIons(int typical_ion_count) {
               
     m_high_performance = true;
     m_cache_fields = true;
-    m_update_frequency = 1;         // Update every timestep
-    m_movement_threshold = 0.0;     // Always update
+    m_update_frequency = UPDATE_FREQ_EVERY_STEP;
+    m_movement_threshold = MOVEMENT_THRESHOLD_ALWAYS;
     
     ICARION::log::debug_log("  - Update frequency: every timestep");
 }

@@ -23,12 +23,19 @@
  * =====================================================================
  */
 #include "core/physics/spacecharge/depositCharge.h"
+#include "core/utils/safety/numericalSafetyGuards.h"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+
+// Performance thresholds
+namespace {
+    constexpr size_t HIGH_PERFORMANCE_THRESHOLD = 100000;    ///< Enable high-perf mode for >100k ions
+    constexpr size_t ULTRA_HIGH_PERFORMANCE_THRESHOLD = 1000000; ///< Use thread-local storage for >1M ions
+}
 
 /**
  * @brief Deposit ion charges onto a 3D grid to compute charge density ρ [C/m³].
@@ -52,15 +59,45 @@ std::vector<double> deposit_charge(const std::vector<IonState>& ions,
     
     // Performance optimization for many ions
     const size_t num_ions = ions.size();
-    if (num_ions > 100000) {
+    if (num_ions > HIGH_PERFORMANCE_THRESHOLD) {
         std::cout << "[deposit_charge] High-performance mode for " << num_ions << " ions..." << std::endl;
     }
 
     // Pre-calculate cell volume (constant for uniform grid)
     const double cell_volume = grid.dx * grid.dy * grid.dz;
+    
+    // Safety check: Prevent division by zero
+    if (!ICARION::safety::is_finite_value(cell_volume) || cell_volume <= 0.0) {
+        throw std::runtime_error("[deposit_charge] Invalid cell volume: " + std::to_string(cell_volume) + " (grid spacing may be zero or negative)");
+    }
+    
     const double inv_cell_volume = 1.0 / cell_volume;
     
-    if (num_ions > 1000000) {
+    // Validate grid resolution vs. ion distribution
+    if (num_ions > 0) {
+        // Estimate ion cloud size from first active ion's typical scale
+        double grid_domain_size = std::max({grid.dx * Nx, grid.dy * Ny, grid.dz * Nz});
+        double max_cell_size = std::max({grid.dx, grid.dy, grid.dz});
+        
+        // Warning: Grid too coarse (cell size > 10% of domain)
+        if (max_cell_size > 0.1 * grid_domain_size && Nx < 32 && Ny < 32 && Nz < 32) {
+            std::cerr << "[deposit_charge] WARNING: Coarse grid detected (" 
+                     << Nx << "x" << Ny << "x" << Nz << "), "
+                     << "cell size = " << max_cell_size*1e6 << " μm. "
+                     << "Consider finer resolution for better accuracy." << std::endl;
+        }
+        
+        // Critical: Very few grid points with many ions
+        size_t total_cells = static_cast<size_t>(Nx) * Ny * Nz;
+        if (num_ions > total_cells * 10) {
+            std::cerr << "[deposit_charge] WARNING: High ion density! "
+                     << num_ions << " ions on " << total_cells << " grid cells "
+                     << "(" << (num_ions / static_cast<double>(total_cells)) << " ions/cell avg). "
+                     << "Grid may be under-resolved. Consider increasing resolution." << std::endl;
+        }
+    }
+    
+    if (num_ions > ULTRA_HIGH_PERFORMANCE_THRESHOLD) {
         // Ultra-high performance mode for millions of ions
         // Use thread-local storage to reduce atomic contention
 #ifdef _OPENMP

@@ -39,26 +39,39 @@
  * 
  * @return Charge density [C/m³] at each grid point (size = Nx×Ny×Nz)
  * 
+ * @warning **Current implementation: NGP (Nearest Grid Point) ONLY**
+ *          CIC and TSC are documented for future implementation but not yet available.
+ * 
  * Maps discrete ion positions to continuous charge density field using
- * particle-in-cell (PIC) methods. Supports multiple deposition schemes:
+ * particle-in-cell (PIC) methods. 
  * 
- * - NGP (Nearest Grid Point): Assigns full charge to nearest grid node
- *   Fast but can cause numerical noise
+ * **Implemented deposition schemes:**
+ * - ✅ **NGP (Nearest Grid Point)**: Assigns full charge to nearest grid node
+ *   Fast, parallel-safe with OpenMP atomics, but can cause numerical noise.
+ *   Recommended grid spacing: ≤ λ_Debye/2 to minimize artifacts.
  * 
- * - CIC (Cloud-In-Cell): Distributes charge over 8 surrounding nodes
+ * **Documented but NOT implemented (future work):**
+ * - ❌ CIC (Cloud-In-Cell): Would distribute charge over 8 surrounding nodes
  *   using trilinear weighting. Smoother, reduces grid artifacts.
  * 
- * - TSC (Triangular Shaped Cloud): Higher-order interpolation (27 nodes)
+ * - ❌ TSC (Triangular Shaped Cloud): Higher-order interpolation (27 nodes)
  *   Best smoothness but more expensive
+ * 
+ * **Grid Resolution Requirements:**
+ * - Minimum: Grid spacing < ion cloud size (otherwise under-resolved)
+ * - Recommended: Grid spacing ≤ Debye length / 2
+ * - Optimal: Grid spacing ≈ smallest feature size / 5
  * 
  * Charge density normalized by grid cell volume (dx×dy×dz).
  * Used as source term for Poisson solver in space-charge calculations.
  * 
- * Algorithm:
- * 1. For each ion, find enclosing grid cell
- * 2. Compute interpolation weights based on fractional position
- * 3. Distribute charge to surrounding nodes proportionally
- * 4. Normalize by cell volume to get density [C/m³]
+ * **Algorithm (NGP):**
+ * 1. For each ion, find nearest grid point
+ * 2. Add ion charge to that grid point (atomic operation for thread-safety)
+ * 3. Normalize by cell volume to get density [C/m³]
+ * 
+ * @throws std::runtime_error if grid spacing is zero or negative
+ * @throws std::runtime_error if grid size is insufficient for ion distribution
  */
 std::vector<double> deposit_charge(const std::vector<IonState>& ions,
                                    const Grid3D& grid);

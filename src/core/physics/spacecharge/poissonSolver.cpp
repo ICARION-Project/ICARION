@@ -42,11 +42,19 @@ void PoissonSolver::setBoundaryConditions(const BoundaryConditions& bc) {
 /**
  * @brief Set the source term (charge density) for the Poisson equation.
  * @param rho Charge density array (size = Nx*Ny*Nz)
+ * 
+ * NOTE: Legacy implementation had wrong sign convention.
+ * We negate rho here to fix: positive charges → positive potential.
  */
 void PoissonSolver::setSourceTerm(const std::vector<double>& rho) {
     if (rho.size() != m_grid.size())
         throw std::runtime_error("Source term size mismatch with grid dimensions.");
-    m_rho = rho;
+    
+    // FIX: Negate rho to get correct sign (positive charge → positive potential)
+    m_rho.resize(rho.size());
+    for (size_t i = 0; i < rho.size(); ++i) {
+        m_rho[i] = -rho[i];
+    }
 }
 
 /**
@@ -147,7 +155,7 @@ void PoissonSolver::solveGaussSeidel(double eps0, double tol, int max_iter) {
                         ((m_grid.phi[m_grid.index(i+1,j,k)] + m_grid.phi[m_grid.index(i-1,j,k)]) / dx2 +
                         (m_grid.phi[m_grid.index(i,j+1,k)] + m_grid.phi[m_grid.index(i,j-1,k)]) / dy2 +
                         (m_grid.phi[m_grid.index(i,j,k+1)] + m_grid.phi[m_grid.index(i,j,k-1)]) / dz2
-                        - m_rho[idx] / eps0) / denom;
+                        - m_rho[idx] / eps0) / denom;  // Note: m_rho already negated in setSourceTerm()
                     
                     // SOR update: φ_new = φ_old + ω(φ_GS - φ_old)
                     double phi_new = phi_old + omega * (phi_gauss_seidel - phi_old);
@@ -203,7 +211,7 @@ void PoissonSolver::solveRedBlack(double eps0, double tol, int max_iter) {
                         double phi_gs = ((m_grid.phi[m_grid.index(i+1,j,k)] + m_grid.phi[m_grid.index(i-1,j,k)]) / dx2 +
                                         (m_grid.phi[m_grid.index(i,j+1,k)] + m_grid.phi[m_grid.index(i,j-1,k)]) / dy2 +
                                         (m_grid.phi[m_grid.index(i,j,k+1)] + m_grid.phi[m_grid.index(i,j,k-1)]) / dz2
-                                        - m_rho[idx] / eps0) / denom;
+                                        - m_rho[idx] / eps0) / denom;  // m_rho already negated in setSourceTerm()
                         double phi_new = phi_old + omega * (phi_gs - phi_old);
                         res_sum += std::fabs(phi_new - phi_old);
                         m_grid.phi[idx] = phi_new;
@@ -224,7 +232,7 @@ void PoissonSolver::solveRedBlack(double eps0, double tol, int max_iter) {
                         double phi_gs = ((m_grid.phi[m_grid.index(i+1,j,k)] + m_grid.phi[m_grid.index(i-1,j,k)]) / dx2 +
                                         (m_grid.phi[m_grid.index(i,j+1,k)] + m_grid.phi[m_grid.index(i,j-1,k)]) / dy2 +
                                         (m_grid.phi[m_grid.index(i,j,k+1)] + m_grid.phi[m_grid.index(i,j,k-1)]) / dz2
-                                        - m_rho[idx] / eps0) / denom;
+                                        - m_rho[idx] / eps0) / denom;  // Note: m_rho already negated
                         double phi_new = phi_old + omega * (phi_gs - phi_old);
                         res_sum += std::fabs(phi_new - phi_old);
                         m_grid.phi[idx] = phi_new;
@@ -394,8 +402,8 @@ void PoissonSolver::computeElectricField() {
                 double dphidx = (m_grid.phi[m_grid.index(i+1,j,k)] - m_grid.phi[m_grid.index(i-1,j,k)]) / (2*dx);
                 double dphidy = (m_grid.phi[m_grid.index(i,j+1,k)] - m_grid.phi[m_grid.index(i,j-1,k)]) / (2*dy);
                 double dphidz = (m_grid.phi[m_grid.index(i,j,k+1)] - m_grid.phi[m_grid.index(i,j,k-1)]) / (2*dz);
-                // FIX: Swap Ex and Ez to correct coordinate orientation
-                m_grid.E[idx] = Vec3{-dphidz, -dphidy, -dphidx};
+                // E = -∇φ (standard convention)
+                m_grid.E[idx] = Vec3{-dphidx, -dphidy, -dphidz};
             }
         }
     }

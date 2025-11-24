@@ -40,15 +40,17 @@ Build simple, robust unit tests for all instrument types with reasonable toleran
    - Electric field uniformity check
    - Single ion trajectory (no collisions)
    - Expected: Linear drift with constant velocity
-   - Tolerance: ±5% on arrival time
+   - Tolerance: ±1% on arrival time
 
 2. **Collision Model Comparison** (`test_ims_collision_models.cpp`)
-   - Test all collision models with identical conditions:
-     * Hard Sphere (HS)
-     * Langevin
-     * Hybrid (HS + polarization)
+   - Test all collision models with identical conditions (10 Td, 300 K, He buffer, 200 Pa):
+     * Hard Sphere Spherical (HSS)
+     * Langevin + OU 
+     * Friction + OU
+     * Hard Sphere Deterministic (HSD) + OU 
+     * Exact Hard-Sphere Scattering (EHSS)
    - Ion count: 50-100 ions per model
-   - Metrics: Mean arrival time, mobility K₀, standard deviation
+   - Metrics: Mean arrival time, mobility K₀ (from arrival time, E/N, Lohschmidt constant and drift length), standard deviation
    - Tolerance: ±10% between models (physical expectation)
    - Validation: K₀ should match literature values within 15%
 
@@ -64,7 +66,7 @@ Build simple, robust unit tests for all instrument types with reasonable toleran
    - 2-3 different ion species simultaneously
    - Different masses and collision cross-sections
    - Expected: Species separation by mobility
-   - Tolerance: ±8% on relative arrival time differences
+   - Tolerance: ±8% on expected relative arrival time differences
 
 **Configuration:**
 - Small ensembles: 50-200 ions
@@ -90,11 +92,6 @@ Build simple, robust unit tests for all instrument types with reasonable toleran
    - Multiple m/z values (e.g., 100, 200, 400, 800)
    - Linear regression on t² vs m/z
    - Tolerance: R² > 0.9999
-
-3. **TOF with Space Charge** (`test_tof_spacecharge.cpp`)
-   - Dense ion packet (1000 ions)
-   - Measure arrival time spreading
-   - Expected: Packet broadening proportional to charge density
 
 ---
 
@@ -153,6 +150,8 @@ Build simple, robust unit tests for all instrument types with reasonable toleran
 ---
 
 ### 6.6 Space Charge Testing
+
+**Note:** The space charge module is complex; focus on basic validation; must be validated separately.
 
 **Target:** Self-consistent field solver validation
 
@@ -497,19 +496,18 @@ Complete remaining physics features that were deferred during the SSOT migration
 
 **Lower Priority Enhancements:**
 
-1. **Temperature-Dependent Cross Sections**
-   - Currently: Fixed σ(T)
-   - Enhancement: σ(T, E_collision)
-   - Use case: High-field IMS, ion heating effects
+1. **Validate space charge implementation**
+   - Ensure correct Poisson solver behavior in single gas environments
+   - There are multiple functions already for space charge, but validation is pending and it is not clear how they interact with each other.
 
-2. **Ion-Ion Interactions**
-   - Currently: Only Coulomb repulsion (via space charge)
-   - Enhancement: Direct ion-ion collisions
-   - Use case: Charge reduction, proton transfer
+2. **Field Array Import**
+   - Support importing E field maps from external solvers (COMSOL, ANSYS)
+   - Interpolation schemes for arbitrary geometries
+   - Use case: Complex ion optics not easily modeled analytically 
 
 3. **Surface Interactions**
    - Currently: Hard-wall boundaries
-   - Enhancement: Sticking coefficient, sputtering
+   - Enhancement: Sticking coefficient, reflecting boundaries, not for now sputtering
    - Use case: Detector efficiency, ion loss modeling
 
 **Decision Point:** Implement only if needed for specific scientific questions

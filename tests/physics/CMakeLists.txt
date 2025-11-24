@@ -5,3 +5,4 @@
 add_subdirectory(forces)
 add_subdirectory(collisions)
 add_subdirectory(reactions)
+add_subdirectory(spacecharge)

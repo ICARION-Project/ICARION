@@ -1,0 +1,52 @@
+{
+  "title": "Linear Voltage Ramp Example",
+  "description": "IMS with linear voltage ramp from 0V to 500V over 1ms",
+  
+  "simulation": {
+    "total_time_s": 0.005,
+    "dt_s": 1e-9,
+    "integrator": "RK4",
+    "write_interval": 1000
+  },
+  
+  "physics": {
+    "collision_model": "HSS",
+    "enable_reactions": false,
+    "enable_space_charge": false
+  },
+  
+  "output": {
+    "folder": "./results/waveform_linear_ramp",
+    "trajectory_file": "trajectories.h5",
+    "print_progress": true
+  },
+  
+  "domains": [
+    {
+      "name": "ims_drift_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "pressure_Pa": 101325.0,
+        "temperature_K": 300.0,
+        "gas_species": "N2"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": {
+            "type": "linear",
+            "start": 0.0,
+            "end": 500.0,
+            "start_time_s": 0.0,
+            "duration_s": 0.001,
+            "clamp": true
+          }
+        }
+      }
+    }
+  ]
+}

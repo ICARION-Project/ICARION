@@ -1171,6 +1171,451 @@ cd build && ./tests/config/test_field_array_e2e
 
 ---
 
+### Waveforms (Time-Varying Parameters)
+
+**Status:** Production-ready (v1.1+)
+
+ICARION supports time-varying field parameters through a flexible waveform system. Any voltage or frequency parameter can be static OR time-dependent.
+
+#### Quick Examples
+
+**Static Value (Backward Compatible):**
+```json
+"fields": {
+  "AC": {
+    "voltage_V": 100.0,
+    "frequency_Hz": 1000000.0
+  }
+}
+```
+
+**Linear Voltage Ramp:**
+```json
+"fields": {
+  "AC": {
+    "voltage_V": {
+      "type": "linear",
+      "start": 0.0,
+      "end": 500.0,
+      "start_time_s": 0.0,
+      "duration_s": 0.001,
+      "clamp": true
+    },
+    "frequency_Hz": 1000000.0
+  }
+}
+```
+
+**Named Waveforms (Reusable):**
+```json
+{
+  "waveforms": {
+    "ac_voltage_ramp": {
+      "type": "linear",
+      "start": 0,
+      "end": 500,
+      "duration_s": 0.001
+    },
+    "rf_chirp": {
+      "type": "linear",
+      "start": 1000000,
+      "end": 2000000,
+      "duration_s": 0.01
+    }
+  },
+  "domains": [
+    {
+      "name": "domain_1",
+      "fields": {
+        "AC": {
+          "voltage_V": "@ac_voltage_ramp",
+          "frequency_Hz": 1000000
+        },
+        "RF": {
+          "frequency_Hz": "@rf_chirp"
+        }
+      }
+    }
+  ]
+}
+```
+
+#### Waveform Types
+
+ICARION supports 6 waveform types:
+
+| Type | Use Case | Parameters |
+|------|----------|------------|
+| `constant` | Static value | `value` |
+| `linear` | Voltage/frequency sweep | `start`, `end`, `duration_s`, `start_time_s` (opt), `clamp` (opt) |
+| `quadratic` | Acceleration profile | `a`, `b`, `c`, `start_time_s` (opt), `end_time_s` (opt) |
+| `sinusoidal` | Amplitude modulation | `offset` (opt), `amplitude`, `frequency_Hz`, `phase_rad` (opt) |
+| `pulsed` | Single pulse | `low`, `high`, `pulse_start_s`, `pulse_width_s` |
+| `arbitrary` | Custom curve | `times[]`, `values[]`, `interpolation` (opt) |
+
+#### Waveform Type Details
+
+##### 1. Constant Waveform
+
+```json
+{
+  "type": "constant",
+  "value": 123.45
+}
+```
+
+**Shorthand:** Just use a number: `"voltage_V": 123.45`
+
+##### 2. Linear Waveform
+
+Linearly interpolates from `start` to `end` over `duration_s`:
+
+```json
+{
+  "type": "linear",
+  "start": 0.0,          // Starting value
+  "end": 500.0,          // Ending value
+  "start_time_s": 0.0,   // When to start ramp (default: 0)
+  "duration_s": 0.001,   // Ramp duration [s]
+  "clamp": true          // Hold end value after duration (default: true)
+}
+```
+
+**Behavior:**
+- `t < start_time_s`: Returns `start`
+- `start_time_s ≤ t ≤ start_time_s + duration_s`: Linear interpolation
+- `t > start_time_s + duration_s`:
+  - If `clamp=true`: Returns `end` (hold final value)
+  - If `clamp=false`: Returns `start` (reset to initial)
+
+**Example Use Cases:**
+- IMS voltage ramp: 0V → 500V over 1ms
+- TOF acceleration sweep
+- Frequency chirp (linear frequency increase)
+
+##### 3. Quadratic Waveform
+
+Quadratic function: **y(t) = a + b×t + c×t²**
+
+```json
+{
+  "type": "quadratic",
+  "a": 10.0,             // Constant term
+  "b": 5.0,              // Linear coefficient
+  "c": 2.0,              // Quadratic coefficient
+  "start_time_s": 0.0,   // Active from this time (default: 0)
+  "end_time_s": 1.0      // Active until this time (default: 1e9)
+}
+```
+
+**Behavior:**
+- `t < start_time_s` or `t > end_time_s`: Returns `a` (constant term)
+- `start_time_s ≤ t ≤ end_time_s`: Evaluates quadratic
+
+**Example Use Cases:**
+- Acceleration profiles (constant acceleration = quadratic position)
+- Nonlinear voltage ramps
+
+##### 4. Sinusoidal Waveform
+
+Sinusoidal modulation: **y(t) = offset + amplitude × sin(2πft + φ)**
+
+```json
+{
+  "type": "sinusoidal",
+  "offset": 250.0,       // DC offset (default: 0)
+  "amplitude": 50.0,     // Oscillation amplitude
+  "frequency_Hz": 100.0, // Modulation frequency [Hz]
+  "phase_rad": 0.0       // Phase offset [radians] (default: 0)
+}
+```
+
+**Example Use Cases:**
+- Amplitude modulation of RF voltages
+- Oscillating DC bias
+- Phase-locked excitation
+
+##### 5. Pulsed Waveform
+
+Single rectangular pulse:
+
+```json
+{
+  "type": "pulsed",
+  "low": 10.0,           // Baseline value
+  "high": 100.0,         // Pulse value
+  "pulse_start_s": 1.0,  // Pulse start time [s]
+  "pulse_width_s": 0.5   // Pulse duration [s]
+}
+```
+
+**Behavior:**
+- `t < pulse_start_s`: Returns `low`
+- `pulse_start_s ≤ t < pulse_start_s + pulse_width_s`: Returns `high`
+- `t ≥ pulse_start_s + pulse_width_s`: Returns `low`
+
+**Example Use Cases:**
+- Pulsed ion injection
+- Gating voltages
+- Resonant excitation pulses
+
+##### 6. Arbitrary Waveform
+
+Custom waveform defined by time-value pairs with interpolation:
+
+```json
+{
+  "type": "arbitrary",
+  "times": [0.0, 0.001, 0.002, 0.003, 0.004],
+  "values": [0, 100, 50, 200, 0],
+  "interpolation": "linear"   // "linear" (default), "step", or "cubic"
+}
+```
+
+**Requirements:**
+- `times` and `values` must have same length (≥2 points)
+- `times` must be strictly increasing
+
+**Interpolation Modes:**
+- `"linear"`: Linear interpolation between points (default)
+- `"step"`: Step function (hold previous value)
+- `"cubic"`: Cubic Hermite spline (smooth)
+
+**Behavior:**
+- `t < times[0]`: Returns `values[0]`
+- `times[0] ≤ t ≤ times[n]`: Interpolates
+- `t > times[n]`: Returns `values[n]`
+
+**Example Use Cases:**
+- Complex voltage profiles from experiments
+- Imported waveforms from external tools
+- Multi-stage ramps
+
+#### Waveform Library (Named Waveforms)
+
+Define waveforms once at the top level and reference them multiple times:
+
+```json
+{
+  "waveforms": {
+    "my_ramp": {
+      "type": "linear",
+      "start": 0,
+      "end": 500,
+      "duration_s": 0.001
+    },
+    "fast_chirp": {
+      "type": "linear",
+      "start": 1e6,
+      "end": 2e6,
+      "duration_s": 0.01
+    }
+  },
+  "domains": [
+    {
+      "name": "region_1",
+      "fields": {
+        "AC": {
+          "voltage_V": "@my_ramp",
+          "frequency_Hz": "@fast_chirp"
+        }
+      }
+    },
+    {
+      "name": "region_2",
+      "fields": {
+        "AC": {
+          "voltage_V": "@my_ramp",  // Reuse same waveform
+          "frequency_Hz": 500000
+        }
+      }
+    }
+  ]
+}
+```
+
+**Benefits:**
+- ✅ Define once, use multiple times
+- ✅ Self-documenting (named waveforms)
+- ✅ Change waveform in one place → updates all references
+- ✅ No copy-paste errors
+
+**Syntax:**
+- Waveform reference: `"@waveform_id"`
+- Must start with `@` symbol
+- ID must exist in `waveforms` library
+
+#### ValueOrWaveform Pattern
+
+Every field parameter in ICARION can be:
+
+1. **Static value** (number): `"voltage_V": 100.0`
+2. **Inline waveform** (object): `"voltage_V": {"type": "linear", ...}`
+3. **Waveform reference** (string): `"voltage_V": "@my_waveform"`
+
+**Exactly one** option must be specified.
+
+#### Applicable Fields
+
+Waveforms can be used for:
+
+**DC Fields:**
+- `axial_V` - Axial DC voltage
+- `quad_V` - Quadrupole DC voltage
+- `radial_V` - Radial DC voltage
+
+**RF Fields:**
+- `voltage_V` - RF voltage amplitude
+- `frequency_Hz` - RF frequency
+
+**AC Fields:**
+- `voltage_V` - AC voltage amplitude
+- `frequency_Hz` - AC frequency
+
+#### Backward Compatibility
+
+**Old configs (v1.0) continue to work:**
+
+```json
+// OLD: Static values
+"AC": {
+  "voltage_V": 100,
+  "frequency_Hz": 1000000
+}
+```
+
+Automatically converted to:
+```json
+// NEW: ValueOrWaveform with constant_value
+"AC": {
+  "voltage_V": {"constant_value": 100},
+  "frequency_Hz": {"constant_value": 1000000}
+}
+```
+
+**Deprecated (v1.0 sweep flags):**
+
+Old boolean sweep flags are **deprecated** but still supported in v1.1:
+
+```json
+// DEPRECATED (still works, but emits warning)
+"AC": {
+  "voltage_V": 0,
+  "enable_voltage_sweep": true,
+  "amplitude_slope_V_s": 500000,
+  "start_time_s": 0,
+  "rise_time_s": 0.001
+}
+```
+
+**Migration:** Use linear waveforms instead (see Migration Script below).
+
+#### Complete Example
+
+```json
+{
+  "simulation": {
+    "total_time_s": 0.01,
+    "dt_s": 1e-9,
+    "integrator": "RK4"
+  },
+  "physics": {
+    "collision_model": "HSS"
+  },
+  "output": {
+    "folder": "./results",
+    "trajectory_file": "waveform_test.h5"
+  },
+  "waveforms": {
+    "voltage_ramp": {
+      "type": "linear",
+      "start": 0,
+      "end": 500,
+      "duration_s": 0.005
+    },
+    "freq_chirp": {
+      "type": "linear",
+      "start": 1000000,
+      "end": 2000000,
+      "duration_s": 0.01
+    },
+    "modulation": {
+      "type": "sinusoidal",
+      "offset": 250,
+      "amplitude": 50,
+      "frequency_Hz": 100
+    }
+  },
+  "domains": [
+    {
+      "name": "ims_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0, 0, 0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "pressure_Pa": 101325,
+        "temperature_K": 300,
+        "gas_species": "N2"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 100.0
+        },
+        "AC": {
+          "voltage_V": "@voltage_ramp",
+          "frequency_Hz": "@freq_chirp"
+        },
+        "RF": {
+          "voltage_V": "@modulation",
+          "frequency_Hz": 1000000
+        }
+      }
+    }
+  ]
+}
+```
+
+#### Migration Script
+
+Convert old configs to new waveform format:
+
+```bash
+python3 scripts/migrate_to_waveforms.py old_config.json new_config.json
+```
+
+**What it does:**
+- Converts `enable_voltage_sweep` → `linear` waveform
+- Converts `voltage_time_table` → `arbitrary` waveform
+- Preserves static values
+- Maintains backward compatibility
+
+#### Validation
+
+Validate waveform configs:
+
+```bash
+# Validate JSON schema
+python3 schema/validate_config.py my_config.json
+
+# Test waveform evaluation
+cd build && ctest -R Waveform
+```
+
+**Tests:**
+- `test_waveform_types` - 26 tests for waveform evaluation
+- `test_waveform_loader` - 22 tests for JSON parsing
+
+#### Performance Notes
+
+- **Waveform evaluation overhead:** < 10ns per evaluation
+- **Memory:** ~128 bytes per ValueOrWaveform field
+- **Recommended:** Use waveform library for frequently referenced waveforms
+
+---
+
 ## Schema Validation
 
 ### JSON Schema Files

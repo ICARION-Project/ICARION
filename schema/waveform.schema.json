@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.1/waveform.schema.json",
+  "title": "ICARION Waveform Schema v1.1",
+  "description": "Schema for time-varying field parameters in ICARION simulations",
+  
+  "definitions": {
+    "ConstantWaveform": {
+      "type": "object",
+      "description": "Static value waveform: y = value",
+      "required": ["type", "value"],
+      "properties": {
+        "type": {
+          "const": "constant"
+        },
+        "value": {
+          "type": "number",
+          "description": "Static value"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "LinearWaveform": {
+      "type": "object",
+      "description": "Linear ramp/sweep: y = start + (end - start) * t_normalized",
+      "required": ["type", "start", "end", "duration_s"],
+      "properties": {
+        "type": {
+          "const": "linear"
+        },
+        "start": {
+          "type": "number",
+          "description": "Starting value"
+        },
+        "end": {
+          "type": "number",
+          "description": "Ending value"
+        },
+        "start_time_s": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Time when ramp starts [seconds]"
+        },
+        "duration_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Ramp duration [seconds]"
+        },
+        "clamp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Hold end value after duration (true) or reset to start (false)"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "QuadraticWaveform": {
+      "type": "object",
+      "description": "Quadratic function: y(t) = a + b*t + c*t²",
+      "required": ["type", "a", "b", "c"],
+      "properties": {
+        "type": {
+          "const": "quadratic"
+        },
+        "a": {
+          "type": "number",
+          "description": "Constant term"
+        },
+        "b": {
+          "type": "number",
+          "description": "Linear coefficient"
+        },
+        "c": {
+          "type": "number",
+          "description": "Quadratic coefficient"
+        },
+        "start_time_s": {
+          "type": "number",
+          "default": 0,
+          "description": "Active from this time [seconds]"
+        },
+        "end_time_s": {
+          "type": "number",
+          "default": 1e9,
+          "description": "Active until this time [seconds]"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "SinusoidalWaveform": {
+      "type": "object",
+      "description": "Sinusoidal modulation: y = offset + amplitude * sin(2π*f*t + φ)",
+      "required": ["type", "amplitude", "frequency_Hz"],
+      "properties": {
+        "type": {
+          "const": "sinusoidal"
+        },
+        "offset": {
+          "type": "number",
+          "default": 0,
+          "description": "DC offset"
+        },
+        "amplitude": {
+          "type": "number",
+          "description": "Oscillation amplitude"
+        },
+        "frequency_Hz": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Modulation frequency [Hz]"
+        },
+        "phase_rad": {
+          "type": "number",
+          "default": 0,
+          "description": "Phase offset [radians]"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "PulsedWaveform": {
+      "type": "object",
+      "description": "Single rectangular pulse",
+      "required": ["type", "low", "high", "pulse_start_s", "pulse_width_s"],
+      "properties": {
+        "type": {
+          "const": "pulsed"
+        },
+        "low": {
+          "type": "number",
+          "description": "Baseline value"
+        },
+        "high": {
+          "type": "number",
+          "description": "Pulse value"
+        },
+        "pulse_start_s": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Pulse start time [seconds]"
+        },
+        "pulse_width_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Pulse duration [seconds]"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "ArbitraryWaveform": {
+      "type": "object",
+      "description": "Custom waveform from time-value pairs with interpolation",
+      "required": ["type", "times", "values"],
+      "properties": {
+        "type": {
+          "const": "arbitrary"
+        },
+        "times": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "description": "Time points [seconds], must be strictly increasing"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "description": "Values at time points (same length as times)"
+        },
+        "interpolation": {
+          "type": "string",
+          "enum": ["linear", "step", "cubic"],
+          "default": "linear",
+          "description": "Interpolation method"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "Waveform": {
+      "oneOf": [
+        {"$ref": "#/definitions/ConstantWaveform"},
+        {"$ref": "#/definitions/LinearWaveform"},
+        {"$ref": "#/definitions/QuadraticWaveform"},
+        {"$ref": "#/definitions/SinusoidalWaveform"},
+        {"$ref": "#/definitions/PulsedWaveform"},
+        {"$ref": "#/definitions/ArbitraryWaveform"}
+      ]
+    },
+    
+    "ValueOrWaveform": {
+      "description": "Field value can be static number, inline waveform, or reference to named waveform",
+      "oneOf": [
+        {
+          "type": "number",
+          "description": "Static value (shorthand for constant waveform)"
+        },
+        {
+          "$ref": "#/definitions/Waveform",
+          "description": "Inline waveform definition"
+        },
+        {
+          "type": "string",
+          "pattern": "^@[A-Za-z0-9_-]+$",
+          "description": "Reference to named waveform (@waveform_id)"
+        }
+      ]
+    },
+    
+    "WaveformLibrary": {
+      "type": "object",
+      "description": "Dictionary of named waveforms (top-level waveforms field)",
+      "patternProperties": {
+        "^[A-Za-z0-9_-]+$": {
+          "$ref": "#/definitions/Waveform"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  
+  "examples": [
+    {
+      "description": "Static value (backward compatible)",
+      "value": 100.0
+    },
+    {
+      "description": "Linear voltage ramp",
+      "type": "linear",
+      "start": 0,
+      "end": 500,
+      "duration_s": 0.001
+    },
+    {
+      "description": "Sinusoidal modulation",
+      "type": "sinusoidal",
+      "offset": 250,
+      "amplitude": 50,
+      "frequency_Hz": 100
+    },
+    {
+      "description": "Waveform reference",
+      "value": "@my_ramp"
+    },
+    {
+      "description": "Named waveform library",
+      "waveforms": {
+        "voltage_ramp": {
+          "type": "linear",
+          "start": 0,
+          "end": 500,
+          "duration_s": 0.001
+        },
+        "freq_chirp": {
+          "type": "linear",
+          "start": 1000000,
+          "end": 2000000,
+          "duration_s": 0.01
+        }
+      }
+    },
+    {
+      "description": "Arbitrary waveform",
+      "type": "arbitrary",
+      "times": [0, 0.001, 0.002, 0.003],
+      "values": [0, 100, 50, 200],
+      "interpolation": "linear"
+    }
+  ]
+}

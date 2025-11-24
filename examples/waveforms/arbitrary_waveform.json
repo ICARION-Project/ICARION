@@ -1,0 +1,50 @@
+{
+  "title": "Arbitrary Waveform Example",
+  "description": "Custom voltage profile from experimental data",
+  
+  "simulation": {
+    "total_time_s": 0.005,
+    "dt_s": 1e-9,
+    "integrator": "RK4",
+    "write_interval": 1000
+  },
+  
+  "physics": {
+    "collision_model": "HSS",
+    "enable_reactions": false,
+    "enable_space_charge": false
+  },
+  
+  "output": {
+    "folder": "./results/waveform_arbitrary",
+    "trajectory_file": "trajectories.h5",
+    "print_progress": true
+  },
+  
+  "domains": [
+    {
+      "name": "custom_profile",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "pressure_Pa": 101325.0,
+        "temperature_K": 300.0,
+        "gas_species": "N2"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": {
+            "type": "arbitrary",
+            "times": [0.0, 0.001, 0.002, 0.003, 0.004, 0.005],
+            "values": [0, 100, 300, 250, 450, 500],
+            "interpolation": "linear"
+          }
+        }
+      }
+    }
+  ]
+}

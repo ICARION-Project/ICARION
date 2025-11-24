@@ -1,0 +1,53 @@
+{
+  "title": "RF Frequency Chirp Example",
+  "description": "RF quadrupole with linear frequency sweep (chirp) from 1MHz to 2MHz",
+  
+  "simulation": {
+    "total_time_s": 0.01,
+    "dt_s": 1e-9,
+    "integrator": "RK4",
+    "write_interval": 1000
+  },
+  
+  "physics": {
+    "collision_model": "NoCollisions",
+    "enable_reactions": false,
+    "enable_space_charge": false
+  },
+  
+  "output": {
+    "folder": "./results/waveform_frequency_chirp",
+    "trajectory_file": "trajectories.h5",
+    "print_progress": true
+  },
+  
+  "domains": [
+    {
+      "name": "rf_quadrupole",
+      "instrument": "Quadrupole",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.1,
+        "radius_m": 0.005
+      },
+      "env": {
+        "pressure_Pa": 1e-3,
+        "temperature_K": 300.0,
+        "gas_species": "He"
+      },
+      "fields": {
+        "RF": {
+          "voltage_V": 100.0,
+          "frequency_Hz": {
+            "type": "linear",
+            "start": 1000000.0,
+            "end": 2000000.0,
+            "start_time_s": 0.0,
+            "duration_s": 0.01,
+            "clamp": true
+          }
+        }
+      }
+    }
+  ]
+}

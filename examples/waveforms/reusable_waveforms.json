@@ -1,0 +1,98 @@
+{
+  "title": "Reusable Named Waveforms Example",
+  "description": "Multi-domain simulation with shared waveforms",
+  
+  "simulation": {
+    "total_time_s": 0.01,
+    "dt_s": 1e-9,
+    "integrator": "RK4",
+    "write_interval": 1000
+  },
+  
+  "physics": {
+    "collision_model": "HSS",
+    "enable_reactions": false,
+    "enable_space_charge": false
+  },
+  
+  "output": {
+    "folder": "./results/waveform_reusable",
+    "trajectory_file": "trajectories.h5",
+    "print_progress": true
+  },
+  
+  "waveforms": {
+    "voltage_ramp": {
+      "type": "linear",
+      "start": 0.0,
+      "end": 500.0,
+      "start_time_s": 0.0,
+      "duration_s": 0.005,
+      "clamp": true
+    },
+    "freq_chirp": {
+      "type": "linear",
+      "start": 1000000.0,
+      "end": 2000000.0,
+      "start_time_s": 0.0,
+      "duration_s": 0.01,
+      "clamp": true
+    },
+    "sinusoidal_mod": {
+      "type": "sinusoidal",
+      "offset": 250.0,
+      "amplitude": 50.0,
+      "frequency_Hz": 100.0,
+      "phase_rad": 0.0
+    }
+  },
+  
+  "domains": [
+    {
+      "name": "ims_region_1",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "pressure_Pa": 101325.0,
+        "temperature_K": 300.0,
+        "gas_species": "N2"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": "@voltage_ramp"
+        },
+        "AC": {
+          "voltage_V": "@sinusoidal_mod",
+          "frequency_Hz": "@freq_chirp"
+        }
+      }
+    },
+    {
+      "name": "ims_region_2",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.05],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "pressure_Pa": 101325.0,
+        "temperature_K": 300.0,
+        "gas_species": "N2"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": "@voltage_ramp"
+        },
+        "RF": {
+          "voltage_V": 100.0,
+          "frequency_Hz": "@freq_chirp"
+        }
+      }
+    }
+  ]
+}

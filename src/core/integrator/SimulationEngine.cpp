@@ -194,6 +194,8 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
                 ion.species_id = ion_local.species_id;
                 ion.mass_kg = ion_local.mass_kg;
                 ion.ion_charge_C = ion_local.ion_charge_C;
+                ion.CCS_m2 = ion_local.CCS_m2;
+                ion.reduced_mobility_cm2_Vs = ion_local.reduced_mobility_cm2_Vs;
             }
             
             pos_local = ion_local.pos;

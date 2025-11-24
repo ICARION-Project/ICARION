@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
-#include "SpaceChargeForce.h"
+#include "SpaceChargeDirect.h"
 #include "ForceContext.h"
 #include "core/utils/mathUtils.h"
 #include "utils/constants.h"
@@ -15,12 +15,12 @@ namespace ICARION::physics {
 // Constructor
 // ============================================================================
 
-SpaceChargeForce::SpaceChargeForce(double softening_m)
+SpaceChargeDirect::SpaceChargeDirect(double softening_m)
     : softening_m_(softening_m)
 {
     if (softening_m_ < 0.0) {
         throw std::invalid_argument(
-            "SpaceChargeForce: Softening parameter must be non-negative. "
+            "SpaceChargeDirect: Softening parameter must be non-negative. "
             "Got: " + std::to_string(softening_m_) + " m"
         );
     }
@@ -30,7 +30,7 @@ SpaceChargeForce::SpaceChargeForce(double softening_m)
 // IForce Interface Implementation
 // ============================================================================
 
-Vec3 SpaceChargeForce::compute(
+Vec3 SpaceChargeDirect::compute(
     const IonState& ion,
     double t,
     const ForceContext& ctx
@@ -64,20 +64,20 @@ Vec3 SpaceChargeForce::compute(
     return total_force;
 }
 
-bool SpaceChargeForce::applies_to(const IonState& ion) const {
+bool SpaceChargeDirect::applies_to(const IonState& ion) const {
     (void)ion;  // Applies to all ions
     return true;
 }
 
-std::string SpaceChargeForce::name() const {
-    return "SpaceCharge";
+std::string SpaceChargeDirect::name() const {
+    return "SpaceChargeDirect";
 }
 
 // ============================================================================
 // Helper Methods
 // ============================================================================
 
-Vec3 SpaceChargeForce::compute_pairwise_force(
+Vec3 SpaceChargeDirect::compute_pairwise_force(
     const IonState& ion1,
     const IonState& ion2
 ) const {

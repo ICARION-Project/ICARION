@@ -3,7 +3,7 @@
 
 /**
  * @file minimal_space_charge_force.cpp
- * @brief Minimal physics test for SpaceChargeForce
+ * @brief Minimal physics test for SpaceChargeDirect
  * 
  * Purpose: Quick verification that Coulomb forces F = k·q₁·q₂/r² are computed correctly.
  * 
@@ -15,14 +15,14 @@
  * Compile:
  *   g++ -std=c++20 -I../../../src -I../../../include \
  *       minimal_space_charge_force.cpp \
- *       ../../../src/core/physics/forces/SpaceChargeForce.cpp \
+ *       ../../../src/core/physics/forces/SpaceChargeDirect.cpp \
  *       ../../../src/core/utils/mathUtils.cpp \
  *       -o minimal_space_charge_force
  * 
  * Run: ./minimal_space_charge_force
  */
 
-#include "core/physics/forces/SpaceChargeForce.h"
+#include "core/physics/forces/SpaceChargeDirect.h"
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonState.h"
 #include <iostream>
@@ -37,7 +37,7 @@ void test_two_ion_coulomb_force() {
     std::cout << "\n=== Test 1: Two-Ion Coulomb Repulsion ===\n";
     std::cout << "Physics: F = k_e·q₁·q₂/r², repulsive for like charges\n";
     
-    SpaceChargeForce force(0.0);  // No softening
+    SpaceChargeDirect force(0.0);  // No softening
     std::vector<IonState> ions;
     ForceContext ctx;
     ctx.all_ions = &ions;
@@ -87,7 +87,7 @@ void test_newtons_third_law() {
     std::cout << "\n=== Test 2: Newton's Third Law (F₁₂ = -F₂₁) ===\n";
     std::cout << "Physics: Action-reaction pair must be equal and opposite\n";
     
-    SpaceChargeForce force(0.0);
+    SpaceChargeDirect force(0.0);
     std::vector<IonState> ions;
     ForceContext ctx;
     ctx.all_ions = &ions;
@@ -138,8 +138,8 @@ void test_softening_at_small_distance() {
     std::cout << "Physics: F = k·q²/(r²+ε²) remains finite as r → 0\n";
     
     const double epsilon = 1e-10;  // 0.1 nm softening
-    SpaceChargeForce force_with_softening(epsilon);
-    SpaceChargeForce force_no_softening(0.0);
+    SpaceChargeDirect force_with_softening(epsilon);
+    SpaceChargeDirect force_no_softening(0.0);
     
     std::vector<IonState> ions;
     ForceContext ctx;
@@ -187,7 +187,7 @@ void test_ion_cloud_expansion() {
     std::cout << "\n=== Test 4: Ion Cloud Self-Repulsion ===\n";
     std::cout << "Physics: Cloud of like-charged ions should experience net outward force\n";
     
-    SpaceChargeForce force(0.0);
+    SpaceChargeDirect force(0.0);
     std::vector<IonState> ions;
     ForceContext ctx;
     ctx.all_ions = &ions;
@@ -231,7 +231,7 @@ void test_ion_cloud_expansion() {
 
 int main() {
     std::cout << "╔════════════════════════════════════════════════════════╗\n";
-    std::cout << "║   Minimal Physics Test: SpaceChargeForce              ║\n";
+    std::cout << "║   Minimal Physics Test: SpaceChargeDirect              ║\n";
     std::cout << "║   Purpose: Verify Coulomb interactions F = k·q²/r²    ║\n";
     std::cout << "╚════════════════════════════════════════════════════════╝\n";
     

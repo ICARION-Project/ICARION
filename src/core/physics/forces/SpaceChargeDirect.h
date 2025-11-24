@@ -35,7 +35,7 @@ namespace ICARION::physics {
  * Usage:
  * @code
  * // Create space charge force with softening
- * auto sc_force = std::make_unique<SpaceChargeForce>(1e-10);  // 0.1 nm softening
+ * auto sc_force = std::make_unique<SpaceChargeDirect>(1e-10);  // 0.1 nm softening
  * 
  * // Compute force requires all_ions in context
  * ForceContext ctx;
@@ -57,7 +57,7 @@ namespace ICARION::physics {
  * @note Requires ctx.all_ions to be non-null, otherwise returns zero force
  * @note For single-ion systems, always returns zero force (no pairs)
  */
-class SpaceChargeForce : public IForce {
+class SpaceChargeDirect : public IForce {
 public:
     /**
      * @brief Construct space charge force
@@ -66,7 +66,7 @@ public:
      *                    Typical: 1e-10 m (0.1 nm) - much smaller than ion spacing
      *                    Set to 0.0 to disable softening (use with caution)
      */
-    explicit SpaceChargeForce(double softening_m = 1e-10);
+    explicit SpaceChargeDirect(double softening_m = 1e-10);
     
     // =========================================================================
     // IForce Interface

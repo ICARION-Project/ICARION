@@ -3,7 +3,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include "core/physics/forces/SpaceChargeForce.h"
+#include "core/physics/forces/SpaceChargeDirect.h"
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
@@ -37,27 +37,27 @@ static IonState create_ion(Vec3 pos, double charge_C, double mass_u = 100.0) {
 // Basic Tests
 // ============================================================================
 
-TEST_CASE("SpaceChargeForce: Name is 'SpaceCharge'", "[SpaceChargeForce][basic]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Name is 'SpaceCharge'", "[SpaceChargeDirect][basic]") {
+    SpaceChargeDirect force{0.0};
     REQUIRE(force.name() == "SpaceCharge");
 }
 
-TEST_CASE("SpaceChargeForce: Applies to all ions", "[SpaceChargeForce][basic]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Applies to all ions", "[SpaceChargeDirect][basic]") {
+    SpaceChargeDirect force{0.0};
     IonState ion = create_ion(Vec3{0, 0, 0}, ELEM_CHARGE_C);
     REQUIRE(force.applies_to(ion));
 }
 
-TEST_CASE("SpaceChargeForce: Negative softening throws exception", "[SpaceChargeForce][basic]") {
-    REQUIRE_THROWS_AS(SpaceChargeForce(-1e-10), std::invalid_argument);
+TEST_CASE("SpaceChargeDirect: Negative softening throws exception", "[SpaceChargeDirect][basic]") {
+    REQUIRE_THROWS_AS(SpaceChargeDirect(-1e-10), std::invalid_argument);
 }
 
 // ============================================================================
 // Empty Ensemble Tests
 // ============================================================================
 
-TEST_CASE("SpaceChargeForce: No ions returns zero force", "[SpaceChargeForce][empty]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: No ions returns zero force", "[SpaceChargeDirect][empty]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -70,8 +70,8 @@ TEST_CASE("SpaceChargeForce: No ions returns zero force", "[SpaceChargeForce][em
     REQUIRE(result.z == 0.0);
 }
 
-TEST_CASE("SpaceChargeForce: Null ion ensemble returns zero force", "[SpaceChargeForce][empty]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Null ion ensemble returns zero force", "[SpaceChargeDirect][empty]") {
+    SpaceChargeDirect force{0.0};
     ForceContext ctx;
     ctx.all_ions = nullptr;
     
@@ -83,8 +83,8 @@ TEST_CASE("SpaceChargeForce: Null ion ensemble returns zero force", "[SpaceCharg
     REQUIRE(result.z == 0.0);
 }
 
-TEST_CASE("SpaceChargeForce: Single ion returns zero force", "[SpaceChargeForce][empty]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Single ion returns zero force", "[SpaceChargeDirect][empty]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -103,8 +103,8 @@ TEST_CASE("SpaceChargeForce: Single ion returns zero force", "[SpaceChargeForce]
 // Self-Interaction Tests
 // ============================================================================
 
-TEST_CASE("SpaceChargeForce: Self-interaction excluded", "[SpaceChargeForce][self]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Self-interaction excluded", "[SpaceChargeDirect][self]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -131,8 +131,8 @@ TEST_CASE("SpaceChargeForce: Self-interaction excluded", "[SpaceChargeForce][sel
 // Two-Ion System Tests (Analytical Validation)
 // ============================================================================
 
-TEST_CASE("SpaceChargeForce: Two positive charges repel along X", "[SpaceChargeForce][coulomb]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Two positive charges repel along X", "[SpaceChargeDirect][coulomb]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -157,8 +157,8 @@ TEST_CASE("SpaceChargeForce: Two positive charges repel along X", "[SpaceChargeF
     REQUIRE_THAT(force0.z, WithinAbs(0.0, tolerance));
 }
 
-TEST_CASE("SpaceChargeForce: Opposite charges attract", "[SpaceChargeForce][coulomb]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Opposite charges attract", "[SpaceChargeDirect][coulomb]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -186,8 +186,8 @@ TEST_CASE("SpaceChargeForce: Opposite charges attract", "[SpaceChargeForce][coul
 // Newton's Third Law (Symmetry)
 // ============================================================================
 
-TEST_CASE("SpaceChargeForce: Newton's third law", "[SpaceChargeForce][newton]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Newton's third law", "[SpaceChargeDirect][newton]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -212,8 +212,8 @@ TEST_CASE("SpaceChargeForce: Newton's third law", "[SpaceChargeForce][newton]") 
 // 3D Position Tests
 // ============================================================================
 
-TEST_CASE("SpaceChargeForce: Three-dimensional repulsion", "[SpaceChargeForce][3d]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Three-dimensional repulsion", "[SpaceChargeDirect][3d]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -243,8 +243,8 @@ TEST_CASE("SpaceChargeForce: Three-dimensional repulsion", "[SpaceChargeForce][3
 // Multiple Ions (Superposition)
 // ============================================================================
 
-TEST_CASE("SpaceChargeForce: Three ions linear", "[SpaceChargeForce][superposition]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Three ions linear", "[SpaceChargeDirect][superposition]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -275,9 +275,9 @@ TEST_CASE("SpaceChargeForce: Three ions linear", "[SpaceChargeForce][superpositi
 // Softening Tests
 // ============================================================================
 
-TEST_CASE("SpaceChargeForce: Softening prevents infinite force", "[SpaceChargeForce][softening]") {
-    SpaceChargeForce force_no_soft{0.0};
-    SpaceChargeForce force_with_soft{1e-10};  // 0.1 nm softening
+TEST_CASE("SpaceChargeDirect: Softening prevents infinite force", "[SpaceChargeDirect][softening]") {
+    SpaceChargeDirect force_no_soft{0.0};
+    SpaceChargeDirect force_with_soft{1e-10};  // 0.1 nm softening
     
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
@@ -301,9 +301,9 @@ TEST_CASE("SpaceChargeForce: Softening prevents infinite force", "[SpaceChargeFo
     REQUIRE(std::isfinite(mag_with));
 }
 
-TEST_CASE("SpaceChargeForce: Softening converges to Coulomb at large distances", "[SpaceChargeForce][softening]") {
-    SpaceChargeForce force_no_soft{0.0};
-    SpaceChargeForce force_with_soft{1e-10};
+TEST_CASE("SpaceChargeDirect: Softening converges to Coulomb at large distances", "[SpaceChargeDirect][softening]") {
+    SpaceChargeDirect force_no_soft{0.0};
+    SpaceChargeDirect force_with_soft{1e-10};
     
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
@@ -329,8 +329,8 @@ TEST_CASE("SpaceChargeForce: Softening converges to Coulomb at large distances",
 // Edge Cases
 // ============================================================================
 
-TEST_CASE("SpaceChargeForce: Overlapping ions return zero force", "[SpaceChargeForce][edge]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Overlapping ions return zero force", "[SpaceChargeDirect][edge]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -349,8 +349,8 @@ TEST_CASE("SpaceChargeForce: Overlapping ions return zero force", "[SpaceChargeF
     REQUIRE(result.z == 0.0);
 }
 
-TEST_CASE("SpaceChargeForce: Neutral ion produces no force", "[SpaceChargeForce][edge]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Neutral ion produces no force", "[SpaceChargeDirect][edge]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;
@@ -369,8 +369,8 @@ TEST_CASE("SpaceChargeForce: Neutral ion produces no force", "[SpaceChargeForce]
     REQUIRE(result.z == 0.0);
 }
 
-TEST_CASE("SpaceChargeForce: Time independent", "[SpaceChargeForce][edge]") {
-    SpaceChargeForce force{0.0};
+TEST_CASE("SpaceChargeDirect: Time independent", "[SpaceChargeDirect][edge]") {
+    SpaceChargeDirect force{0.0};
     std::vector<IonState> ion_ensemble;
     ForceContext ctx;
     ctx.all_ions = &ion_ensemble;

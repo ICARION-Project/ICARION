@@ -15,7 +15,7 @@
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/physics/forces/MagneticFieldForce.h"
 #include "core/physics/forces/DampingForce.h"
-#include "core/physics/forces/SpaceChargeForce.h"
+#include "core/physics/forces/SpaceChargeDirect.h"
 #include "core/types/IonState.h"
 #include "core/config/types/InstrumentTypes.h"
 #include "core/config/types/DomainConfig.h"
@@ -98,7 +98,7 @@ TEST_CASE("Integration: All forces (Electric + Magnetic + Damping + SpaceCharge)
     env.compute_derived_properties();
     registry.add_force(std::make_unique<DampingForce>(env, DampingModel::Friction));
     
-    registry.add_force(std::make_unique<SpaceChargeForce>(1e-10));
+    registry.add_force(std::make_unique<SpaceChargeDirect>(1e-10));
     
     // Create two ions
     IonState ion1, ion2;
@@ -198,7 +198,7 @@ TEST_CASE("Integration: Performance with 100 ions", "[integration][performance]"
     std::vector<IonState> ions;
     
     // Add space charge (O(N²) complexity)
-    registry.add_force(std::make_unique<SpaceChargeForce>(1e-10));
+    registry.add_force(std::make_unique<SpaceChargeDirect>(1e-10));
     
     // Create 100 ions in a grid
     for (int i = 0; i < 10; ++i) {

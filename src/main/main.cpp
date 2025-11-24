@@ -48,6 +48,9 @@
 #include "core/integrator/strategies/RK45Strategy.h"
 #include "core/integrator/strategies/BorisStrategy.h"
 #include "core/physics/forces/ForceRegistry.h"
+#include "core/physics/forces/SpaceChargeDirect.h"
+#include "core/physics/forces/SpaceChargeGrid.h"
+#include "core/physics/spacecharge/spaceChargeSolver.h"
 #include "core/physics/collisions/CollisionHandlerFactory.h"
 #include "core/physics/reactions/ReactionHandlerFactory.h"
 #include "core/log/Logger.h"
@@ -288,26 +291,75 @@ int main(int argc, char* argv[]) {
             
             if (N < SPACE_CHARGE_THRESHOLD) {
                 // Use direct N-body Coulomb (exact, but O(N²))
-                log::Logger::main()->info("Space charge: Using SpaceChargeForce (N={} < {})", 
+                log::Logger::main()->info("Space charge: Using SpaceChargeDirect (N={} < {})", 
                                           N, SPACE_CHARGE_THRESHOLD);
                 log::Logger::main()->info("  → Direct N-body Coulomb (exact, O(N²))");
                 
-                // TODO: Add SpaceChargeForce to ForceRegistry
-                // for (auto& registry : force_registries) {
-                //     registry->add_force(std::make_unique<physics::SpaceChargeForce>(1e-10));
-                // }
+                // Add SpaceChargeDirect to all domain registries
+                constexpr double SOFTENING_LENGTH = 1e-10;  // 0.1 nm (prevents 1/r² divergence)
+                for (auto& registry : force_registries) {
+                    registry->add_force(std::make_unique<physics::SpaceChargeDirect>(SOFTENING_LENGTH));
+                }
+                log::Logger::main()->info("  ✓ SpaceChargeDirect added to {} registries (ε={:.2e} m)",
+                                          force_registries.size(), SOFTENING_LENGTH);
             } else {
                 // Use grid-based Poisson solver (fast, but approximate)
-                log::Logger::main()->info("Space charge: Using SpaceChargeSolver (N={} >= {})", 
+                log::Logger::main()->info("Space charge: Using SpaceChargeGrid (N={} >= {})", 
                                           N, SPACE_CHARGE_THRESHOLD);
                 log::Logger::main()->info("  → Grid-based Poisson solver (fast, O(N log N))");
                 
-                // TODO: Initialize SpaceChargeSolver and pass to SimulationEngine
-                // auto sc_solver = std::make_shared<SpaceChargeSolver>(
-                //     64, 64, 64,  // Grid resolution
-                //     1e-3, 1e-3, 1e-3,  // Cell size [m]
-                //     Vec3{0, 0, 0}  // Origin
-                // );
+                // Estimate domain size from ion initial positions
+                Vec3 min_pos = ions[0].pos;
+                Vec3 max_pos = ions[0].pos;
+                for (const auto& ion : ions) {
+                    min_pos.x = std::min(min_pos.x, ion.pos.x);
+                    min_pos.y = std::min(min_pos.y, ion.pos.y);
+                    min_pos.z = std::min(min_pos.z, ion.pos.z);
+                    max_pos.x = std::max(max_pos.x, ion.pos.x);
+                    max_pos.y = std::max(max_pos.y, ion.pos.y);
+                    max_pos.z = std::max(max_pos.z, ion.pos.z);
+                }
+                
+                Vec3 domain_size = {max_pos.x - min_pos.x, max_pos.y - min_pos.y, max_pos.z - min_pos.z};
+                Vec3 domain_center = {(min_pos.x + max_pos.x) / 2, (min_pos.y + max_pos.y) / 2, (min_pos.z + max_pos.z) / 2};
+                
+                // Add 50% margin to domain size (ions will move)
+                domain_size = domain_size * 1.5;
+                
+                // Grid resolution: Aim for ~1mm cells (adjust based on domain)
+                constexpr int TARGET_GRID_SIZE = 64;  // 64³ = 262k cells (good balance)
+                double cell_size_x = domain_size.x / TARGET_GRID_SIZE;
+                double cell_size_y = domain_size.y / TARGET_GRID_SIZE;
+                double cell_size_z = domain_size.z / TARGET_GRID_SIZE;
+                
+                // Use uniform cell size (max of xyz)
+                double cell_size = std::max({cell_size_x, cell_size_y, cell_size_z, 1e-4});  // Min 0.1mm
+                
+                Vec3 grid_origin = {
+                    domain_center.x - (TARGET_GRID_SIZE * cell_size) / 2,
+                    domain_center.y - (TARGET_GRID_SIZE * cell_size) / 2,
+                    domain_center.z - (TARGET_GRID_SIZE * cell_size) / 2
+                };
+                
+                log::Logger::main()->info("  Grid: {}³ cells, {:.2e} m cell size", TARGET_GRID_SIZE, cell_size);
+                log::Logger::main()->info("  Domain: [{:.3f}, {:.3f}] x [{:.3f}, {:.3f}] x [{:.3f}, {:.3f}] mm",
+                                          grid_origin.x * 1e3, (grid_origin.x + TARGET_GRID_SIZE * cell_size) * 1e3,
+                                          grid_origin.y * 1e3, (grid_origin.y + TARGET_GRID_SIZE * cell_size) * 1e3,
+                                          grid_origin.z * 1e3, (grid_origin.z + TARGET_GRID_SIZE * cell_size) * 1e3);
+                
+                // Create solver
+                auto sc_solver = std::make_shared<SpaceChargeSolver>(
+                    TARGET_GRID_SIZE, TARGET_GRID_SIZE, TARGET_GRID_SIZE,
+                    cell_size, cell_size, cell_size,
+                    grid_origin
+                );
+                
+                // Wrap solver in IForce interface and add to registries
+                for (auto& registry : force_registries) {
+                    registry->add_force(std::make_unique<physics::SpaceChargeGrid>(sc_solver));
+                }
+                log::Logger::main()->info("  ✓ SpaceChargeGrid added to {} registries",
+                                          force_registries.size());
             }
         }
         

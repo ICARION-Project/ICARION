@@ -17,7 +17,23 @@
     "format": "hdf5",
     "compress": true
   },
-  "ion_cloud": "ion_clouds/default_cloud.json",
+   "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
   "domains": [
     {
       "name": "drift_region",

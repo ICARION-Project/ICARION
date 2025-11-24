@@ -108,6 +108,21 @@ public:
     const std::unordered_map<std::string, size_t>& collisions_by_species() const { return collisions_by_species_; }
     
 private:
+    /**
+     * @brief Derive CCS for target gas from reference gas (HSS formula)
+     * 
+     * Same algorithm as EHSS handler and ccs_precompute tool.
+     * 
+     * @param sigma_ref_m2 Reference CCS [m²]
+     * @param gas_ref Reference gas name (e.g., "He")
+     * @param gas_target Target gas name (e.g., "N2")
+     * @return Derived CCS [m²] or 0.0 if derivation not possible
+     */
+    double derive_ccs_for_target_gas(
+        double sigma_ref_m2,
+        const std::string& gas_ref,
+        const std::string& gas_target
+    ) const;
     bool enable_logging_;
     mutable CollisionStats stats_;
     const config::SpeciesDatabase* species_db_;

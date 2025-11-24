@@ -100,22 +100,53 @@ bool HSSCollisionHandler::handle_collision(
         p.ubx = env.gas_velocity_m_s.x;
         p.uby = env.gas_velocity_m_s.y;
         p.ubz = env.gas_velocity_m_s.z;
-        p.sigma_eff = (comp.cross_section_m2 > 0.0) ? comp.cross_section_m2 : ion.CCS_m2;
+        // Get CCS: try precomputed, then derive, then fallback
+        p.sigma_eff = 0.0;
+        
+        // 1. Try precomputed CCS_HSS map (BEST)
         if (species_db_) {
             auto it_spec = species_db_->species.find(ion.species_id);
             if (it_spec != species_db_->species.end()) {
                 const auto& map = it_spec->second.ccs_hss_m2;
                 auto it_g = map.find(comp.species);
                 if (it_g != map.end() && it_g->second > 0.0) {
-                    p.sigma_eff = it_g->second;
-                } else if (p.sigma_eff > 0.0) {
-                    std::string key = ion.species_id + ":" + comp.species;
-                    if (!warned_missing_sigma_.count(key)) {
-                        ICARION::log::debug_log(
-                            "[HSSCollisionHandler] Warning: No CCS_HSS for gas '" + comp.species +
-                            "' and species '" + ion.species_id + "'; using ion.CCS_m2 fallback");
-                        warned_missing_sigma_.insert(key);
+                    p.sigma_eff = it_g->second;  // ✅ Precomputed
+                }
+                // 2. Try automatic derivation (GOOD)
+                else if (it_spec->second.CCS_m2 > 0.0 && 
+                         it_spec->second.ccs_reference_gas.has_value()) {
+                    double derived = derive_ccs_for_target_gas(
+                        it_spec->second.CCS_m2,
+                        *it_spec->second.ccs_reference_gas,
+                        comp.species
+                    );
+                    if (derived > 0.0) {
+                        p.sigma_eff = derived;  // ⚠️ Derived
+                        std::string key = ion.species_id + ":" + comp.species;
+                        if (!warned_missing_sigma_.count(key)) {
+                            ICARION::log::Logger::get("collision")->info(
+                                "[HSS] Derived CCS for {}:{} = {:.2f} Å² (from {} reference)",
+                                ion.species_id, comp.species, derived * 1e20,
+                                *it_spec->second.ccs_reference_gas
+                            );
+                            warned_missing_sigma_.insert(key);
+                        }
                     }
+                }
+            }
+        }
+        
+        // 3. Fallback: component CCS or ion reference CCS
+        if (p.sigma_eff <= 0.0) {
+            p.sigma_eff = (comp.cross_section_m2 > 0.0) ? comp.cross_section_m2 : ion.CCS_m2;
+            if (p.sigma_eff > 0.0) {
+                std::string key = ion.species_id + ":" + comp.species;
+                if (!warned_missing_sigma_.count(key)) {
+                    ICARION::log::Logger::get("collision")->warn(
+                        "[HSS] Using fallback CCS ({:.2f} Å²) for gas {} - may be inaccurate!",
+                        p.sigma_eff * 1e20, comp.species
+                    );
+                    warned_missing_sigma_.insert(key);
                 }
             }
         }
@@ -211,6 +242,37 @@ bool HSSCollisionHandler::handle_collision(
     stats_.total_collisions++;
     
     return true;  // Collision occurred
+}
+
+double HSSCollisionHandler::derive_ccs_for_target_gas(
+    double sigma_ref_m2,
+    const std::string& gas_ref,
+    const std::string& gas_target
+) const {
+    // Gas radii lookup (same as EHSS)
+    static const std::unordered_map<std::string, double> GAS_RADII = {
+        {"He", RADIUS_HE_M},
+        {"N2", RADIUS_N2_M},
+        {"O2", RADIUS_O2_M},
+        {"Ar", RADIUS_AR_M},
+        {"CO2", RADIUS_CO2_M},
+        {"Ne", RADIUS_NE_M},
+        {"H2O", RADIUS_H2O_M}
+    };
+    
+    auto it_ref = GAS_RADII.find(gas_ref);
+    auto it_tgt = GAS_RADII.find(gas_target);
+    
+    if (it_ref == GAS_RADII.end() || it_tgt == GAS_RADII.end()) {
+        return 0.0;  // Unknown gas
+    }
+    
+    // HSS formula: extract ion radius, then compute for target gas
+    double r_ref = it_ref->second;
+    double r_ion = std::max(0.0, std::sqrt(sigma_ref_m2 / M_PI) - r_ref);
+    double r_target = it_tgt->second;
+    
+    return M_PI * (r_ion + r_target) * (r_ion + r_target);
 }
 
 } // namespace ICARION::physics

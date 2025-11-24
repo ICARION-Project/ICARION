@@ -140,32 +140,23 @@ double EHSSCollisionHandler::compute_effective_ccs(
     double neutral_radius,
     const std::string& gas_id
 ) const {
-    // Prefer precomputed EHSS CCS map if available
+    // 1. Try precomputed EHSS CCS map (BEST: most accurate)
     if (species_db_) {
         auto it = species_db_->species.find(ion.species_id);
         if (it != species_db_->species.end()) {
             const auto& map = it->second.ccs_ehss_m2;
             auto itg = map.find(gas_id);
             if (itg != map.end() && itg->second > 0.0) {
-                return itg->second;
-            } else if (!gas_id.empty() && ion.CCS_m2 > 0.0) {
-                std::string key = ion.species_id + ":" + gas_id;
-                if (!warned_missing_sigma_.count(key)) {
-                    ICARION::log::debug_log(
-                        "[EHSSCollisionHandler] Warning: No CCS_EHSS for gas '" + gas_id +
-                        "' and species '" + ion.species_id + "'; using geometry/CCS fallback");
-                    warned_missing_sigma_.insert(key);
-                }
+                return itg->second;  // ✅ Precomputed CCS (from ccs_precompute tool)
             }
         }
     }
 
-    // Try to find geometry for this species
-    auto it = geometry_map_.find(ion.species_id);
-    
-    if (it != geometry_map_.end() && !it->second.first.empty()) {
-        const auto& [centers, radii] = it->second;
-        // Simple orientation-averaged projection (same approach as ccs_precompute)
+    // 2. Try geometry-based computation (GOOD: accurate but slow)
+    auto it_geom = geometry_map_.find(ion.species_id);
+    if (it_geom != geometry_map_.end() && !it_geom->second.first.empty()) {
+        const auto& [centers, radii] = it_geom->second;
+        // Orientation-averaged projection approximation (OAPA)
         EhssRng rng(12345);
         double A_sum = 0.0;
         double Rmat[3][3];
@@ -184,11 +175,92 @@ double EHSSCollisionHandler::compute_effective_ccs(
             }
             A_sum += M_PI * Rmax * Rmax;
         }
-        return A_sum / static_cast<double>(n_orientations);
-    } else {
-        // No geometry available - use stored CCS from ion state
-        return ion.CCS_m2;
+        return A_sum / static_cast<double>(n_orientations);  // ✅ Runtime OAPA
     }
+
+    // 3. Try automatic CCS derivation from reference (ACCEPTABLE: ~10% error)
+    if (species_db_ && !gas_id.empty()) {
+        auto it_spec = species_db_->species.find(ion.species_id);
+        if (it_spec != species_db_->species.end()) {
+            const auto& species = it_spec->second;
+            
+            if (species.CCS_m2 > 0.0 && species.ccs_reference_gas.has_value()) {
+                double derived_ccs = derive_ccs_for_target_gas(
+                    species.CCS_m2,
+                    *species.ccs_reference_gas,
+                    gas_id
+                );
+                
+                if (derived_ccs > 0.0) {
+                    // Log once per species:gas combination
+                    std::string key = ion.species_id + ":" + gas_id;
+                    if (!warned_missing_sigma_.count(key)) {
+                        ICARION::log::Logger::get("collision")->info(
+                            "[EHSS] Derived CCS for {}:{} = {:.2f} Å² (from {} reference). "
+                            "For better accuracy: ccs_precompute --species {} --ref-gas {} --ref-ccs-A2 {:.2f}",
+                            ion.species_id, gas_id, derived_ccs * 1e20, *species.ccs_reference_gas,
+                            ion.species_id, *species.ccs_reference_gas, species.CCS_m2 * 1e20
+                        );
+                        warned_missing_sigma_.insert(key);
+                    }
+                    return derived_ccs;  // ⚠️ Derived CCS (HSS approximation)
+                }
+            }
+        }
+    }
+
+    // 4. Last resort: use reference CCS (WARNING: may be wrong gas!)
+    if (ion.CCS_m2 > 0.0) {
+        std::string key = ion.species_id + ":" + gas_id;
+        if (!warned_missing_sigma_.count(key)) {
+            ICARION::log::Logger::get("collision")->warn(
+                "[EHSS] Using reference CCS ({:.2f} Å²) for gas {} - may be inaccurate! "
+                "Run: ccs_precompute --species {} --ref-gas <gas> --ref-ccs-A2 <ccs>",
+                ion.CCS_m2 * 1e20, gas_id, ion.species_id
+            );
+            warned_missing_sigma_.insert(key);
+        }
+        return ion.CCS_m2;  // ❌ Reference CCS (likely wrong gas!)
+    }
+
+    // 5. No CCS data available at all!
+    throw std::runtime_error(
+        "[EHSS] No CCS data for species '" + ion.species_id + "' and gas '" + gas_id + "'"
+    );
+}
+
+double EHSSCollisionHandler::derive_ccs_for_target_gas(
+    double sigma_ref_m2,
+    const std::string& gas_ref,
+    const std::string& gas_target
+) const {
+    // Gas radii lookup (from utils/constants.h)
+    static const std::unordered_map<std::string, double> GAS_RADII = {
+        {"He", RADIUS_HE_M},
+        {"N2", RADIUS_N2_M},
+        {"O2", RADIUS_O2_M},
+        {"Ar", RADIUS_AR_M},
+        {"CO2", RADIUS_CO2_M},
+        {"Ne", RADIUS_NE_M},
+        {"H2O", RADIUS_H2O_M}
+    };
+    
+    auto it_ref = GAS_RADII.find(gas_ref);
+    auto it_tgt = GAS_RADII.find(gas_target);
+    
+    if (it_ref == GAS_RADII.end() || it_tgt == GAS_RADII.end()) {
+        return 0.0;  // Unknown gas
+    }
+    
+    // Extract ion radius from reference CCS
+    // sigma_ref = π(r_ion + r_ref)² → r_ion = sqrt(sigma_ref/π) - r_ref
+    double r_ref = it_ref->second;
+    double r_ion = std::max(0.0, std::sqrt(sigma_ref_m2 / M_PI) - r_ref);
+    
+    // Compute CCS for target gas
+    // sigma_target = π(r_ion + r_target)²
+    double r_target = it_tgt->second;
+    return M_PI * (r_ion + r_target) * (r_ion + r_target);
 }
 
 } // namespace ICARION::physics

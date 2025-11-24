@@ -160,7 +160,27 @@ private:
     double compute_effective_ccs(
         const IonState& ion,
         double neutral_radius,
-        const std::string& gas_id
+        const std::string& gas_id = ""
+    ) const;
+    
+    /**
+     * @brief Derive CCS for target gas from reference gas (HSS formula)
+     * 
+     * Uses hard-sphere approximation to extrapolate CCS from a known reference:
+     * 1. Extract ion radius from reference CCS: r_ion = sqrt(σ_ref/π) - r_ref
+     * 2. Compute CCS for target gas: σ_target = π(r_ion + r_target)²
+     * 
+     * This is the same formula used by tools/ccs_precompute.
+     * 
+     * @param sigma_ref_m2 Reference CCS [m²]
+     * @param gas_ref Reference gas name (e.g., "He")
+     * @param gas_target Target gas name (e.g., "N2")
+     * @return Derived CCS [m²] or 0.0 if derivation not possible
+     */
+    double derive_ccs_for_target_gas(
+        double sigma_ref_m2,
+        const std::string& gas_ref,
+        const std::string& gas_target
     ) const;
 };
 

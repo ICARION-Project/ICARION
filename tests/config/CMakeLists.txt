@@ -19,6 +19,9 @@ target_include_directories(test_config_loader
 )
 
 add_test(NAME ConfigLoader COMMAND test_config_loader)
+set_tests_properties(ConfigLoader PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
 
 # Species and Reaction loader smoke tests
 add_executable(test_species_loader_smoke
@@ -110,6 +113,9 @@ target_include_directories(test_database_integration
 )
 
 add_test(NAME DatabaseIntegration COMMAND test_database_integration)
+set_tests_properties(DatabaseIntegration PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
 
 # Ion loader tests
 add_executable(test_ion_loader

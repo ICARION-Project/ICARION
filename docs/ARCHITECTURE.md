@@ -992,6 +992,16 @@ manager.update_domain_properties(ion, idx);
 - `src/core/integrator/DomainManager.cpp` (~150 lines)
 - `tests/integrator/test_domain_manager.cpp` (11 test cases)
 
+### Collision Handling (Mixtures + gas-specific CCS)
+
+- Environment mixtures: `env.gas_mixture` holds species + mole_fraction (+ optional `cross_section_m2`). Derived per-component densities are computed in `EnvironmentConfig::compute_derived_properties()`.
+- Rate selection: HSS/EHSS compute per-component rates k_i ∝ n_i · σ_i · |v_rel| and sample the gas channel proportionally.
+- Sigma sources:
+  - HSS: `CCS_HSS[gas]` from Species DB if present, else mixture `cross_section_m2`, else `ion.CCS_m2`; missing sigma in mixture → throws.
+  - EHSS: `CCS_EHSS[gas]` if present, else geometry-based CCS (orientation-averaged projection), else throw (no geometry).
+- Precompute tool: `ccs_precompute` (C++ CLI) can enrich species DB with `CCS_HSS`/`CCS_EHSS` maps from a reference CCS/gas (kinetic diameter) or geometry (EHSS).
+- Safety: EHSS requires geometry; no silent HSS fallback. HSS logs once per missing map and throws if mixture has no usable sigma.
+
 ---
 
 ## SimulationEngine Architecture (Phase 5A)

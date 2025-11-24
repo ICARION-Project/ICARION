@@ -4,6 +4,7 @@
 #include "HSSCollisionHandler.h"
 #include "collisionHelpers.h"
 #include "utils/constants.h"
+#include "core/log/Logger.h"
 #include <cmath>
 #include <vector>
 
@@ -13,8 +14,9 @@ namespace {
 
 namespace ICARION::physics {
 
-HSSCollisionHandler::HSSCollisionHandler(bool enable_logging)
+HSSCollisionHandler::HSSCollisionHandler(bool enable_logging, const config::SpeciesDatabase* species_db)
     : enable_logging_(enable_logging)
+    , species_db_(species_db)
 {}
 
 bool HSSCollisionHandler::handle_collision(
@@ -36,6 +38,24 @@ bool HSSCollisionHandler::handle_collision(
         double k_total = 0.0;
         for (const auto& comp : env.gas_mixture) {
             double sigma_i = (comp.cross_section_m2 > 0.0) ? comp.cross_section_m2 : ion.CCS_m2;
+            if (species_db_) {
+                auto it_spec = species_db_->species.find(ion.species_id);
+                if (it_spec != species_db_->species.end()) {
+                    const auto& map = it_spec->second.ccs_hss_m2;
+                    auto it_g = map.find(comp.species);
+                    if (it_g != map.end() && it_g->second > 0.0) {
+                        sigma_i = it_g->second;
+                    } else if (sigma_i > 0.0) {
+                        std::string key = ion.species_id + ":" + comp.species;
+                        if (!warned_missing_sigma_.count(key)) {
+                            ICARION::log::debug_log(
+                                "[HSSCollisionHandler] Warning: No CCS_HSS for gas '" + comp.species +
+                                "' and species '" + ion.species_id + "'; using ion.CCS_m2 fallback");
+                            warned_missing_sigma_.insert(key);
+                        }
+                    }
+                }
+            }
             double n_i = comp.density_m3;
             if (sigma_i <= 0.0 || n_i <= 0.0) {
                 k_values.push_back(0.0);
@@ -81,6 +101,28 @@ bool HSSCollisionHandler::handle_collision(
         p.uby = env.gas_velocity_m_s.y;
         p.ubz = env.gas_velocity_m_s.z;
         p.sigma_eff = (comp.cross_section_m2 > 0.0) ? comp.cross_section_m2 : ion.CCS_m2;
+        if (species_db_) {
+            auto it_spec = species_db_->species.find(ion.species_id);
+            if (it_spec != species_db_->species.end()) {
+                const auto& map = it_spec->second.ccs_hss_m2;
+                auto it_g = map.find(comp.species);
+                if (it_g != map.end() && it_g->second > 0.0) {
+                    p.sigma_eff = it_g->second;
+                } else if (p.sigma_eff > 0.0) {
+                    std::string key = ion.species_id + ":" + comp.species;
+                    if (!warned_missing_sigma_.count(key)) {
+                        ICARION::log::debug_log(
+                            "[HSSCollisionHandler] Warning: No CCS_HSS for gas '" + comp.species +
+                            "' and species '" + ion.species_id + "'; using ion.CCS_m2 fallback");
+                        warned_missing_sigma_.insert(key);
+                    }
+                }
+            }
+        }
+        if (p.sigma_eff <= 0.0) {
+            throw std::runtime_error("[HSSCollisionHandler] Missing CCS for species '" + ion.species_id +
+                                     "' in gas '" + comp.species + "'");
+        }
         p.Rn = comp.radius_m > 0.0 ? comp.radius_m : std::sqrt(std::max(p.sigma_eff, 0.0) / M_PI);
 
         const Vec3 v_neutral = sample_neutral_velocity(p, rng);

@@ -88,7 +88,7 @@ TEST_CASE("Main integration: Complete simulation pipeline", "[integration][main]
         REQUIRE(force_registry != nullptr);
         
         std::shared_ptr<ICollisionHandler> collision_handler = 
-            CollisionHandlerFactory::create(config.physics);
+            CollisionHandlerFactory::create(config.physics, nullptr, 0.0, false, &config.species_db);
         REQUIRE(collision_handler != nullptr);
         
         std::shared_ptr<IReactionHandler> reaction_handler = 
@@ -128,7 +128,7 @@ TEST_CASE("Main integration: Complete simulation pipeline", "[integration][main]
         }
         
         std::shared_ptr<ICollisionHandler> collision_handler = 
-            CollisionHandlerFactory::create(config.physics);
+            CollisionHandlerFactory::create(config.physics, nullptr, 0.0, false, &config.species_db);
         std::shared_ptr<IReactionHandler> reaction_handler = 
             ReactionHandlerFactory::create(config.physics);
         

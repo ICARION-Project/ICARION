@@ -48,7 +48,8 @@ TEST_CASE("CollisionHandlerFactory: EHSS handler creation", "[collision][factory
         fixture.config_,
         &fixture.geometry_map_,
         0.0,
-        false
+        false,
+        nullptr
     );
     
     REQUIRE(handler != nullptr);
@@ -63,7 +64,7 @@ TEST_CASE("CollisionHandlerFactory: EHSS requires geometry", "[collision][factor
     fixture.config_.collision_model = ICARION::config::CollisionModel::EHSS;
     
     REQUIRE_THROWS_AS(
-        CollisionHandlerFactory::create(fixture.config_, nullptr, 0.0, false),
+        CollisionHandlerFactory::create(fixture.config_, nullptr, 0.0, false, nullptr),
         std::invalid_argument
     );
 }
@@ -76,7 +77,8 @@ TEST_CASE("CollisionHandlerFactory: HSS handler creation", "[collision][factory]
         fixture.config_,
         nullptr,  // HSS doesn't need geometry
         0.0,
-        false
+        false,
+        nullptr
     );
     
     REQUIRE(handler != nullptr);
@@ -94,7 +96,8 @@ TEST_CASE("CollisionHandlerFactory: OU handler with Friction", "[collision][fact
         fixture.config_,
         nullptr,
         fixture.gamma_test_,
-        false
+        false,
+        nullptr
     );
     
     REQUIRE(handler != nullptr);
@@ -129,7 +132,8 @@ TEST_CASE("CollisionHandlerFactory: Deterministic without OU returns null", "[co
         fixture.config_,
         nullptr,
         0.0,
-        false
+        false,
+        nullptr
     );
     
     REQUIRE(handler == nullptr);
@@ -144,7 +148,8 @@ TEST_CASE("CollisionHandlerFactory: HSD without OU returns null", "[collision][f
         fixture.config_,
         nullptr,
         0.0,
-        false
+        false,
+        nullptr
     );
     
     REQUIRE(handler == nullptr);
@@ -158,7 +163,8 @@ TEST_CASE("CollisionHandlerFactory: NoCollisions returns null", "[collision][fac
         fixture.config_,
         nullptr,
         0.0,
-        false
+        false,
+        nullptr
     );
     
     REQUIRE(handler == nullptr);
@@ -183,7 +189,8 @@ TEST_CASE("CollisionHandlerFactory: OU with HSD is valid", "[collision][factory]
         fixture.config_,
         nullptr,
         fixture.gamma_test_,
-        false
+        false,
+        nullptr
     );
     
     REQUIRE(handler != nullptr);
@@ -201,7 +208,8 @@ TEST_CASE("CollisionHandlerFactory: Logging enabled works", "[collision][factory
         fixture.config_,
         nullptr,
         0.0,
-        true  // enable_logging
+        true,  // enable_logging
+        nullptr
     );
     
     REQUIRE(handler != nullptr);

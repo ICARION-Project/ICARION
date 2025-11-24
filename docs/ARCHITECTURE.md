@@ -1514,7 +1514,7 @@ tests/
 
 - **ForceRegistry**: 46 assertions / 8 tests
 - **ElectricFieldForce**: 57 assertions / 9 tests
-- **MagneticDampingForces**: 43 assertions / 9 tests
+- **MagneticAndDampingForces**: 43 assertions / 9 tests
 - **SpaceChargeForce**: 41 assertions / 17 tests
 - **Integration**: 12 assertions / 4 tests
 
@@ -1553,6 +1553,11 @@ ICARION uses a handler-based collision system where stochastic collision models 
 - **OU:** Ornstein-Uhlenbeck thermal kicks (adds thermal noise to deterministic models)
 
 → **Implemented in:** `ICollisionHandler`
+
+**Mixture support:**  
+- **Multi-gas capable:** EHSS, HSS (stochastic) and Friction (deterministic) – they read per-gas CCS/mobility and apply mixture weighting.  
+- **Not mixture-capable:** HSD and Langevin currently assume a single buffer gas (no established multi-gas theory implemented).  
+- **OU:** Uses the same γ as the paired deterministic model; mixture handling is inherited from that model (typically Friction).
 
 #### ICollisionHandler Interface
 

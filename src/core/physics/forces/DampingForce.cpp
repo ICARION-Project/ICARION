@@ -3,10 +3,13 @@
 
 #include "DampingForce.h"
 #include "core/config/types/EnvironmentConfig.h"
+#include "core/config/types/SpeciesConfig.h"
+#include "core/log/Logger.h"
 #include "utils/constants.h"
 
 #include <cmath>
 #include <algorithm>
+#include <stdexcept>
 
 namespace ICARION {
 namespace physics {
@@ -15,8 +18,14 @@ namespace physics {
 // Constructor
 // ============================================================================
 
-DampingForce::DampingForce(const ICARION::config::EnvironmentConfig& env, DampingModel model)
-    : env_(&env), model_(model)
+DampingForce::DampingForce(
+    const ICARION::config::EnvironmentConfig& env,
+    DampingModel model,
+    const ICARION::config::SpeciesDatabase* species_db
+)
+    : env_(&env)
+    , model_(model)
+    , species_db_(species_db)
 {
     // No validation - all params can be zero (disabled force)
 }
@@ -123,27 +132,92 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
         case DampingModel::Friction: {
             // Mobility-based friction:
             // γ = q/(K₀·m_ion) where K₀ = reduced mobility
-            
             const double K0_cm2_Vs = ion.reduced_mobility_cm2_Vs;
-            
             const double m_ion = ion.mass_kg;
             const double q = ion.ion_charge_C;
-            
-            if (K0_cm2_Vs <= 0.0 || m_ion <= 0.0) {
+            if (K0_cm2_Vs <= 0.0 || m_ion <= 0.0 || gas_density <= 0.0) {
                 return 0.0;  // Missing parameters
             }
-            
-            // Convert K₀ from cm²/(V·s) to m²/(V·s)
             const double K0_m2_Vs = K0_cm2_Vs * 1e-4;
-            
-            // Ion mobility at current gas density
-            // K = K₀·(n/n₀) where n₀ = Loschmidt constant
+
+            auto lookup_sigma = [&](const config::GasMixtureComponent& comp) -> double {
+                // Prefer DB CCS_HSS per gas if available
+                if (species_db_) {
+                    auto it_spec = species_db_->species.find(ion.species_id);
+                    if (it_spec != species_db_->species.end()) {
+                        const auto& map = it_spec->second.ccs_hss_m2;
+                        auto it_g = map.find(comp.species);
+                        if (it_g != map.end() && it_g->second > 0.0) {
+                            return it_g->second;
+                        }
+                    }
+                }
+                // Config override per gas
+                if (comp.cross_section_m2 > 0.0) {
+                    return comp.cross_section_m2;
+                }
+                // Fallback to ion CCS (warn once to avoid silent fallback)
+                if (species_db_) {
+                    std::string key = ion.species_id + ":" + comp.species;
+                    if (!warned_missing_sigma_.count(key)) {
+                        ICARION::log::debug_log(
+                            "[DampingForce] Warning: No CCS_HSS for gas '" + comp.species +
+                            "' and species '" + ion.species_id + "'; using ion.CCS_m2 fallback");
+                        warned_missing_sigma_.insert(key);
+                    }
+                }
+                return ion.CCS_m2;
+            };
+
+            // If mixture present: use Blanc's law with per-gas mobility scaling
+            if (!env_->gas_mixture.empty()) {
+                const double sigma_ref = ion.CCS_m2;
+                if (sigma_ref <= 0.0) {
+                    throw std::runtime_error("[DampingForce] Missing CCS for species '" + ion.species_id + "'");
+                }
+                if (env_->gas_mass_kg <= 0.0) {
+                    throw std::runtime_error("[DampingForce] Invalid mixture-averaged gas mass");
+                }
+                double frac_sum = 0.0;
+                double inv_K_sum = 0.0;
+                for (const auto& comp : env_->gas_mixture) {
+                    if (!comp.participates_in_collisions) continue;
+                    frac_sum += comp.mole_fraction;
+                }
+                if (frac_sum <= 0.0) {
+                    throw std::runtime_error("[DampingForce] Gas mixture has zero participating fraction");
+                }
+                for (const auto& comp : env_->gas_mixture) {
+                    if (!comp.participates_in_collisions) continue;
+                    double f = comp.mole_fraction / frac_sum;
+                    double sigma_i = lookup_sigma(comp);
+                    if (sigma_i <= 0.0) {
+                        throw std::runtime_error("[DampingForce] Missing CCS for species '" + ion.species_id +
+                                                 "' in gas '" + comp.species + "'");
+                    }
+                    if (comp.mass_kg <= 0.0) {
+                        throw std::runtime_error("[DampingForce] Invalid mass for gas '" + comp.species + "'");
+                    }
+
+                    // Heuristic scaling: mobility ∝ 1/σ · sqrt(m_ref / m_gas)
+                    double scale_sigma = sigma_ref / sigma_i;
+                    double scale_mass = std::sqrt(env_->gas_mass_kg / comp.mass_kg);
+                    double Ki = K0_m2_Vs * scale_sigma * scale_mass * LOSCHMIDT_CONSTANT / gas_density;
+                    if (Ki <= 0.0) {
+                        continue;
+                    }
+                    inv_K_sum += f / Ki;
+                }
+                if (inv_K_sum > 0.0) {
+                    double K_mix = 1.0 / inv_K_sum;
+                    return q / (K_mix * m_ion);
+                }
+                throw std::runtime_error("[DampingForce] No valid mobility contributions for gas mixture");
+            }
+
+            // Single-gas fallback: K = K₀·(n/n₀)
             const double ion_mobility = K0_m2_Vs * LOSCHMIDT_CONSTANT / gas_density;
-            
-            // Friction coefficient: γ = q/(K·m)
-            const double gamma = q / (ion_mobility * m_ion);
-            
-            return gamma;  // γ [1/s]
+            return q / (ion_mobility * m_ion);  // γ [1/s]
         }
         
         default:

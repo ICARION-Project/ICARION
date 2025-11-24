@@ -177,4 +177,43 @@ add_custom_command(
 
 add_test(NAME FieldArrayE2E COMMAND test_field_array_e2e)
 
+# Waveform types tests
+add_executable(test_waveform_types
+    test_waveform_types.cpp
+)
+
+target_link_libraries(test_waveform_types
+    PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+
+target_include_directories(test_waveform_types
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+add_test(NAME WaveformTypes COMMAND test_waveform_types)
+
+# Waveform loader tests
+add_executable(test_waveform_loader
+    test_waveform_loader.cpp
+)
+
+target_link_libraries(test_waveform_loader
+    PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+
+target_include_directories(test_waveform_loader
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+add_test(NAME WaveformLoader COMMAND test_waveform_loader)
+
+
 

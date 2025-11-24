@@ -67,7 +67,7 @@ bool HSSCollisionHandler::handle_collision(
         }
 
         if (k_total <= 0.0) {
-            return false;
+            throw std::runtime_error("[HSSCollisionHandler] No valid sigma in gas mixture for species '" + ion.species_id + "'");
         }
 
         double P_total = 1.0;

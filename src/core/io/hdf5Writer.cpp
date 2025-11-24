@@ -2,12 +2,10 @@
  * @file hdf5Writer_v2.cpp
  * @brief Implementation of modern HDF5 writer using FullConfig
  * 
- * TODO(v1.1): Improve metadata organization consistency
- * - Currently mixed: /metadata/* groups AND root-level attributes
- * - Target: All metadata under /metadata/ hierarchy
- * - Affected: simulation_completed, final_active_ions
+ * **v1.1 Improvements (Nov 2025):**
+ * - ✅ Consistent metadata hierarchy: All under /metadata/ (no root attributes)
  * 
- * TODO(v1.1): Write species/reactions from FullConfig databases
+ * TODO(v1.2): Write species/reactions from FullConfig databases
  * - Currently: write_species_metadata() extracts from ion ensemble
  * - Better SSOT: Use config.species_db and config.reaction_db directly
  * - Ensures all species documented (not just those in initial ions)
@@ -296,19 +294,8 @@ void HDF5Writer::finalize(
         strftime(timestamp_buf, sizeof(timestamp_buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now_time));
         write_string(completion, "completion_timestamp", timestamp_buf);
         
-        // Also write as root-level attributes for backward compatibility
-        hsize_t dims[1] = {1};
-        H5::DataSpace scalar_space(1, dims);
-        
-        H5::Attribute completion_attr = file.createAttribute(
-            "simulation_completed", H5::PredType::NATIVE_HBOOL, scalar_space);
-        hbool_t completed = success;
-        completion_attr.write(H5::PredType::NATIVE_HBOOL, &completed);
-        
-        H5::Attribute active_attr = file.createAttribute(
-            "final_active_ions", H5::PredType::NATIVE_HSIZE, scalar_space);
-        hsize_t active = static_cast<hsize_t>(active_ions);
-        active_attr.write(H5::PredType::NATIVE_HSIZE, &active);
+        // Note: Root-level attributes removed in v1.1 for consistency
+        // All metadata now under /metadata/ hierarchy
         
         file.close();
         log::Logger::hdf5()->info("HDF5 file finalized");

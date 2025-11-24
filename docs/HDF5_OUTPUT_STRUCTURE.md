@@ -25,7 +25,8 @@ simulation.h5
 │   ├── reproducibility/           # Git hash, RNG seed, build info
 │   ├── system/                    # System information
 │   ├── species/                   # Species database (tabular)
-│   └── reactions/                 # Reaction database (tabular)
+│   ├── reactions/                 # Reaction database (tabular)
+│   └── completion/                # Simulation completion status
 ├── trajectory/
 │   ├── time                       # Time points [T]
 │   ├── positions                  # Ion positions [T × N × 3]
@@ -185,6 +186,28 @@ Reaction database in tabular format.
 - `0` = Three-body
 - `1` = Charge transfer
 - `2` = Proton transfer
+
+### `/metadata/completion/`
+
+Simulation completion status and final state.
+
+**Datasets:**
+
+| Name | Type | Shape | Description | Units |
+|------|------|-------|-------------|-------|
+| `success` | int | [1] | Simulation completed successfully (1=yes, 0=no) | - |
+| `final_time_s` | double | [1] | Final simulation time reached | s |
+| `active_ions` | int | [1] | Number of ions active at completion | - |
+| `completion_timestamp` | string | [1] | ISO 8601 timestamp when completed | - |
+
+**Example:**
+```python
+with h5py.File('simulation.h5', 'r') as f:
+    success = f['/metadata/completion/success'][0]
+    final_time = f['/metadata/completion/final_time_s'][0]
+    active_ions = f['/metadata/completion/active_ions'][0]
+    timestamp = f['/metadata/completion/completion_timestamp'][0].decode('utf-8')
+```
 
 ---
 

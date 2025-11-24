@@ -85,6 +85,11 @@ GeometryConfig DomainConfigLoader::load_geometry(const Json::Value& json) {
         geom.radius_char_m = json["radius_char_m"].asDouble();
     }
     
+    // Compute hyperbolic boundary constants for Orbitrap
+    // Hyperboloid equation: z² - r²/2 = C, where C = -0.5 * R²
+    geom.orbitrap_C_in  = -0.5 * geom.radius_in_m  * geom.radius_in_m;
+    geom.orbitrap_C_out = -0.5 * geom.radius_out_m * geom.radius_out_m;
+    
     // Multi-domain specific
     if (json.isMember("acc_length_m") && json["acc_length_m"].isNumeric()) {
         geom.acc_length_m = json["acc_length_m"].asDouble();

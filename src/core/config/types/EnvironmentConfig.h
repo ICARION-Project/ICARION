@@ -23,6 +23,8 @@ struct GasMixtureComponent {
     double mole_fraction = 0.0;   ///< Mole fraction (0..1)
     double cross_section_m2 = -1.0;      ///< Optional override for σ [m²], <0 = use default/ion CCS
     double polarizability_m3 = -1.0;     ///< Optional override for α [m³], <0 = use default
+    bool participates_in_collisions = true; ///< If false, ignored for collision rates
+    bool participates_in_reactions = true;  ///< If false, ignored for reaction concentrations
 
     // Derived
     double mass_kg = 0.0;

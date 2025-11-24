@@ -34,6 +34,7 @@ bool StochasticReactionHandler::handle_reaction(
     // Concentration map for mixture-aware rates
     std::unordered_map<std::string, double> concentrations;
     for (const auto& comp : env.gas_mixture) {
+        if (!comp.participates_in_reactions) continue;
         concentrations[comp.species] = comp.density_m3;
     }
     

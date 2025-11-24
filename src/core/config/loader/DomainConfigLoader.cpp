@@ -141,6 +141,12 @@ EnvironmentConfig DomainConfigLoader::load_environment(const Json::Value& json) 
             if (comp_json.isMember("polarizability_m3") && comp_json["polarizability_m3"].isNumeric()) {
                 comp.polarizability_m3 = comp_json["polarizability_m3"].asDouble();
             }
+            if (comp_json.isMember("participates_in_collisions") && comp_json["participates_in_collisions"].isBool()) {
+                comp.participates_in_collisions = comp_json["participates_in_collisions"].asBool();
+            }
+            if (comp_json.isMember("participates_in_reactions") && comp_json["participates_in_reactions"].isBool()) {
+                comp.participates_in_reactions = comp_json["participates_in_reactions"].asBool();
+            }
             env.gas_mixture.push_back(comp);
         }
     }

@@ -78,6 +78,9 @@ file(GLOB_RECURSE ICARION_UTILS_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.h"
 )
+# Exclude legacy paramUtils (removed)
+list(FILTER ICARION_UTILS_SRC EXCLUDE REGEX "paramUtils\\.cpp$")
+list(FILTER ICARION_UTILS_SRC EXCLUDE REGEX "paramUtils\\.h$")
 
 # SimulationEngine (empty for now)
 file(GLOB_RECURSE ICARION_SIMULATION_SRC

@@ -795,8 +795,13 @@ int main() {
 |-------|-------------|----------|----------|
 | **6** | **Comprehensive Unit Testing** | 2-3 weeks | HIGH |
 | 6.1 | IMS testing (all collision models + reactive) | 1 week | HIGH |
-| 6.2 | TOF, Orbitrap, LQIT, ICR testing | 1 week | HIGH |
-| 6.3 | Space charge testing | 3 days | MEDIUM | (DONE)
+| 6.2 | Instrument physics unit tests (IMS drift, Orbitrap trapping) | 1 week | HIGH |
+| 6.3 | TOF, LQIT, ICR testing | 1 week | HIGH |
+| 6.4 | Space charge testing | 3 days | MEDIUM | (DONE)
+
+**Notes (current state):**
+- IMS drift unit tests use relaxed tolerances (20–50%) and are not yet matching expected mobilities for all collision models; revisit in validation suite.
+- Orbitrap confinement test currently loses the ion before completion; needs tighter initial conditions/field validation in the next phase.
 | **7** | **Publication Validation Suite** | 3-4 weeks | HIGH |
 | 7.1 | Physics validation (analytical, literature) | 1.5 weeks | HIGH |
 | 7.2 | Performance benchmarking | 1 week | HIGH |
@@ -893,4 +898,3 @@ int main() {
 ## Revision History
 
 - **v1.0** (Nov 23, 2025): Initial roadmap after Phase 5 completion
-

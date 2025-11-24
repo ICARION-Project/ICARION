@@ -30,6 +30,13 @@ bool StochasticReactionHandler::handle_reaction(
     // SSOT: Read temperature/density directly from EnvironmentConfig
     const double T_K = env.temperature_K;
     const double n_m3 = env.particle_density_m_3;
+
+    // Concentration map for mixture-aware rates
+    std::unordered_map<std::string, double> concentrations;
+    for (const auto& comp : env.gas_mixture) {
+        if (!comp.participates_in_reactions) continue;
+        concentrations[comp.species] = comp.density_m3;
+    }
     
     // Find reactions for current ion species
     auto applicable_reactions = find_applicable_reactions(ion.species_id, reaction_db);
@@ -50,7 +57,7 @@ bool StochasticReactionHandler::handle_reaction(
     double k_total = 0.0;
     
     for (const auto* reaction : applicable_reactions) {
-        double k_eff = compute_effective_rate(*reaction, T_K, n_m3);
+        double k_eff = compute_effective_rate(*reaction, T_K, n_m3, concentrations);
         k_effs.push_back(k_eff);
         k_total += k_eff;
     }
@@ -130,7 +137,8 @@ std::vector<const config::Reaction*> StochasticReactionHandler::find_applicable_
 double StochasticReactionHandler::compute_effective_rate(
     const config::Reaction& reaction,
     double temperature,
-    double particle_density
+    double particle_density,
+    const std::unordered_map<std::string, double>& concentrations
 ) const {
     // ✅ STEP 1: Compute temperature-dependent rate constant k(T)
     // Models: Constant, Arrhenius, Modified Arrhenius
@@ -147,12 +155,18 @@ double StochasticReactionHandler::compute_effective_rate(
     
     for (const auto& term : reaction.order_terms) {
         // Concentration handling:
-        // - If concentration_m3 == -1.0: Use buffer gas density (fallback)
+        // - If concentration_m3 == -1.0: Use mixture concentration if available, else buffer gas density
         // - Otherwise: Use explicit concentration (including 0 = no neutral)
-        double conc_m3 = (term.concentration_m3 < 0.0)
-            ? particle_density             // Fallback: buffer gas density
-            : term.concentration_m3;       // Explicit concentration
-        
+        double conc_m3 = term.concentration_m3;
+        if (term.concentration_m3 < 0.0) {
+            auto it = concentrations.find(term.species);
+            if (it != concentrations.end()) {
+                conc_m3 = it->second;
+            } else {
+                conc_m3 = particle_density;
+            }
+        }
+
         // k_eff *= [X]^n  (mathematically correct, but dimensional correctness depends on user!)
         k_eff *= std::pow(conc_m3, term.exponent);
     }

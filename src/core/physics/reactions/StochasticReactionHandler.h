@@ -10,6 +10,7 @@
 
 #include "IReactionHandler.h"
 #include <vector>
+#include <unordered_map>
 
 namespace ICARION {
 namespace physics {
@@ -132,7 +133,8 @@ private:
     double compute_effective_rate(
         const config::Reaction& reaction,
         double temperature,
-        double particle_density
+        double particle_density,
+        const std::unordered_map<std::string, double>& concentrations
     ) const;
     
     /**

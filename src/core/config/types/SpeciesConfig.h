@@ -39,6 +39,10 @@ struct SpeciesProperties {
     std::optional<double> reference_temperature_K; ///< Temperature for mobility/CCS [K]
     std::optional<double> reference_pressure_Pa;   ///< Pressure for mobility [Pa]
     std::optional<std::string> ccs_method;         ///< CCS determination method
+    std::optional<std::string> ccs_reference_gas;  ///< Reference gas for CCS maps
+    std::optional<std::string> ccs_model;          ///< Model label (HSS/EHSS) if maps provided
+    std::unordered_map<std::string, double> ccs_hss_m2;   ///< Gas-specific CCS (HSS) [m²]
+    std::unordered_map<std::string, double> ccs_ehss_m2;  ///< Gas-specific CCS (EHSS) [m²]
     
     // === Derived quantities (computed after load) ===
     double mass_kg = 0.0;                   ///< Mass [kg] (computed)
@@ -76,7 +80,7 @@ struct SpeciesProperties {
         if (CCS_A2) {
             CCS_m2 = *CCS_A2 * ANGSTROM2_TO_M2;
         }
-        
+
         // Polarizability (if present)
         if (polarizability_A3) {
             polarizability_m3 = *polarizability_A3 * ANGSTROM3_TO_M3;
@@ -124,7 +128,7 @@ struct SpeciesProperties {
         if (polarizability_A3 && *polarizability_A3 < 0.0) {
             result.add_error("Species '" + id + "': polarizability cannot be negative");
         }
-        
+
         return result;
     }
 };

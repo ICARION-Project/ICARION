@@ -107,7 +107,25 @@ SpeciesProperties SpeciesLoader::parse_species(const std::string& id, const Json
     species.reference_temperature_K = get_optional_double(json, "reference_temperature_K");
     species.reference_pressure_Pa = get_optional_double(json, "reference_pressure_Pa");
     species.ccs_method = get_optional_string(json, "ccs_method");
-    
+    species.ccs_reference_gas = get_optional_string(json, "CCS_reference_gas");
+    species.ccs_model = get_optional_string(json, "CCS_model");
+
+    auto parse_ccs_map = [](const Json::Value& node, std::unordered_map<std::string, double>& out) {
+        auto names = node.getMemberNames();
+        for (const auto& gas : names) {
+            if (node[gas].isNumeric()) {
+                out[gas] = node[gas].asDouble() * ANGSTROM2_TO_M2;  // stored in Å² → m²
+            }
+        }
+    };
+
+    if (json.isMember("CCS_HSS") && json["CCS_HSS"].isObject()) {
+        parse_ccs_map(json["CCS_HSS"], species.ccs_hss_m2);
+    }
+    if (json.isMember("CCS_EHSS") && json["CCS_EHSS"].isObject()) {
+        parse_ccs_map(json["CCS_EHSS"], species.ccs_ehss_m2);
+    }
+
     return species;
 }
 

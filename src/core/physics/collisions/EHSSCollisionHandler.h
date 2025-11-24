@@ -27,9 +27,11 @@
 
 #include "ICollisionHandler.h"
 #include "core/types/Vec3.h"
+#include "core/config/types/SpeciesConfig.h"
 #include <vector>
 #include <unordered_map>
 #include <utility>
+#include <unordered_set>
 
 namespace ICARION::physics {
 
@@ -95,7 +97,8 @@ public:
      */
     explicit EHSSCollisionHandler(
         const GeometryMap& geometry_map,
-        bool enable_logging = false
+        bool enable_logging = false,
+        const config::SpeciesDatabase* species_db = nullptr
     );
     
     /**
@@ -137,14 +140,11 @@ public:
     void reset_stats() override { stats_ = {}; }
     
 private:
-    // Reference to geometry map (no copy!)
-    const GeometryMap& geometry_map_;
-    
-    // Debug logging
+    const GeometryMap& geometry_map_;  ///< Reference to geometry map (no copy!)
     bool enable_logging_;
-    
-    // Statistics
+    const config::SpeciesDatabase* species_db_ = nullptr;
     mutable CollisionStats stats_;
+    mutable std::unordered_set<std::string> warned_missing_sigma_;
     
     /**
      * @brief Compute effective collision cross-section from geometry
@@ -159,7 +159,8 @@ private:
      */
     double compute_effective_ccs(
         const IonState& ion,
-        double neutral_radius
+        double neutral_radius,
+        const std::string& gas_id
     ) const;
 };
 

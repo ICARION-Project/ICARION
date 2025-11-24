@@ -26,3 +26,15 @@ target_include_directories(test_reaction_factory PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 add_test(NAME ReactionFactory COMMAND test_reaction_factory)
+
+# Test: Multi-gas mixture reaction weighting
+add_executable(test_multi_gas_reaction test_multi_gas_reaction.cpp)
+target_link_libraries(test_multi_gas_reaction PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_multi_gas_reaction PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME MultiGasReaction COMMAND test_multi_gas_reaction)

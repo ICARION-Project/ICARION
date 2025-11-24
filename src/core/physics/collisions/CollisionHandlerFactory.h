@@ -44,6 +44,7 @@
 #include "HSSCollisionHandler.h"
 #include "OUCollisionHandler.h"
 #include "core/config/types/PhysicsConfig.h"
+#include "core/config/types/SpeciesConfig.h"
 #include <memory>
 #include <stdexcept>
 
@@ -82,7 +83,8 @@ public:
         const config::PhysicsConfig& config,
         const GeometryMap* geometry_map = nullptr,
         double gamma_for_ou = 0.0,
-        bool enable_logging = false
+        bool enable_logging = false,
+        const config::SpeciesDatabase* species_db = nullptr
     );
 
 private:

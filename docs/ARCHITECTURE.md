@@ -1091,6 +1091,16 @@ manager.update_domain_properties(ion, idx);
 - `src/core/integrator/DomainManager.cpp` (~150 lines)
 - `tests/integrator/test_domain_manager.cpp` (11 test cases)
 
+### Collision Handling (Mixtures + gas-specific CCS)
+
+- Environment mixtures: `env.gas_mixture` holds species + mole_fraction (+ optional `cross_section_m2`). Derived per-component densities are computed in `EnvironmentConfig::compute_derived_properties()`.
+- Rate selection: HSS/EHSS compute per-component rates k_i ∝ n_i · σ_i · |v_rel| and sample the gas channel proportionally.
+- Sigma sources:
+  - HSS: `CCS_HSS[gas]` from Species DB if present, else mixture `cross_section_m2`, else `ion.CCS_m2`; missing sigma in mixture → throws.
+  - EHSS: `CCS_EHSS[gas]` if present, else geometry-based CCS (orientation-averaged projection), else throw (no geometry).
+- Precompute tool: `ccs_precompute` (C++ CLI) can enrich species DB with `CCS_HSS`/`CCS_EHSS` maps from a reference CCS/gas (kinetic diameter) or geometry (EHSS).
+- Safety: EHSS requires geometry; no silent HSS fallback. HSS logs once per missing map and throws if mixture has no usable sigma.
+
 ---
 
 ## SimulationEngine Architecture (Phase 5A)
@@ -1603,7 +1613,7 @@ tests/
 
 - **ForceRegistry**: 46 assertions / 8 tests
 - **ElectricFieldForce**: 57 assertions / 9 tests
-- **MagneticDampingForces**: 43 assertions / 9 tests
+- **MagneticAndDampingForces**: 43 assertions / 9 tests
 - **SpaceChargeForce**: 41 assertions / 17 tests
 - **Integration**: 12 assertions / 4 tests
 
@@ -1642,6 +1652,11 @@ ICARION uses a handler-based collision system where stochastic collision models 
 - **OU:** Ornstein-Uhlenbeck thermal kicks (adds thermal noise to deterministic models)
 
 → **Implemented in:** `ICollisionHandler`
+
+**Mixture support:**  
+- **Multi-gas capable:** EHSS, HSS (stochastic) and Friction (deterministic) – they read per-gas CCS/mobility and apply mixture weighting.  
+- **Not mixture-capable:** HSD and Langevin currently assume a single buffer gas (no established multi-gas theory implemented).  
+- **OU:** Uses the same γ as the paired deterministic model; mixture handling is inherited from that model (typically Friction).
 
 #### ICollisionHandler Interface
 

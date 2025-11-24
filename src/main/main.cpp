@@ -382,8 +382,15 @@ int main(int argc, char* argv[]) {
         }
         
         // Create collision handler (from config.physics.collision_model)
+        const double gamma_for_ou = 0.0;  // OU damping coefficient not used for stochastic models
         std::shared_ptr<physics::ICollisionHandler> collision_handler = 
-            physics::CollisionHandlerFactory::create(config.physics);
+            physics::CollisionHandlerFactory::create(
+                config.physics,
+                nullptr,        // geometry map (EHSS only; provided in SimulationEngine paths)
+                gamma_for_ou,
+                false,          // enable_logging
+                &config.species_db
+            );
         
         // Create reaction handler (from config.physics.enable_reactions)
         std::shared_ptr<physics::IReactionHandler> reaction_handler = 

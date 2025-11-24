@@ -11,7 +11,8 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
     const config::PhysicsConfig& config,
     const GeometryMap* geometry_map,
     double gamma_for_ou,
-    bool enable_logging
+    bool enable_logging,
+    const config::SpeciesDatabase* species_db
 ) {
     using config::CollisionModel;
     
@@ -36,7 +37,8 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
             
             return std::make_unique<EHSSCollisionHandler>(
                 *geometry_map,
-                enable_logging
+                enable_logging,
+                species_db
             );
         }
         
@@ -44,11 +46,11 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
             if (enable_logging) {
                 ICARION::log::debug_log(
                     "[CollisionHandlerFactory] Creating HSSCollisionHandler "
-                    "(isotropic scattering)"
+                    "(mixture-aware HSS)"
                 );
             }
             
-            return std::make_unique<HSSCollisionHandler>(enable_logging);
+            return std::make_unique<HSSCollisionHandler>(enable_logging, species_db);
         }
         
         // Deterministic models - use DampingForce for damping

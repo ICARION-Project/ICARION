@@ -27,10 +27,12 @@
 #include "ForceContext.h"
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
+#include <unordered_set>
 
 namespace ICARION {
 namespace config {
     struct EnvironmentConfig;
+    struct SpeciesDatabase;
 }
 
 namespace physics {
@@ -87,7 +89,11 @@ public:
      * @param env Environment configuration (SSOT reference)
      * @param model Damping model selection
      */
-    DampingForce(const ICARION::config::EnvironmentConfig& env, DampingModel model);
+    DampingForce(
+        const ICARION::config::EnvironmentConfig& env,
+        DampingModel model,
+        const ICARION::config::SpeciesDatabase* species_db = nullptr
+    );
     
     /**
      * @brief Compute damping force F = -γ·m·v
@@ -108,6 +114,8 @@ public:
 private:
     const ICARION::config::EnvironmentConfig* env_;
     DampingModel model_;
+    const ICARION::config::SpeciesDatabase* species_db_ = nullptr;
+    mutable std::unordered_set<std::string> warned_missing_sigma_;
     
     /**
      * @brief Calculate damping coefficient γ [1/s] based on collision model

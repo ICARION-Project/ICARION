@@ -25,6 +25,9 @@
 #pragma once
 
 #include "ICollisionHandler.h"
+#include "core/config/types/SpeciesConfig.h"
+#include <unordered_map>
+#include <unordered_set>
 
 namespace ICARION::physics {
 
@@ -64,7 +67,8 @@ public:
      * @brief Construct HSS handler
      * @param enable_logging Enable debug logging (CSV output)
      */
-    explicit HSSCollisionHandler(bool enable_logging = false);
+    explicit HSSCollisionHandler(bool enable_logging = false,
+                                 const config::SpeciesDatabase* species_db = nullptr);
     
     /**
      * @brief Handle HSS collision for single timestep
@@ -100,11 +104,17 @@ public:
     std::string name() const override { return "HSS"; }
     
     CollisionStats get_stats() const override { return stats_; }
-    void reset_stats() override { stats_ = {}; }
+    void reset_stats() override { stats_ = {}; collisions_by_species_.clear(); }
+    const std::unordered_map<std::string, size_t>& collisions_by_species() const { return collisions_by_species_; }
     
 private:
     bool enable_logging_;
     mutable CollisionStats stats_;
+    const config::SpeciesDatabase* species_db_;
+    mutable std::unordered_set<std::string> warned_missing_sigma_;
+
+    bool handle_single_gas(IonState& ion, double dt, EhssRng& rng, const config::EnvironmentConfig& env);
+    std::unordered_map<std::string, size_t> collisions_by_species_;
 };
 
 } // namespace ICARION::physics

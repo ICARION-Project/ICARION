@@ -239,7 +239,8 @@ std::map<std::string, Waveform> WaveformLoader::load_library(const Json::Value& 
 
 ValueOrWaveform WaveformLoader::load_value_or_waveform(
     const Json::Value& json,
-    const std::map<std::string, Waveform>& library
+    const std::map<std::string, Waveform>& local_library,
+    const std::map<std::string, Waveform>& global_library
 ) {
     ValueOrWaveform result;
     
@@ -252,11 +253,19 @@ ValueOrWaveform WaveformLoader::load_value_or_waveform(
         if (ref.empty() || ref[0] != '@') {
             throw std::runtime_error("Waveform reference must start with '@' (got: '" + ref + "')");
         }
-        result.waveform_ref = ref.substr(1);  // Remove '@'
+        std::string waveform_id = ref.substr(1);  // Remove '@'
         
-        // Validate reference exists
-        if (library.find(*result.waveform_ref) == library.end()) {
-            throw std::runtime_error("Waveform reference not found in library: " + *result.waveform_ref);
+        // Resolve reference: check local library first, then global
+        auto local_it = local_library.find(waveform_id);
+        if (local_it != local_library.end()) {
+            result.waveform = local_it->second;  // Copy waveform from local library
+        } else {
+            auto global_it = global_library.find(waveform_id);
+            if (global_it != global_library.end()) {
+                result.waveform = global_it->second;  // Copy waveform from global library
+            } else {
+                throw std::runtime_error("Waveform reference not found in local or global library: " + waveform_id);
+            }
         }
     } else if (json.isObject()) {
         // NEW FORMAT: Inline waveform definition

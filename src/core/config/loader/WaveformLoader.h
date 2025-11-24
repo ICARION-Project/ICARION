@@ -32,13 +32,15 @@ public:
     /**
      * @brief Load ValueOrWaveform (handles static value, inline, or reference)
      * @param json JSON value (number, object, or string)
-     * @param library Waveform library for resolving references
+     * @param local_library Domain-local waveform library
+     * @param global_library Global waveform library (SSOT)
      * @return ValueOrWaveform object
      * @throws std::runtime_error if JSON format is invalid
      */
     static ValueOrWaveform load_value_or_waveform(
         const Json::Value& json,
-        const std::map<std::string, Waveform>& library
+        const std::map<std::string, Waveform>& local_library,
+        const std::map<std::string, Waveform>& global_library = {}
     );
     
 private:

@@ -6,6 +6,7 @@
 #include "PhysicsConfigLoader.h"
 #include "OutputConfigLoader.h"
 #include "DomainConfigLoader.h"
+#include "WaveformLoader.h"
 #include <iostream>
 
 namespace ICARION::config {
@@ -51,10 +52,19 @@ FullConfig ConfigLoader::load_from_json(const Json::Value& root,
         throw std::runtime_error("Missing required 'output' section in config");
     }
     
-    // Load domains with global integrator as fallback
+    // Load global waveform library (SSOT)
+    if (root.isMember("waveforms")) {
+        config.waveforms = WaveformLoader::load_library(root["waveforms"]);
+    }
+    
+    // Load domains with global integrator and global waveforms
     if (root.isMember("domains") && root["domains"].isArray()) {
         for (const auto& domain_json : root["domains"]) {
-            config.domains.push_back(DomainConfigLoader::load(domain_json, config.simulation.integrator));
+            config.domains.push_back(DomainConfigLoader::load(
+                domain_json, 
+                config.simulation.integrator,
+                config.waveforms  // Pass global waveforms
+            ));
         }
     } else {
         throw std::runtime_error("Missing or invalid 'domains' array in config");

@@ -1393,48 +1393,53 @@ Custom waveform defined by time-value pairs with interpolation:
 
 #### Waveform Library (Named Waveforms)
 
-Define waveforms once per domain and reference them multiple times within that domain:
+Define waveforms once and reference them multiple times. Waveforms can be defined at **two levels**:
+
+1. **Global level (top-level `"waveforms"`):** Shared across all domains
+2. **Domain level (`"fields.waveforms"`):** Domain-specific overrides
 
 ```json
 {
+  "waveforms": {
+    "voltage_ramp": {
+      "type": "linear",
+      "start": 0,
+      "end": 500,
+      "start_time_s": 0.0,
+      "end_time_s": 0.005,
+      "clamp": true
+    },
+    "freq_chirp": {
+      "type": "linear",
+      "start": 1000000,
+      "end": 2000000,
+      "start_time_s": 0.0,
+      "end_time_s": 0.01,
+      "clamp": true
+    }
+  },
   "domains": [
     {
-      "name": "region_1",
+      "name": "ims_region_1",
       "fields": {
-        "waveforms": {
-          "my_ramp": {
-            "type": "linear",
-            "start": 0,
-            "end": 500,
-            "end_time_s": 0.001
-          },
-          "fast_chirp": {
-            "type": "linear",
-            "start": 1e6,
-            "end": 2e6,
-            "end_time_s": 0.01
-          }
+        "DC": {
+          "axial_V": "@voltage_ramp"
         },
         "AC": {
-          "voltage_V": "@my_ramp",
-          "frequency_Hz": "@fast_chirp"
+          "voltage_V": 200,
+          "frequency_Hz": "@freq_chirp"
         }
       }
     },
     {
-      "name": "region_2",
+      "name": "ims_region_2",
       "fields": {
-        "waveforms": {
-          "my_ramp": {
-            "type": "linear",
-            "start": 0,
-            "end": 500,
-            "end_time_s": 0.001
-          }
+        "DC": {
+          "axial_V": "@voltage_ramp"
         },
-        "AC": {
-          "voltage_V": "@my_ramp",
-          "frequency_Hz": 500000
+        "RF": {
+          "voltage_V": 100,
+          "frequency_Hz": "@freq_chirp"
         }
       }
     }
@@ -1442,17 +1447,27 @@ Define waveforms once per domain and reference them multiple times within that d
 }
 ```
 
+**Resolution Order:**
+1. Check domain-local `fields.waveforms` library first (if exists)
+2. Check global top-level `waveforms` library second
+3. Error if not found in either
+
 **Benefits:**
-- ✅ Define once per domain, use multiple times within that domain
-- ✅ Self-documenting (named waveforms)
-- ✅ Change waveform in one place → updates all references in that domain
-- ✅ No copy-paste errors
-- ✅ Domain-scoped isolation (different domains can have different waveforms with same name)
+- ✅ **SSOT compliance:** Define shared waveforms once at top level
+- ✅ **No duplication:** Same waveform used in multiple domains → single definition
+- ✅ **Self-documenting:** Named waveforms clarify intent
+- ✅ **Override capability:** Domains can override global waveforms locally
+- ✅ **Consistency:** Change global waveform → updates all domains that reference it
 
 **Syntax:**
 - Waveform reference: `"@waveform_id"`
 - Must start with `@` symbol
-- ID must exist in that domain's `fields.waveforms` library
+- ID must exist in global `waveforms` or domain-local `fields.waveforms` library
+
+**Example Use Cases:**
+- **Global waveforms:** Voltage ramps, frequency chirps used across multiple domains
+- **Domain-local overrides:** Same waveform name but domain-specific parameters
+- **Mixed usage:** Some waveforms global (reusable), others local (domain-specific)
 
 #### ValueOrWaveform Pattern
 

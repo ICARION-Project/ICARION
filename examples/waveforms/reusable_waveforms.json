@@ -1,6 +1,6 @@
 {
-  "title": "Reusable Named Waveforms Example",
-  "description": "Multi-domain simulation with shared waveforms",
+  "title": "Reusable Named Waveforms Example (SSOT-Compliant)",
+  "description": "Multi-domain simulation with global waveform library",
   
   "simulation": {
     "total_time_s": 0.01,
@@ -21,6 +21,50 @@
     "print_progress": true
   },
   
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 50,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  
+  "waveforms": {
+    "voltage_ramp": {
+      "type": "linear",
+      "start": 0.0,
+      "end": 500.0,
+      "start_time_s": 0.0,
+      "end_time_s": 0.005,
+      "clamp": true
+    },
+    "freq_chirp": {
+      "type": "linear",
+      "start": 1000000.0,
+      "end": 2000000.0,
+      "start_time_s": 0.0,
+      "end_time_s": 0.01,
+      "clamp": true
+    },
+    "sinusoidal_mod": {
+      "type": "sinusoidal",
+      "offset": 250.0,
+      "amplitude": 50.0,
+      "frequency_Hz": 100.0,
+      "phase_rad": 0.0
+    }
+  },
+  
   "domains": [
     {
       "name": "ims_region_1",
@@ -36,31 +80,6 @@
         "gas_species": "N2"
       },
       "fields": {
-        "waveforms": {
-          "voltage_ramp": {
-            "type": "linear",
-            "start": 0.0,
-            "end": 500.0,
-            "start_time_s": 0.0,
-            "end_time_s": 0.005,
-            "clamp": true
-          },
-          "freq_chirp": {
-            "type": "linear",
-            "start": 1000000.0,
-            "end": 2000000.0,
-            "start_time_s": 0.0,
-            "end_time_s": 0.01,
-            "clamp": true
-          },
-          "sinusoidal_mod": {
-            "type": "sinusoidal",
-            "offset": 250.0,
-            "amplitude": 50.0,
-            "frequency_Hz": 100.0,
-            "phase_rad": 0.0
-          }
-        },
         "DC": {
           "axial_V": "@voltage_ramp"
         },
@@ -84,24 +103,6 @@
         "gas_species": "N2"
       },
       "fields": {
-        "waveforms": {
-          "voltage_ramp": {
-            "type": "linear",
-            "start": 0.0,
-            "end": 500.0,
-            "start_time_s": 0.0,
-            "end_time_s": 0.005,
-            "clamp": true
-          },
-          "freq_chirp": {
-            "type": "linear",
-            "start": 1000000.0,
-            "end": 2000000.0,
-            "start_time_s": 0.0,
-            "end_time_s": 0.01,
-            "clamp": true
-          }
-        },
         "DC": {
           "axial_V": "@voltage_ramp"
         },

@@ -11,6 +11,7 @@
 #include "SpeciesConfig.h"
 #include "ReactionConfig.h"
 #include "IonConfig.h"
+#include "WaveformConfig.h"
 #include "core/types/IonState.h"
 #include <vector>
 #include <string>
@@ -42,6 +43,9 @@ struct FullConfig {
     // === Loaded databases (in-memory, populated after loading) ===
     SpeciesDatabase species_db;                 ///< Loaded species properties
     ReactionDatabase reaction_db;               ///< Loaded reactions
+    
+    // === Global waveform library (SSOT) ===
+    std::map<std::string, Waveform> waveforms;  ///< Global waveform library (can be referenced by any domain)
     
     // === Ion initialization ===
     IonConfig ions;                             ///< Ion generation configuration

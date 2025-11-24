@@ -9,7 +9,11 @@
 
 namespace ICARION::config {
 
-DomainConfig DomainConfigLoader::load(const Json::Value& json, const std::string& default_integrator) {
+DomainConfig DomainConfigLoader::load(
+    const Json::Value& json, 
+    const std::string& default_integrator,
+    const std::map<std::string, Waveform>& global_waveforms
+) {
     DomainConfig config;
     
     // === Identification ===
@@ -44,7 +48,7 @@ DomainConfig DomainConfigLoader::load(const Json::Value& json, const std::string
     
     // === Fields ===
     if (json.isMember("fields")) {
-        config.fields = load_fields(json["fields"]);
+        config.fields = load_fields(json["fields"], global_waveforms);
     }
     // Fields are optional (e.g., pure drift with only gas flow)
     
@@ -161,10 +165,10 @@ EnvironmentConfig DomainConfigLoader::load_environment(const Json::Value& json) 
     return env;
 }
 
-FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json) {
+FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json, const std::map<std::string, Waveform>& global_waveforms) {
     FieldsConfig fields;
     
-    // v1.1: Load waveform library first (for @reference resolution)
+    // v1.1: Load domain-local waveform library first (for @reference resolution)
     if (json.isMember("waveforms") && json["waveforms"].isObject()) {
         try {
             fields.waveform_library = WaveformLoader::load_library(json["waveforms"]);
@@ -173,19 +177,19 @@ FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json) {
         }
     }
     
-    // DC fields
+    // DC fields (pass both local and global libraries)
     if (json.isMember("DC")) {
-        fields.dc = load_dc_fields(json["DC"], fields.waveform_library);
+        fields.dc = load_dc_fields(json["DC"], fields.waveform_library, global_waveforms);
     }
     
-    // RF fields
+    // RF fields (pass both local and global libraries)
     if (json.isMember("RF")) {
-        fields.rf = load_rf_fields(json["RF"], fields.waveform_library);
+        fields.rf = load_rf_fields(json["RF"], fields.waveform_library, global_waveforms);
     }
     
-    // AC fields
+    // AC fields (pass both local and global libraries)
     if (json.isMember("AC")) {
-        fields.ac = load_ac_fields(json["AC"], fields.waveform_library);
+        fields.ac = load_ac_fields(json["AC"], fields.waveform_library, global_waveforms);
     }
     
     // Magnetic fields
@@ -242,13 +246,13 @@ FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json) {
     return fields;
 }
 
-DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const std::map<std::string, Waveform>& waveform_library) {
+DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library) {
     DCFieldConfig dc;
     
     // v1.1: Voltage specification (static or waveform)
     if (json.isMember("axial_V")) {
         try {
-            dc.axial_V = WaveformLoader::load_value_or_waveform(json["axial_V"], waveform_library);
+            dc.axial_V = WaveformLoader::load_value_or_waveform(json["axial_V"], local_library, global_library);
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to load DC axial_V: ") + e.what());
         }
@@ -256,7 +260,7 @@ DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const 
     
     if (json.isMember("quad_V")) {
         try {
-            dc.quad_V = WaveformLoader::load_value_or_waveform(json["quad_V"], waveform_library);
+            dc.quad_V = WaveformLoader::load_value_or_waveform(json["quad_V"], local_library, global_library);
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to load DC quad_V: ") + e.what());
         }
@@ -264,7 +268,7 @@ DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const 
     
     if (json.isMember("radial_V")) {
         try {
-            dc.radial_V = WaveformLoader::load_value_or_waveform(json["radial_V"], waveform_library);
+            dc.radial_V = WaveformLoader::load_value_or_waveform(json["radial_V"], local_library, global_library);
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to load DC radial_V: ") + e.what());
         }
@@ -273,7 +277,7 @@ DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const 
     // Field strength specification (alternative) - v1.1: can also be waveform
     if (json.isMember("EN_Td")) {
         try {
-            dc.EN_Td = WaveformLoader::load_value_or_waveform(json["EN_Td"], waveform_library);
+            dc.EN_Td = WaveformLoader::load_value_or_waveform(json["EN_Td"], local_library, global_library);
             // If static, compute EN_Vm2
             if (dc.EN_Td.constant_value.has_value()) {
                 dc.EN_Vm2 = UnitConverter::townsend_to_Vm2(dc.EN_Td.constant_value.value());
@@ -286,13 +290,13 @@ DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const 
     return dc;
 }
 
-RFFieldConfig DomainConfigLoader::load_rf_fields(const Json::Value& json, const std::map<std::string, Waveform>& waveform_library) {
+RFFieldConfig DomainConfigLoader::load_rf_fields(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library) {
     RFFieldConfig rf;
     
     // v1.1: voltage_V (static or waveform)
     if (json.isMember("voltage_V")) {
         try {
-            rf.voltage_V = WaveformLoader::load_value_or_waveform(json["voltage_V"], waveform_library);
+            rf.voltage_V = WaveformLoader::load_value_or_waveform(json["voltage_V"], local_library, global_library);
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to load RF voltage_V: ") + e.what());
         }
@@ -301,7 +305,7 @@ RFFieldConfig DomainConfigLoader::load_rf_fields(const Json::Value& json, const 
     // v1.1: frequency_Hz (static or waveform for chirps)
     if (json.isMember("frequency_Hz")) {
         try {
-            rf.frequency_Hz = WaveformLoader::load_value_or_waveform(json["frequency_Hz"], waveform_library);
+            rf.frequency_Hz = WaveformLoader::load_value_or_waveform(json["frequency_Hz"], local_library, global_library);
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to load RF frequency_Hz: ") + e.what());
         }
@@ -314,13 +318,13 @@ RFFieldConfig DomainConfigLoader::load_rf_fields(const Json::Value& json, const 
     return rf;
 }
 
-ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json, const std::map<std::string, Waveform>& waveform_library) {
+ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library) {
     ACFieldConfig ac;
     
     // v1.1: voltage_V (static or waveform)
     if (json.isMember("voltage_V")) {
         try {
-            ac.voltage_V = WaveformLoader::load_value_or_waveform(json["voltage_V"], waveform_library);
+            ac.voltage_V = WaveformLoader::load_value_or_waveform(json["voltage_V"], local_library, global_library);
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to load AC voltage_V: ") + e.what());
         }
@@ -329,7 +333,7 @@ ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json, const 
     // v1.1: frequency_Hz (static or waveform)
     if (json.isMember("frequency_Hz")) {
         try {
-            ac.frequency_Hz = WaveformLoader::load_value_or_waveform(json["frequency_Hz"], waveform_library);
+            ac.frequency_Hz = WaveformLoader::load_value_or_waveform(json["frequency_Hz"], local_library, global_library);
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to load AC frequency_Hz: ") + e.what());
         }

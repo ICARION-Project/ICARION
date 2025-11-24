@@ -168,10 +168,11 @@ Build simple, robust unit tests for all instrument types with reasonable toleran
 - ✅ Charge conservation (<1% error)
 - ✅ Force symmetry and E-field smoothness validated
 
-**Performance:**
-- N<1000: Direct Coulomb (exact, ~2ms for N=100)
-- N≥1000: Grid Poisson (fast, ~30ms for N=10000, 667x speedup)
-- Crossover threshold: 1000 ions (empirically optimal)
+**Performance (estimated):**
+- N<1000: Direct Coulomb (exact)
+- N≥1000: Grid Poisson (fast)
+- Crossover threshold: 1000 ions (empirically chosen, formal benchmarking pending)
+- **Note:** Quantitative performance claims require validation/performance/ benchmarks
 
 **Known Limitations:**
 - CPU-only: N≥1000 simulations >2min runtime (requires GPU for production)

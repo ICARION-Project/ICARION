@@ -1581,9 +1581,10 @@ cd build && ctest -R Waveform
 
 #### Performance Notes
 
-- **Waveform evaluation overhead:** < 10ns per evaluation
-- **Memory:** ~128 bytes per ValueOrWaveform field
+- **Waveform evaluation:** Expected to be negligible (simple arithmetic + std::variant dispatch)
+- **Memory:** ~128 bytes per ValueOrWaveform field (sizeof estimate)
 - **Recommended:** Use waveform library for frequently referenced waveforms
+- **Note:** Formal benchmarking pending (see validation/performance/ roadmap)
 
 ---
 

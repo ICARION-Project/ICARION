@@ -934,7 +934,14 @@ Each domain represents a physical region with specific instrument geometry and c
         "voltage_V": 0.0,             // RF amplitude [V]
         "frequency_Hz": 1e6,          // RF frequency [Hz]
         "phase_rad": 0.0              // RF phase [radians]
-      }
+      },
+      "field_array_terms": [          // OPTIONAL: Load fields from HDF5
+        {
+          "file": "field_arrays/my_geometry.h5",  // HDF5 file path
+          "scale_kind": "DC_Axial",    // Scaling mode (see below)
+          "scale_factor": 1.0          // Additional multiplier (default: 1.0)
+        }
+      ]
     }
   }
 ]
@@ -949,6 +956,193 @@ Each domain represents a physical region with specific instrument geometry and c
 - `"Quadrupole"` - Quadrupole mass filter
 - `"FTICR"` - Fourier Transform Ion Cyclotron Resonance
 - `"NoFixedInstrument"` - Generic region
+
+### Field Arrays (HDF5-based Electric Fields)
+
+**Status:** Production-ready
+
+For complex geometries where analytical field solutions are unavailable, ICARION supports loading pre-computed electric field arrays from HDF5 files.
+
+#### Field Array Configuration
+
+```json
+"fields": {
+  "field_array_terms": [
+    {
+      "file": "field_arrays/electrode_geometry.h5",
+      "scale_kind": "DC_Axial",
+      "scale_factor": 1.0
+    }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file` | string | ✅ | Path to HDF5 field array file (relative or absolute) |
+| `scale_kind` | enum | ✅ | Voltage scaling mode (see below) |
+| `scale_factor` | number | ❌ | Additional constant multiplier (default: 1.0) |
+
+#### Scaling Modes (`scale_kind`)
+
+Field arrays are stored **normalized to 1 Volt**. At runtime, fields are scaled by applied voltages:
+
+| `scale_kind` | Formula | Use Case | Example |
+|--------------|---------|----------|--------|
+| `"Constant"` | E = E_array × `scale_factor` | Static scaling | Test fields, uniform fields |
+| `"DC_Axial"` | E = E_array × DC_voltage | Drift tubes, TOF | IMS drift field, TOF acceleration |
+| `"DC_Quad"` | E = E_array × DC_voltage | Quadrupole fields | Quadrupole mass filter, ion guides |
+| `"DC_Radial"` | E = E_array × DC_voltage | Cylindrical electrodes | Cylindrical lenses, apertures |
+| `"RF"` | E = E_array × V_rf × cos(2πft+φ) | Time-dependent RF | RF traps, Orbitraps, quadrupoles |
+
+**Example:** For a 50mm drift tube with 100V applied:
+- Field array stores: Ez = 20 V/m (= 1V / 0.05m)
+- At runtime with `DC_Axial`: E_scaled = 20 V/m × 100 V = 2000 V/m ✓
+
+#### HDF5 File Format
+
+Field arrays must follow this structure:
+
+```
+field_array.h5
+├── x [1D array]        # x-coordinates [m], size nx
+├── y [1D array]        # y-coordinates [m], size ny
+├── z [1D array]        # z-coordinates [m], size nz
+├── Ex [3D array]       # E-field x-component [V/m], shape (nx, ny, nz)
+├── Ey [3D array]       # E-field y-component [V/m], shape (nx, ny, nz)
+├── Ez [3D array]       # E-field z-component [V/m], shape (nx, ny, nz)
+└── phi [3D array]      # Potential [V] (optional), shape (nx, ny, nz)
+```
+
+**Requirements:**
+- Coordinate arrays (x, y, z) must be 1D and uniformly spaced
+- Field arrays (Ex, Ey, Ez) must be 3D with shape matching (nx, ny, nz)
+- Potential (phi) is optional
+- All coordinates in meters [m], fields in volts per meter [V/m]
+
+#### Creating Field Arrays with Python
+
+Generate HDF5 field arrays using `h5py`:
+
+```python
+import h5py
+import numpy as np
+
+# Define 3D grid
+x = np.linspace(-5e-3, 5e-3, 10)   # ±5mm, 10 points
+y = np.linspace(-5e-3, 5e-3, 10)   # ±5mm, 10 points
+z = np.linspace(0, 50e-3, 20)      # 0-50mm, 20 points
+X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+
+# Compute fields (normalized to 1V reference)
+# Example: Uniform axial field, 1V over 50mm
+Ex = np.zeros_like(X)
+Ey = np.zeros_like(Y)
+Ez = np.ones_like(Z) * 20.0  # 1V / 0.05m = 20 V/m
+phi = -Ez * Z                # Potential φ(z) = -∫E·dz
+
+# Save to HDF5
+with h5py.File('my_field.h5', 'w') as f:
+    f.create_dataset('x', data=x)
+    f.create_dataset('y', data=y)
+    f.create_dataset('z', data=z)
+    f.create_dataset('Ex', data=Ex)
+    f.create_dataset('Ey', data=Ey)
+    f.create_dataset('Ez', data=Ez)
+    f.create_dataset('phi', data=phi)  # Optional
+```
+
+**Example Generator:** `examples/create_example_field_array.py`
+
+#### Field Interpolation
+
+At runtime, ICARION uses **trilinear interpolation** to evaluate fields at arbitrary positions:
+
+- **Method:** 8-corner weighted average
+- **Accuracy:** O(h²) convergence with grid spacing h
+- **Boundary handling:** Returns zero field outside grid
+
+#### Complete Example
+
+```json
+{
+  "simulation": {
+    "total_time_s": 1e-3,
+    "dt_s": 1e-9,
+    "integrator": "RK4"
+  },
+  "physics": {
+    "collision_model": "NoCollisions"
+  },
+  "output": {
+    "folder": "./results",
+    "trajectory_file": "trajectories.h5"
+  },
+  "domains": [
+    {
+      "name": "custom_geometry",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "pressure_Pa": 1e-6,
+        "temperature_K": 300.0,
+        "gas_species": "He"
+      },
+      "fields": {
+        "field_array_terms": [
+          {
+            "file": "field_arrays/electrode_set_1.h5",
+            "scale_kind": "DC_Axial",
+            "scale_factor": 1.0
+          },
+          {
+            "file": "field_arrays/electrode_set_2.h5",
+            "scale_kind": "Constant",
+            "scale_factor": 50.0
+          }
+        ],
+        "DC": {
+          "axial_V": 100.0
+        }
+      }
+    }
+  ]
+}
+```
+
+**Note:** Multiple field array terms are summed:
+```
+E_total = Σᵢ (E_array_i × scale_i) + E_analytical
+```
+
+#### Validation
+
+Validate field arrays before running simulations:
+
+```bash
+# Test HDF5 file structure
+python3 -c "import h5py; f=h5py.File('my_field.h5','r'); print(list(f.keys()))"
+
+# Verify dimensions
+python3 -c "
+import h5py
+with h5py.File('my_field.h5', 'r') as f:
+    print(f'x: {f[\"x\"].shape}, Ex: {f[\"Ex\"].shape}')
+"
+
+# Run E2E tests
+cd build && ./tests/config/test_field_array_e2e
+```
+
+**Test Files:**
+- `tests/config/test_field_array_e2e.cpp` - End-to-end validation (5 tests, 6023 assertions)
+- `tests/config/test_field_array_terms_loader.cpp` - JSON loading tests (10/10 passing)
+
+**Recommendation:** Use 1-2mm grid spacing for typical ion optics geometries.
 
 ---
 

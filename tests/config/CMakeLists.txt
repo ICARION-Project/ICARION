@@ -149,3 +149,32 @@ target_include_directories(test_field_array_terms_loader
 
 add_test(NAME FieldArrayTermsLoader COMMAND test_field_array_terms_loader)
 
+# End-to-end test: field array loading, interpolation, and scaling
+add_executable(test_field_array_e2e
+    test_field_array_e2e.cpp
+)
+
+target_link_libraries(test_field_array_e2e
+    PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+
+target_include_directories(test_field_array_e2e
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+# Copy field array examples to build directory for E2E tests
+add_custom_command(
+    TARGET test_field_array_e2e POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/examples/field_arrays
+    ${CMAKE_CURRENT_BINARY_DIR}/examples/field_arrays
+    COMMENT "Copying field array examples for E2E tests"
+)
+
+add_test(NAME FieldArrayE2E COMMAND test_field_array_e2e)
+
+

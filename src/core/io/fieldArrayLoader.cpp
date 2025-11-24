@@ -100,6 +100,14 @@ FieldArray load_field_array(const std::string& path) {
         load_3d("Ey", fld.Ey, nx2, ny2, nz2);
         load_3d("Ez", fld.Ez, nx2, ny2, nz2);
         // Expectation: nx2 == fld.nx, etc.
+        
+        // Load phi if present (optional)
+        size_t nx3, ny3, nz3;
+        try {
+            load_3d("phi", fld.phi, nx3, ny3, nz3);
+        } catch (...) {
+            // phi is optional, ignore if not found
+        }
 
     } catch (const std::exception& ex) {
         std::cerr << "ERROR loading field array: " << ex.what() << "\n";

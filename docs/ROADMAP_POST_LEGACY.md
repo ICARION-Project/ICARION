@@ -508,28 +508,7 @@ Complete remaining physics features that were deferred during the SSOT migration
 - Expected: Product ratio matches rate constant ratio
 
 ---
-
-### 8.3 Additional Physics Features (Optional)
-
-**Lower Priority Enhancements:**
-
-1. **Validate space charge implementation**
-   - Ensure correct Poisson solver behavior in single gas environments
-   - There are multiple functions already for space charge, but validation is pending and it is not clear how they interact with each other.
-
-2. **Field Array Import**
-   - Support importing E field maps from external solvers (COMSOL, ANSYS)
-   - Interpolation schemes for arbitrary geometries
-   - Use case: Complex ion optics not easily modeled analytically 
-
-3. **Surface Interactions**
-   - Currently: Hard-wall boundaries
-   - Enhancement: Sticking coefficient, reflecting boundaries, not for now sputtering
-   - Use case: Detector efficiency, ion loss modeling
-
-**Decision Point:** Implement only if needed for specific scientific questions
-
----
+-
 
 ### Success Criteria - Phase 8
 
@@ -817,7 +796,7 @@ int main() {
 | **6** | **Comprehensive Unit Testing** | 2-3 weeks | HIGH |
 | 6.1 | IMS testing (all collision models + reactive) | 1 week | HIGH |
 | 6.2 | TOF, Orbitrap, LQIT, ICR testing | 1 week | HIGH |
-| 6.3 | Space charge testing | 3 days | MEDIUM |
+| 6.3 | Space charge testing | 3 days | MEDIUM | (DONE)
 | **7** | **Publication Validation Suite** | 3-4 weeks | HIGH |
 | 7.1 | Physics validation (analytical, literature) | 1.5 weeks | HIGH |
 | 7.2 | Performance benchmarking | 1 week | HIGH |

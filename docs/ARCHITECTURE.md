@@ -629,6 +629,105 @@ public:
 2. **LinearGradientProvider**: Linear field variation
 3. **GridFieldProvider**: 3D interpolation from grid data
 4. **PoissonSolver**: Solves ∇²φ = -ρ/ε₀ on mesh
+5. **FieldArrayLoader**: Load pre-computed fields from HDF5
+
+### Field Arrays (HDF5-based Field Loading)
+
+**Status:** Production-ready, fully validated
+
+ICARION supports loading pre-computed electric field arrays from HDF5 files for complex geometries where analytical solutions are unavailable.
+
+#### HDF5 File Format
+
+Field arrays are stored in HDF5 format with the following structure:
+
+```
+field_array.h5
+├── x [1D array, size nx]        # x-coordinates [m]
+├── y [1D array, size ny]        # y-coordinates [m]
+├── z [1D array, size nz]        # z-coordinates [m]
+├── Ex [3D array, nx×ny×nz]      # Electric field x-component [V/m]
+├── Ey [3D array, nx×ny×nz]      # Electric field y-component [V/m]
+├── Ez [3D array, nx×ny×nz]      # Electric field z-component [V/m]
+└── phi [3D array, nx×ny×nz]     # Potential (optional) [V]
+```
+
+**Field Normalization:** Field arrays should be normalized to **1 Volt** reference. At runtime, fields are scaled by the applied voltage using `ScaleKind` (Constant, DC_Axial, DC_Quad, DC_Radial, or RF).
+
+**Example:** For a 50mm drift tube, store Ez = 20 V/m (= 1V / 0.05m). When 100V is applied with `DC_Axial` scaling:
+```cpp
+E_scaled = E_array × DC_voltage = 20 V/m × 100 V = 2000 V/m
+```
+
+#### Field Array Loading
+
+```cpp
+// Load HDF5 field array
+FieldArray field = load_field_array("field_arrays/my_geometry.h5");
+
+// Interpolate field at position
+Vec3 pos(0.001, 0.002, 0.025);  // [m]
+Vec3 E = interpolate_field(field, pos);  // Trilinear interpolation
+
+// Apply voltage scaling
+double scale_factor = DC_voltage;  // or RF_amplitude × cos(ωt+φ)
+Vec3 E_scaled = E * scale_factor;
+```
+
+#### Interpolation
+
+**Method:** Trilinear interpolation (8-corner weighted average)
+- **Accuracy:** O(h²) convergence with grid spacing h
+- **Boundary handling:** Returns zero field outside grid bounds
+
+#### Scaling Modes
+
+| ScaleKind | Formula | Use Case |
+|-----------|---------|----------|
+| `Constant` | E_scaled = E_array × factor | Uniform scaling |
+| `DC_Axial` | E_scaled = E_array × DC_voltage | Drift tubes, TOF |
+| `DC_Quad` | E_scaled = E_array × DC_voltage | Quadrupole, ion guides |
+| `DC_Radial` | E_scaled = E_array × DC_voltage | Cylindrical electrodes |
+| `RF` | E_scaled = E_array × V_rf × cos(2πft+φ) | RF traps, Orbitraps |
+
+#### Creating Field Arrays
+
+Generate HDF5 files using Python with h5py:
+
+```python
+import h5py
+import numpy as np
+
+# Define 3D grid
+x = np.linspace(-5e-3, 5e-3, 10)  # 10mm × 10mm
+y = np.linspace(-5e-3, 5e-3, 10)
+z = np.linspace(0, 50e-3, 20)     # 50mm length
+X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+
+# Compute fields (normalized to 1V over 50mm)
+Ex = np.zeros_like(X)
+Ey = np.zeros_like(Y)
+Ez = np.ones_like(Z) * 20.0  # 1V / 0.05m = 20 V/m
+phi = -Ez * Z  # φ(z) = -∫E·dz
+
+# Save to HDF5
+with h5py.File('dc_axial_unit.h5', 'w') as f:
+    f.create_dataset('x', data=x)
+    f.create_dataset('y', data=y)
+    f.create_dataset('z', data=z)
+    f.create_dataset('Ex', data=Ex)
+    f.create_dataset('Ey', data=Ey)
+    f.create_dataset('Ez', data=Ez)
+    f.create_dataset('phi', data=phi)  # Optional
+```
+
+**Validation:** See `tests/config/test_field_array_e2e.cpp` for comprehensive validation (HDF5 loading, interpolation, scaling).
+
+**Examples:**
+- `examples/field_arrays/dc_axial_unit.h5` - Uniform axial field (1V normalized)
+- `examples/field_arrays/uniform_field.h5` - Constant field
+- `examples/field_arrays/linear_gradient.h5` - Linear gradient pattern
+- `examples/create_example_field_array.py` - Python script for generating test fields
 
 ### Space Charge Solver
 

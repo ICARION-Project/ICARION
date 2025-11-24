@@ -58,8 +58,8 @@ struct FieldArray {
                 && zs.size() == nz
                 && Ex.size() == nx * ny * nz
                 && Ey.size() == nx * ny * nz
-                && Ez.size() == nx * ny * nz
-                && phi.size() == nx * ny * nz);
+                && Ez.size() == nx * ny * nz);
+                // Note: phi is optional, not checked here
     }
 };
 

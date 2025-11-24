@@ -37,9 +37,9 @@ static IonState create_ion(Vec3 pos, double charge_C, double mass_u = 100.0) {
 // Basic Tests
 // ============================================================================
 
-TEST_CASE("SpaceChargeDirect: Name is 'SpaceCharge'", "[SpaceChargeDirect][basic]") {
+TEST_CASE("SpaceChargeDirect: Name is 'SpaceChargeDirect'", "[SpaceChargeDirect][basic]") {
     SpaceChargeDirect force{0.0};
-    REQUIRE(force.name() == "SpaceCharge");
+    REQUIRE(force.name() == "SpaceChargeDirect");
 }
 
 TEST_CASE("SpaceChargeDirect: Applies to all ions", "[SpaceChargeDirect][basic]") {

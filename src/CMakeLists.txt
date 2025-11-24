@@ -129,4 +129,11 @@ endif()
 add_executable(icarion_main main/main.cpp)
 target_link_libraries(icarion_main PRIVATE icarion_core)
 
+# CCS precompute tool
+# CCS precompute tool
+add_executable(ccs_precompute
+    ../tools/ccs_precompute.cpp
+)
+target_link_libraries(ccs_precompute PRIVATE icarion_core)
+
 message(STATUS "ICARION Core configuration completed.")

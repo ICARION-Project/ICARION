@@ -124,6 +124,26 @@ EnvironmentConfig DomainConfigLoader::load_environment(const Json::Value& json) 
     if (json.isMember("gas_species") && json["gas_species"].isString()) {
         env.gas_species = json["gas_species"].asString();
     }
+
+    // Gas mixture
+    if (json.isMember("gas_mixture") && json["gas_mixture"].isArray()) {
+        for (const auto& comp_json : json["gas_mixture"]) {
+            GasMixtureComponent comp;
+            if (comp_json.isMember("species") && comp_json["species"].isString()) {
+                comp.species = comp_json["species"].asString();
+            }
+            if (comp_json.isMember("mole_fraction") && comp_json["mole_fraction"].isNumeric()) {
+                comp.mole_fraction = comp_json["mole_fraction"].asDouble();
+            }
+            if (comp_json.isMember("cross_section_m2") && comp_json["cross_section_m2"].isNumeric()) {
+                comp.cross_section_m2 = comp_json["cross_section_m2"].asDouble();
+            }
+            if (comp_json.isMember("polarizability_m3") && comp_json["polarizability_m3"].isNumeric()) {
+                comp.polarizability_m3 = comp_json["polarizability_m3"].asDouble();
+            }
+            env.gas_mixture.push_back(comp);
+        }
+    }
     
     // Gas velocity
     if (json.isMember("gas_velocity_m_s")) {

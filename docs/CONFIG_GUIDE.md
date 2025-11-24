@@ -921,7 +921,12 @@ Each domain represents a physical region with specific instrument geometry and c
     "env": {                          // REQUIRED
       "pressure_Pa": 101325.0,        // Gas pressure [Pascal]
       "temperature_K": 300.0,         // Gas temperature [Kelvin]
-      "gas_species": "He",            // Gas species (He, N2, Ar, etc.)
+      "gas_species": "He",            // Gas species (He, N2, Ar, etc.) fallback if no mixture
+      "gas_mixture": [                // OPTIONAL mixture; overrides gas_species when non-empty
+        { "species": "N2", "mole_fraction": 0.78, "cross_section_m2": 4.0e-19 },
+        { "species": "O2", "mole_fraction": 0.21 },
+        { "species": "H2O", "mole_fraction": 0.01 }
+      ],
       "gas_velocity_m_s": [0, 0, 0]   // Gas flow velocity [m/s]
     },
     

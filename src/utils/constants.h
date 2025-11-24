@@ -34,6 +34,7 @@ const double MOLAR_MASS_CO2_KG = 44.0095 * AMU_TO_KG;
 const double MOLAR_MASS_NE_KG = 20.1797 * AMU_TO_KG;
 const double MOLAR_MASS_N2_KG = 28.0134 * AMU_TO_KG;
 const double MOLAR_MASS_O2_KG = 31.9988 * AMU_TO_KG;
+const double MOLAR_MASS_H2O_KG = 18.01528 * AMU_TO_KG;
 
 // Polarizabilities (approximate values in cubic meters)
 const double POLARIZABILITY_HE_SI = 0.195e-30;  //DOI: 10.1088/0953-4075/43/20/202001
@@ -42,6 +43,7 @@ const double POLARIZABILITY_CO2_SI = 2.612e-30; //DOI: 10.1063/1.45874
 const double POLARIZABILITY_NE_SI = 0.352e-30;  //DOI: 10.1088/0953-4075/43/20/202001
 const double POLARIZABILITY_N2_SI = 1.74e-30;   //DOI: 10.1063/1.431821
 const double POLARIZABILITY_O2_SI = 1.567e-30;  //DOI: 10.1098/rspa.1966.0244
+const double POLARIZABILITY_H2O_SI = 1.45e-30;  // Approximate
 
 // Hard-sphere radii for EHSS collision model (meters)
 const double RADIUS_HE_M = 1.3e-10;   //ISBN 0470029048
@@ -50,6 +52,7 @@ const double RADIUS_CO2_M = 1.65e-10; //ISBN 3319010956
 const double RADIUS_NE_M = 1.38e-10;  //ISBN 0471099856
 const double RADIUS_N2_M = 1.82e-10;  //ISBN 3319010956
 const double RADIUS_O2_M = 1.73e-10;  //ISBN 3319010956
+const double RADIUS_H2O_M = 1.58e-10; // Approximate
 
 // Define instrument constants
 const double EJECTION_SLIT_LENGTH_Z = 20e-3;

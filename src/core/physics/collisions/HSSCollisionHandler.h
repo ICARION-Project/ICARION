@@ -25,6 +25,7 @@
 #pragma once
 
 #include "ICollisionHandler.h"
+#include <unordered_map>
 
 namespace ICARION::physics {
 
@@ -100,11 +101,15 @@ public:
     std::string name() const override { return "HSS"; }
     
     CollisionStats get_stats() const override { return stats_; }
-    void reset_stats() override { stats_ = {}; }
+    void reset_stats() override { stats_ = {}; collisions_by_species_.clear(); }
+    const std::unordered_map<std::string, size_t>& collisions_by_species() const { return collisions_by_species_; }
     
 private:
     bool enable_logging_;
     mutable CollisionStats stats_;
+
+    bool handle_single_gas(IonState& ion, double dt, EhssRng& rng, const config::EnvironmentConfig& env);
+    std::unordered_map<std::string, size_t> collisions_by_species_;
 };
 
 } // namespace ICARION::physics

@@ -44,7 +44,7 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
             if (enable_logging) {
                 ICARION::log::debug_log(
                     "[CollisionHandlerFactory] Creating HSSCollisionHandler "
-                    "(isotropic scattering)"
+                    "(mixture-aware HSS)"
                 );
             }
             

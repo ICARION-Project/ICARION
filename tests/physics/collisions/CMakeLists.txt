@@ -126,3 +126,15 @@ target_include_directories(test_realistic_transfer PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include
 )
+
+# Multi-gas collision handler
+add_executable(test_multi_gas_collision test_multi_gas_collision.cpp)
+target_link_libraries(test_multi_gas_collision PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_multi_gas_collision PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME MultiGasCollision COMMAND test_multi_gas_collision)

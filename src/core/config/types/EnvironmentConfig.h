@@ -10,8 +10,26 @@
 #include <string>
 #include <cmath>
 #include <stdexcept>
+#include <vector>
+#include <unordered_map>
 
 namespace ICARION::config {
+
+/**
+ * @brief Single gas component for mixtures
+ */
+struct GasMixtureComponent {
+    std::string species;          ///< Species ID (e.g., "N2")
+    double mole_fraction = 0.0;   ///< Mole fraction (0..1)
+    double cross_section_m2 = -1.0;      ///< Optional override for σ [m²], <0 = use default/ion CCS
+    double polarizability_m3 = -1.0;     ///< Optional override for α [m³], <0 = use default
+
+    // Derived
+    double mass_kg = 0.0;
+    double radius_m = 0.0;
+    double density_m3 = 0.0;
+    double polarizability_m3_derived = 0.0;
+};
 
 /**
  * @brief Environment configuration (gas conditions)
@@ -28,6 +46,7 @@ struct EnvironmentConfig {
     double temperature_K = 300.0;           ///< Temperature [K] (default: room temp)
     std::string gas_species = "He";         ///< Buffer gas species ID
     Vec3 gas_velocity_m_s = {0.0, 0.0, 0.0}; ///< Bulk gas flow velocity [m/s]
+    std::vector<GasMixtureComponent> gas_mixture; ///< Optional mixture (if non-empty, overrides gas_species)
     
     // === Derived quantities (computed from input) ===
     double particle_density_m_3 = 0.0;      ///< Number density n = P/(kB·T) [m⁻³]
@@ -46,6 +65,85 @@ struct EnvironmentConfig {
      * Uses constants from utils/constants.h for gas properties.
      */
     void compute_derived_properties() {
+        // Total number density from ideal gas law
+        particle_density_m_3 = pressure_Pa / (BOLTZMANN_CONSTANT * temperature_K);
+
+        // Mixture handling
+        if (!gas_mixture.empty()) {
+            double frac_sum = 0.0;
+            for (const auto& comp : gas_mixture) {
+                frac_sum += comp.mole_fraction;
+            }
+            // Normalize fractions if they don't sum to 1 (avoid divide by zero)
+            double norm = (frac_sum > 0.0) ? frac_sum : 1.0;
+
+            // Derived mixture properties
+            gas_mass_kg = 0.0;
+            gas_radius_m = 0.0;
+            gas_polarizability_m3 = 0.0;
+
+            for (auto& comp : gas_mixture) {
+                double f = comp.mole_fraction / norm;
+                comp.density_m3 = f * particle_density_m_3;
+
+                // Lookup gas properties from constants.h
+                if (comp.species == "N2") {
+                    comp.mass_kg = MOLAR_MASS_N2_KG;
+                    comp.radius_m = RADIUS_N2_M;
+                    comp.polarizability_m3_derived = POLARIZABILITY_N2_SI;
+                } else if (comp.species == "He") {
+                    comp.mass_kg = MOLAR_MASS_HE_KG;
+                    comp.radius_m = RADIUS_HE_M;
+                    comp.polarizability_m3_derived = POLARIZABILITY_HE_SI;
+                } else if (comp.species == "Ar") {
+                    comp.mass_kg = MOLAR_MASS_AR_KG;
+                    comp.radius_m = RADIUS_AR_M;
+                    comp.polarizability_m3_derived = POLARIZABILITY_AR_SI;
+                } else if (comp.species == "O2") {
+                    comp.mass_kg = MOLAR_MASS_O2_KG;
+                    comp.radius_m = RADIUS_O2_M;
+                    comp.polarizability_m3_derived = POLARIZABILITY_O2_SI;
+                } else if (comp.species == "CO2") {
+                    comp.mass_kg = MOLAR_MASS_CO2_KG;
+                    comp.radius_m = RADIUS_CO2_M;
+                    comp.polarizability_m3_derived = POLARIZABILITY_CO2_SI;
+                } else if (comp.species == "Ne") {
+                    comp.mass_kg = MOLAR_MASS_NE_KG;
+                    comp.radius_m = RADIUS_NE_M;
+                    comp.polarizability_m3_derived = POLARIZABILITY_NE_SI;
+                } else if (comp.species == "H2O") {
+                    comp.mass_kg = MOLAR_MASS_H2O_KG;
+                    comp.radius_m = RADIUS_H2O_M;
+                    comp.polarizability_m3_derived = POLARIZABILITY_H2O_SI;
+                } else {
+                    // Fallback to He-like properties
+                    comp.mass_kg = MOLAR_MASS_HE_KG;
+                    comp.radius_m = RADIUS_HE_M;
+                    comp.polarizability_m3_derived = POLARIZABILITY_HE_SI;
+                }
+
+                if (comp.polarizability_m3 > 0.0) {
+                    comp.polarizability_m3_derived = comp.polarizability_m3;
+                }
+
+                gas_mass_kg += f * comp.mass_kg;
+                gas_radius_m += f * comp.radius_m;
+                gas_polarizability_m3 += f * comp.polarizability_m3_derived;
+            }
+
+            // Mean thermal velocity using mixture-averaged mass
+            mean_thermal_velocity_m_s = std::sqrt(
+                8.0 * BOLTZMANN_CONSTANT * temperature_K / (M_PI * gas_mass_kg)
+            );
+
+            // Mean free path approximate with weighted radius (rough)
+            mean_free_path_m = 1.0 / (
+                std::sqrt(2.0) * M_PI * gas_radius_m * gas_radius_m * particle_density_m_3
+            );
+
+            return;
+        }
+
         // Lookup gas properties from constants.h
         if (gas_species == "N2") {
             gas_mass_kg = MOLAR_MASS_N2_KG;
@@ -91,8 +189,6 @@ struct EnvironmentConfig {
         }
         
         // Compute derived quantities
-        particle_density_m_3 = pressure_Pa / (BOLTZMANN_CONSTANT * temperature_K);
-        
         mean_thermal_velocity_m_s = std::sqrt(
             8.0 * BOLTZMANN_CONSTANT * temperature_K / (M_PI * gas_mass_kg)
         );
@@ -122,6 +218,26 @@ struct EnvironmentConfig {
         }
         if (gas_species.empty()) {
             result.add_error("Gas species cannot be empty");
+        }
+        double frac_sum = 0.0;
+        for (const auto& comp : gas_mixture) {
+            if (comp.species.empty()) {
+                result.add_error("Gas mixture component species cannot be empty");
+            }
+            if (comp.mole_fraction < 0.0) {
+                result.add_error("Gas mixture component mole_fraction must be >= 0");
+            }
+            if (comp.cross_section_m2 >= 0.0 && comp.cross_section_m2 == 0.0) {
+                result.add_warning("Gas mixture component cross_section_m2 is zero");
+            }
+            frac_sum += comp.mole_fraction;
+        }
+        if (!gas_mixture.empty()) {
+            if (frac_sum <= 0.0) {
+                result.add_error("Gas mixture mole fractions must sum to > 0");
+            } else if (std::abs(frac_sum - 1.0) > 1e-3) {
+                result.add_warning("Gas mixture mole fractions do not sum to 1 (sum=" + std::to_string(frac_sum) + ")");
+            }
         }
         
         return result;

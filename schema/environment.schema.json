@@ -28,6 +28,23 @@
       "$ref": "common-types.schema.json#/$defs/velocity_vector",
       "default": [0.0, 0.0, 0.0],
       "description": "Background gas flow velocity vector (vx, vy, vz) in m/s"
+    },
+
+    "gas_mixture": {
+      "type": "array",
+      "description": "Optional gas mixture; if present, overrides gas_species",
+      "items": {
+        "type": "object",
+        "properties": {
+          "species": { "type": "string" },
+          "mole_fraction": { "type": "number", "minimum": 0.0 },
+          "cross_section_m2": { "type": "number" },
+          "polarizability_m3": { "type": "number" }
+        },
+        "required": ["species", "mole_fraction"],
+        "additionalProperties": false
+      },
+      "default": []
     }
   },
   

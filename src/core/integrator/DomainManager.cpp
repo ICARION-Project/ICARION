@@ -147,12 +147,60 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
                                                 const Vec3& pos_after_local) const {
     const auto& dom = get_domain(domain_idx);
     
-    // Orbitrap: Hyperbolic boundary (complex ray-tracing, not yet implemented)
-    // TODO: Implement ray-hyperbola intersection for Orbitrap
+    // Orbitrap: Hyperbolic boundary ray tracing
+    // Hyperboloid equation: z² - r²/2 = C
+    // Ray: p(t) = p0 + t*d, where d = (p_after - p_before)
     if (dom.instrument == config::Instrument::Orbitrap) {
-        // Fallback: Use simple midpoint approximation
-        Vec3 approx_intersection = (pos_before_local + pos_after_local) * 0.5;
-        ion.pos = local_to_global_pos(approx_intersection, domain_idx);
+        Vec3 dir = pos_after_local - pos_before_local;
+        double dir_len = std::sqrt(dir.x*dir.x + dir.y*dir.y + dir.z*dir.z);
+        
+        if (dir_len < NUMERICAL_ZERO) {
+            // Degenerate case: no movement
+            ion.pos = local_to_global_pos(pos_before_local, domain_idx);
+            ion.vel = {0.0, 0.0, 0.0};
+            ion.active = false;
+            return;
+        }
+        
+        // Normalize direction
+        dir = dir * (1.0 / dir_len);
+        
+        // Solve for intersection with hyperboloids: (z0 + t*dz)² - 0.5*(r0 + t*dr)² = C
+        // This gives a quadratic equation: a*t² + b*t + c = 0
+        // where r² = x² + y², dr = (x*dx + y*dy)/r (radial direction component)
+        
+        double t_min = dir_len;  // Default: full step
+        Vec3 intersection = pos_after_local;
+        
+        // Test both inner and outer hyperboloids
+        for (int surface = 0; surface < 2; ++surface) {
+            const double C = (surface == 0) ? dom.geometry.orbitrap_C_in : dom.geometry.orbitrap_C_out;
+            
+            // Quadratic coefficients for z² - 0.5*r² = C
+            // Expanding: (z0 + t*dz)² - 0.5*((x0 + t*dx)² + (y0 + t*dy)²) = C
+            const double a = dir.z * dir.z - 0.5 * (dir.x * dir.x + dir.y * dir.y);
+            const double b = 2.0 * (pos_before_local.z * dir.z 
+                                    - 0.5 * (pos_before_local.x * dir.x + pos_before_local.y * dir.y));
+            const double r0_sq = pos_before_local.x * pos_before_local.x + pos_before_local.y * pos_before_local.y;
+            const double c = pos_before_local.z * pos_before_local.z - 0.5 * r0_sq - C;
+            
+            const double discriminant = b*b - 4.0*a*c;
+            if (discriminant < 0.0) continue;  // No intersection
+            
+            const double sqrt_disc = std::sqrt(discriminant);
+            const double t1 = (-b - sqrt_disc) / (2.0 * a);
+            const double t2 = (-b + sqrt_disc) / (2.0 * a);
+            
+            // Take smallest positive t in range [0, dir_len]
+            for (double t : {t1, t2}) {
+                if (t > 0.0 && t < t_min) {
+                    t_min = t;
+                    intersection = pos_before_local + dir * t;
+                }
+            }
+        }
+        
+        ion.pos = local_to_global_pos(intersection, domain_idx);
         ion.vel = {0.0, 0.0, 0.0};
         ion.active = false;
         return;
@@ -257,20 +305,17 @@ bool DomainManager::is_inside_domain(const config::DomainConfig& dom, const Vec3
         return (local.z >= -DOMAIN_BOUNDARY_EPSILON && local.z < dom.geometry.length_m) && (r < dom.geometry.radius_m);
     }
     
-    // Orbitrap: logarithmic-hyperbolic electrode geometry
-    // Electrode shape: z² = 0.5·(r² - R²) + R_m² · ln(R/r)
-    const double Rin = dom.geometry.radius_in_m;
-    const double Rout = dom.geometry.radius_out_m;
-    const double Rm = dom.geometry.radius_char_m;
-    const double z = std::fabs(local.z);
+    // Orbitrap: Hyperbolic electrode geometry (equipotential surfaces)
+    // Hyperboloid equation: z² - r²/2 = C
+    // Ion is inside if: C_out <= C <= C_in, where:
+    //   C_in  = -0.5 * R_in²  (inner, smaller radius → less negative)
+    //   C_out = -0.5 * R_out² (outer, larger radius → more negative)
+    // Note: C_out < C_in since R_out > R_in
+    const double r2 = local.x * local.x + local.y * local.y;
+    const double C = local.z * local.z - 0.5 * r2;
+    constexpr double eps = 1e-12;  // Numerical tolerance
     
-    // Compute allowed radial range for given z using numerical root-finding
-    const double r_in_allowed  = orbitrap_r_for_z(z, Rin, Rm);
-    const double r_out_allowed = orbitrap_r_for_z(z, Rout, Rm);
-    
-    // Inside domain if between hyperbolic surfaces
-    // Note: No tolerance needed here since orbitrap_r_for_z is accurate to 1e-12
-    return (r >= r_in_allowed) && (r <= r_out_allowed);
+    return (C >= dom.geometry.orbitrap_C_out - eps) && (C <= dom.geometry.orbitrap_C_in + eps);
 }
 
 }  // namespace integrator

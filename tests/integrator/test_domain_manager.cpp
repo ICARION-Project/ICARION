@@ -183,13 +183,16 @@ TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
     orbitrap.domain_index = 0;
     orbitrap.instrument = config::Instrument::Orbitrap;
     
-    // CONSERVATIVE Orbitrap test configuration
-    // Note: orbitrap_r_for_z() has convergence issues - using config that works with legacy impl
-    // Real Orbitrap geometry may differ! See TODO in DomainManager.cpp
+    // Orbitrap hyperbolic boundary configuration
+    // Hyperboloid equation: z² - r²/2 = C, where C = -0.5 * R²
     orbitrap.geometry.radius_in_m = 0.010;   // 10 mm inner electrode
     orbitrap.geometry.radius_out_m = 0.015;  // 15 mm outer electrode  
-    orbitrap.geometry.radius_char_m = 0.020; // 20 mm characteristic radius (> r_out)
+    orbitrap.geometry.radius_char_m = 0.020; // Characteristic radius (used for fields)
     orbitrap.geometry.origin_m = Vec3{0,0,0};
+    
+    // Compute hyperbolic boundary constants
+    orbitrap.geometry.orbitrap_C_in  = -0.5 * 0.010 * 0.010;  // -5e-5
+    orbitrap.geometry.orbitrap_C_out = -0.5 * 0.015 * 0.015;  // -1.125e-4
     
     orbitrap.rotation_global_to_local = Mat3::identity();
     orbitrap.rotation_local_to_global = Mat3::identity();
@@ -203,7 +206,16 @@ TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
     DomainManager manager(domains);
     
     SECTION("Ion inside Orbitrap (between hyperbolas)") {
-        // Conservative test: r_char > r_out makes boundaries nearly z-independent
+        // At z=0: C = -r²/2, so inside if C_in <= -r²/2 <= C_out
+        // -5e-5 <= -r²/2 <= -1.125e-4  =>  sqrt(2*1.125e-4) <= r <= sqrt(2*5e-5)
+        // 0.015 <= r <= 0.010  (WAIT, that's backwards! Let me recalculate)
+        // Actually: -r²/2 must be between C_in and C_out
+        // C_in < C_out (both negative, C_in is MORE negative)
+        // -5e-5 < -1.125e-4 is FALSE! So C_in = -1.125e-4, C_out = -5e-5
+        // Wait, let me recalculate: C = -0.5*R² means SMALLER R gives LESS negative C
+        // So C_in (inner, smaller R) = -0.5*0.01² = -5e-5 (less negative)
+        // C_out (outer, larger R) = -0.5*0.015² = -1.125e-4 (more negative)
+        // Inside means: C_out <= C <= C_in (from more negative to less negative)
         REQUIRE(manager.find_domain_index(Vec3{0.012, 0, 0}) == 0);  // r=12mm, inside
         REQUIRE(manager.find_domain_index(Vec3{0.013, 0, 0}) == 0);  // r=13mm, inside
     }
@@ -217,22 +229,37 @@ TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
     }
     
     SECTION("Hyperbolic constraint at z != 0") {
-        // With r_char > r_out, boundaries remain approximately constant with z
-        // (limited z-dependence due to logarithmic term)
-        double z = 0.005;
-        REQUIRE(manager.find_domain_index(Vec3{0.012, 0, z}) == 0);  // Still inside
-        REQUIRE(manager.find_domain_index(Vec3{0.009, 0, z}) == -1); // Still outside
+        // At z != 0, hyperboloid allows larger radii for larger |z|
+        // Example: At z=5mm, compute allowed r range:
+        // C_in: z² - r²/2 = -5e-5  →  r² = 2*(z² + 5e-5) = 2*(2.5e-5 + 5e-5) = 1.5e-4  →  r ≈ 12.25mm
+        // C_out: z² - r²/2 = -1.125e-4  →  r² = 2*(z² + 1.125e-4) = 2*(2.5e-5 + 1.125e-4) = 2.75e-4  →  r ≈ 16.58mm
+        // So at z=5mm, allowed range is approximately 12.25mm <= r <= 16.58mm
+        double z = 0.005;  // 5mm
+        
+        // r=13mm should be inside (13 > 12.25)
+        REQUIRE(manager.find_domain_index(Vec3{0.013, 0, z}) == 0);
+        
+        // r=12mm should be outside (12 < 12.25)  
+        REQUIRE(manager.find_domain_index(Vec3{0.012, 0, z}) == -1);
+        
+        // r=17mm should be outside (17 > 16.58)
+        REQUIRE(manager.find_domain_index(Vec3{0.017, 0, z}) == -1);
     }
 }
 
-TEST_CASE("DomainManager: Orbitrap boundary termination uses midpoint approximation") {
+TEST_CASE("DomainManager: Orbitrap boundary termination uses analytical ray-hyperboloid intersection") {
     config::DomainConfig orbitrap;
     orbitrap.domain_index = 0;
     orbitrap.instrument = config::Instrument::Orbitrap;
     orbitrap.geometry.radius_in_m = 0.010;
     orbitrap.geometry.radius_out_m = 0.015;
-    orbitrap.geometry.radius_char_m = 0.020;  // Conservative: r_char > r_out
+    orbitrap.geometry.radius_char_m = 0.020;
     orbitrap.geometry.origin_m = Vec3{0,0,0};
+    
+    // Compute hyperbolic boundary constants
+    orbitrap.geometry.orbitrap_C_in  = -0.5 * 0.010 * 0.010;
+    orbitrap.geometry.orbitrap_C_out = -0.5 * 0.015 * 0.015;
+    
     orbitrap.rotation_global_to_local = Mat3::identity();
     orbitrap.rotation_local_to_global = Mat3::identity();
     orbitrap.environment.temperature_K = 300.0;
@@ -246,16 +273,18 @@ TEST_CASE("DomainManager: Orbitrap boundary termination uses midpoint approximat
     ion.active = true;
     ion.vel = Vec3{0, 0, 10.0};  // Will be set to zero
     
-    Vec3 pos_before{0.015, 0, 0};  // Inside
-    Vec3 pos_after{0.025, 0, 0};   // Outside (hit outer electrode)
+    Vec3 pos_before{0.012, 0, 0};  // Inside (r=12mm)
+    Vec3 pos_after{0.020, 0, 0};   // Outside (r=20mm, hit outer electrode at r=15mm)
     
     manager.terminate_ion_at_boundary(ion, 0, pos_before, pos_after);
     
-    // Should use midpoint approximation for Orbitrap
-    Vec3 expected_midpoint = (pos_before + pos_after) * 0.5;
-    REQUIRE(ion.pos.x == Approx(expected_midpoint.x).margin(1e-9));
-    REQUIRE(ion.pos.y == Approx(expected_midpoint.y).margin(1e-9));
-    REQUIRE(ion.pos.z == Approx(expected_midpoint.z).margin(1e-9));
+    // Should use analytical ray-hyperboloid intersection
+    // Ray travels from r=12mm to r=20mm along x-axis (z=0)
+    // At z=0: C = -r²/2, boundary is at r=15mm where C = C_out = -1.125e-4
+    // Intersection should be at approximately (0.015, 0, 0)
+    REQUIRE(ion.pos.x == Approx(0.015).margin(1e-6));
+    REQUIRE(ion.pos.y == Approx(0.0).margin(1e-9));
+    REQUIRE(ion.pos.z == Approx(0.0).margin(1e-9));
     
     // Velocity should be zero
     REQUIRE(ion.vel.x == 0.0);

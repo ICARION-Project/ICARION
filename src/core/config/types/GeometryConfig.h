@@ -27,6 +27,10 @@ struct GeometryConfig {
     double radius_out_m = 0.0;          ///< Outer electrode radius [m]
     double radius_char_m = 0.0;         ///< Characteristic radius [m]
     
+    // Hyperbolic boundary constants (computed from radii)
+    double orbitrap_C_in = 0.0;         ///< C_in  = -0.5 * R_in² (inner hyperboloid)
+    double orbitrap_C_out = 0.0;        ///< C_out = -0.5 * R_out² (outer hyperboloid)
+    
     // === TOF-specific ===
     double acc_length_m = 0.0;          ///< Acceleration region length [m] (TOF)
 

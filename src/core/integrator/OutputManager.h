@@ -211,7 +211,9 @@ private:
     
     // State tracking
     bool initialized_ = false;
-    size_t total_writes_ = 0;  ///< Total number of HDF5 writes
+    bool finalized_ = false;     ///< Has finalize() been called?
+    double last_time_ = 0.0;     ///< Last logged time (for incomplete metadata)
+    size_t total_writes_ = 0;    ///< Total number of HDF5 writes
 };
 
 }  // namespace integrator

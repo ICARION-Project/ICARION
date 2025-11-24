@@ -1209,24 +1209,24 @@ ICARION supports time-varying field parameters through a flexible waveform syste
 **Named Waveforms (Reusable):**
 ```json
 {
-  "waveforms": {
-    "ac_voltage_ramp": {
-      "type": "linear",
-      "start": 0,
-      "end": 500,
-      "end_time_s": 0.001
-    },
-    "rf_chirp": {
-      "type": "linear",
-      "start": 1000000,
-      "end": 2000000,
-      "end_time_s": 0.01
-    }
-  },
   "domains": [
     {
       "name": "domain_1",
       "fields": {
+        "waveforms": {
+          "ac_voltage_ramp": {
+            "type": "linear",
+            "start": 0,
+            "end": 500,
+            "end_time_s": 0.001
+          },
+          "rf_chirp": {
+            "type": "linear",
+            "start": 1000000,
+            "end": 2000000,
+            "end_time_s": 0.01
+          }
+        },
         "AC": {
           "voltage_V": "@ac_voltage_ramp",
           "frequency_Hz": 1000000
@@ -1393,28 +1393,28 @@ Custom waveform defined by time-value pairs with interpolation:
 
 #### Waveform Library (Named Waveforms)
 
-Define waveforms once at the top level and reference them multiple times:
+Define waveforms once per domain and reference them multiple times within that domain:
 
 ```json
 {
-  "waveforms": {
-    "my_ramp": {
-      "type": "linear",
-      "start": 0,
-      "end": 500,
-      "end_time_s": 0.001
-    },
-    "fast_chirp": {
-      "type": "linear",
-      "start": 1e6,
-      "end": 2e6,
-      "end_time_s": 0.01
-    }
-  },
   "domains": [
     {
       "name": "region_1",
       "fields": {
+        "waveforms": {
+          "my_ramp": {
+            "type": "linear",
+            "start": 0,
+            "end": 500,
+            "end_time_s": 0.001
+          },
+          "fast_chirp": {
+            "type": "linear",
+            "start": 1e6,
+            "end": 2e6,
+            "end_time_s": 0.01
+          }
+        },
         "AC": {
           "voltage_V": "@my_ramp",
           "frequency_Hz": "@fast_chirp"
@@ -1424,8 +1424,16 @@ Define waveforms once at the top level and reference them multiple times:
     {
       "name": "region_2",
       "fields": {
+        "waveforms": {
+          "my_ramp": {
+            "type": "linear",
+            "start": 0,
+            "end": 500,
+            "end_time_s": 0.001
+          }
+        },
         "AC": {
-          "voltage_V": "@my_ramp",  // Reuse same waveform
+          "voltage_V": "@my_ramp",
           "frequency_Hz": 500000
         }
       }
@@ -1435,15 +1443,16 @@ Define waveforms once at the top level and reference them multiple times:
 ```
 
 **Benefits:**
-- ✅ Define once, use multiple times
+- ✅ Define once per domain, use multiple times within that domain
 - ✅ Self-documenting (named waveforms)
-- ✅ Change waveform in one place → updates all references
+- ✅ Change waveform in one place → updates all references in that domain
 - ✅ No copy-paste errors
+- ✅ Domain-scoped isolation (different domains can have different waveforms with same name)
 
 **Syntax:**
 - Waveform reference: `"@waveform_id"`
 - Must start with `@` symbol
-- ID must exist in `waveforms` library
+- ID must exist in that domain's `fields.waveforms` library
 
 #### ValueOrWaveform Pattern
 
@@ -1508,26 +1517,6 @@ Fields can be specified as either static values or waveforms:
     "folder": "./results",
     "trajectory_file": "waveform_test.h5"
   },
-  "waveforms": {
-    "voltage_ramp": {
-      "type": "linear",
-      "start": 0,
-      "end": 500,
-      "end_time_s": 0.005
-    },
-    "freq_chirp": {
-      "type": "linear",
-      "start": 1000000,
-      "end": 2000000,
-      "end_time_s": 0.01
-    },
-    "modulation": {
-      "type": "sinusoidal",
-      "offset": 250,
-      "amplitude": 50,
-      "frequency_Hz": 100
-    }
-  },
   "domains": [
     {
       "name": "ims_region",
@@ -1543,6 +1532,26 @@ Fields can be specified as either static values or waveforms:
         "gas_species": "N2"
       },
       "fields": {
+        "waveforms": {
+          "voltage_ramp": {
+            "type": "linear",
+            "start": 0,
+            "end": 500,
+            "end_time_s": 0.005
+          },
+          "freq_chirp": {
+            "type": "linear",
+            "start": 1000000,
+            "end": 2000000,
+            "end_time_s": 0.01
+          },
+          "modulation": {
+            "type": "sinusoidal",
+            "offset": 250,
+            "amplitude": 50,
+            "frequency_Hz": 100
+          }
+        },
         "DC": {
           "axial_V": 100.0
         },

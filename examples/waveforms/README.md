@@ -48,12 +48,12 @@ AC field with sinusoidal amplitude modulation at 100Hz.
 
 ### 4. Reusable Named Waveforms (`reusable_waveforms.json`)
 
-Multi-domain simulation with shared waveforms defined in library.
+Multi-domain simulation with per-domain waveform libraries.
 
 **Features:**
-- Top-level `waveforms` library
-- Multiple domains referencing same waveforms
-- Use case: Complex instruments with synchronized waveforms
+- Per-domain `waveforms` library in `fields.waveforms`
+- Multiple fields referencing same waveforms within a domain
+- Use case: Complex instruments with multiple fields using consistent profiles
 
 **Run:**
 ```bash
@@ -106,16 +106,16 @@ Custom voltage profile from time-value pairs with linear interpolation.
 
 ```json
 {
-  "waveforms": {
-    "my_ramp": {
-      "type": "linear",
-      "start": 0,
-      "end": 500,
-      "duration_s": 0.001
-    }
-  },
   "domains": [{
     "fields": {
+      "waveforms": {
+        "my_ramp": {
+          "type": "linear",
+          "start": 0,
+          "end": 500,
+          "end_time_s": 0.001
+        }
+      },
       "DC": {
         "axial_V": "@my_ramp"
       }

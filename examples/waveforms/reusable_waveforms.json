@@ -21,32 +21,6 @@
     "print_progress": true
   },
   
-  "waveforms": {
-    "voltage_ramp": {
-      "type": "linear",
-      "start": 0.0,
-      "end": 500.0,
-      "start_time_s": 0.0,
-      "end_time_s": 0.005,
-      "clamp": true
-    },
-    "freq_chirp": {
-      "type": "linear",
-      "start": 1000000.0,
-      "end": 2000000.0,
-      "start_time_s": 0.0,
-      "end_time_s": 0.01,
-      "clamp": true
-    },
-    "sinusoidal_mod": {
-      "type": "sinusoidal",
-      "offset": 250.0,
-      "amplitude": 50.0,
-      "frequency_Hz": 100.0,
-      "phase_rad": 0.0
-    }
-  },
-  
   "domains": [
     {
       "name": "ims_region_1",
@@ -62,6 +36,31 @@
         "gas_species": "N2"
       },
       "fields": {
+        "waveforms": {
+          "voltage_ramp": {
+            "type": "linear",
+            "start": 0.0,
+            "end": 500.0,
+            "start_time_s": 0.0,
+            "end_time_s": 0.005,
+            "clamp": true
+          },
+          "freq_chirp": {
+            "type": "linear",
+            "start": 1000000.0,
+            "end": 2000000.0,
+            "start_time_s": 0.0,
+            "end_time_s": 0.01,
+            "clamp": true
+          },
+          "sinusoidal_mod": {
+            "type": "sinusoidal",
+            "offset": 250.0,
+            "amplitude": 50.0,
+            "frequency_Hz": 100.0,
+            "phase_rad": 0.0
+          }
+        },
         "DC": {
           "axial_V": "@voltage_ramp"
         },
@@ -85,6 +84,24 @@
         "gas_species": "N2"
       },
       "fields": {
+        "waveforms": {
+          "voltage_ramp": {
+            "type": "linear",
+            "start": 0.0,
+            "end": 500.0,
+            "start_time_s": 0.0,
+            "end_time_s": 0.005,
+            "clamp": true
+          },
+          "freq_chirp": {
+            "type": "linear",
+            "start": 1000000.0,
+            "end": 2000000.0,
+            "start_time_s": 0.0,
+            "end_time_s": 0.01,
+            "clamp": true
+          }
+        },
         "DC": {
           "axial_V": "@voltage_ramp"
         },

@@ -695,9 +695,30 @@ void HDF5Writer::write_domain(
     H5::Group fields = dom_group.createGroup("fields");
     
     // Waveform library (v1.1: store for reproducibility)
-    if (!domain.fields.waveform_library.empty()) {
+    // Collect both named waveforms AND inline waveforms
+    std::map<std::string, config::Waveform> all_waveforms = domain.fields.waveform_library;
+    
+    // Helper to add inline waveform if present
+    auto add_inline = [&](const std::string& field_name, const config::ValueOrWaveform& vow) {
+        if (vow.waveform.has_value()) {
+            all_waveforms[field_name + "_inline"] = vow.waveform.value();
+        }
+    };
+    
+    // Collect all inline waveforms from fields
+    add_inline("dc_axial_V", domain.fields.dc.axial_V);
+    add_inline("dc_radial_V", domain.fields.dc.radial_V);
+    add_inline("dc_EN_Td", domain.fields.dc.EN_Td);
+    add_inline("dc_quad_V", domain.fields.dc.quad_V);
+    add_inline("rf_voltage_V", domain.fields.rf.voltage_V);
+    add_inline("rf_frequency_Hz", domain.fields.rf.frequency_Hz);
+    add_inline("ac_voltage_V", domain.fields.ac.voltage_V);
+    add_inline("ac_frequency_Hz", domain.fields.ac.frequency_Hz);
+    
+    // Write all waveforms (both named and inline)
+    if (!all_waveforms.empty()) {
         H5::Group waveform_group = fields.createGroup("waveforms");
-        write_waveform_library(waveform_group, domain.fields.waveform_library);
+        write_waveform_library(waveform_group, all_waveforms);
     }
     
     // Helper lambda to safely extract t=0 value (returns 0.0 if not set)

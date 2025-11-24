@@ -195,16 +195,12 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         // 6. Get domain-specific ForceRegistry
         const auto& force_registry = force_registries_[domain_idx];
         
-        // 7. Compute forces (ForceRegistry with domain context)
+        // 7. Integrate trajectory (IIntegrationStrategy)
+        // Note: Integrator computes forces internally via ForceRegistry (4x for RK4)
+        // No need to call compute_total_force() here - would be redundant
         ion.pos = ctx.pos_local();
         ion.vel = ctx.vel_local();
         
-        physics::ForceContext force_ctx;  // TODO: Populate with field provider
-        Vec3 total_force = force_registry->compute_total_force(ion, current_time_, force_ctx);
-        
-        // 8. Integrate trajectory (IIntegrationStrategy)
-        // Note: IIntegrationStrategy::step() computes forces internally via ForceRegistry
-        // ForceRegistry now knows its domain, so we don't need to pass domain_config
         integrator_->step(ion, current_time_, dt, *force_registry, ions);
         
         // Update local coordinates after integration

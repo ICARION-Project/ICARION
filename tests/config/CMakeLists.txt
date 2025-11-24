@@ -19,6 +19,9 @@ target_include_directories(test_config_loader
 )
 
 add_test(NAME ConfigLoader COMMAND test_config_loader)
+set_tests_properties(ConfigLoader PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 
 # Species and Reaction loader smoke tests
 add_executable(test_species_loader_smoke

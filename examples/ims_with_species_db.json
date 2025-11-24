@@ -1,21 +1,39 @@
 {
   "title": "IMS Basic Validation with Species Database",
   "simulation": {
-    "integrator": "rk4",
+    "integrator": "RK4",
     "dt_s": 1e-9,
     "total_time_s": 1e-4,
     "write_interval": 100
   },
   "physics": {
-    "collision_model": "hs",
+    "collision_model": "HSS",
     "enable_space_charge": false,
     "enable_reactions": false
   },
   "output": {
-    "trajectory_file": "ims_validation_trajectory.h5"
+    "folder": "./results/ims_species_db",
+    "trajectory_file": "ims_validation_trajectory.h5",
+    "print_progress": true
   },
   "species_database": "../data/species_database_v1.json",
-  "ion_cloud": "ion_clouds/default_cloud.json",
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 10,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
   "domains": [
     {
       "name": "drift_region",
@@ -28,7 +46,7 @@
       "env": {
         "temperature_K": 300.0,
         "pressure_Pa": 101325.0,
-        "gas": "N2"
+        "gas_species": "N2"
       },
       "fields": {
         "DC": {

@@ -1,23 +1,38 @@
 {
   "title": "IMS with Auto-Loaded Global Databases (Fallback Demo)",
   "simulation": {
-    "integrator": "rk4",
+    "integrator": "RK4",
     "dt_s": 1e-9,
     "total_time_s": 1e-4,
     "write_interval": 100
   },
   "physics": {
-    "collision_model": "hs",
-    "enable_spacecharge": false,
-    "enable_reactions": true,
-    "enable_diffusion": true
+    "collision_model": "HSS",
+    "enable_space_charge": false,
+    "enable_reactions": true
   },
   "output": {
+    "folder": "./results/ims_fallback",
     "trajectory_file": "ims_fallback_trajectory.h5",
-    "format": "hdf5",
-    "compress": true
+    "print_progress": true
   },
-  "ion_cloud": "ion_clouds/default_cloud.json",
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 10,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
   "domains": [
     {
       "name": "drift_region",
@@ -30,11 +45,12 @@
       "env": {
         "temperature_K": 300.0,
         "pressure_Pa": 101325.0,
-        "gas": "N2"
+        "gas_species": "N2"
       },
-      "efield": {
-        "mode": "uniform",
-        "uniform_field_Vm": [500.0, 0.0, 0.0]
+      "fields": {
+        "DC": {
+          "axial_V": 100.0
+        }
       }
     }
   ]

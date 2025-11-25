@@ -217,6 +217,18 @@ private:
      * Replaces legacy isInsideDomain() from paramUtils.cpp.
      */
     bool is_inside_domain(const config::DomainConfig& dom, const Vec3& pos) const;
+    
+    /**
+     * @brief Solve for radial position on Orbitrap hyperboloid at given z
+     * @param z Axial position [m] (absolute value, symmetric around z=0)
+     * @param R_electrode Electrode radius (R_in or R_out) [m]
+     * @param R_m Characteristic radius [m]
+     * @return Radial position r [m] on hyperboloid surface
+     * 
+     * Solves: z² = 0.5(r² - R²) + R_m² × ln(R/r) for r using bisection method.
+     * Used to compute allowed radial range [r_in, r_out] at any axial position.
+     */
+    double orbitrap_r_for_z(double z, double R_electrode, double R_m) const;
 };
 
 }  // namespace integrator

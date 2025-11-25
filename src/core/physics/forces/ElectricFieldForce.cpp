@@ -323,13 +323,12 @@ Vec3 ElectricFieldForce::compute_orbitrap_field(const IonState& ion) const {
     const double k = 2.0 * voltage / (r_char_sq * std::log(r_out / r_in)
                                      - 0.5 * (r_out * r_out - r_in * r_in));
     
-    // Center z-coordinate
-    const double z_center = ion.pos.z - 0.5 * domain_->geometry.length_m;
-    
+    // Orbitrap field uses z directly (not centered) - hyperboloid equation is z² - r²/2 = C
+    // The field is naturally symmetric around z=0 (domain origin)
     return Vec3{
         0.5 * k * ion.pos.x * C,
         0.5 * k * ion.pos.y * C,
-       -k * z_center
+       -k * ion.pos.z
     };
 }
 

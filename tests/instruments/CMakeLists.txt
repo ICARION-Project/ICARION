@@ -117,3 +117,90 @@ set_tests_properties(LQITStability PROPERTIES
     TIMEOUT 60
     LABELS "instrument;lqit;physics"
 )
+
+# Orbitrap axial frequency validation
+add_executable(test_orbitrap_frequency
+    test_orbitrap_frequency.cpp
+)
+
+target_link_libraries(test_orbitrap_frequency
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_orbitrap_frequency
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/tests
+)
+
+set_target_properties(test_orbitrap_frequency PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+add_test(NAME OrbitrapFrequency COMMAND test_orbitrap_frequency)
+set_tests_properties(OrbitrapFrequency PROPERTIES
+    TIMEOUT 30
+    LABELS "instrument;orbitrap;physics"
+)
+
+# Domain transition validation
+add_executable(test_domain_transition
+    test_domain_transition.cpp
+)
+
+target_link_libraries(test_domain_transition
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_domain_transition
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/tests
+)
+
+set_target_properties(test_domain_transition PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+add_test(NAME DomainTransition COMMAND test_domain_transition)
+set_tests_properties(DomainTransition PROPERTIES
+    TIMEOUT 30
+    LABELS "instrument;transition;physics"
+)
+
+# Orbitrap frequency validation
+add_executable(test_orbitrap_frequency
+    test_orbitrap_frequency.cpp
+)
+
+target_link_libraries(test_orbitrap_frequency
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_orbitrap_frequency
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/tests
+)
+
+set_target_properties(test_orbitrap_frequency PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+add_test(NAME OrbitrapFrequency COMMAND test_orbitrap_frequency)
+set_tests_properties(OrbitrapFrequency PROPERTIES
+    TIMEOUT 30
+    LABELS "instrument;orbitrap;physics"
+)

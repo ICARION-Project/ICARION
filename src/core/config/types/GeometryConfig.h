@@ -25,11 +25,7 @@ struct GeometryConfig {
     // === Orbitrap-specific ===
     double radius_in_m = 0.0;           ///< Inner electrode radius [m]
     double radius_out_m = 0.0;          ///< Outer electrode radius [m]
-    double radius_char_m = 0.0;         ///< Characteristic radius [m]
-    
-    // Hyperbolic boundary constants (computed from radii)
-    double orbitrap_C_in = 0.0;         ///< C_in  = -0.5 * R_in² (inner hyperboloid)
-    double orbitrap_C_out = 0.0;        ///< C_out = -0.5 * R_out² (outer hyperboloid)
+    double radius_char_m = 0.0;         ///< Characteristic radius [m] (hyperlogarithmic geometry)
     
     // === TOF-specific ===
     double acc_length_m = 0.0;          ///< Acceleration region length [m] (TOF)

@@ -36,15 +36,17 @@ config::FullConfig make_orbitrap_config(double R_inner, double R_outer, double R
     dom.name = "orbitrap";
     dom.domain_index = 0;
     
-    // Compute derived orbitrap parameters (C_in, C_out)
-    dom.geometry.orbitrap_C_in = -0.5 * R_inner * R_inner;
-    dom.geometry.orbitrap_C_out = -0.5 * R_outer * R_outer;
-    
     // Orbitrap geometry radii
     dom.geometry.radius_in_m = R_inner;
     dom.geometry.radius_out_m = R_outer;
     dom.geometry.radius_char_m = R_char;
     dom.geometry.origin_m = {0.0, 0.0, 0.0};  // Orbitrap centered at origin (z=0 is axial center)
+    dom.geometry.length_m = 1;  // Example length, adjust as needed
+    
+    // CRITICAL: Initialize rotation matrices (identity = no rotation)
+    // Without this, domain_manager->find_domain_index() may fail!
+    dom.rotation_global_to_local = Mat3::identity();
+    dom.rotation_local_to_global = Mat3::identity();
     
 
     
@@ -96,6 +98,8 @@ core::IonState make_ion(double mass_amu, double E_tangential_eV) {
     ion.ion_charge_C = ELEM_CHARGE_C;
     ion.CCS_m2 = 1e-19;
     ion.active = true;
+    ion.born = true;           // Must be true for SimulationEngine
+    ion.birth_time_s = 0.0;   // Initial ion (not from reaction)
     return ion;
 }
 
@@ -143,7 +147,7 @@ TEST_CASE("Orbitrap: Axial oscillation frequency", "[instrument][orbitrap][physi
     INFO("Expected frequency: " << f_expected/1000.0 << " kHz");
     INFO("Expected period: " << 1.0/f_expected * 1e6 << " µs");
     
-    // Run simulation with trace
+    // Run simulation (SimulationEngine path)
     auto result = run_simple_simulation(cfg, {ion}, true);
     
     REQUIRE(result.ions.size() == 1);
@@ -161,10 +165,10 @@ TEST_CASE("Orbitrap: Axial oscillation frequency", "[instrument][orbitrap][physi
         std::cout << "Final velocity: vx=" << final_ion.vel.x << " m/s, vy=" << final_ion.vel.y 
                   << " m/s, vz=" << final_ion.vel.z << " m/s\n";
         std::cout << "Active: " << final_ion.active << "\n";
-        std::cout << "Initial: r=" << 9.0 << " mm, z=" << 6.0 << " mm\n";
+        std::cout << "Initial: r=" << 9.0 << " mm, z=" << 2.0 << " mm\n";
         
         // Print boundary check at starting position
-        double z_start = 6e-3;
+        double z_start = 2e-3;
         double R_in = 6e-3;
         double R_out = 15e-3;
         double R_m = 22e-3;
@@ -186,7 +190,7 @@ TEST_CASE("Orbitrap: Axial oscillation frequency", "[instrument][orbitrap][physi
         
         double r_in_start = calc_r_boundary(z_start, R_in);
         double r_out_start = calc_r_boundary(z_start, R_out);
-        std::cout << "At z=6mm: r_in=" << r_in_start*1000 << " mm, r_out=" << r_out_start*1000 << " mm\n";
+        std::cout << "At z=2mm: r_in=" << r_in_start*1000 << " mm, r_out=" << r_out_start*1000 << " mm\n";
         std::cout << "Ion starts at r=9mm -> inside? " << (9e-3 >= r_in_start && 9e-3 <= r_out_start) << "\n";
         
         REQUIRE(final_ion.active);
@@ -243,7 +247,7 @@ TEST_CASE("Orbitrap: Frequency scales with sqrt(1/m)", "[instrument][orbitrap][p
     INFO("Heavy ion (m/z=800): " << f_heavy/1000.0 << " kHz");
     INFO("Frequency ratio: " << f_light/f_heavy << " (expected: 2.0)");
     
-    auto result_light = run_simple_simulation(cfg1, {ion_light}, true);  // Enable trace to use manual loop
+    auto result_light = run_simple_simulation(cfg1, {ion_light}, true);
     auto result_heavy = run_simple_simulation(cfg2, {ion_heavy}, true);
     
     REQUIRE(result_light.ions.size() == 1);
@@ -303,7 +307,7 @@ TEST_CASE("Orbitrap: Mass-dependent detection", "[instrument][orbitrap][physics]
     
     for (double mass : masses) {
         auto ion = make_ion(mass, E_tangential_eV);
-        auto result = run_simple_simulation(cfg, {ion}, true);  // Enable trace to use manual loop
+        auto result = run_simple_simulation(cfg, {ion}, true);
         
         REQUIRE(result.ions.size() == 1);
         

@@ -14,24 +14,58 @@ namespace integrator {
 namespace {
 
 /**
- * @brief Residual of Orbitrap hyperlogarithmic surface
+ * @brief Residual function for Orbitrap hyperlogarithmic electrode surface
  * 
- * Equation: z² = 0.5(r² - R²) + R_m² × ln(R/r)
- * Residual: f(r) = 0.5(r² - R²) + R_m² × ln(R/r) - z²
+ * **Hyperlogarithmic Surface Equation (Makarov 2000):**
  * 
- * When f(r) = 0, point (r,z) lies on electrode surface.
+ *   z² = 0.5(r² - R²) + R_m² × ln(R/r)
+ * 
+ * Rearranged as implicit equation F(r,z) = 0:
+ * 
+ *   F(r,z) = z² - 0.5(r² - R²) - R_m² × ln(R/r) = 0
+ * 
+ * **Parameters:**
+ * @param r Current radial coordinate [m] (ion position)
+ * @param z Current axial coordinate [m] (ion position, symmetric: |z|)
+ * @param R Electrode radius at z=0 [m] (R_in for inner, R_out for outer)
+ * @param R_m Characteristic radius [m] (field shaping parameter, R_m > R_out)
+ * 
+ * **Return:**
+ * @return Residual F(r,z):
+ *   - F < 0: Point (r,z) is inside electrode (closer to axis than surface)
+ *   - F = 0: Point (r,z) is ON electrode surface
+ *   - F > 0: Point (r,z) is outside electrode (further from axis)
+ * 
+ * **Usage in Bisection:**
+ * - Given z, find r where F(r,z) = 0 → r is surface radius at height z
+ * - Bracket: r ∈ [r_lo, r_hi] where F(r_lo) × F(r_hi) < 0
+ * 
+ * **Physical Meaning:**
+ * - At z=0: r = R (electrode passes through (R, 0))
+ * - As |z| increases: r decreases (electrodes curve inward)
+ * - Creates quadro-logarithmic potential U(r,z) for mass analysis
  */
-inline double orbitrap_surface_residual(double r, double z, double R, double Rm) {
-    const double z2 = z * z;
-    return 0.5 * (r * r - R * R) + Rm * Rm * std::log(R / r) - z2;
+inline double orbitrap_surface_residual(double r, double z, double R, double R_m) {
+    // Hyperlogarithmic equation: z² = 0.5(r² - R²) + R_m² × ln(R/r)
+    // Rearranged: z² - 0.5(r² - R²) - R_m² × ln(R/r) = 0
+    const double term1 = z * z;
+    const double term2 = 0.5 * (r * r - R * R);
+    const double term3 = R_m * R_m * std::log(R / r);
+    
+    return term1 - term2 - term3;
 }
 
 /**
  * @brief Residual for 3D point (convenience wrapper)
+ * 
+ * @param p_local 3D position in local coordinates [m]
+ * @param R Electrode radius at z=0 [m]
+ * @param R_m Characteristic radius [m]
+ * @return Residual F(r,z) where r = sqrt(x² + y²), z = |z_local|
  */
-inline double orbitrap_surface_residual(const Vec3& p_local, double R, double Rm) {
+inline double orbitrap_surface_residual(const Vec3& p_local, double R, double R_m) {
     const double r = std::sqrt(p_local.x * p_local.x + p_local.y * p_local.y);
-    return orbitrap_surface_residual(r, std::fabs(p_local.z), R, Rm);
+    return orbitrap_surface_residual(r, std::fabs(p_local.z), R, R_m);
 }
 
 }  // namespace
@@ -47,9 +81,33 @@ DomainManager::DomainManager(const std::vector<config::DomainConfig>& domains)
 }
 
 int DomainManager::find_domain_index(const Vec3& pos) const {
+    static int find_call_count = 0;
+    bool do_debug_find = (find_call_count < 5);
+    
+    if (do_debug_find) {
+        std::cerr << "\n=== find_domain_index CALL #" << find_call_count << " ===\n";
+        std::cerr << "  Position: (" << pos.x*1000 << ", " << pos.y*1000 << ", " << pos.z*1000 << ") mm\n";
+        std::cerr << "  domains_.size() = " << domains_.size() << "\n";
+        find_call_count++;
+    }
+    
     for (size_t i = 0; i < domains_.size(); ++i) {
-        if (is_inside_domain(domains_[i], pos)) {
+        bool inside = is_inside_domain(domains_[i], pos);
+        if (do_debug_find && i == 0) {
+            std::cerr << "  Domain[" << i << "]: inside=" << inside << "\n";
+        }
+        if (inside) {
+            if (do_debug_find) std::cerr << "  RETURNING domain index " << i << "\n";
             return static_cast<int>(i);
+        }
+    }
+    
+    // DEBUG: Print why ion is considered outside
+    if (do_debug_find) {
+        std::cerr << "  RETURNING -1 (ion outside all domains)\n";
+        if (!domains_.empty()) {
+            std::cerr << "  Domain[0].instrument: " << static_cast<int>(domains_[0].instrument) << "\n";
+            std::cerr << "  Domain[0].name: " << domains_[0].name << "\n";
         }
     }
     return -1;
@@ -139,7 +197,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
         
         const double Rin = dom.geometry.radius_in_m;
         const double Rout = dom.geometry.radius_out_m;
-        const double Rm = dom.geometry.radius_char_m;
+        const double R_m = dom.geometry.radius_char_m;
         const double z_max = 0.5 * dom.geometry.length_m;
         
         double t_min = 1.0;  // Parameter in [0,1]
@@ -150,10 +208,10 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
             return pos_before_local + dir * (t * step_len);
         };
         
-        // Helper: intersect with electrode surface (R, Rm)
+        // Helper: intersect with electrode surface (R, R_m)
         auto intersect_surface = [&](double R) {
-            const double f0 = orbitrap_surface_residual(pos_before_local, R, Rm);
-            const double f1 = orbitrap_surface_residual(pos_after_local, R, Rm);
+            const double f0 = orbitrap_surface_residual(pos_before_local, R, R_m);
+            const double f1 = orbitrap_surface_residual(pos_after_local, R, R_m);
             
             if (f0 * f1 > 0.0) return;  // No crossing
             
@@ -168,7 +226,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
             for (int i = 0; i < max_iter; ++i) {
                 double t_mid = 0.5 * (t_lo + t_hi);
                 Vec3 p_mid = point_on_segment(t_mid);
-                double f_mid = orbitrap_surface_residual(p_mid, R, Rm);
+                double f_mid = orbitrap_surface_residual(p_mid, R, R_m);
                 
                 if (std::fabs(f_mid) < eps) {
                     if (t_mid < t_min) {
@@ -211,8 +269,8 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
             Vec3 p = point_on_segment(t_plane);
             double r = std::sqrt(p.x * p.x + p.y * p.y);
             
-            double r_in = orbitrap_r_for_z(std::fabs(z_plane), Rin, Rm);
-            double r_out = orbitrap_r_for_z(std::fabs(z_plane), Rout, Rm);
+            double r_in = orbitrap_r_for_z(std::fabs(z_plane), Rin, R_m);
+            double r_out = orbitrap_r_for_z(std::fabs(z_plane), Rout, R_m);
             
             if (r >= r_in - DOMAIN_BOUNDARY_EPSILON &&
                 r <= r_out + DOMAIN_BOUNDARY_EPSILON) {
@@ -327,30 +385,46 @@ bool DomainManager::is_inside_domain(const config::DomainConfig& dom, const Vec3
     // ========== ORBITRAP: Hyperlogarithmic Electrodes ==========
     const double Rin = dom.geometry.radius_in_m;
     const double Rout = dom.geometry.radius_out_m;
-    const double Rm = dom.geometry.radius_char_m;
+    const double R_m = dom.geometry.radius_char_m;
     
     const double z_max = 0.5 * dom.geometry.length_m;
     const double z_abs = std::fabs(local.z);
     
+    // DEBUG: First few calls
+    static int orbitrap_debug_count = 0;
+    bool do_debug = (orbitrap_debug_count < 3);
+    if (do_debug) {
+        std::cerr << "\n=== ORBITRAP is_inside_domain DEBUG ===\n";
+        std::cerr << "  Global pos: (" << globalPos.x*1000 << ", " << globalPos.y*1000 << ", " << globalPos.z*1000 << ") mm\n";
+        std::cerr << "  Local pos: (" << local.x*1000 << ", " << local.y*1000 << ", " << local.z*1000 << ") mm\n";
+        std::cerr << "  r=" << r*1000 << " mm, z_abs=" << z_abs*1000 << " mm\n";
+        std::cerr << "  Rin=" << Rin*1000 << " mm, Rout=" << Rout*1000 << " mm, R_m=" << R_m*1000 << " mm\n";
+        std::cerr << "  z_max=" << z_max*1000 << " mm, length_m=" << dom.geometry.length_m*1000 << " mm\n";
+        orbitrap_debug_count++;
+    }
+    
     // Check axial bounds
     if (z_abs > z_max + DOMAIN_BOUNDARY_EPSILON) {
+        if (do_debug) std::cerr << "  FAIL: z_abs > z_max\n";
         return false;
     }
     
     // Compute allowed radial range at this z
-    const double r_in_allowed = orbitrap_r_for_z(z_abs, Rin, Rm);
-    const double r_out_allowed = orbitrap_r_for_z(z_abs, Rout, Rm);
+    const double r_in_allowed = orbitrap_r_for_z(z_abs, Rin, R_m);
+    const double r_out_allowed = orbitrap_r_for_z(z_abs, Rout, R_m);
     
     if (!(r_in_allowed > 0.0 && r_out_allowed > r_in_allowed)) {
         return false;
     }
     
     // Check if ion is in allowed corridor
-    return (r >= r_in_allowed - DOMAIN_BOUNDARY_EPSILON) &&
-           (r <= r_out_allowed + DOMAIN_BOUNDARY_EPSILON);
+    bool inside = (r >= r_in_allowed - DOMAIN_BOUNDARY_EPSILON) &&
+                  (r <= r_out_allowed + DOMAIN_BOUNDARY_EPSILON);
+    
+    return inside;
 }
 
-double DomainManager::orbitrap_r_for_z(double z, double R, double Rm) const {
+double DomainManager::orbitrap_r_for_z(double z, double R, double R_m) const {
     const double z_abs = std::fabs(z);
     const double eps = 1e-10;
     const int max_iter = 80;
@@ -360,28 +434,49 @@ double DomainManager::orbitrap_r_for_z(double z, double R, double Rm) const {
         return R;
     }
     
-    // Initial bracket
-    double r_lo = 0.3 * R;
-    double r_hi = 3.0 * R;
+    // DEBUG
+    static int bisect_debug_count = 0;
+    bool do_debug = (bisect_debug_count < 2);
     
-    double f_lo = orbitrap_surface_residual(r_lo, z_abs, R, Rm);
-    double f_hi = orbitrap_surface_residual(r_hi, z_abs, R, Rm);
+    // Initial bracket: At z>0, surface curves INWARD, so r < R
+    // Start with bracket [0.1*R, R] to search for r where surface exists
+    double r_lo = 0.1 * R;
+    double r_hi = R;
+    
+    double f_lo = orbitrap_surface_residual(r_lo, z_abs, R, R_m);
+    double f_hi = orbitrap_surface_residual(r_hi, z_abs, R, R_m);
+    
+    if (do_debug) {
+        std::cerr << "\n=== orbitrap_r_for_z DEBUG ===\n";
+        std::cerr << "  z=" << z_abs*1000 << " mm, R=" << R*1000 << " mm, R_m=" << R_m*1000 << " mm\n";
+        std::cerr << "  Initial bracket: r_lo=" << r_lo*1000 << " mm, r_hi=" << r_hi*1000 << " mm\n";
+        std::cerr << "  f_lo=" << f_lo << ", f_hi=" << f_hi << "\n";
+        bisect_debug_count++;
+    }
     
     // Expand bracket if needed
     int expand_iter = 0;
     while (f_lo * f_hi > 0.0 && expand_iter < 10) {
         r_lo *= 0.5;
         r_hi *= 1.5;
-        f_lo = orbitrap_surface_residual(r_lo, z_abs, R, Rm);
-        f_hi = orbitrap_surface_residual(r_hi, z_abs, R, Rm);
+        f_lo = orbitrap_surface_residual(r_lo, z_abs, R, R_m);
+        f_hi = orbitrap_surface_residual(r_hi, z_abs, R, R_m);
         expand_iter++;
+        if (do_debug) {
+            std::cerr << "  Expand iter " << expand_iter << ": r_lo=" << r_lo*1000 << " mm, r_hi=" << r_hi*1000 << " mm\n";
+            std::cerr << "    f_lo=" << f_lo << ", f_hi=" << f_hi << "\n";
+        }
+    }
+    
+    if (do_debug) {
+        std::cerr << "  Final bracket after expansion: r_lo=" << r_lo*1000 << " mm, r_hi=" << r_hi*1000 << " mm\n";
     }
     
     // Bisection
     double r_mid = R;
     for (int i = 0; i < max_iter; ++i) {
         r_mid = 0.5 * (r_lo + r_hi);
-        double f_mid = orbitrap_surface_residual(r_mid, z_abs, R, Rm);
+        double f_mid = orbitrap_surface_residual(r_mid, z_abs, R, R_m);
         
         if (std::fabs(f_mid) < eps) {
             break;
@@ -394,6 +489,10 @@ double DomainManager::orbitrap_r_for_z(double z, double R, double Rm) const {
             r_hi = r_mid;
             f_hi = f_mid;
         }
+    }
+    
+    if (do_debug) {
+        std::cerr << "  Result: r_mid=" << r_mid*1000 << " mm\n";
     }
     
     return r_mid;

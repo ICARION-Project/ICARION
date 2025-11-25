@@ -420,6 +420,7 @@ TEST_CASE("ElectricFieldForce - Orbitrap", "[forces][electric][orbitrap]") {
     domain.geometry.radius_in_m = 0.008;   // 8 mm inner
     domain.geometry.radius_out_m = 0.012;  // 12 mm outer
     domain.geometry.length_m = 0.05;  // 5 cm trap length
+    domain.geometry.origin_m = {0.0, 0.0, 0.025};  // Trap center at z=0 (local)
     
     ElectricFieldForce force(domain);
     

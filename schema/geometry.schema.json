@@ -32,19 +32,19 @@
     "radius_in_m": {
       "$ref": "common-types.schema.json#/$defs/length",
       "default": 0.0,
-      "description": "Inner radius for Orbitrap/hyperbolic geometries [m]"
+      "description": "Inner electrode radius at z=0 for Orbitrap hyperlogarithmic geometry [m]. Defines inner boundary of z²=0.5(r²-R²)+R_m²ln(R/r)"
     },
     
     "radius_out_m": {
       "$ref": "common-types.schema.json#/$defs/length",
       "default": 0.0,
-      "description": "Outer radius for Orbitrap/hyperbolic geometries [m]"
+      "description": "Outer electrode radius at z=0 for Orbitrap hyperlogarithmic geometry [m]. Defines outer boundary of z²=0.5(r²-R²)+R_m²ln(R/r)"
     },
     
     "radius_char_m": {
       "$ref": "common-types.schema.json#/$defs/length",
       "default": 0.0,
-      "description": "Characteristic radius (Rm) for Orbitrap potential [m]"
+      "description": "Characteristic radius R_m for Orbitrap quadro-logarithmic potential [m]. Determines field curvature. Must satisfy R_m > radius_out_m for physical validity (Makarov 2000)"
     },
     
     "end_aperture_m": {

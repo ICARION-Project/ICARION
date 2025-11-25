@@ -219,16 +219,41 @@ private:
     bool is_inside_domain(const config::DomainConfig& dom, const Vec3& pos) const;
     
     /**
-     * @brief Solve for radial position on Orbitrap hyperboloid at given z
+     * @brief Solve for radial position on Orbitrap hyperlogarithmic electrode at given z
      * @param z Axial position [m] (absolute value, symmetric around z=0)
-     * @param R_electrode Electrode radius (R_in or R_out) [m]
-     * @param R_m Characteristic radius [m]
-     * @return Radial position r [m] on hyperboloid surface
+     * @param R Electrode radius [m] - either R_in (inner) or R_out (outer)
+     * @param R_m Characteristic radius [m] (from Makarov 2000, typically R_m > R_out)
+     * @return Radial position r [m] on hyperlogarithmic surface at height z
      * 
-     * Solves: z² = 0.5(r² - R²) + R_m² × ln(R/r) for r using bisection method.
-     * Used to compute allowed radial range [r_in, r_out] at any axial position.
+     * **Hyperlogarithmic Electrode Equation (Makarov 2000):**
+     * 
+     *   z² = 0.5(r² - R²) + R_m² × ln(R/r)
+     * 
+     * where:
+     * - z = axial coordinate [m] (distance from trap center)
+     * - r = radial coordinate [m] (distance from symmetry axis)
+     * - R = electrode radius at z=0 [m] (R_in for inner, R_out for outer)
+     * - R_m = characteristic radius [m] (field shaping parameter)
+     * 
+     * **Physical Meaning:**
+     * - At z=0 (trap center): r = R (electrode surface passes through (r=R, z=0))
+     * - As z increases: r decreases (electrodes curve inward)
+     * - Creates quadro-logarithmic potential for mass analysis
+     * 
+     * **Usage:**
+     * - r_in(z) = orbitrap_r_for_z(z, R_in, R_m)   → inner boundary at height z
+     * - r_out(z) = orbitrap_r_for_z(z, R_out, R_m) → outer boundary at height z
+     * - Ion at (r, z) is inside if:  r_in(z) < r < r_out(z)
+     * 
+     * **Solver:**
+     * - Bisection method with 80 iterations, tolerance 1e-10
+     * - Initial bracket: [0.3R, 3.0R] (adaptively expanded if needed)
+     * 
+     * **Literature:**
+     * - Makarov, A. (2000). "Electrostatic axially harmonic orbital trapping"
+     *   Analytical Chemistry, 72(6), 1156-1162
      */
-    double orbitrap_r_for_z(double z, double R_electrode, double R_m) const;
+    double orbitrap_r_for_z(double z, double R, double R_m) const;
 };
 
 }  // namespace integrator

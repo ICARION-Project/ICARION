@@ -86,6 +86,9 @@ SimulationEngine::SimulationEngine(
 }
 
 void SimulationEngine::initialize(const std::vector<IonState>& ions) {
+    // SSOT: Birth conditions already set by IonLoader
+    // No need to modify ion state here!
+    
     // Initialize output system
     output_manager_->initialize(config_, ions);
     
@@ -96,7 +99,7 @@ void SimulationEngine::initialize(const std::vector<IonState>& ions) {
     msg << "Configuration: " << ions.size() << " ions, "
         << config_.domains.size() << " domains, "
         << "dt = " << config_.simulation.dt_s * 1e9 << " ns, "
-        << "t_total = " << config_.simulation.total_time_s * 1e6 << " μs";
+        << "t_max = " << config_.simulation.total_time_s * 1e6 << " µs";
     output_manager_->log_progress(msg.str());
 }
 
@@ -238,23 +241,36 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         }
         
         // Then check all other boundaries (radial wall, entrance plane)
-        // Note: Allow small tolerance at z_max for multi-domain transitions
-        bool still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON);
+        // For Orbitrap: Use proper hyperlogarithmic boundary checking
+        // For others: Simple cylindrical geometry
+        bool still_inside = false;
         
-        // Check z_max: strict for last domain, tolerant for others
-        bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
-        if (is_last_domain) {
-            // Last domain: strict boundary (no tolerance for exit)
-            still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
+        if (domain_config.instrument == config::Instrument::Orbitrap) {
+            // Use DomainManager's comprehensive Orbitrap boundary check
+            // Transform local position back to global
+            Vec3 pos_after_global = domain_manager_->local_to_global_pos(pos_after, domain_idx);
+            // Use find_domain_index as proxy for "is inside" check
+            int check_domain = domain_manager_->find_domain_index(pos_after_global);
+            still_inside = (check_domain == domain_idx);
         } else {
-            // Intermediate domain: allow small tolerance for aperture crossing
-            still_inside = still_inside && (pos_after.z <= domain_config.geometry.length_m + DOMAIN_BOUNDARY_EPSILON);
-        }
-        
-        // Check radial boundary
-        if (still_inside) {
-            double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
-            still_inside = (r <= domain_config.geometry.radius_m + DOMAIN_BOUNDARY_EPSILON);
+            // Cylindrical geometry (IMS, TOF, LQIT, etc.)
+            still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON);
+            
+            // Check z_max: strict for last domain, tolerant for others
+            bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
+            if (is_last_domain) {
+                // Last domain: strict boundary (no tolerance for exit)
+                still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
+            } else {
+                // Intermediate domain: allow small tolerance for aperture crossing
+                still_inside = still_inside && (pos_after.z <= domain_config.geometry.length_m + DOMAIN_BOUNDARY_EPSILON);
+            }
+            
+            // Check radial boundary
+            if (still_inside) {
+                double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
+                still_inside = (r <= domain_config.geometry.radius_m + DOMAIN_BOUNDARY_EPSILON);
+            }
         }
         
         if (!still_inside) {

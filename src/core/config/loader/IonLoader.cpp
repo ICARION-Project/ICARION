@@ -169,8 +169,18 @@ std::vector<core::IonState> IonLoader::generate_species(
         ion.vel = sample_velocity(spec_config.velocity, species.mass_kg, rng);
         
         ion.birth_time_s = spec_config.birth_time_s;
-        ion.born = (ion.birth_time_s <= 0.0);
-        ion.active = true;
+        
+        // SSOT: Birth logic in ONE place
+        if (ion.birth_time_s <= 0.0) {
+            // Immediate birth (t=0)
+            ion.born = true;
+            ion.active = true;
+        } else {
+            // Delayed birth (birth_time_s > 0)
+            ion.born = false;
+            ion.active = false;  // Will be activated by apply_ion_birth()
+        }
+        
         ion.history_index = -1;
         ion.current_domain_index = 0;
         

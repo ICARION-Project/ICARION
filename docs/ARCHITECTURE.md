@@ -1059,7 +1059,7 @@ manager.update_domain_properties(ion, idx);
 
 **Internal Geometry Check:**
 - Replaces legacy `isInsideDomain()` from `paramUtils.cpp`
-- Supports cylindrical (most instruments) and logarithmic-hyperbolic (Orbitrap)
+- Supports cylindrical (most instruments) and hyperlogarithmic (Orbitrap)
 - No dependency on legacy functions
 
 **Geometry Implementations:**
@@ -1069,14 +1069,14 @@ manager.update_domain_properties(ion, idx);
 - Constant radius R over entire length L
 - Floating-point tolerance ε = 1e-12 m for z-boundary
 
-*Orbitrap (logarithmic-hyperbolic):*
+*Orbitrap (hyperlogarithmic electrodes, Kharchenko et al. 2021, DOI: 10.1007/s13361-011-0325-3):*
 - Electrode shape: `z² = 0.5·(r² - R²) + R_m² · ln(R/r)`
-- Inner/outer electrodes follow hyperbolic surfaces r_in(z) and r_out(z)
-- Numerical root-finding (bisection method) computes r(z) at runtime
-- Ion inside domain if: `r_in(z) ≤ r ≤ r_out(z)`
-- Physics constraint: **r_char > r_out** (characteristic radius larger than outer electrode)
-  - For realistic Orbitrap parameters, surfaces become nearly z-independent
-  - Example: r_char=25mm, r_in=12mm, r_out=20mm → gap constant ~8mm for z=0..20mm
+- Inner/outer electrodes follow hyperlogarithmic surfaces r_in(z) and r_out(z)
+- Numerical root-finding (bisection method with bracket expansion) computes r(z) at runtime
+- Ion inside domain if: `r_in(z) ≤ r ≤ r_out(z) AND -L/2 ≤ z ≤ L/2`
+- Physics constraint: **R_m > R_out** (characteristic radius larger than outer electrode)
+- Bisection parameters: 80 iterations, 1e-10 tolerance, bracket expansion if needed
+- Validated: Boundary computation accurate at all z-positions (test_domain_manager)
 
 **Boundary Termination:**
 - `terminate_ion_at_boundary()`: Ray-tracing to find exact intersection point

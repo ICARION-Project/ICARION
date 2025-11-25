@@ -935,7 +935,12 @@ Each domain represents a physical region with specific instrument geometry and c
     "geometry": {                     // REQUIRED
       "origin_m": [0.0, 0.0, 0.0],    // Starting position [x, y, z] in meters
       "length_m": 0.05,               // Domain length along z-axis
-      "radius_m": 0.01                // Cylindrical radius (for IMS, TOF, etc.)
+      "radius_m": 0.01,               // Cylindrical radius (for IMS, TOF, LQIT, etc.)
+      
+      // Orbitrap-specific parameters (hyperlogarithmic electrodes):
+      "radius_in_m": 0.006,           // Inner electrode radius at z=0 [m]
+      "radius_out_m": 0.015,          // Outer electrode radius at z=0 [m]
+      "radius_char_m": 0.022          // Characteristic radius R_m [m], must be > radius_out_m
     },
     
     "env": {                          // REQUIRED
@@ -2105,6 +2110,41 @@ python3 scripts/create_config.py --list-templates
 - `lqit` - Linear Quadrupole Ion Trap
 - `orbitrap` - Orbitrap mass analyzer
 - `minimal` - Minimal valid configuration
+
+---
+
+### Orbitrap Geometry (Hyperlogarithmic Electrodes)
+
+Orbitrap mass analyzers use hyperlogarithmic electrode geometry (Kharchenko et al. 2021, DOI: 10.1007/s13361-011-0325-3). The electrode surfaces follow:
+
+```
+z² = 0.5(r² - R²) + R_m² × ln(R/r)
+```
+
+Where:
+- **z** = axial coordinate (origin at trap center)
+- **r** = radial coordinate
+- **R** = electrode radius at z=0 (use `radius_in_m` for inner, `radius_out_m` for outer electrode)
+- **R_m** = characteristic radius (field shaping parameter, `radius_char_m`)
+
+**Parameter Guidelines:**
+
+1. **Physical Constraint:** `radius_char_m > radius_out_m` (required for stable quadro-logarithmic potential)
+2. **Typical Values:**
+   - Commercial Orbitrap: R_in ≈ 6mm, R_out ≈ 15mm, R_m ≈ 22mm
+3. **Gap Width:** Determined by R_out - R_in (typically 4-10mm)
+4. **Field Strength:** Controlled by `k` parameter in DC fields (typically 380-500 V/mm²)
+
+k = 2*V_0/(R_m² × ln(R_out/R_in) - 0.5(R_out² - R_in²)) - see (Kharchenko et al. 2021, DOI: 10.1007/s13361-011-0325-3)
+
+**Boundary Checking:**
+
+ICARION uses bisection to compute r_in(z) and r_out(z) at each ion position, validating:
+```
+r_in(z) ≤ r ≤ r_out(z)  AND  -length_m/2 ≤ z ≤ length_m/2
+```
+
+Ions outside these boundaries are deactivated (electrode collision).
 
 ---
 

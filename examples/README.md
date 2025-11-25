@@ -210,33 +210,51 @@ but the schema validator requires canonical capitalization.
 
 ### Orbitrap-Specific Parameters
 
-The Orbitrap instrument type requires unique geometry parameters:
+The Orbitrap instrument uses **hyperlogarithmic electrodes** (Kharchenko et al. 2021, DOI: 10.1007/s13361-011-0325-3) defined by:
+
+```
+z² = 0.5(r² - R²) + R_m² × ln(R/r)
+```
+
+**Geometry parameters:**
 
 ```json
 {
-  "instrument": {
-    "type": "Orbitrap",
-    "radius_in_m": 0.010,      // Inner electrode radius [m]
-    "radius_out_m": 0.020,     // Outer electrode radius [m]
-    "radius_char_m": 0.015,    // Characteristic radius [m]
-    "length_m": 0.100,         // Axial length [m]
-    "dc_radial_V": 5000.0,     // Radial DC voltage [V]
-    "voltage_sweep": {          // Optional voltage ramping
-      "enabled": false,
-      "start_time_s": 0.0,
-      "rise_time_s": 0.001,
-      "slope_V_s": 1000000.0
+    "domains": [
+    {
+      "name": "orbitrap_trap",
+      "instrument": "Orbitrap",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.04,
+        "radius_in_m": 0.006,
+        "radius_out_m": 0.015,
+        "radius_char_m": 0.022
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-7,
+        "gas_species": "He",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0,
+          "radial_V": 3500.0
+        }
+      }
     }
-  }
+  ]
 }
 ```
 
-**Key differences from other instruments:**
+**Key points:**
 
-- Uses hyperbolic boundary surfaces instead of simple cylinders
-- Three radii define electrode geometry (inner, outer, characteristic)
-- Voltage sweep enables resonant excitation experiments
-- Field shape creates mass-dependent axial oscillation frequencies
+- **Constraint:** `radius_char_m > radius_out_m` (required for stable potential)
+- Electrodes follow hyperlogarithmic surfaces r_in(z) and r_out(z)
+- Boundary checking uses bisection to compute r(z) at each ion position
+- Field creates mass-dependent axial oscillation: ω ∝ √(k/m)
+- See `examples/orbitrap_basic.json` for complete working example
 
 ## Output Files
 

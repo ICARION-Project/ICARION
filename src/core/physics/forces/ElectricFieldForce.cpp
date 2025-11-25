@@ -308,9 +308,12 @@ Vec3 ElectricFieldForce::compute_fticr_field(const IonState& ion) const {
 // Creates axial harmonic oscillation (mass-dependent frequency).
 // ----------------------------------------------------------------------------
 Vec3 ElectricFieldForce::compute_orbitrap_field(const IonState& ion) const {
+    // Transform position from global to local coordinates
+    const Vec3 pos_local = domain_->rotation_global_to_local * (ion.pos - domain_->geometry.origin_m);
+    
     // SSOT: Read from config
     // Hyperlogarithmic field: U(r,z) = k/2 · (z² - r²/2 + r_char²·ln(r/r_char))
-    const double r_sq = std::max(1e-18, ion.pos.x * ion.pos.x + ion.pos.y * ion.pos.y);
+    const double r_sq = std::max(1e-18, pos_local.x * pos_local.x + pos_local.y * pos_local.y);
     const double r_char = domain_->geometry.radius_char_m;  // Characteristic radius
     const double r_char_sq = r_char * r_char;
     const double C = 1.0 - r_char_sq / r_sq;
@@ -323,13 +326,17 @@ Vec3 ElectricFieldForce::compute_orbitrap_field(const IonState& ion) const {
     const double k = 2.0 * voltage / (r_char_sq * std::log(r_out / r_in)
                                      - 0.5 * (r_out * r_out - r_in * r_in));
     
+    // Compute field in local coordinates
     // Orbitrap field uses z directly (not centered) - hyperboloid equation is z² - r²/2 = C
     // The field is naturally symmetric around z=0 (domain origin)
-    return Vec3{
-        0.5 * k * ion.pos.x * C,
-        0.5 * k * ion.pos.y * C,
-       -k * ion.pos.z
+    Vec3 E_local{
+        0.5 * k * pos_local.x * C,
+        0.5 * k * pos_local.y * C,
+       -k * pos_local.z
     };
+    
+    // Transform field back to global coordinates
+    return domain_->rotation_local_to_global * E_local;
 }
 
 // ----------------------------------------------------------------------------

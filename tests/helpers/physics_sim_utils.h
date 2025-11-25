@@ -102,8 +102,19 @@ inline SimpleSimResult run_simple_simulation(
 
     if (!capture_trace) {
         // Use full SimulationEngine path for stability and SSOT alignment
+        std::cerr << "\n=== BEFORE SimulationEngine::run ===\n";
+        for (size_t i = 0; i < ions.size() && i < 3; ++i) {
+            std::cerr << "  Ion[" << i << "]: active=" << ions[i].active << ", born=" << ions[i].born << "\n";
+        }
+        
         integrator::SimulationEngine engine(cfg, registries, integrator, collision_handler, nullptr);
         auto final_ions = engine.run(ions);
+        
+        std::cerr << "\n=== AFTER SimulationEngine::run ===\n";
+        for (size_t i = 0; i < final_ions.size() && i < 3; ++i) {
+            std::cerr << "  Ion[" << i << "]: active=" << final_ions[i].active << ", born=" << final_ions[i].born << "\n";
+        }
+        
         result.ions = std::move(final_ions);
         return result;
     }

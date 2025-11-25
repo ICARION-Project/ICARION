@@ -107,27 +107,31 @@ TEST_CASE("DomainManager: Coordinate transforms") {
 TEST_CASE("DomainManager: Aperture crossing") {
     std::vector<config::DomainConfig> domains;
     domains.push_back(create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05));  // No aperture
-    domains.push_back(create_test_domain(1, Vec3{0,0,0.1}, 0.2, 0.05, 0.02));  // 2cm aperture
+    domains.push_back(create_test_domain(1, Vec3{0,0,0.1}, 0.2, 0.05, 0.02));  // 2cm aperture, length=0.2m
     DomainManager manager(domains);
     
     SECTION("No aperture - allows all crossings") {
         IonState ion;
         ion.active = true;
+        // Cross from inside domain 0 to outside (z from 0.09 to 0.11, exit at z=0.1)
         manager.check_aperture_crossing(ion, 0, Vec3{0,0,0.09}, Vec3{0,0,0.11});
         REQUIRE(ion.active);
     }
     
-    SECTION("Inside aperture - allows crossing") {
+    SECTION("Inside aperture - allows exit") {
         IonState ion;
         ion.active = true;
-        manager.check_aperture_crossing(ion, 1, Vec3{0,0,0.19}, Vec3{0,0,0.21});
+        // Domain 1: origin=0.1, length=0.2, so exit at z=0.3 (global)
+        // Cross from z=0.29 to z=0.31 (exit domain), r=0.01m < aperture (0.02m)
+        manager.check_aperture_crossing(ion, 1, Vec3{0.01,0,0.29}, Vec3{0.01,0,0.31});
         REQUIRE(ion.active);
     }
     
     SECTION("Outside aperture - blocks ion") {
         IonState ion;
         ion.active = true;
-        manager.check_aperture_crossing(ion, 1, Vec3{0.03,0,0.19}, Vec3{0.03,0,0.21});
+        // Cross from z=0.29 to z=0.31 (exit domain), r=0.03m > aperture (0.02m)
+        manager.check_aperture_crossing(ion, 1, Vec3{0.03,0,0.29}, Vec3{0.03,0,0.31});
         REQUIRE_FALSE(ion.active);
     }
 }
@@ -183,16 +187,13 @@ TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
     orbitrap.domain_index = 0;
     orbitrap.instrument = config::Instrument::Orbitrap;
     
-    // Orbitrap hyperbolic boundary configuration
-    // Hyperboloid equation: z² - r²/2 = C, where C = -0.5 * R²
-    orbitrap.geometry.radius_in_m = 0.010;   // 10 mm inner electrode
-    orbitrap.geometry.radius_out_m = 0.015;  // 15 mm outer electrode  
-    orbitrap.geometry.radius_char_m = 0.020; // Characteristic radius (used for fields)
+    // Orbitrap hyperlogarithmic boundary configuration (Makarov 2000)
+    // Equation: z² = 0.5(r² - R²) + R_m² × ln(R/r)
+    orbitrap.geometry.radius_in_m = 0.010;   // 10 mm inner electrode (R_in)
+    orbitrap.geometry.radius_out_m = 0.015;  // 15 mm outer electrode (R_out)
+    orbitrap.geometry.radius_char_m = 0.020; // 20 mm characteristic radius (R_m)
+    orbitrap.geometry.length_m = 0.04;       // 40 mm trap length (±20mm axial)
     orbitrap.geometry.origin_m = Vec3{0,0,0};
-    
-    // Compute hyperbolic boundary constants
-    orbitrap.geometry.orbitrap_C_in  = -0.5 * 0.010 * 0.010;  // -5e-5
-    orbitrap.geometry.orbitrap_C_out = -0.5 * 0.015 * 0.015;  // -1.125e-4
     
     orbitrap.rotation_global_to_local = Mat3::identity();
     orbitrap.rotation_local_to_global = Mat3::identity();
@@ -205,17 +206,9 @@ TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
     std::vector<config::DomainConfig> domains = {orbitrap};
     DomainManager manager(domains);
     
-    SECTION("Ion inside Orbitrap (between hyperbolas)") {
-        // At z=0: C = -r²/2, so inside if C_in <= -r²/2 <= C_out
-        // -5e-5 <= -r²/2 <= -1.125e-4  =>  sqrt(2*1.125e-4) <= r <= sqrt(2*5e-5)
-        // 0.015 <= r <= 0.010  (WAIT, that's backwards! Let me recalculate)
-        // Actually: -r²/2 must be between C_in and C_out
-        // C_in < C_out (both negative, C_in is MORE negative)
-        // -5e-5 < -1.125e-4 is FALSE! So C_in = -1.125e-4, C_out = -5e-5
-        // Wait, let me recalculate: C = -0.5*R² means SMALLER R gives LESS negative C
-        // So C_in (inner, smaller R) = -0.5*0.01² = -5e-5 (less negative)
-        // C_out (outer, larger R) = -0.5*0.015² = -1.125e-4 (more negative)
-        // Inside means: C_out <= C <= C_in (from more negative to less negative)
+    SECTION("Ion inside Orbitrap (between electrodes)") {
+        // At z=0: r must be between R_in and R_out
+        // R_in=10mm, R_out=15mm → allowed range: 10mm < r < 15mm
         REQUIRE(manager.find_domain_index(Vec3{0.012, 0, 0}) == 0);  // r=12mm, inside
         REQUIRE(manager.find_domain_index(Vec3{0.013, 0, 0}) == 0);  // r=13mm, inside
     }
@@ -228,22 +221,83 @@ TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
         REQUIRE(manager.find_domain_index(Vec3{0.016, 0, 0}) == -1);  // r=16mm > r_out
     }
     
-    SECTION("Hyperbolic constraint at z != 0") {
-        // At z != 0, hyperboloid allows larger radii for larger |z|
-        // Example: At z=5mm, compute allowed r range:
-        // C_in: z² - r²/2 = -5e-5  →  r² = 2*(z² + 5e-5) = 2*(2.5e-5 + 5e-5) = 1.5e-4  →  r ≈ 12.25mm
-        // C_out: z² - r²/2 = -1.125e-4  →  r² = 2*(z² + 1.125e-4) = 2*(2.5e-5 + 1.125e-4) = 2.75e-4  →  r ≈ 16.58mm
-        // So at z=5mm, allowed range is approximately 12.25mm <= r <= 16.58mm
+    SECTION("Hyperlogarithmic constraint at z != 0") {
+        // Hyperlogarithmic equation: z² = 0.5(r² - R²) + R_m² × ln(R/r)
+        // At z != 0, electrodes curve inward (smaller r for larger |z|)
+        
         double z = 0.005;  // 5mm
+        const double R_in = 0.010;   // 10mm
+        const double R_out = 0.015;  // 15mm
+        const double R_m = 0.020;    // 20mm
         
-        // r=13mm should be inside (13 > 12.25)
-        REQUIRE(manager.find_domain_index(Vec3{0.013, 0, z}) == 0);
+        // Compute exact boundaries using bisection (same as DomainManager::orbitrap_r_for_z)
+        auto compute_r_at_z = [&](double z_val, double R, double R_m_val) -> double {
+            // Bisection solver for: z² = 0.5(r² - R²) + R_m² × ln(R/r)
+            auto residual = [&](double r) -> double {
+                return z_val*z_val - 0.5*(r*r - R*R) - R_m_val*R_m_val * std::log(R/r);
+            };
+            
+            // Hyperlogarithmic surfaces curve INWARD as |z| increases
+            // So we bracket between 0.1*R and R (not outward to 3*R)
+            double r_lo = 0.1 * R;
+            double r_hi = R;
+            const double eps = 1e-10;
+            const int max_iter = 80;
+            
+            // Expand bracket if needed (same as DomainManager)
+            double f_lo = residual(r_lo);
+            double f_hi = residual(r_hi);
+            int expand_iter = 0;
+            while (f_lo * f_hi > 0.0 && expand_iter < 10) {
+                r_lo *= 0.5;
+                r_hi *= 1.5;
+                f_lo = residual(r_lo);
+                f_hi = residual(r_hi);
+                expand_iter++;
+            }
+            
+            for (int i = 0; i < max_iter; ++i) {
+                double r_mid = 0.5 * (r_lo + r_hi);
+                double f_mid = residual(r_mid);
+                
+                if (std::fabs(f_mid) < eps) {
+                    return r_mid;
+                }
+                
+                f_lo = residual(r_lo);
+                if (f_mid * f_lo > 0.0) {
+                    r_lo = r_mid;
+                    f_lo = f_mid;
+                } else {
+                    r_hi = r_mid;
+                }
+            }
+            return 0.5 * (r_lo + r_hi);
+        };
         
-        // r=12mm should be outside (12 < 12.25)  
-        REQUIRE(manager.find_domain_index(Vec3{0.012, 0, z}) == -1);
+        double r_in_at_z5 = compute_r_at_z(z, R_in, R_m);
+        double r_out_at_z5 = compute_r_at_z(z, R_out, R_m);
         
-        // r=17mm should be outside (17 > 16.58)
-        REQUIRE(manager.find_domain_index(Vec3{0.017, 0, z}) == -1);
+        // Debug output to verify computed boundaries
+        INFO("At z=" << z*1000 << "mm:");
+        INFO("  r_in = " << r_in_at_z5*1000 << " mm");
+        INFO("  r_out = " << r_out_at_z5*1000 << " mm");
+        INFO("  r_in < r_out? " << (r_in_at_z5 < r_out_at_z5));
+        
+        // Sanity check: r_in should be less than r_out
+        REQUIRE(r_in_at_z5 < r_out_at_z5);
+        
+        // Test points based on computed boundaries
+        double r_mid = 0.5 * (r_in_at_z5 + r_out_at_z5);  // Midpoint should be inside
+        double r_below = r_in_at_z5 - 0.001;  // 1mm below inner boundary
+        double r_above = r_out_at_z5 + 0.001; // 1mm above outer boundary
+        
+        INFO("Testing r_mid=" << r_mid*1000 << "mm at z=" << z*1000 << "mm");
+        INFO("Expected: inside (r_in < r_mid < r_out)");
+        
+        REQUIRE(manager.find_domain_index(Vec3{r_mid, 0, z}) == 0);      // Inside
+        REQUIRE(manager.find_domain_index(Vec3{r_below, 0, z}) == -1);   // Too close to inner
+        REQUIRE(manager.find_domain_index(Vec3{r_above, 0, z}) == -1);   // Beyond outer
     }
 }
 
@@ -255,10 +309,6 @@ TEST_CASE("DomainManager: Orbitrap boundary termination uses analytical ray-hype
     orbitrap.geometry.radius_out_m = 0.015;
     orbitrap.geometry.radius_char_m = 0.020;
     orbitrap.geometry.origin_m = Vec3{0,0,0};
-    
-    // Compute hyperbolic boundary constants
-    orbitrap.geometry.orbitrap_C_in  = -0.5 * 0.010 * 0.010;
-    orbitrap.geometry.orbitrap_C_out = -0.5 * 0.015 * 0.015;
     
     orbitrap.rotation_global_to_local = Mat3::identity();
     orbitrap.rotation_local_to_global = Mat3::identity();

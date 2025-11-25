@@ -647,6 +647,51 @@ TEST_CASE("Descriptive name explaining what is tested", "[tag1][tag2]") {
 - Check for NaN/Inf
 - Test symmetries and conservation laws
 
+### Common Testing Issues
+
+#### Orbitrap Boundary Checking
+
+**Problem:** Ions get deactivated immediately in Orbitrap simulations despite starting inside boundaries.
+
+**Root Cause:** Hyperlogarithmic electrode surfaces require special boundary checking. Common mistakes:
+
+1. **Using cylindrical radius check** instead of `find_domain_index()`:
+   ```cpp
+   // WRONG: Simple radius check fails for hyperlogarithmic geometry
+   bool inside = (r <= domain.geometry.radius_m);
+   
+   // CORRECT: Use DomainManager's comprehensive check
+   int domain_idx = domain_manager->find_domain_index(ion.pos);
+   bool inside = (domain_idx >= 0);
+   ```
+
+2. **Wrong bisection bracket direction** for solving hyperlogarithmic equation:
+   ```cpp
+   // WRONG: Searches outward (diverges at large z)
+   double r_lo = 0.3 * R;
+   double r_hi = 3.0 * R;
+   
+   // CORRECT: Hyperlogarithmic surfaces curve INWARD
+   double r_lo = 0.1 * R;
+   double r_hi = R;
+   ```
+
+**Solution:** For Orbitrap instruments in `SimulationEngine`, use:
+```cpp
+if (domain_config.instrument == config::Instrument::Orbitrap) {
+    Vec3 pos_global = domain_manager_->local_to_global_pos(pos_after, domain_idx);
+    int check_domain = domain_manager_->find_domain_index(pos_global);
+    still_inside = (check_domain == domain_idx);
+}
+```
+
+**Affected Files:**
+- `src/core/integrator/SimulationEngine.cpp` (boundary checks after integration)
+- `src/core/integrator/DomainManager.cpp` (bisection solver for r(z))
+- `tests/integrator/test_domain_manager.cpp` (test bisection implementation)
+
+**See:** Commit `b4f358a` - "fix: Correct Orbitrap boundary checking"
+
 ---
 
 ## Code Style and Conventions

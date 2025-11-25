@@ -176,3 +176,61 @@ set_tests_properties(DomainTransition PROPERTIES
     LABELS "instrument;transition;physics"
 )
 
+# FTICR cyclotron frequency validation
+add_executable(test_fticr_cyclotron
+    test_fticr_cyclotron.cpp
+)
+
+target_link_libraries(test_fticr_cyclotron
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_fticr_cyclotron
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/tests
+)
+
+set_target_properties(test_fticr_cyclotron PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+add_test(NAME FTICRCyclotron COMMAND test_fticr_cyclotron)
+set_tests_properties(FTICRCyclotron PROPERTIES
+    TIMEOUT 30
+    LABELS "instrument;fticr;physics"
+)
+
+# Quadrupole mass filter validation
+add_executable(test_quadrupole_filter
+    test_quadrupole_filter.cpp
+)
+
+target_link_libraries(test_quadrupole_filter
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_quadrupole_filter
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/tests
+)
+
+set_target_properties(test_quadrupole_filter PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+add_test(NAME QuadrupoleFilter COMMAND test_quadrupole_filter)
+set_tests_properties(QuadrupoleFilter PROPERTIES
+    TIMEOUT 30
+    LABELS "instrument;quadrupole;physics"
+)
+

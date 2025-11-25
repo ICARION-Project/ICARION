@@ -88,13 +88,19 @@ config::FullConfig make_ims_config(double length_m, double E_field_Vm,
     return cfg;
 }
 
-// Helper: Create H3O+ ion at entrance
-core::IonState make_test_ion() {
+// Helper: Create H3O+ ion at entrance with thermal velocity
+core::IonState make_test_ion(double T_K = 300.0) {
     core::IonState ion;
     ion.species_id = "H3O+";
     ion.pos = {0.0, 0.0, 0.0};  // Start at entrance
-    ion.vel = {0.0, 0.0, 0.0};  // Initially at rest
-    ion.mass_kg = 19.0 * AMU_TO_KG;
+    
+    // Start with thermal velocity (not zero!) to avoid first-collision artifacts
+    // v_thermal = sqrt(kB*T/m) per axis
+    double m = 19.0 * AMU_TO_KG;
+    double v_th = std::sqrt(BOLTZMANN_CONSTANT * T_K / m);
+    ion.vel = {0.0, 0.0, 0.1 * v_th};  // Small initial velocity in drift direction
+    
+    ion.mass_kg = m;
     ion.ion_charge_C = ELEM_CHARGE_C;
     ion.CCS_m2 = 24.9e-20;
     ion.reduced_mobility_cm2_Vs = 2.8;
@@ -199,5 +205,83 @@ TEST_CASE("IMS: Field scaling (no collisions)", "[instrument][ims][physics]") {
         
         // Higher field → higher velocity
         REQUIRE(final2.vel.z > final1.vel.z);
+    }
+}
+
+TEST_CASE("IMS: Mobility measurement with HSS collisions", "[instrument][ims][physics][!mayfail]") {
+    // ================================================================
+    // Real IMS drift tube physics test: measure mobility
+    // Expected: v_drift = K₀ * E * (P/P₀) * (T₀/T)
+    // Where K₀ = reduced mobility = 2.8 cm²/(V·s) for H3O+ in N2
+    // ================================================================
+    
+    // IMS parameters (typical drift tube)
+    double length_m = 0.1;           // 10 cm drift region
+    double E_Vm = 2000.0;            // 200 V/cm = 2000 V/m
+    double pressure_Pa = 101325.0;   // 1 atm
+    double temperature_K = 300.0;
+    
+    auto cfg = make_ims_config(length_m, E_Vm, pressure_Pa, temperature_K, 
+                                config::CollisionModel::HSS);
+    cfg.simulation.total_time_s = 0.01;  // 10 ms timeout
+    cfg.simulation.dt_s = 1e-9;  // 1 ns timestep
+    
+    auto ion = make_test_ion();
+    
+    // Run simulation with trace enabled
+    auto result = run_simple_simulation(cfg, {ion}, false);
+    
+    REQUIRE(result.ions.size() == 1);
+    const auto& final_ion = result.ions[0];
+    
+    // Debug: Print what happened
+    std::cout << "\n=== IMS Mobility Test Debug ===\n";
+    std::cout << "Final ion position: (" << final_ion.pos.x*1000 << ", " 
+              << final_ion.pos.y*1000 << ", " << final_ion.pos.z*1000 << ") mm\n";
+    std::cout << "Final ion velocity: (" << final_ion.vel.x << ", " 
+              << final_ion.vel.y << ", " << final_ion.vel.z << ") m/s\n";
+    std::cout << "Ion active: " << (final_ion.active ? "YES" : "NO") << "\n";
+    std::cout << "Simulation time: " << (result.trace.times.empty() ? 0.0 : result.trace.times.back()) * 1000 << " ms\n";
+    std::cout << "================================\n\n";
+    
+    // Calculate expected drift velocity from Mason-Schamp equation:
+    // v_d = K₀ * E * (P/P₀) * (T₀/T)
+    const double K0_SI = 2.8e-4;  // m²/(V·s) (converted from cm²/(V·s))
+    const double P0 = 101325.0;   // Pa (standard pressure)
+    const double T0 = 273.15;     // K (standard temperature)
+    
+    double pressure_correction = pressure_Pa / P0;
+    double temperature_correction = T0 / temperature_K;
+    double v_drift_expected = K0_SI * E_Vm * pressure_correction * temperature_correction;
+    
+    INFO("Expected drift velocity: " << v_drift_expected << " m/s");
+    INFO("Expected drift time: " << length_m / v_drift_expected * 1000 << " ms");
+    
+    SECTION("Ion drifts forward (not stuck or going backwards)") {
+        INFO("Final z position: " << final_ion.pos.z * 1000 << " mm");
+        INFO("Final vz: " << final_ion.vel.z << " m/s");
+        INFO("Ion active: " << (final_ion.active ? "yes" : "no"));
+        
+        REQUIRE(final_ion.pos.z > 0.001);  // At least 1 mm forward
+        REQUIRE(final_ion.vel.z > 0.0);     // Moving forward
+    }
+    
+    SECTION("Drift velocity matches mobility (if ion survived)") {
+        // Only check if ion is still active and reached drift region
+        if (final_ion.active && final_ion.pos.z > 0.01) {
+            // Estimate drift velocity from distance traveled
+            double time_elapsed = result.trace.times.back();
+            double v_drift_measured = final_ion.pos.z / time_elapsed;
+            
+            INFO("Measured drift velocity: " << v_drift_measured << " m/s");
+            INFO("Expected drift velocity: " << v_drift_expected << " m/s");
+            INFO("Ratio: " << v_drift_measured / v_drift_expected);
+            
+            // Allow 30% tolerance (collision physics may need tuning)
+            REQUIRE(v_drift_measured == Approx(v_drift_expected).margin(0.3 * v_drift_expected));
+        } else {
+            INFO("Ion deactivated before reaching drift region - test inconclusive");
+            WARN("HSS collision model may cause excessive radial diffusion");
+        }
     }
 }

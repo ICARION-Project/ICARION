@@ -116,17 +116,19 @@ void SimulationEngine::apply_ion_birth(std::vector<IonState>& ions, double t) {
 void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) {
     const int n_ions = static_cast<int>(ions.size());
     
-    // Ion-based RNG for reproducibility (independent of OpenMP scheduling)
+    // Initialize per-ion RNGs on first call (persistent across timesteps!)
     // Each ion gets its own RNG seeded deterministically from: base_seed + ion_index
     // This ensures:
     // - Reproducible results regardless of thread count or scheduling
     // - Same ion always sees same random sequence
     // - Thread-safe (each thread accesses different ion RNG)
-    std::vector<EhssRng> rng_by_ion;
-    rng_by_ion.reserve(n_ions);
-    for (int i = 0; i < n_ions; ++i) {
-        uint64_t ion_seed = config_.simulation.rng_seed + static_cast<uint64_t>(i);
-        rng_by_ion.emplace_back(ion_seed);
+    // - RNG state is PRESERVED across timesteps (critical for collision physics!)
+    if (rng_by_ion_.empty()) {
+        rng_by_ion_.reserve(n_ions);
+        for (int i = 0; i < n_ions; ++i) {
+            uint64_t ion_seed = config_.simulation.rng_seed + static_cast<uint64_t>(i);
+            rng_by_ion_.emplace_back(ion_seed);
+        }
     }
     
     // Parallel ion processing (OpenMP if enabled)
@@ -135,7 +137,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         #pragma omp for schedule(dynamic)
         for (int i = 0; i < n_ions; ++i) {
             IonState& ion = ions[i];
-            EhssRng& ion_rng = rng_by_ion[i];  // Ion-specific RNG
+            EhssRng& ion_rng = rng_by_ion_[i];  // Ion-specific RNG (persistent!)
             
             // Skip inactive ions (still process ions waiting to be born)
             if (!ion.active) {

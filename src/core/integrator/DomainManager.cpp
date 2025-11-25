@@ -81,33 +81,9 @@ DomainManager::DomainManager(const std::vector<config::DomainConfig>& domains)
 }
 
 int DomainManager::find_domain_index(const Vec3& pos) const {
-    static int find_call_count = 0;
-    bool do_debug_find = (find_call_count < 5);
-    
-    if (do_debug_find) {
-        std::cerr << "\n=== find_domain_index CALL #" << find_call_count << " ===\n";
-        std::cerr << "  Position: (" << pos.x*1000 << ", " << pos.y*1000 << ", " << pos.z*1000 << ") mm\n";
-        std::cerr << "  domains_.size() = " << domains_.size() << "\n";
-        find_call_count++;
-    }
-    
     for (size_t i = 0; i < domains_.size(); ++i) {
-        bool inside = is_inside_domain(domains_[i], pos);
-        if (do_debug_find && i == 0) {
-            std::cerr << "  Domain[" << i << "]: inside=" << inside << "\n";
-        }
-        if (inside) {
-            if (do_debug_find) std::cerr << "  RETURNING domain index " << i << "\n";
+        if (is_inside_domain(domains_[i], pos)) {
             return static_cast<int>(i);
-        }
-    }
-    
-    // DEBUG: Print why ion is considered outside
-    if (do_debug_find) {
-        std::cerr << "  RETURNING -1 (ion outside all domains)\n";
-        if (!domains_.empty()) {
-            std::cerr << "  Domain[0].instrument: " << static_cast<int>(domains_[0].instrument) << "\n";
-            std::cerr << "  Domain[0].name: " << domains_[0].name << "\n";
         }
     }
     return -1;

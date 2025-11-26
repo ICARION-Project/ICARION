@@ -10,9 +10,9 @@ ICARION implements multiple collision models for ion-neutral interactions. This 
 |-------|--------|----------|------------|
 | **Friction** | ✅ **PRODUCTION READY** | All simulations | Extensively validated |
 | **HSS** | ✅ **PRODUCTION READY** | Stochastic collisions | Validated, diffusion correct |
-| **EHSS** | ✅ **PRODUCTION READY** | Energy-dependent scattering | Validated |
+| **EHSS** | ✅ **PRODUCTION READY** | Molecular structure resolved scattering | Validated |
 | **HardSphere** | ⚠️ **EXPERIMENTAL** | Research only | Partially validated |
-| **Langevin** | ⚠️ **EXPERIMENTAL** | Polar molecules only | Not validated for N2 |
+| **Langevin** | ⚠️ **EXPERIMENTAL** | Low E/N only | Not validated for N2 |
 
 ---
 
@@ -25,14 +25,14 @@ ICARION implements multiple collision models for ion-neutral interactions. This 
 **Advantages:**
 - Based on experimentally measured mobility (K₀)
 - Mason-Schamp equation foundation
-- **Exact agreement** with IMS drift measurements (356 m/s measured vs 356 m/s theory)
+- **Exact agreement** with IMS drift measurements (356 m/s measured vs 356 m/s theory in N2)
 - Works for all gas types (polar and non-polar)
 - Density correction included automatically
 
 **Validation:**
-- ✅ H3O+ in N2 at 1000 Pa: **0% error**
-- ✅ Consistent with literature mobility values
-- ✅ Theory matches experiment perfectly
+- H3O+ in N2 at 1000 Pa: **0% error**
+- Consistent with literature mobility values in N2
+- Theory matches experiment within perfectly, but does not account for diffusion (no randomization)
 
 **Usage:**
 ```cpp
@@ -41,9 +41,9 @@ config::CollisionModel::Friction
 ```
 
 **When to use:**
-- **Always**, unless you have a specific reason to use another model
-- IMS, DTIMS, FAIMS simulations
-- Any simulation where experimental mobility is known
+- At high pressures (> 50 mbar) and when only mobility is of interest, not ion cloud shape
+- IMS, DTIMS
+- Any simulation where experimental mobility is known and diffusion is not critical
 
 ---
 
@@ -53,12 +53,12 @@ config::CollisionModel::Friction
 
 **Advantages:**
 - Full stochastic treatment (diffusion included)
-- Validated thermal behavior
+- Validated thermalization behavior
 - Good agreement with mobility (±1%)
 
 **Validation:**
-- ✅ H3O+ in N2: 360 m/s measured vs 357 m/s theory (0.8% error)
-- ✅ Diffusion coefficient correct
+- H3O+ in N2: 360 m/s measured vs 357 m/s theory (0.8% error)
+- Diffusion coefficient correct
 
 **Usage:**
 ```cpp
@@ -70,16 +70,18 @@ config::CollisionModel::HSS
 - Need accurate thermal diffusion
 - Trajectory-level accuracy required
 - Modeling real experimental conditions
+- No DFT simmulations available 
 
 ---
 
-### 3. EHSS (Energy-dependent HSS)
+### 3. EHSS (Exact hard sphere scattering)
 
-**Formula:** Energy-dependent scattering angles + stochastic
+**Formula:** Exact scattering angles + stochastic
 
 **Validation:**
-- ✅ H3O+ in N2: 440 m/s vs 357 m/s theory (23% deviation)
+- H3O+ in N2: 440 m/s vs 357 m/s theory (23% deviation)
 - Note: Higher velocity expected due to molecular geometry effects
+- However, should be the most accurate physical model available, as it includes detailed scattering physics
 
 **Usage:**
 ```cpp
@@ -88,8 +90,9 @@ config::CollisionModel::EHSS
 ```
 
 **When to use:**
-- High-energy collisions
-- Molecular structure effects important
+- Studying structure-dependent effects
+- When detailed scattering physics is required
+- DFT or ab initio simulations available 
 
 ---
 
@@ -103,8 +106,8 @@ config::CollisionModel::EHSS
 
 **Known Issues:**
 - Gives γ = 1.20e8 Hz (16% lower than Friction: 1.43e8 Hz)
-- Requires **accurate CCS for target gas** (not literature He values!)
-  - Example: H3O+ CCS = 104 Ų in N2 (not 24.9 Ų from He!)
+- Requires **accurate CCS for target gas** !
+- Example: H3O+ CCS = 104 Ų in N2 (not 24.9 Ų from He!)
 - CCS must be calculated from Mason-Schamp for each gas
 - Missing thermal diffusion (needs OU thermalization)
 
@@ -134,13 +137,13 @@ CCS = (3*q)/(16*N₀*K₀) × √(2π/(μ*kB*T))
 **Status:** **Not validated for non-polar gases**
 
 **Critical Limitations:**
-- **Only valid for polar molecules!**
-- N2 is non-polar → model gives 76x wrong result!
+- **Only valid for high polarizability molecules!**
+- N2 has low polarisability → model gives 76x wrong result!
 - Predicts K = 0.042 cm²/(V·s) vs measured 3.2 cm²/(V·s)
 - Overpredicts damping by factor of 6
 
 **When NOT to use:**
-- ❌ N2, He, Ar, or any non-polar gas
+- ❌ gases with low polarizability (N2, O2, Ar, He)
 - ❌ Production simulations
 - ❌ IMS mobility measurements
 
@@ -164,6 +167,11 @@ CCS = (3*q)/(16*N₀*K₀) × √(2π/(μ*kB*T))
 - Full stochastic treatment
 - Accurate diffusion
 - Good mobility agreement
+
+### Structure-Dependent Scattering Studies
+**Use:** `EHSS` model
+- Detailed scattering physics
+- Requires CCS from DFT/ab initio
 
 ### Research / Model Development
 **Use with caution:** `HardSphere`, `Langevin`
@@ -202,7 +210,7 @@ Langevin       | (fails)     | 356.1 m/s   | 600% high| ⚠️ EXPERIMENTAL
 ### Validation Checklist
 
 - [ ] Mobility matches experiment (±5%)
-- [ ] Works across pressure range (100-100000 Pa)
+- [ ] Works across pressure range (100-100000 Pa), or specialized for low/high P
 - [ ] Works across temperature range (200-400 K)
 - [ ] Tested with multiple ion-gas pairs
 - [ ] Diffusion coefficient validated (if stochastic)
@@ -219,5 +227,5 @@ Langevin       | (fails)     | 356.1 m/s   | 600% high| ⚠️ EXPERIMENTAL
 ---
 
 **Last Updated:** 2025-11-26  
-**Version:** v1.0++  
+**Version:** v1.0
 **Maintainer:** ICARION Development Team

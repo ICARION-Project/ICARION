@@ -100,12 +100,13 @@ config::FullConfig make_ims_config(double length_m, double E_field_Vm,
     config::DomainConfig dom;
     dom.instrument = config::Instrument::IMS;
     dom.name = "ims_drift";
-    dom.geometry.length_m = length_m + 0.02;  // Add 2cm buffer
+    const double total_length = length_m + 0.02;  // Add 2cm buffer
+    dom.geometry.length_m = total_length;
     dom.geometry.origin_m = Vec3{0.0, 0.0, -0.01};  // Move origin 1cm back
     dom.geometry.radius_m = 0.5;  // 50cm radius (very wide to prevent radial losses)
     
-    // E-field
-    dom.fields.dc.axial_V.constant_value = E_field_Vm * length_m;
+    // E-field: Must use total_length for correct E = V/L
+    dom.fields.dc.axial_V.constant_value = E_field_Vm * total_length;
     dom.fields.dc.quad_V.constant_value = 0.0;
     dom.fields.dc.radial_V.constant_value = 0.0;
     dom.fields.dc.EN_Td.constant_value = 0.0;
@@ -165,7 +166,7 @@ core::IonState make_test_ion(double T_K = 300.0) {
     ion.mass_kg = m;
     ion.ion_charge_C = ELEM_CHARGE_C;
     ion.CCS_m2 = 24.9e-20;
-    ion.reduced_mobility_cm2_Vs = 2.8;
+    ion.reduced_mobility_cm2_Vs = 3.2;  // Literature value for H3O+ in N2
     ion.active = true;
     return ion;
 }
@@ -596,7 +597,7 @@ TEST_CASE("IMS: Mobility measurement with EHSS collisions", "[.][instrument][ims
  * **Expected:** Terminal velocity v_drift = K₀·E·(N₀/N)
  * Same as HSS but reached via different physics mechanism
  */
-TEST_CASE("IMS: Friction mobility (DampingForce only)", "[.][instrument][ims][physics][!mayfail]") {
+TEST_CASE("IMS: Friction mobility (DampingForce only)", "[instrument][ims][physics]") {
     double length_m = 0.01;
     double E_Vm = 10000.0;
     double pressure_Pa = 1000.0;
@@ -604,7 +605,7 @@ TEST_CASE("IMS: Friction mobility (DampingForce only)", "[.][instrument][ims][ph
     
     auto cfg = make_ims_config(length_m, E_Vm, pressure_Pa, temperature_K, 
                                 config::CollisionModel::Friction);
-    cfg.physics.enable_ou_thermalization = false;  // TEMP: Test DampingForce alone
+    cfg.physics.enable_ou_thermalization = false;  // Test DampingForce alone
     cfg.simulation.total_time_s = 0.00002;  // 20 μs
     cfg.simulation.dt_s = 1e-9;  // 1 ns
     

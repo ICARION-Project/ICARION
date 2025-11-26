@@ -49,6 +49,8 @@ Vec3 DampingForce::compute(const IonState& ion, double t, const ForceContext& ct
     }
     
     // Damping force: F = -γ·m·v [N]
+    // For Friction: γ = q/(K·m) → F = -q/K·v (legacy-compatible)
+    // For HSS/Langevin: γ = collision_rate → F = -γ·m·v
     // (Note: Force, not acceleration - will be divided by mass in integrator)
     return ion.vel * (-gamma * ion.mass_kg);
 }
@@ -131,7 +133,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
         
         case DampingModel::Friction: {
             // Mobility-based friction:
-            // γ = q/(K₀·m_ion) where K₀ = reduced mobility
+            // γ = q/(K·m_ion) where K = K₀·(n₀/n) is actual mobility
             const double K0_cm2_Vs = ion.reduced_mobility_cm2_Vs;
             const double m_ion = ion.mass_kg;
             const double q = ion.ion_charge_C;
@@ -139,6 +141,16 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
                 return 0.0;  // Missing parameters
             }
             const double K0_m2_Vs = K0_cm2_Vs * 1e-4;
+            
+            // DEBUG: Print what we're actually using
+            static bool debug_once = false;
+            if (!debug_once) {
+                std::cerr << "\n[DampingForce::Friction DEBUG]\n";
+                std::cerr << "  K₀ (from ion) = " << K0_cm2_Vs << " cm²/(V·s)\n";
+                std::cerr << "  gas_density = " << gas_density << " m⁻³\n";
+                std::cerr << "  LOSCHMIDT = " << LOSCHMIDT_CONSTANT << " m⁻³\n";
+                debug_once = true;
+            }
 
             auto lookup_sigma = [&](const config::GasMixtureComponent& comp) -> double {
                 // Prefer DB CCS_HSS per gas if available
@@ -215,9 +227,20 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
                 throw std::runtime_error("[DampingForce] No valid mobility contributions for gas mixture");
             }
 
-            // Single-gas fallback: K = K₀·(n/n₀)
+            // Single-gas fallback: K = K₀·(n₀/n)
             const double ion_mobility = K0_m2_Vs * LOSCHMIDT_CONSTANT / gas_density;
-            return q / (ion_mobility * m_ion);  // γ [1/s]
+            const double gamma_result = q / (ion_mobility * m_ion);
+            
+            // DEBUG: Print calculated values
+            static bool debug_calc = false;
+            if (!debug_calc) {
+                std::cerr << "  K (actual) = " << ion_mobility << " m²/(V·s)\n";
+                std::cerr << "  γ = " << gamma_result << " Hz\n";
+                std::cerr << "  Expected v_term = q·E/(γ·m) = " << (q * 10000.0 / (gamma_result * m_ion)) << " m/s @ E=10kV/m\n\n";
+                debug_calc = true;
+            }
+            
+            return gamma_result;
         }
         
         default:

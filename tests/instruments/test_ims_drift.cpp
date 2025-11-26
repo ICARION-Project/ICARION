@@ -651,12 +651,18 @@ TEST_CASE("IMS: Friction mobility (DampingForce only)", "[instrument][ims][physi
 /**
  * @test IMS Langevin+OU mobility measurement
  * 
- * **Purpose:** Validate Langevin model with OU thermalization
+ * **Status:** ⚠️ **EXPERIMENTAL** - Langevin model not validated for N2!
  * 
  * **Theory:**
  * - Langevin: γ(v) velocity-dependent (polarization effects)
  * - OU: Stochastic thermal kicks
- * - More realistic than constant friction for ion-neutral collisions
+ * 
+ * **Known Issues:**
+ * - Langevin predicts K=0.042 cm²/(V·s) vs measured 3.2 (76x too low!)
+ * - Only valid for **polar molecules**, N2 is **non-polar**
+ * - Overpredicts damping by ~6x compared to Friction model
+ * 
+ * **Recommendation:** Use Friction or HardSphere models for N2
  */
 TEST_CASE("IMS: Langevin mobility (DampingForce only)", "[.][instrument][ims][physics][!mayfail]") {
     double length_m = 0.01;
@@ -708,12 +714,19 @@ TEST_CASE("IMS: Langevin mobility (DampingForce only)", "[.][instrument][ims][ph
 /**
  * @test IMS HSD+OU mobility measurement
  * 
- * **Purpose:** Validate Hard-Sphere Deterministic with OU thermalization
+ * **Status:** ⚠️ **EXPERIMENTAL** - HardSphere model under validation
  * 
  * **Theory:**
- * - HSD: Deterministic friction based on hard-sphere collision rate
+ * - HSD: Deterministic friction γ = n·σ·v_th (kinetic theory)
  * - OU: Stochastic thermal kicks
- * - Should be similar to HSS (stochastic) in terminal velocity
+ * - Should give similar mobility to Friction model
+ * 
+ * **Current Status:**
+ * - γ_HSD = 1.20e8 Hz (16% lower than Friction γ = 1.43e8 Hz)
+ * - CCS must be accurate for target gas (104 Ų for H3O+ in N2)
+ * - Requires OU thermalization for realistic diffusion
+ * 
+ * **Recommendation:** Use Friction model for production (experimentally validated)
  */
 TEST_CASE("IMS: HSD mobility (DampingForce only)", "[.][instrument][ims][physics][!mayfail]") {
     double length_m = 0.01;

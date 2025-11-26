@@ -83,8 +83,8 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
     switch (model_) {
         case DampingModel::HardSphere: {
             // Hard-sphere collision frequency:
-            // γ = ν_collision = n·σ·v_th·(m_i/(m_n+m_i))
-            // Note: Legacy uses m_i in numerator (ion mass factor)
+            // γ = ν_collision = n·σ·v_th
+            // (Legacy had mass factor, but this contradicts Mason-Schamp mobility theory)
             
             const double CCS = ion.CCS_m2;
             const double m_ion = ion.mass_kg;
@@ -93,11 +93,8 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
                 return 0.0;  // Missing parameters
             }
             
-            // gamma = n·σ·v_th · m_i/(m_n+m_i)
-            const double gamma = gas_density * CCS * v_th 
-                                                * m_ion / (m_neutral + m_ion);
-            
-            return gamma;  // γ = ν_collision [1/s]
+            // Collision frequency (without mass factor - matches mobility theory)
+            return gas_density * CCS * v_th;
         }
         
         case DampingModel::Langevin: {
@@ -126,9 +123,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             const double cs = M_PI * q * std::sqrt(alpha / (epsilon_factor * m_reduced)) / v_mag;
             
             // Collision frequency
-            const double gamma = gas_density * cs * v_th * m_neutral / (m_neutral + m_ion);
-            
-            return gamma;  // γ = ν_Langevin [1/s]
+            return gas_density * cs * v_th * m_neutral / (m_neutral + m_ion);
         }
         
         case DampingModel::Friction: {

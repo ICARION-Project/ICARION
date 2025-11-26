@@ -100,13 +100,13 @@ config::FullConfig make_ims_config(double length_m, double E_field_Vm,
     config::DomainConfig dom;
     dom.instrument = config::Instrument::IMS;
     dom.name = "ims_drift";
-    const double total_length = length_m + 0.02;  // Add 2cm buffer
-    dom.geometry.length_m = total_length;
-    dom.geometry.origin_m = Vec3{0.0, 0.0, -0.01};  // Move origin 1cm back
+    // Use requested length directly (no buffer) - E = V/L formula requires this!
+    dom.geometry.length_m = length_m;
+    dom.geometry.origin_m = Vec3{0.0, 0.0, 0.0};  // Start at origin
     dom.geometry.radius_m = 0.5;  // 50cm radius (very wide to prevent radial losses)
     
-    // E-field: Must use total_length for correct E = V/L
-    dom.fields.dc.axial_V.constant_value = E_field_Vm * total_length;
+    // E-field: E = V/L → V = E·L
+    dom.fields.dc.axial_V.constant_value = E_field_Vm * length_m;
     dom.fields.dc.quad_V.constant_value = 0.0;
     dom.fields.dc.radial_V.constant_value = 0.0;
     dom.fields.dc.EN_Td.constant_value = 0.0;
@@ -165,7 +165,9 @@ core::IonState make_test_ion(double T_K = 300.0) {
     
     ion.mass_kg = m;
     ion.ion_charge_C = ELEM_CHARGE_C;
-    ion.CCS_m2 = 24.9e-20;
+    // CCS calculated from K₀=3.2 cm²/(V·s) using Mason-Schamp equation
+    // CCS(N2) = 104.0 Ų (not 24.9 Ų which is for He!)
+    ion.CCS_m2 = 104.0e-20;  // m² = 104.0 Ų for H3O+ in N2
     ion.reduced_mobility_cm2_Vs = 3.2;  // Literature value for H3O+ in N2
     ion.active = true;
     return ion;

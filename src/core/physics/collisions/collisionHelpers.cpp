@@ -376,23 +376,37 @@ void apply_ou_velocity_kick(IonState& y,
                             EhssRng& rng,
                             double dt,
                             double gamma,
-                            double T_K)
+                            double T_K,
+                            bool apply_damping)
 {
     if (gamma <= 0.0 || dt <= 0.0) return;
 
-    // exact OU coefficients
-    const double expfac    = std::exp(-gamma * dt);
-    const double m         = y.mass_kg;
+    const double m = y.mass_kg;
     const double kBT_over_m = BOLTZMANN_CONSTANT * T_K / m;
-    const double var_coeff = kBT_over_m * (1.0 - expfac * expfac);
-    const double sigma     = (var_coeff > 0.0) ? std::sqrt(var_coeff) : 0.0;
-
+    
     // gas (mean) velocity is already stored on y
     const double ux = y.domain_gas_velocity_m_s.x;
     const double uy = y.domain_gas_velocity_m_s.y;
     const double uz = y.domain_gas_velocity_m_s.z;
 
-    y.vel.x = ux + (y.vel.x - ux) * expfac + sigma * rng.normal();
-    y.vel.y = uy + (y.vel.y - uy) * expfac + sigma * rng.normal();
-    y.vel.z = uz + (y.vel.z - uz) * expfac + sigma * rng.normal();
+    if (apply_damping) {
+        // Full OU process: v(t+dt) = u + (v(t)-u)*exp(-γ*dt) + σ*N(0,1)
+        // Use when OU is the ONLY source of damping (no DampingForce)
+        const double expfac = std::exp(-gamma * dt);
+        const double var_coeff = kBT_over_m * (1.0 - expfac * expfac);
+        const double sigma = (var_coeff > 0.0) ? std::sqrt(var_coeff) : 0.0;
+
+        y.vel.x = ux + (y.vel.x - ux) * expfac + sigma * rng.normal();
+        y.vel.y = uy + (y.vel.y - uy) * expfac + sigma * rng.normal();
+        y.vel.z = uz + (y.vel.z - uz) * expfac + sigma * rng.normal();
+    } else {
+        // Thermal kicks only (no damping): Δv ~ N(0, √(2γkBT/m)*√dt)
+        // Use when DampingForce provides continuous friction in RK4
+        // This adds diffusion to match correct thermal equilibrium
+        const double sigma = std::sqrt(2.0 * gamma * kBT_over_m * dt);
+
+        y.vel.x += sigma * rng.normal();
+        y.vel.y += sigma * rng.normal();
+        y.vel.z += sigma * rng.normal();
+    }
 }

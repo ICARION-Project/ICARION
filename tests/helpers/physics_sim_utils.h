@@ -47,7 +47,16 @@ inline std::shared_ptr<physics::ForceRegistry> build_force_registry(
     auto registry = std::make_shared<physics::ForceRegistry>(dom);
     registry->add_force(std::make_unique<physics::ElectricFieldForce>(dom));
 
-    // Deterministic damping models (used when no stochastic handler)
+    // Deterministic damping models: Friction, Langevin, HSD
+    //
+    // These models use DampingForce (continuous friction in RK4)
+    // Optional: Add OU handler for thermal kicks (stochastic)
+    //
+    // Implementation:
+    // - DampingForce: F = -γ·m·v (continuous, deterministic)
+    // - OU handler (if enabled): Adds thermal diffusion Δv ~ √(2γkBT dt)
+    //
+    // The OU handler uses apply_damping=false to avoid double-damping!
     physics::DampingModel damping = physics::DampingModel::None;
     switch (collision_model) {
         case config::CollisionModel::Friction:  damping = physics::DampingModel::Friction; break;
@@ -55,7 +64,9 @@ inline std::shared_ptr<physics::ForceRegistry> build_force_registry(
         case config::CollisionModel::HSD:       damping = physics::DampingModel::HardSphere; break;
         default: break;
     }
-    if (!enable_ou && damping != physics::DampingModel::None) {
+    if (damping != physics::DampingModel::None) {
+        // Always add DampingForce for deterministic models
+        // (Provides continuous friction in RK4 integration)
         registry->add_force(std::make_unique<physics::DampingForce>(
             dom.environment, damping, species_db));
     }

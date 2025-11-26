@@ -80,13 +80,19 @@ public:
      * @brief Construct OU handler
      * 
      * @param gamma_coefficient Damping coefficient [1/s] - MUST match DampingForce!
+     * @param apply_damping If true, applies full OU (damping + thermalization).
+     *                      If false, applies only thermal kicks (for use with DampingForce).
      * 
      * ⚠️ **IMPORTANT:** This gamma must equal the damping coefficient used in
      * DampingForce, otherwise equilibrium temperature will be wrong!
      * 
+     * **Usage:**
+     * - With DampingForce: apply_damping=false (only thermal kicks)
+     * - Without DampingForce: apply_damping=true (full OU process)
+     * 
      * @throws std::invalid_argument if gamma_coefficient <= 0
      */
-    explicit OUCollisionHandler(double gamma_coefficient);
+    explicit OUCollisionHandler(double gamma_coefficient, bool apply_damping = true);
     
     /**
      * @brief Apply OU thermal kick for single timestep
@@ -126,7 +132,8 @@ public:
     double gamma() const { return gamma_; }
     
 private:
-    double gamma_;  ///< Damping coefficient [1/s] - must match DampingForce!
+    double gamma_;          ///< Damping coefficient [1/s] - must match DampingForce!
+    bool apply_damping_;    ///< If false, only thermal kicks (use with DampingForce)
 };
 
 } // namespace ICARION::physics

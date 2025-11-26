@@ -578,3 +578,183 @@ TEST_CASE("IMS: Mobility measurement with EHSS collisions", "[.][instrument][ims
         }
     }
 }
+
+// ============================================================================
+// Deterministic Collision Models with OU Thermalization
+// ============================================================================
+
+/**
+ * @test IMS Friction+OU mobility measurement
+ * 
+ * **Purpose:** Validate Friction model with OU thermalization
+ * 
+ * **Theory:**
+ * - Friction: F_drag = -γ·m·v where γ = q/(K₀·m)
+ * - OU: Adds stochastic thermal kicks for thermalization
+ * - Combined: Deterministic damping + thermal fluctuations
+ * 
+ * **Expected:** Terminal velocity v_drift = K₀·E·(N₀/N)
+ * Same as HSS but reached via different physics mechanism
+ */
+TEST_CASE("IMS: Friction mobility (DampingForce only)", "[.][instrument][ims][physics][!mayfail]") {
+    double length_m = 0.01;
+    double E_Vm = 10000.0;
+    double pressure_Pa = 1000.0;
+    double temperature_K = 300.0;
+    
+    auto cfg = make_ims_config(length_m, E_Vm, pressure_Pa, temperature_K, 
+                                config::CollisionModel::Friction);
+    cfg.physics.enable_ou_thermalization = false;  // TEMP: Test DampingForce alone
+    cfg.simulation.total_time_s = 0.00002;  // 20 μs
+    cfg.simulation.dt_s = 1e-9;  // 1 ns
+    
+    auto ion = make_test_ion();
+    
+    // Calculate gamma for OU with density correction: γ = q / (K_actual * m)
+    // where K_actual = K₀ · (N₀/N) accounts for pressure/temperature
+    // At lower pressure: fewer collisions → lower gamma → longer relaxation time
+    const double K0_SI = 3.2e-4;  // m²/(V·s) at STP
+    const double m_ion = 19.0 * AMU_TO_KG;  // kg
+    const double P0 = 101325.0;   // Pa (STP)
+    const double T0 = 273.15;     // K (STP)
+    const double N_ratio = (P0 / pressure_Pa) * (temperature_K / T0);  // N₀/N
+    const double K_actual = K0_SI * N_ratio;  // Actual mobility at test conditions
+    const double gamma = ELEM_CHARGE_C / (K_actual * m_ion);  // γ ≈ 1.4e8 Hz @ 1000 Pa
+    
+    auto result = run_simple_simulation(cfg, {ion}, false, nullptr, gamma);
+    
+    REQUIRE(result.ions.size() == 1);
+    const auto& final_ion = result.ions[0];
+    
+    SECTION("Ion drifts forward") {
+        REQUIRE(final_ion.active);
+        REQUIRE(final_ion.pos.z > 0.002);
+        REQUIRE(final_ion.vel.z > 0.0);
+    }
+    
+    SECTION("Mobility matches theory") {
+        if (final_ion.active && final_ion.pos.z > 0.002) {
+            const double v_expected = K0_SI * E_Vm * N_ratio;
+            const double v_measured = final_ion.vel.z;
+            
+            INFO("Friction+OU: v_measured=" << v_measured << " m/s, v_expected=" << v_expected << " m/s");
+            
+            // 40% tolerance (friction model differs slightly from collision-based)
+            REQUIRE(v_measured == Approx(v_expected).margin(0.40 * v_expected));
+        }
+    }
+}
+
+/**
+ * @test IMS Langevin+OU mobility measurement
+ * 
+ * **Purpose:** Validate Langevin model with OU thermalization
+ * 
+ * **Theory:**
+ * - Langevin: γ(v) velocity-dependent (polarization effects)
+ * - OU: Stochastic thermal kicks
+ * - More realistic than constant friction for ion-neutral collisions
+ */
+TEST_CASE("IMS: Langevin mobility (DampingForce only)", "[.][instrument][ims][physics][!mayfail]") {
+    double length_m = 0.01;
+    double E_Vm = 10000.0;
+    double pressure_Pa = 1000.0;
+    double temperature_K = 300.0;
+    
+    auto cfg = make_ims_config(length_m, E_Vm, pressure_Pa, temperature_K, 
+                                config::CollisionModel::Langevin);
+    cfg.physics.enable_ou_thermalization = false;  // TEMP: Test DampingForce alone
+    cfg.simulation.total_time_s = 0.00002;  // 20 μs
+    cfg.simulation.dt_s = 1e-9;  // 1 ns (γ·dt ≈ 0.14 at 1000 Pa)
+    
+    auto ion = make_test_ion();
+    
+    // Use effective gamma with density correction (Langevin is velocity-dependent)
+    const double K0_SI = 3.2e-4;  // m²/(V·s) at STP
+    const double m_ion = 19.0 * AMU_TO_KG;  // kg
+    const double P0 = 101325.0;   // Pa (STP)
+    const double T0 = 273.15;     // K (STP)
+    const double N_ratio = (P0 / pressure_Pa) * (temperature_K / T0);  // N₀/N
+    const double K_actual = K0_SI * N_ratio;  // Actual mobility at test conditions
+    const double gamma = ELEM_CHARGE_C / (K_actual * m_ion);  // γ ≈ 1.4e8 Hz @ 1000 Pa
+    
+    auto result = run_simple_simulation(cfg, {ion}, false, nullptr, gamma);
+    
+    REQUIRE(result.ions.size() == 1);
+    const auto& final_ion = result.ions[0];
+    
+    SECTION("Ion drifts forward") {
+        REQUIRE(final_ion.active);
+        REQUIRE(final_ion.pos.z > 0.002);
+        REQUIRE(final_ion.vel.z > 0.0);
+    }
+    
+    SECTION("Mobility approximately matches theory") {
+        if (final_ion.active && final_ion.pos.z > 0.002) {
+            const double v_expected = K0_SI * E_Vm * N_ratio;
+            const double v_measured = final_ion.vel.z;
+            
+            INFO("Langevin+OU: v_measured=" << v_measured << " m/s, v_expected=" << v_expected << " m/s");
+            
+            // 60% tolerance (Langevin has velocity-dependent γ)
+            REQUIRE(v_measured == Approx(v_expected).margin(0.60 * v_expected));
+        }
+    }
+}
+
+/**
+ * @test IMS HSD+OU mobility measurement
+ * 
+ * **Purpose:** Validate Hard-Sphere Deterministic with OU thermalization
+ * 
+ * **Theory:**
+ * - HSD: Deterministic friction based on hard-sphere collision rate
+ * - OU: Stochastic thermal kicks
+ * - Should be similar to HSS (stochastic) in terminal velocity
+ */
+TEST_CASE("IMS: HSD mobility (DampingForce only)", "[.][instrument][ims][physics][!mayfail]") {
+    double length_m = 0.01;
+    double E_Vm = 10000.0;
+    double pressure_Pa = 1000.0;
+    double temperature_K = 300.0;
+    
+    auto cfg = make_ims_config(length_m, E_Vm, pressure_Pa, temperature_K, 
+                                config::CollisionModel::HSD);
+    cfg.physics.enable_ou_thermalization = false;  // TEMP: Test DampingForce alone
+    cfg.simulation.total_time_s = 0.00002;  // 20 μs
+    cfg.simulation.dt_s = 1e-9;  // 1 ns (γ·dt ≈ 0.14 at 1000 Pa)
+    
+    auto ion = make_test_ion();
+    
+    // Gamma from mobility with density correction
+    const double K0_SI = 3.2e-4;  // m²/(V·s) at STP
+    const double m_ion = 19.0 * AMU_TO_KG;  // kg
+    const double P0 = 101325.0;   // Pa (STP)
+    const double T0 = 273.15;     // K (STP)
+    const double N_ratio = (P0 / pressure_Pa) * (temperature_K / T0);  // N₀/N
+    const double K_actual = K0_SI * N_ratio;  // Actual mobility at test conditions
+    const double gamma = ELEM_CHARGE_C / (K_actual * m_ion);  // γ ≈ 1.4e8 Hz @ 1000 Pa
+    
+    auto result = run_simple_simulation(cfg, {ion}, false, nullptr, gamma);
+    
+    REQUIRE(result.ions.size() == 1);
+    const auto& final_ion = result.ions[0];
+    
+    SECTION("Ion drifts forward") {
+        REQUIRE(final_ion.active);
+        REQUIRE(final_ion.pos.z > 0.002);
+        REQUIRE(final_ion.vel.z > 0.0);
+    }
+    
+    SECTION("Mobility matches theory") {
+        if (final_ion.active && final_ion.pos.z > 0.002) {
+            const double v_expected = K0_SI * E_Vm * N_ratio;
+            const double v_measured = final_ion.vel.z;
+            
+            INFO("HSD+OU: v_measured=" << v_measured << " m/s, v_expected=" << v_expected << " m/s");
+            
+            // 35% tolerance (HSD+OU should be close to HSS)
+            REQUIRE(v_measured == Approx(v_expected).margin(0.35 * v_expected));
+        }
+    }
+}

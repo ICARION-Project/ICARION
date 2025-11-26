@@ -69,11 +69,12 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
                 if (enable_logging) {
                     std::ostringstream msg;
                     msg << "[CollisionHandlerFactory] Creating OUCollisionHandler "
-                        << "for deterministic model (gamma=" << gamma_for_ou << ")";
+                        << "for deterministic model (gamma=" << gamma_for_ou << ", apply_damping=false)";
                     ICARION::log::debug_log(msg.str());
                 }
                 
-                return std::make_unique<OUCollisionHandler>(gamma_for_ou);
+                // apply_damping=false: Only thermal kicks, DampingForce provides friction
+                return std::make_unique<OUCollisionHandler>(gamma_for_ou, false);
             }
             
             // No OU thermalization - deterministic damping only via DampingForce

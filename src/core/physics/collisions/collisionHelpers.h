@@ -163,13 +163,20 @@ Vec3 collide_hs_cpu(const Vec3& v_ion_lab, const Vec3& v_neutral_lab, const EHSS
  * @param dt Time step [s]
  * @param gamma Friction coefficient [1/s]
  * @param T_K Gas temperature [K]
+ * @param apply_damping If true, applies full OU process (damping + thermalization).
+ *                      If false, applies only thermal kicks (for use with DampingForce).
  * 
  * Applies stochastic thermal kick to maintain Boltzmann distribution in deterministic
  * collision models (Langevin, constant friction). Ensures correct thermal equilibrium
  * without explicit collision events. Based on Ornstein-Uhlenbeck process solution.
+ * 
+ * **Usage:**
+ * - With DampingForce (continuous friction): apply_damping=false (only thermal kicks)
+ * - Standalone OU (no DampingForce): apply_damping=true (damping + thermal kicks)
  */
 void apply_ou_velocity_kick(IonState& y,
                             EhssRng& rng,
                             double dt,
                             double gamma,
-                            double T_K);
+                            double T_K,
+                            bool apply_damping = true);

@@ -7,11 +7,14 @@
 #include <catch2/catch_approx.hpp>
 #include <vector>
 #include <cmath>
+#include <fstream>
+#include <nlohmann/json.hpp>
 
 #include "helpers/physics_sim_utils.h"
 #include "core/config/types/FullConfig.h"
 #include "core/config/types/DomainConfig.h"
 #include "core/config/types/InstrumentTypes.h"
+#include "core/physics/collisions/geometryUtils.h"
 #include "utils/constants.h"
 
 using namespace ICARION;
@@ -283,6 +286,102 @@ TEST_CASE("IMS: Mobility measurement with HSS collisions", "[instrument][ims][ph
         } else {
             INFO("Ion deactivated or insufficient drift distance - test inconclusive");
             WARN("Check domain boundaries and collision model");
+        }
+    }
+}
+
+TEST_CASE("IMS: Mobility measurement with EHSS collisions", "[instrument][ims][physics][!mayfail]") {
+    // ================================================================
+    // EHSS (Enhanced Hard Sphere Scattering) with molecular geometry
+    // Uses atomic structure from data/molecules/H3O+.json
+    // Expected: same mobility as HSS (geometry-based collision model)
+    // ================================================================
+    
+    // IMS parameters (same as HSS test)
+    double length_m = 0.01;           // 1 cm drift region
+    double E_Vm = 10000.0;            // 10 kV/m
+    double pressure_Pa = 1000.0;      // 1000 Pa
+    double temperature_K = 300.0;
+    
+    auto cfg = make_ims_config(length_m, E_Vm, pressure_Pa, temperature_K, 
+                                config::CollisionModel::EHSS);
+    cfg.simulation.total_time_s = 2e-5;  // 20 μs timeout
+    cfg.simulation.dt_s = 1e-9;  // 1 ns timestep
+    
+    auto ion = make_test_ion();
+    
+    // Load H3O+ geometry from JSON file
+    physics::GeometryMap geometry_map;
+    {
+        std::ifstream geom_file("../data/molecules/H3O+.json");
+        REQUIRE(geom_file.is_open());
+        
+        nlohmann::json j;
+        geom_file >> j;
+        
+        const auto& mol = j["molecule"];
+        std::vector<Vec3> atom_positions;
+        std::vector<double> atom_radii;
+        
+        for (const auto& atom : mol["atoms"]) {
+            // Positions in Angstrom, convert to meters
+            Vec3 pos{
+                atom["pos"][0].get<double>() * 1e-10,
+                atom["pos"][1].get<double>() * 1e-10,
+                atom["pos"][2].get<double>() * 1e-10
+            };
+            atom_positions.push_back(pos);
+            
+            // Use LJ sigma as atomic radius (convert Angstrom to meters)
+            double radius = atom["LJ_sigma_angstrom"].get<double>() * 1e-10;
+            atom_radii.push_back(radius);
+        }
+        
+        geometry_map["H3O+"] = {atom_positions, atom_radii};
+    }
+    
+    // Run simulation with geometry map
+    auto result = run_simple_simulation(cfg, {ion}, false, &geometry_map);
+    
+    REQUIRE(result.ions.size() == 1);
+    const auto& final_ion = result.ions[0];
+    
+    // Debug output
+    std::cout << "\n=== IMS EHSS Mobility Test Debug ===\n";
+    std::cout << "Final ion position: (" << final_ion.pos.x*1000 << ", " 
+              << final_ion.pos.y*1000 << ", " << final_ion.pos.z*1000 << ") mm\n";
+    std::cout << "Final ion velocity: (" << final_ion.vel.x << ", " 
+              << final_ion.vel.y << ", " << final_ion.vel.z << ") m/s\n";
+    std::cout << "Ion active: " << (final_ion.active ? "YES" : "NO") << "\n";
+    std::cout << "====================================\n\n";
+    
+    // Expected drift velocity (same as HSS)
+    const double K0_SI = 2.8e-4;  // m²/(V·s)
+    const double P0 = 101325.0;
+    const double T0 = 273.15;
+    double number_density_correction = (P0 / pressure_Pa) * (temperature_K / T0);
+    double v_drift_expected = K0_SI * E_Vm * number_density_correction;
+    
+    INFO("Expected drift velocity: " << v_drift_expected << " m/s");
+    
+    SECTION("Ion drifts forward") {
+        REQUIRE(final_ion.pos.z > 0.001);  // At least 1 mm forward
+        REQUIRE(final_ion.vel.z > 0.0);     // Moving forward
+    }
+    
+    SECTION("Drift velocity matches mobility") {
+        if (final_ion.active && final_ion.pos.z > 0.002) {  // Lower threshold for EHSS (more collisions)
+            double v_drift_measured = final_ion.vel.z;
+            
+            INFO("Measured drift velocity (vz): " << v_drift_measured << " m/s");
+            INFO("Expected drift velocity: " << v_drift_expected << " m/s");
+            INFO("Ratio: " << v_drift_measured / v_drift_expected);
+            
+            // Allow 50% tolerance (EHSS with molecular geometry differs from simple sphere model)
+            REQUIRE(v_drift_measured == Approx(v_drift_expected).margin(0.50 * v_drift_expected));
+        } else {
+            INFO("Ion deactivated or insufficient drift distance");
+            WARN("Check EHSS collision model implementation");
         }
     }
 }

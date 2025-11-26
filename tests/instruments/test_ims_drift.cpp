@@ -39,8 +39,9 @@ config::FullConfig make_ims_config(double length_m, double E_field_Vm,
     config::DomainConfig dom;
     dom.instrument = config::Instrument::IMS;
     dom.name = "ims_drift";
-    dom.geometry.length_m = length_m;
-    dom.geometry.radius_m = 0.1;  // 10cm radius (wide to prevent radial losses)
+    dom.geometry.length_m = length_m + 0.02;  // Add 2cm buffer
+    dom.geometry.origin_m = Vec3{0.0, 0.0, -0.01};  // Move origin 1cm back
+    dom.geometry.radius_m = 0.5;  // 50cm radius (very wide to prevent radial losses)
     
     // E-field
     dom.fields.dc.axial_V.constant_value = E_field_Vm * length_m;
@@ -215,15 +216,15 @@ TEST_CASE("IMS: Mobility measurement with HSS collisions", "[instrument][ims][ph
     // Where K₀ = reduced mobility = 2.8 cm²/(V·s) for H3O+ in N2
     // ================================================================
     
-    // IMS parameters (typical drift tube)
-    double length_m = 0.1;           // 10 cm drift region
-    double E_Vm = 2000.0;            // 200 V/cm = 2000 V/m
-    double pressure_Pa = 101325.0;   // 1 atm
+    // IMS parameters (short drift tube, moderate pressure)
+    double length_m = 0.01;           // 1 cm drift region (short!)
+    double E_Vm = 10000.0;            // 10 kV/m = 100 V/cm (high field)
+    double pressure_Pa = 1000.0;      // 1000 Pa = 7.5 Torr (moderate pressure, 10x higher)
     double temperature_K = 300.0;
     
     auto cfg = make_ims_config(length_m, E_Vm, pressure_Pa, temperature_K, 
                                 config::CollisionModel::HSS);
-    cfg.simulation.total_time_s = 0.01;  // 10 ms timeout
+    cfg.simulation.total_time_s = 2e-5;  // 20 μs timeout
     cfg.simulation.dt_s = 1e-9;  // 1 ns timestep
     
     auto ion = make_test_ion();
@@ -245,14 +246,15 @@ TEST_CASE("IMS: Mobility measurement with HSS collisions", "[instrument][ims][ph
     std::cout << "================================\n\n";
     
     // Calculate expected drift velocity from Mason-Schamp equation:
-    // v_d = K₀ * E * (P/P₀) * (T₀/T)
-    const double K0_SI = 2.8e-4;  // m²/(V·s) (converted from cm²/(V·s))
+    // v_d = K₀ * E * (N₀/N) = K₀ * E * (P₀/P) * (T/T₀)
+    // Where K₀ = reduced mobility at standard conditions (273.15 K, 101325 Pa)
+    // Lower pressure → higher drift velocity (fewer collisions)
+    const double K0_SI = 2.8e-4;  // m²/(V·s) (converted from 2.8 cm²/(V·s) for H3O+ in N2)
     const double P0 = 101325.0;   // Pa (standard pressure)
     const double T0 = 273.15;     // K (standard temperature)
     
-    double pressure_correction = pressure_Pa / P0;
-    double temperature_correction = T0 / temperature_K;
-    double v_drift_expected = K0_SI * E_Vm * pressure_correction * temperature_correction;
+    double number_density_correction = (P0 / pressure_Pa) * (temperature_K / T0);
+    double v_drift_expected = K0_SI * E_Vm * number_density_correction;
     
     INFO("Expected drift velocity: " << v_drift_expected << " m/s");
     INFO("Expected drift time: " << length_m / v_drift_expected * 1000 << " ms");
@@ -267,21 +269,20 @@ TEST_CASE("IMS: Mobility measurement with HSS collisions", "[instrument][ims][ph
     }
     
     SECTION("Drift velocity matches mobility (if ion survived)") {
-        // Only check if ion is still active and reached drift region
-        if (final_ion.active && final_ion.pos.z > 0.01) {
-            // Estimate drift velocity from distance traveled
-            double time_elapsed = result.trace.times.back();
-            double v_drift_measured = final_ion.pos.z / time_elapsed;
+        // Check if ion reached meaningful drift distance (at least 5mm from start)
+        if (final_ion.active && final_ion.pos.z > 0.005) {
+            // Estimate drift velocity from final velocity (terminal velocity reached)
+            double v_drift_measured = final_ion.vel.z;
             
-            INFO("Measured drift velocity: " << v_drift_measured << " m/s");
+            INFO("Measured drift velocity (vz): " << v_drift_measured << " m/s");
             INFO("Expected drift velocity: " << v_drift_expected << " m/s");
             INFO("Ratio: " << v_drift_measured / v_drift_expected);
             
-            // Allow 30% tolerance (collision physics may need tuning)
-            REQUIRE(v_drift_measured == Approx(v_drift_expected).margin(0.3 * v_drift_expected));
+            // Allow 25% tolerance (HSS collision physics approximate, no OU thermalization)
+            REQUIRE(v_drift_measured == Approx(v_drift_expected).margin(0.25 * v_drift_expected));
         } else {
-            INFO("Ion deactivated before reaching drift region - test inconclusive");
-            WARN("HSS collision model may cause excessive radial diffusion");
+            INFO("Ion deactivated or insufficient drift distance - test inconclusive");
+            WARN("Check domain boundaries and collision model");
         }
     }
 }

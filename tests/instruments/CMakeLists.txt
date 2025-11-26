@@ -58,6 +58,7 @@ add_test(NAME IMSDrift COMMAND test_ims_drift)
 set_tests_properties(IMSDrift PROPERTIES
     TIMEOUT 30
     LABELS "instrument;ims;physics"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
 # TOF flight time validation

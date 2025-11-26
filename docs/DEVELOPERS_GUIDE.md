@@ -475,6 +475,60 @@ ion.vel = v_new + v_gas;  // Add gas velocity
 
 ---
 
+**Problem: Ions starting at domain boundaries are immediately deactivated**
+
+**Error:** Ions placed exactly at or very close to entrance boundaries (e.g., z=0 for domain starting at z=0) drift backwards after first collision and are instantly eliminated. This is especially problematic at low pressures where random thermal velocities from collisions can exceed drift velocities.
+
+**Symptoms:**
+- Ions with position z ≈ 0 and negative velocity (vz < 0) after first collision
+- Ion marked inactive after ~1-2 collisions
+- Problem worse at low pressures (< 1000 Pa) where thermal diffusion dominates
+- Example: IMS drift tube with ion at z=0, domain origin at (0,0,0)
+
+**Cause:** 
+1. Ion starts exactly at entrance boundary (z = 0)
+2. Boundary check: ion is active if `z >= -EPSILON` (typically -1e-12)
+3. First collision randomizes velocity with thermal component
+4. Even small backward velocity component → `z < -EPSILON` → ion deactivated
+5. Effect amplified at low pressure: fewer collisions → larger thermal kicks
+
+**Solution:** **Shift domain origin backward** to create entrance buffer zone:
+
+```cpp
+// For a 10cm IMS drift tube with ions starting at z=0:
+config::DomainConfig domain;
+domain.geometry.origin_m = Vec3{0.0, 0.0, -0.02};  // Shift 2cm backward
+domain.geometry.length_m = 0.10 + 0.04;             // Add 4cm buffer (2cm entrance + 2cm exit)
+domain.geometry.radius_m = 0.5;                     // Wide radius to prevent radial losses
+
+// Ion starting position remains z=0 (relative to lab frame)
+// But now ion is 2cm INSIDE the domain (domain extends from z=-0.02 to z=0.12)
+```
+
+**Why this works:**
+- Ion at z=0 is now safely inside domain (domain starts at z=-0.02)
+- Backward collisions at z=0 → z=-0.001 are still within domain bounds
+- Provides safety margin for thermal diffusion
+
+**Best Practices:**
+- **Rule of thumb**: Add buffer distance ≥ 2× mean free path
+- **Low pressure (< 100 Pa)**: Use buffer ≥ 2-5 cm
+- **High pressure (> 10 kPa)**: Buffer ≥ 0.5-1 cm usually sufficient
+- **Wide radius**: Use `radius_m ≥ 5 × length_m` to prevent radial losses from diffusion
+
+**Future Development:**
+- **v1.1+**: Planned boundary types beyond current absorbing boundaries:
+  - `BoundaryType::Reflecting` - elastic reflection at boundaries
+  - `BoundaryType::Emitting` - continuous ion source at entrance
+  - `BoundaryType::Periodic` - wraparound for bulk simulations
+- **Current (v1.0)**: Only absorbing boundaries implemented
+
+**Related Issues:**
+- See `tests/instruments/test_ims_drift.cpp` for working example
+- Commits: 3868379 (boundary fix), e00e8b0 (EHSS test), b9a57f4 (CTest fixes)
+
+---
+
 ## Adding New Instrument Types
 
 ### Overview

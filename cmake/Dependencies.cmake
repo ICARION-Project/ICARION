@@ -54,3 +54,13 @@ list(APPEND ICARION_CORE_DEPS spdlog::spdlog)
 find_package(OpenSSL REQUIRED)
 list(APPEND ICARION_CORE_DEPS OpenSSL::Crypto)
 
+# OpenMP (optional but highly recommended for performance)
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    message(STATUS "OpenMP found: ${OpenMP_CXX_VERSION}")
+    list(APPEND ICARION_CORE_DEPS OpenMP::OpenMP_CXX)
+    add_compile_definitions(HAVE_OPENMP)
+else()
+    message(WARNING "OpenMP not found - simulations will be single-threaded")
+endif()
+

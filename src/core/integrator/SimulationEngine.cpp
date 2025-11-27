@@ -150,10 +150,14 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             }
             
             // 1. Find current domain
-            int domain_idx = domain_manager_->find_domain_index(ion.pos);
-            if (domain_idx < 0) {
-                ion.active = false;  // Ion left all domains
-                continue;
+            int domain_idx;
+            {
+                PROFILE_SCOPE_IF_ENABLED("Domain Finding");
+                domain_idx = domain_manager_->find_domain_index(ion.pos);
+                if (domain_idx < 0) {
+                    ion.active = false;  // Ion left all domains
+                    continue;
+                }
             }
             
             const auto& domain_config = config_.domains[domain_idx];
@@ -161,7 +165,9 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             // 2. Update domain-specific properties (gas properties, environment)
             if (ion.current_domain_index != domain_idx) {
                 domain_manager_->update_domain_properties(ion, domain_idx);
-            }            // 3. Create domain context (transforms to local coordinates)
+            }
+            
+            // 3. Create domain context (transforms to local coordinates)
             // RAII: Automatic sync back to global on scope exit
             DomainContext ctx(ion, domain_idx, *domain_manager_);
             
@@ -225,10 +231,12 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             ctx.vel_local() = ion.vel;
             
             // 9. Check if ion left domain (boundary collision detection)
-            Vec3 pos_after = ctx.pos_local();
-            
-            // First check aperture crossing (domain exit at z=length_m)
-            if (pos_after.z >= domain_config.geometry.length_m && pos_before.z < domain_config.geometry.length_m) {
+            {
+                PROFILE_SCOPE_IF_ENABLED("Boundary Checks");
+                Vec3 pos_after = ctx.pos_local();
+                
+                // First check aperture crossing (domain exit at z=length_m)
+                if (pos_after.z >= domain_config.geometry.length_m && pos_before.z < domain_config.geometry.length_m) {
                 domain_manager_->check_aperture_crossing(ion, domain_idx, pos_before, pos_after);
                 
                 // If blocked by aperture, terminate at boundary
@@ -287,16 +295,17 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
                 }
             }
             
-            if (!still_inside) {
-                // Ion left domain (hit wall or exited entrance/exit)
-                domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
-                continue;  // Ion absorbed, skip transform
-            }
-            
-            // 9. Transform back to global coordinates
-            // Note: DomainContext destructor will handle this automatically at scope exit
-            // But we need ion.pos/vel updated now for safety checks below
-            ctx.sync_to_ion();
+                if (!still_inside) {
+                    // Ion left domain (hit wall or exited entrance/exit)
+                    domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
+                    continue;  // Ion absorbed, skip transform
+                }
+                
+                // 9. Transform back to global coordinates
+                // Note: DomainContext destructor will handle this automatically at scope exit
+                // But we need ion.pos/vel updated now for safety checks below
+                ctx.sync_to_ion();
+            }  // End Boundary Checks profiling scope
             
             // 10. Update ion time
             ion.t += dt;

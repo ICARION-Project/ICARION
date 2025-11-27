@@ -2,91 +2,107 @@
   "profiling_results": [
     {
       "name": "Simulation Run",
-      "total_ms": 52417.8,
+      "total_ms": 56350.4,
       "calls": 1,
-      "avg_ms": 52417.8,
-      "min_ms": 52417.8,
-      "max_ms": 52417.8
+      "avg_ms": 56350.4,
+      "min_ms": 56350.4,
+      "max_ms": 56350.4
     },
     {
       "name": "Collision Handling",
-      "total_ms": 13989.4,
-      "calls": 95776385,
-      "avg_ms": 0.000146064,
+      "total_ms": 16084.7,
+      "calls": 81097907,
+      "avg_ms": 0.000198336,
       "min_ms": 8.5e-05,
-      "max_ms": 1.08096
-    },
-    {
-      "name": "Output Writing",
-      "total_ms": 7369.06,
-      "calls": 500,
-      "avg_ms": 14.7381,
-      "min_ms": 0.01318,
-      "max_ms": 24.3731
+      "max_ms": 1.17193
     },
     {
       "name": "Integration",
-      "total_ms": 5089.83,
-      "calls": 95776385,
-      "avg_ms": 5.31428e-05,
+      "total_ms": 4340.09,
+      "calls": 81097907,
+      "avg_ms": 5.35167e-05,
       "min_ms": 4.2e-05,
-      "max_ms": 0.365533
+      "max_ms": 0.313247
+    },
+    {
+      "name": "Domain Finding",
+      "total_ms": 2159.12,
+      "calls": 81098120,
+      "avg_ms": 2.66235e-05,
+      "min_ms": 2.1e-05,
+      "max_ms": 0.312316
+    },
+    {
+      "name": "Boundary Checks",
+      "total_ms": 1980.59,
+      "calls": 81097907,
+      "avg_ms": 2.44222e-05,
+      "min_ms": 2.1e-05,
+      "max_ms": 0.306795
     },
     {
       "name": "Reaction Handling",
-      "total_ms": 2361.61,
-      "calls": 95776385,
-      "avg_ms": 2.46575e-05,
+      "total_ms": 1980.41,
+      "calls": 81097907,
+      "avg_ms": 2.442e-05,
       "min_ms": 2.1e-05,
-      "max_ms": 0.368846
+      "max_ms": 0.308646
     },
     {
-      "name": "Progress Update",
-      "total_ms": 14.6518,
-      "calls": 500000,
-      "avg_ms": 2.93035e-05,
-      "min_ms": 2.1e-05,
-      "max_ms": 0.319826
+      "name": "Output Writing",
+      "total_ms": 676.093,
+      "calls": 10,
+      "avg_ms": 67.6093,
+      "min_ms": 1.12889,
+      "max_ms": 95.7028
     },
     {
       "name": "RNG Initialization",
-      "total_ms": 1.74812,
+      "total_ms": 16.6661,
       "calls": 1,
-      "avg_ms": 1.74812,
-      "min_ms": 1.74812,
-      "max_ms": 1.74812
+      "avg_ms": 16.6661,
+      "min_ms": 16.6661,
+      "max_ms": 16.6661
     },
     {
       "name": "Ion Generation",
-      "total_ms": 0.553758,
+      "total_ms": 6.31038,
       "calls": 1,
-      "avg_ms": 0.553758,
-      "min_ms": 0.553758,
-      "max_ms": 0.553758
+      "avg_ms": 6.31038,
+      "min_ms": 6.31038,
+      "max_ms": 6.31038
+    },
+    {
+      "name": "Progress Update",
+      "total_ms": 1.63699,
+      "calls": 10000,
+      "avg_ms": 0.000163699,
+      "min_ms": 4.2e-05,
+      "max_ms": 0.099269
     },
     {
       "name": "Config Loading",
-      "total_ms": 0.232813,
+      "total_ms": 0.236578,
       "calls": 1,
-      "avg_ms": 0.232813,
-      "min_ms": 0.232813,
-      "max_ms": 0.232813
+      "avg_ms": 0.236578,
+      "min_ms": 0.236578,
+      "max_ms": 0.236578
     },
     {
       "name": "Logging Initialization",
-      "total_ms": 0.149079,
+      "total_ms": 0.147988,
       "calls": 1,
-      "avg_ms": 0.149079,
-      "min_ms": 0.149079,
-      "max_ms": 0.149079
+      "avg_ms": 0.147988,
+      "min_ms": 0.147988,
+      "max_ms": 0.147988
     },
     {
       "name": "Engine Initialization",
-      "total_ms": 0.014275,
+      "total_ms": 0.0166,
       "calls": 1,
-      "avg_ms": 0.014275,
-      "min_ms": 0.014275,
-      "max_ms": 0.014275
+      "avg_ms": 0.0166,
+      "min_ms": 0.0166,
+      "max_ms": 0.0166
     },
     {
       "name": "Physics Module Setup",

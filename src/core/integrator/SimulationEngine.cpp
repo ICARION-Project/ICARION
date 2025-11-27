@@ -143,216 +143,164 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             if (!ion.active) {
                 continue;
             }
-        
-        // 1. Find current domain
-        int domain_idx = domain_manager_->find_domain_index(ion.pos);
-        if (domain_idx < 0) {
-            ion.active = false;  // Ion left all domains
-            continue;
-        }
-        
-        const auto& domain_config = config_.domains[domain_idx];
-        
-        // 2. Update domain-specific properties (gas properties, environment)
-        if (ion.current_domain_index != domain_idx) {
-            domain_manager_->update_domain_properties(ion, domain_idx);
-        }
-        
-        // 3. Create domain context (transforms to local coordinates)
-        // RAII: Automatic sync back to global on scope exit
-        DomainContext ctx(ion, domain_idx, *domain_manager_);
-        
-        // Store pre-integration position for aperture crossing check
-        Vec3 pos_before = ctx.pos_local();
-        
-        // 4. Handle collisions (if enabled)
-        // Work in local coordinates: temporarily set ion.pos/vel to local, process, then restore
-        if (collision_handler_) {
-            ion.pos = ctx.pos_local();
-            ion.vel = ctx.vel_local();
             
-            collision_handler_->handle_collision(ion, dt, ion_rng, domain_config.environment);
-            
-            ctx.pos_local() = ion.pos;
-            ctx.vel_local() = ion.vel;
-        }
-        
-        // 5. Handle reactions (if enabled)
-        // Work in local coordinates: species properties updated in-place (SSOT!)
-        if (reaction_handler_ && !config_.reaction_db.reactions.empty()) {
-            ion.pos = ctx.pos_local();
-            ion.vel = ctx.vel_local();
-            
-            reaction_handler_->handle_reaction(
-                ion,
-                dt,
-                ion_rng,
-                config_.reaction_db,  // ReactionDatabase (SSOT)
-                config_.species_db,   // SpeciesDatabase (SSOT)
-                domain_config.environment  // Temperature, density, etc.
-            );
-            
-            ctx.pos_local() = ion.pos;
-            ctx.vel_local() = ion.vel;
-            // Note: Species properties (mass, CCS, etc.) already updated in ion by handler
-        }
-        
-        // 6. Get domain-specific ForceRegistry
-        const auto& force_registry = force_registries_[domain_idx];
-        
-        // 7. Integrate trajectory (IIntegrationStrategy)
-        // Note: Integrator computes forces internally via ForceRegistry (4x for RK4)
-        // No need to call compute_total_force() here - would be redundant
-        ion.pos = ctx.pos_local();
-        ion.vel = ctx.vel_local();
-        
-        integrator_->step(ion, current_time_, dt, *force_registry, ions);
-        
-        // Update local coordinates after integration
-        ctx.pos_local() = ion.pos;
-        ctx.vel_local() = ion.vel;
-        
-        // 9. Check if ion left domain (boundary collision detection)
-        Vec3 pos_after = ctx.pos_local();
-        
-        // First check aperture crossing (domain exit at z=length_m)
-        if (pos_after.z >= domain_config.geometry.length_m && pos_before.z < domain_config.geometry.length_m) {
-            domain_manager_->check_aperture_crossing(ion, domain_idx, pos_before, pos_after);
-            
-            // If blocked by aperture, terminate at boundary
-            if (!ion.active) {
-                domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
-                continue;  // Ion absorbed, skip further processing
-            }
-            
-            // Ion passed through aperture
-            // Check if this is the last domain (no next domain available)
-            bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
-            
-            if (is_last_domain) {
-                // No next domain - ion exits simulation
-                ion.active = false;
-                domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
+            // 1. Find current domain
+            int domain_idx = domain_manager_->find_domain_index(ion.pos);
+            if (domain_idx < 0) {
+                ion.active = false;  // Ion left all domains
                 continue;
             }
             
-            // Multi-domain: Sync to global coordinates (DomainContext will handle transform)
-            ctx.sync_to_ion();
-            ion.t += dt;
-            continue;  // Skip remaining checks, next step will find new domain
-        }
-        
-        // Then check all other boundaries (radial wall, entrance plane)
-        // For Orbitrap: Use proper hyperlogarithmic boundary checking
-        // For others: Simple cylindrical geometry
-        bool still_inside = false;
-        
-        if (domain_config.instrument == config::Instrument::Orbitrap) {
-            // Use DomainManager's comprehensive Orbitrap boundary check
-            // Transform local position back to global
-            Vec3 pos_after_global = domain_manager_->local_to_global_pos(pos_after, domain_idx);
-            // Use find_domain_index as proxy for "is inside" check
-            int check_domain = domain_manager_->find_domain_index(pos_after_global);
-            still_inside = (check_domain == domain_idx);
-        } else {
-            // Cylindrical geometry (IMS, TOF, LQIT, etc.)
-            still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON);
+            const auto& domain_config = config_.domains[domain_idx];
             
-            // Check z_max: strict for last domain, tolerant for others
-            bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
-            if (is_last_domain) {
-                // Last domain: strict boundary (no tolerance for exit)
-                still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
+            // 2. Update domain-specific properties (gas properties, environment)
+            if (ion.current_domain_index != domain_idx) {
+                domain_manager_->update_domain_properties(ion, domain_idx);
+            }            // 3. Create domain context (transforms to local coordinates)
+            // RAII: Automatic sync back to global on scope exit
+            DomainContext ctx(ion, domain_idx, *domain_manager_);
+            
+            // Store pre-integration position for aperture crossing check
+            Vec3 pos_before = ctx.pos_local();
+            
+            // 4. Handle collisions (if enabled)
+            // Work in local coordinates: temporarily set ion.pos/vel to local, process, then restore
+            if (collision_handler_) {
+                ion.pos = ctx.pos_local();
+                ion.vel = ctx.vel_local();
+                
+                collision_handler_->handle_collision(ion, dt, ion_rng, domain_config.environment);
+                
+                ctx.pos_local() = ion.pos;
+                ctx.vel_local() = ion.vel;
+            }
+            
+            // 5. Handle reactions (if enabled)
+            // Work in local coordinates: species properties updated in-place (SSOT!)
+            if (reaction_handler_ && !config_.reaction_db.reactions.empty()) {
+                ion.pos = ctx.pos_local();
+                ion.vel = ctx.vel_local();
+                
+                reaction_handler_->handle_reaction(
+                    ion,
+                    dt,
+                    ion_rng,
+                    config_.reaction_db,  // ReactionDatabase (SSOT)
+                    config_.species_db,   // SpeciesDatabase (SSOT)
+                    domain_config.environment  // Temperature, density, etc.
+                );
+                
+                ctx.pos_local() = ion.pos;
+                ctx.vel_local() = ion.vel;
+                // Note: Species properties (mass, CCS, etc.) already updated in ion by handler
+            }
+            
+            // 6. Get domain-specific ForceRegistry
+            const auto& force_registry = force_registries_[domain_idx];
+            
+            // 7. Integrate trajectory (IIntegrationStrategy)
+            // Note: Integrator computes forces internally via ForceRegistry (4x for RK4)
+            // No need to call compute_total_force() here - would be redundant
+            ion.pos = ctx.pos_local();
+            ion.vel = ctx.vel_local();
+            
+            integrator_->step(ion, current_time_, dt, *force_registry, ions);
+            
+            // Update local coordinates after integration
+            ctx.pos_local() = ion.pos;
+            ctx.vel_local() = ion.vel;
+            
+            // 9. Check if ion left domain (boundary collision detection)
+            Vec3 pos_after = ctx.pos_local();
+            
+            // First check aperture crossing (domain exit at z=length_m)
+            if (pos_after.z >= domain_config.geometry.length_m && pos_before.z < domain_config.geometry.length_m) {
+                domain_manager_->check_aperture_crossing(ion, domain_idx, pos_before, pos_after);
+                
+                // If blocked by aperture, terminate at boundary
+                if (!ion.active) {
+                    domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
+                    continue;  // Ion absorbed, skip further processing
+                }
+                
+                // Ion passed through aperture
+                // Check if this is the last domain (no next domain available)
+                bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
+                
+                if (is_last_domain) {
+                    // No next domain - ion exits simulation
+                    ion.active = false;
+                    domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
+                    continue;
+                }
+                
+                // Multi-domain: Sync to global coordinates (DomainContext will handle transform)
+                ctx.sync_to_ion();
+                ion.t += dt;
+                continue;  // Skip remaining checks, next step will find new domain
+            }
+            
+            // Then check all other boundaries (radial wall, entrance plane)
+            // For Orbitrap: Use proper hyperlogarithmic boundary checking
+            // For others: Simple cylindrical geometry
+            bool still_inside = false;
+            
+            if (domain_config.instrument == config::Instrument::Orbitrap) {
+                // Use DomainManager's comprehensive Orbitrap boundary check
+                // Transform local position back to global
+                Vec3 pos_after_global = domain_manager_->local_to_global_pos(pos_after, domain_idx);
+                // Use find_domain_index as proxy for "is inside" check
+                int check_domain = domain_manager_->find_domain_index(pos_after_global);
+                still_inside = (check_domain == domain_idx);
             } else {
-                // Intermediate domain: allow small tolerance for aperture crossing
-                still_inside = still_inside && (pos_after.z <= domain_config.geometry.length_m + DOMAIN_BOUNDARY_EPSILON);
-            }
-            
-            // Check radial boundary
-            if (still_inside) {
-                double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
-                still_inside = (r <= domain_config.geometry.radius_m + DOMAIN_BOUNDARY_EPSILON);
-            }
-        }
-        
-        if (!still_inside) {
-            // Ion left domain (hit wall or exited entrance/exit)
-            domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
-            continue;  // Ion absorbed, skip transform
-        }
-        
-        // 9. Transform back to global coordinates
-        // Note: DomainContext destructor will handle this automatically at scope exit
-        // But we need ion.pos/vel updated now for safety checks below
-        ctx.sync_to_ion();
-        
-        // 10. Update ion time
-        ion.t += dt;
-        
-        // 11. Numerical safety checks
-        bool position_valid = ICARION::safety::is_finite(ion.pos);
-        bool velocity_valid = ICARION::safety::is_finite(ion.vel);
-        
-        if (!position_valid || !velocity_valid) {
-            // Log detailed violation if safety logging is enabled
-            if (config_.simulation.enable_safety_logging) {
-                safety::ViolationEvent event;
-                event.type = !position_valid ? 
-                    (std::isnan(ion.pos.x + ion.pos.y + ion.pos.z) ? 
-                        safety::ViolationType::NAN_POSITION : safety::ViolationType::INF_POSITION) :
-                    (std::isnan(ion.vel.x + ion.vel.y + ion.vel.z) ? 
-                        safety::ViolationType::NAN_VELOCITY : safety::ViolationType::INF_VELOCITY);
+                // Cylindrical geometry (IMS, TOF, LQIT, etc.)
+                still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON);
                 
-                event.timestamp = std::chrono::steady_clock::now();
-                event.ion_index = i;
-                event.step_number = current_step_;
-                event.simulation_time = ion.t;
-                event.timestep = dt;
-                event.position = ion.pos;
-                event.velocity = ion.vel;
-                event.violation_context = "Post-integration state check in domain " + std::to_string(domain_idx);
-                event.violation_magnitude = !position_valid ? norm(ion.pos) : norm(ion.vel);
-                event.recovery_attempted = false;
-                event.recovery_successful = false;
+                // Check z_max: strict for last domain, tolerant for others
+                bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
+                if (is_last_domain) {
+                    // Last domain: strict boundary (no tolerance for exit)
+                    still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
+                } else {
+                    // Intermediate domain: allow small tolerance for aperture crossing
+                    still_inside = still_inside && (pos_after.z <= domain_config.geometry.length_m + DOMAIN_BOUNDARY_EPSILON);
+                }
                 
-                safety::NumericalSafetyLogger::getInstance().logViolation(event);
+                // Check radial boundary
+                if (still_inside) {
+                    double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
+                    still_inside = (r <= domain_config.geometry.radius_m + DOMAIN_BOUNDARY_EPSILON);
+                }
             }
             
-            // Deactivate ion
-            ion.active = false;
-            
-            // Log to standard output if not using safety logger
-            if (!config_.simulation.enable_safety_logging) {
-                std::cerr << "Warning: Ion " << i << " has invalid state (";
-                if (!position_valid) std::cerr << "NaN/Inf in position";
-                if (!position_valid && !velocity_valid) std::cerr << ", ";
-                if (!velocity_valid) std::cerr << "NaN/Inf in velocity";
-                std::cerr << ") at t = " << ion.t << " s, deactivating" << std::endl;
-            }
-        }
-        
-        // Optional bounds checking (if enabled)
-        if (config_.simulation.safety_checks.enable_bounds_checks && 
-            (position_valid && velocity_valid)) {
-            
-            double pos_mag = norm(ion.pos);
-            double vel_mag = norm(ion.vel);
-            
-            bool bounds_violated = false;
-            safety::ViolationType violation_type;
-            
-            if (pos_mag > config_.simulation.safety_checks.max_position_m) {
-                bounds_violated = true;
-                violation_type = safety::ViolationType::BOUNDS_POSITION;
-            } else if (vel_mag > config_.simulation.safety_checks.max_velocity_ms) {
-                bounds_violated = true;
-                violation_type = safety::ViolationType::BOUNDS_VELOCITY;
+            if (!still_inside) {
+                // Ion left domain (hit wall or exited entrance/exit)
+                domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
+                continue;  // Ion absorbed, skip transform
             }
             
-            if (bounds_violated) {
+            // 9. Transform back to global coordinates
+            // Note: DomainContext destructor will handle this automatically at scope exit
+            // But we need ion.pos/vel updated now for safety checks below
+            ctx.sync_to_ion();
+            
+            // 10. Update ion time
+            ion.t += dt;
+            
+            // 11. Numerical safety checks
+            bool position_valid = ICARION::safety::is_finite(ion.pos);
+            bool velocity_valid = ICARION::safety::is_finite(ion.vel);
+            
+            if (!position_valid || !velocity_valid) {
+                // Log detailed violation if safety logging is enabled
                 if (config_.simulation.enable_safety_logging) {
                     safety::ViolationEvent event;
-                    event.type = violation_type;
+                    event.type = !position_valid ? 
+                        (std::isnan(ion.pos.x + ion.pos.y + ion.pos.z) ? 
+                            safety::ViolationType::NAN_POSITION : safety::ViolationType::INF_POSITION) :
+                        (std::isnan(ion.vel.x + ion.vel.y + ion.vel.z) ? 
+                            safety::ViolationType::NAN_VELOCITY : safety::ViolationType::INF_VELOCITY);
+                    
                     event.timestamp = std::chrono::steady_clock::now();
                     event.ion_index = i;
                     event.step_number = current_step_;
@@ -360,23 +308,73 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
                     event.timestep = dt;
                     event.position = ion.pos;
                     event.velocity = ion.vel;
-                    event.violation_context = "Bounds check exceeded in domain " + std::to_string(domain_idx);
-                    event.violation_magnitude = (violation_type == safety::ViolationType::BOUNDS_POSITION) 
-                        ? pos_mag : vel_mag;
+                    event.violation_context = "Post-integration state check in domain " + std::to_string(domain_idx);
+                    event.violation_magnitude = !position_valid ? norm(ion.pos) : norm(ion.vel);
                     event.recovery_attempted = false;
                     event.recovery_successful = false;
                     
                     safety::NumericalSafetyLogger::getInstance().logViolation(event);
                 }
                 
-                if (config_.simulation.safety_checks.throw_on_violation) {
-                    throw std::runtime_error("Bounds violation for ion " + std::to_string(i) + 
-                                           " at t=" + std::to_string(ion.t));
+                // Deactivate ion
+                ion.active = false;
+                
+                // Log to standard output if not using safety logger
+                if (!config_.simulation.enable_safety_logging) {
+                    std::cerr << "Warning: Ion " << i << " has invalid state (";
+                    if (!position_valid) std::cerr << "NaN/Inf in position";
+                    if (!position_valid && !velocity_valid) std::cerr << ", ";
+                    if (!velocity_valid) std::cerr << "NaN/Inf in velocity";
+                    std::cerr << ") at t = " << ion.t << " s, deactivating" << std::endl;
+                }
+            }
+            
+            // Optional bounds checking (if enabled)
+            if (config_.simulation.safety_checks.enable_bounds_checks && 
+                (position_valid && velocity_valid)) {
+                
+                double pos_mag = norm(ion.pos);
+                double vel_mag = norm(ion.vel);
+                
+                bool bounds_violated = false;
+                safety::ViolationType violation_type;
+                
+                if (pos_mag > config_.simulation.safety_checks.max_position_m) {
+                    bounds_violated = true;
+                    violation_type = safety::ViolationType::BOUNDS_POSITION;
+                } else if (vel_mag > config_.simulation.safety_checks.max_velocity_ms) {
+                    bounds_violated = true;
+                    violation_type = safety::ViolationType::BOUNDS_VELOCITY;
                 }
                 
-                ion.active = false;
+                if (bounds_violated) {
+                    if (config_.simulation.enable_safety_logging) {
+                        safety::ViolationEvent event;
+                        event.type = violation_type;
+                        event.timestamp = std::chrono::steady_clock::now();
+                        event.ion_index = i;
+                        event.step_number = current_step_;
+                        event.simulation_time = ion.t;
+                        event.timestep = dt;
+                        event.position = ion.pos;
+                        event.velocity = ion.vel;
+                        event.violation_context = "Bounds check exceeded in domain " + std::to_string(domain_idx);
+                        event.violation_magnitude = (violation_type == safety::ViolationType::BOUNDS_POSITION) 
+                            ? pos_mag : vel_mag;
+                        event.recovery_attempted = false;
+                        event.recovery_successful = false;
+                        
+                        safety::NumericalSafetyLogger::getInstance().logViolation(event);
+                    }
+                    
+                    if (config_.simulation.safety_checks.throw_on_violation) {
+                        throw std::runtime_error("Bounds violation for ion " + std::to_string(i) + 
+                                               " at t=" + std::to_string(ion.t));
+                    }
+                    
+                    ion.active = false;
+                }
             }
-        }
         }  // End of parallel for loop
     }  // End of parallel region
 }

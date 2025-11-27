@@ -12,6 +12,7 @@ if(NOT Catch2_FOUND)
 endif()
 
 # Add test subdirectories
+add_subdirectory(unit)
 add_subdirectory(config)
 add_subdirectory(io)
 add_subdirectory(utils)

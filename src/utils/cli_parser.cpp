@@ -111,6 +111,13 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         ("validate-schema", "Validate config against schema (uses validator.py)")
         ("check-deps", "Verify all dependencies and their versions");
     
+    // === Performance/Profiling options ===
+    parser.add_options("Performance")
+        ("benchmark", "Print detailed timing statistics for simulation phases")
+        ("profile", "Enable profiling instrumentation (for performance analysis)")
+        ("profile-output", "Write profiling data to FILE (json or csv) [default: profile.json]",
+         cxxopts::value<std::string>(), "FILE");
+    
     // Parse
     cxxopts::ParseResult result;
     try {
@@ -124,7 +131,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     
     // === Handle --help and --version early ===
     if (result.count("help")) {
-        std::cout << parser.help({"Core", "Logging", "Output", "Advanced", "Information"}) << "\n";
+        std::cout << parser.help({"Core", "Logging", "Output", "Advanced", "Performance", "Information"}) << "\n";
         std::cout << "\nExamples:\n";
         std::cout << "  icarion config.json\n";
         std::cout << "  icarion --verbose config.json\n";
@@ -132,6 +139,8 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         std::cout << "  icarion --output custom.h5 config.json\n";
         std::cout << "  icarion --set simulation.dt_s=1e-10 config.json\n";
         std::cout << "  icarion --dry-run --validate-config config.json\n";
+        std::cout << "  icarion --benchmark config.json  # Show timing breakdown\n";
+        std::cout << "  icarion --profile --profile-output profile.csv config.json\n";
         std::cout << "\nFor more information, see README.md\n";
         opts.show_help = true;
         return opts;
@@ -238,6 +247,17 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
             std::string value = override.substr(eq_pos + 1);
             opts.overrides[key] = value;
         }
+    }
+    
+    // === Parse performance/profiling options ===
+    opts.benchmark = result.count("benchmark") > 0;
+    opts.profile = result.count("profile") > 0;
+    
+    if (result.count("profile-output")) {
+        opts.profile_output = result["profile-output"].as<std::string>();
+    } else if (opts.profile || opts.benchmark) {
+        // Default output file if profiling is enabled
+        opts.profile_output = "profile.json";
     }
     
     return opts;

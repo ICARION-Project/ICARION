@@ -6,6 +6,7 @@
 #include "core/utils/safety/numericalSafetyGuards.h"
 #include "core/utils/safety/numericalSafetyLogger.h"
 #include "core/utils/mathUtils.h"
+#include "core/utils/Profiler.h"
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -125,6 +126,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
     // - Thread-safe (each thread accesses different ion RNG)
     // - RNG state is PRESERVED across timesteps (critical for collision physics!)
     if (rng_by_ion_.empty()) {
+        PROFILE_SCOPE_IF_ENABLED("RNG Initialization");
         rng_by_ion_.reserve(n_ions);
         for (int i = 0; i < n_ions; ++i) {
             uint64_t ion_seed = config_.simulation.rng_seed + static_cast<uint64_t>(i);
@@ -169,33 +171,39 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             // 4. Handle collisions (if enabled)
             // Work in local coordinates: temporarily set ion.pos/vel to local, process, then restore
             if (collision_handler_) {
-                ion.pos = ctx.pos_local();
-                ion.vel = ctx.vel_local();
-                
-                collision_handler_->handle_collision(ion, dt, ion_rng, domain_config.environment);
-                
-                ctx.pos_local() = ion.pos;
-                ctx.vel_local() = ion.vel;
+                {
+                    PROFILE_SCOPE_IF_ENABLED("Collision Handling");
+                    ion.pos = ctx.pos_local();
+                    ion.vel = ctx.vel_local();
+                    
+                    collision_handler_->handle_collision(ion, dt, ion_rng, domain_config.environment);
+                    
+                    ctx.pos_local() = ion.pos;
+                    ctx.vel_local() = ion.vel;
+                }
             }
             
             // 5. Handle reactions (if enabled)
             // Work in local coordinates: species properties updated in-place (SSOT!)
             if (reaction_handler_ && !config_.reaction_db.reactions.empty()) {
-                ion.pos = ctx.pos_local();
-                ion.vel = ctx.vel_local();
-                
-                reaction_handler_->handle_reaction(
-                    ion,
-                    dt,
-                    ion_rng,
-                    config_.reaction_db,  // ReactionDatabase (SSOT)
-                    config_.species_db,   // SpeciesDatabase (SSOT)
-                    domain_config.environment  // Temperature, density, etc.
-                );
-                
-                ctx.pos_local() = ion.pos;
-                ctx.vel_local() = ion.vel;
-                // Note: Species properties (mass, CCS, etc.) already updated in ion by handler
+                {
+                    PROFILE_SCOPE_IF_ENABLED("Reaction Handling");
+                    ion.pos = ctx.pos_local();
+                    ion.vel = ctx.vel_local();
+                    
+                    reaction_handler_->handle_reaction(
+                        ion,
+                        dt,
+                        ion_rng,
+                        config_.reaction_db,  // ReactionDatabase (SSOT)
+                        config_.species_db,   // SpeciesDatabase (SSOT)
+                        domain_config.environment  // Temperature, density, etc.
+                    );
+                    
+                    ctx.pos_local() = ion.pos;
+                    ctx.vel_local() = ion.vel;
+                    // Note: Species properties (mass, CCS, etc.) already updated in ion by handler
+                }
             }
             
             // 6. Get domain-specific ForceRegistry
@@ -204,10 +212,13 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             // 7. Integrate trajectory (IIntegrationStrategy)
             // Note: Integrator computes forces internally via ForceRegistry (4x for RK4)
             // No need to call compute_total_force() here - would be redundant
-            ion.pos = ctx.pos_local();
-            ion.vel = ctx.vel_local();
-            
-            integrator_->step(ion, current_time_, dt, *force_registry, ions);
+            {
+                PROFILE_SCOPE_IF_ENABLED("Integration");
+                ion.pos = ctx.pos_local();
+                ion.vel = ctx.vel_local();
+                
+                integrator_->step(ion, current_time_, dt, *force_registry, ions);
+            }
             
             // Update local coordinates after integration
             ctx.pos_local() = ion.pos;
@@ -433,14 +444,21 @@ std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
         process_timestep(ions, dt);
         
         // Log trajectory snapshot (auto-flush if needed)
-        output_manager_->log_step(current_time_, ions);
+        // Only write every write_interval steps to avoid excessive I/O
+        if (current_step_ % config_.simulation.write_interval == 0) {
+            PROFILE_SCOPE_IF_ENABLED("Output Writing");
+            output_manager_->log_step(current_time_, ions);
+        }
         
         // Update time and step counter
         current_time_ += dt;
         current_step_++;
         
         // Progress logging (every 10%)
-        log_progress(current_time_);
+        {
+            PROFILE_SCOPE_IF_ENABLED("Progress Update");
+            log_progress(current_time_);
+        }
     }
     
     // 3. Finalization

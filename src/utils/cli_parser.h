@@ -65,6 +65,11 @@ struct CLIOptions {
     bool list_integrators{false};     ///< List available integrators
     bool validate_schema{false};      ///< Validate config against schema using validator.py
     bool check_deps{false};           ///< Verify all dependencies and versions
+    
+    // === Performance/Profiling options ===
+    bool benchmark{false};                      ///< Enable detailed timing statistics (--benchmark)
+    bool profile{false};                        ///< Enable profiling instrumentation (--profile)
+    std::optional<std::string> profile_output;  ///< Profile output file (--profile-output)
 };
 
 /**

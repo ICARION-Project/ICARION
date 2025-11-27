@@ -56,6 +56,7 @@
 #include "core/log/Logger.h"
 #include "utils/cli_parser.h"
 #include "core/utils/startupBanner.h"
+#include "core/utils/Profiler.h"
 
 /**
  * @file main.cpp
@@ -79,6 +80,8 @@ int main(int argc, char* argv[]) {
     using namespace ICARION;
     
     try {
+        PROFILE_SCOPE("Total Execution");
+        
         // === 1. Parse command-line arguments ===
         cli::CLIOptions opts = cli::parse_arguments(argc, argv);
         
@@ -87,11 +90,19 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         
+        // Enable profiler if requested
+        if (opts.benchmark || opts.profile) {
+            profiling::Profiler::getInstance().enable(true);
+        }
+        
         // === 2. Initialize logging ===
-        log::Logger::init(
-            opts.log_level,
-            opts.log_file.value_or(""),
-            opts.log_format);
+        {
+            PROFILE_SCOPE("Logging Initialization");
+            log::Logger::init(
+                opts.log_level,
+                opts.log_file.value_or(""),
+                opts.log_format);
+        }
         
         // Print startup banner (text format only)
         if (opts.log_format == "text") {
@@ -194,7 +205,11 @@ int main(int argc, char* argv[]) {
         // === 3. Load configuration (SSOT: FullConfig) ===
         log::Logger::main()->info("Loading configuration: {}", opts.config_file);
         
-        config::FullConfig config = config::ConfigLoader::load(opts.config_file);
+        config::FullConfig config;
+        {
+            PROFILE_SCOPE("Config Loading");
+            config = config::ConfigLoader::load(opts.config_file);
+        }
         
         // === Apply CLI overrides ===
         if (!opts.overrides.empty()) {
@@ -267,12 +282,18 @@ int main(int argc, char* argv[]) {
         }
         log::Logger::main()->info("Generating {} ions", total_ion_count);
         
-        std::mt19937 rng(config.simulation.rng_seed);
-        std::vector<IonState> ions = config.generate_ions(rng);
+        std::vector<IonState> ions;
+        {
+            PROFILE_SCOPE("Ion Generation");
+            std::mt19937 rng(config.simulation.rng_seed);
+            ions = config.generate_ions(rng);
+        }
         log::Logger::main()->info("✓ {} ions generated", ions.size());
         
         // === 5. Create physics dependencies ===
         log::Logger::main()->info("Initializing physics modules");
+        
+        PROFILE_SCOPE("Physics Module Setup");
         
         // Create ForceRegistry for each domain (Phase 12 enhancement)
         std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries;
@@ -399,13 +420,16 @@ int main(int argc, char* argv[]) {
         // === 6. Create SimulationEngine ===
         log::Logger::main()->info("Initializing SimulationEngine");
         
-        integrator::SimulationEngine engine(
-            config,
-            force_registries,  // Vector of registries (one per domain)
-            integration_strategy,
-            collision_handler,
-            reaction_handler
-        );
+        integrator::SimulationEngine engine = [&]() {
+            PROFILE_SCOPE("Engine Initialization");
+            return integrator::SimulationEngine(
+                config,
+                force_registries,  // Vector of registries (one per domain)
+                integration_strategy,
+                collision_handler,
+                reaction_handler
+            );
+        }();
         
         // === 7. Run simulation ===
         log::Logger::main()->info("Starting simulation (t_max = {:.2e} s)", 
@@ -413,7 +437,11 @@ int main(int argc, char* argv[]) {
         
         auto start = std::chrono::high_resolution_clock::now();
         
-        auto final_ions = engine.run(ions);
+        std::vector<IonState> final_ions;
+        {
+            PROFILE_SCOPE("Simulation Run");
+            final_ions = engine.run(ions);
+        }
         
         auto end = std::chrono::high_resolution_clock::now();
         double elapsed_s = std::chrono::duration<double>(end - start).count();
@@ -430,6 +458,29 @@ int main(int argc, char* argv[]) {
         log::Logger::main()->info("Active ions:  {}/{}", active_count, final_ions.size());
         log::Logger::main()->info("Output file:  {}", config.output.trajectory_file);
         log::Logger::main()->info("===========================");
+        
+        // Print profiling summary if enabled
+        if (opts.benchmark || opts.profile) {
+            profiling::Profiler::getInstance().printSummary();
+            
+            if (opts.profile_output.has_value()) {
+                std::string filename = opts.profile_output.value();
+                try {
+                    if (filename.find(".csv") != std::string::npos) {
+                        profiling::Profiler::getInstance().exportCSV(filename);
+                    } else {
+                        // Default to JSON
+                        if (filename.find(".json") == std::string::npos) {
+                            filename += ".json";
+                        }
+                        profiling::Profiler::getInstance().exportJSON(filename);
+                    }
+                    log::Logger::main()->info("Profile data written to: {}", filename);
+                } catch (const std::exception& e) {
+                    log::Logger::main()->error("Failed to write profile data: {}", e.what());
+                }
+            }
+        }
         
     } catch (const std::exception& e) {
         log::Logger::main()->error("Fatal error: {}", e.what());

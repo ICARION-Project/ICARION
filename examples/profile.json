@@ -2,91 +2,91 @@
   "profiling_results": [
     {
       "name": "Simulation Run",
-      "total_ms": 2450.24,
+      "total_ms": 52417.8,
       "calls": 1,
-      "avg_ms": 2450.24,
-      "min_ms": 2450.24,
-      "max_ms": 2450.24
-    },
-    {
-      "name": "Integration",
-      "total_ms": 1788.17,
-      "calls": 929765,
-      "avg_ms": 0.00192324,
-      "min_ms": 0.001835,
-      "max_ms": 0.11397
-    },
-    {
-      "name": "Output Writing",
-      "total_ms": 162.672,
-      "calls": 56,
-      "avg_ms": 2.90487,
-      "min_ms": 0.001326,
-      "max_ms": 3.94405
+      "avg_ms": 52417.8,
+      "min_ms": 52417.8,
+      "max_ms": 52417.8
     },
     {
       "name": "Collision Handling",
-      "total_ms": 135.023,
-      "calls": 929765,
-      "avg_ms": 0.000145223,
-      "min_ms": 8.4e-05,
-      "max_ms": 0.036643
+      "total_ms": 13989.4,
+      "calls": 95776385,
+      "avg_ms": 0.000146064,
+      "min_ms": 8.5e-05,
+      "max_ms": 1.08096
+    },
+    {
+      "name": "Output Writing",
+      "total_ms": 7369.06,
+      "calls": 500,
+      "avg_ms": 14.7381,
+      "min_ms": 0.01318,
+      "max_ms": 24.3731
+    },
+    {
+      "name": "Integration",
+      "total_ms": 5089.83,
+      "calls": 95776385,
+      "avg_ms": 5.31428e-05,
+      "min_ms": 4.2e-05,
+      "max_ms": 0.365533
     },
     {
       "name": "Reaction Handling",
-      "total_ms": 22.6694,
-      "calls": 929765,
-      "avg_ms": 2.43819e-05,
+      "total_ms": 2361.61,
+      "calls": 95776385,
+      "avg_ms": 2.46575e-05,
       "min_ms": 2.1e-05,
-      "max_ms": 0.067557
-    },
-    {
-      "name": "Config Loading",
-      "total_ms": 2.48599,
-      "calls": 1,
-      "avg_ms": 2.48599,
-      "min_ms": 2.48599,
-      "max_ms": 2.48599
+      "max_ms": 0.368846
     },
     {
       "name": "Progress Update",
-      "total_ms": 1.4717,
-      "calls": 55691,
-      "avg_ms": 2.64261e-05,
+      "total_ms": 14.6518,
+      "calls": 500000,
+      "avg_ms": 2.93035e-05,
       "min_ms": 2.1e-05,
-      "max_ms": 0.05176
-    },
-    {
-      "name": "Logging Initialization",
-      "total_ms": 0.827438,
-      "calls": 1,
-      "avg_ms": 0.827438,
-      "min_ms": 0.827438,
-      "max_ms": 0.827438
-    },
-    {
-      "name": "Engine Initialization",
-      "total_ms": 0.264489,
-      "calls": 1,
-      "avg_ms": 0.264489,
-      "min_ms": 0.264489,
-      "max_ms": 0.264489
-    },
-    {
-      "name": "Ion Generation",
-      "total_ms": 0.08747,
-      "calls": 1,
-      "avg_ms": 0.08747,
-      "min_ms": 0.08747,
-      "max_ms": 0.08747
+      "max_ms": 0.319826
     },
     {
       "name": "RNG Initialization",
-      "total_ms": 0.035339,
+      "total_ms": 1.74812,
       "calls": 1,
-      "avg_ms": 0.035339,
-      "min_ms": 0.035339,
-      "max_ms": 0.035339
+      "avg_ms": 1.74812,
+      "min_ms": 1.74812,
+      "max_ms": 1.74812
+    },
+    {
+      "name": "Ion Generation",
+      "total_ms": 0.553758,
+      "calls": 1,
+      "avg_ms": 0.553758,
+      "min_ms": 0.553758,
+      "max_ms": 0.553758
+    },
+    {
+      "name": "Config Loading",
+      "total_ms": 0.232813,
+      "calls": 1,
+      "avg_ms": 0.232813,
+      "min_ms": 0.232813,
+      "max_ms": 0.232813
+    },
+    {
+      "name": "Logging Initialization",
+      "total_ms": 0.149079,
+      "calls": 1,
+      "avg_ms": 0.149079,
+      "min_ms": 0.149079,
+      "max_ms": 0.149079
+    },
+    {
+      "name": "Engine Initialization",
+      "total_ms": 0.014275,
+      "calls": 1,
+      "avg_ms": 0.014275,
+      "min_ms": 0.014275,
+      "max_ms": 0.014275
     },
     {
       "name": "Physics Module Setup",

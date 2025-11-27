@@ -11,6 +11,7 @@
 #include <sstream>
 #include <iomanip>
 #include <stdexcept>
+#include <chrono>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -132,9 +133,11 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
     }
     
     // Parallel ion processing (OpenMP if enabled)
+    // Note: Using schedule(static) for better cache locality and lower overhead
+    // Dynamic scheduling was causing severe performance degradation due to task queue contention
     #pragma omp parallel if(config_.simulation.enable_openmp)
     {
-        #pragma omp for schedule(dynamic)
+        #pragma omp for schedule(static)
         for (int i = 0; i < n_ions; ++i) {
             IonState& ion = ions[i];
             EhssRng& ion_rng = rng_by_ion_[i];  // Ion-specific RNG (persistent!)

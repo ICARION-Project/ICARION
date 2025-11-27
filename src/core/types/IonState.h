@@ -50,8 +50,12 @@ namespace core {
  * Supports vector arithmetic for Runge-Kutta integrators (RK4, RK45).
  * CUDA-compatible via __host__ __device__ annotations.
  * Units are SI unless otherwise noted (exceptions: mobility in cm²/(V·s), CCS in m²).
+ * 
+ * @note Cache line aligned (64 bytes) to prevent false sharing in OpenMP parallel loops.
+ *       Each IonState occupies its own cache line(s), eliminating cache coherency traffic
+ *       between threads processing adjacent ions.
  */
-struct IonState {
+struct alignas(64) IonState {
     // Kinematic parameters
     Vec3 pos;  ///< Position vector [m]
     Vec3 vel;  ///< Velocity vector [m/s]

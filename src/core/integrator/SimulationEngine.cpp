@@ -137,7 +137,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
     // Dynamic scheduling was causing severe performance degradation due to task queue contention
     #pragma omp parallel if(config_.simulation.enable_openmp)
     {
-        #pragma omp for schedule(static)
+        #pragma omp for schedule(static, 256)
         for (int i = 0; i < n_ions; ++i) {
             IonState& ion = ions[i];
             EhssRng& ion_rng = rng_by_ion_[i];  // Ion-specific RNG (persistent!)

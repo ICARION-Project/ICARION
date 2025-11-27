@@ -10,7 +10,7 @@
   },
   "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
   "physics": {
-    "collision_model": "HSS",
+    "collision_model": "None",
     "enable_space_charge": false
   },
   "output": {

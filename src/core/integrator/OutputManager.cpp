@@ -171,14 +171,14 @@ void OutputManager::flush() {
     double last_flushed_time = times_buffer_.back();
     
     try {
-        // Write buffered snapshots using HDF5Writer static methods
-        for (size_t i = 0; i < times_buffer_.size(); ++i) {
-            io::HDF5Writer::append_trajectory(
-                hdf5_filename_,
-                times_buffer_[i],
-                trajectory_buffer_[i]
-            );
-        }
+        // Write all buffered snapshots in ONE batch operation
+        // This is much faster than individual append_trajectory() calls
+        // because it opens/closes the file only once
+        io::HDF5Writer::append_trajectory_batch(
+            hdf5_filename_,
+            times_buffer_,
+            trajectory_buffer_
+        );
         
         // Clear buffers
         times_buffer_.clear();

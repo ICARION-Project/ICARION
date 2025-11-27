@@ -1,6 +1,6 @@
 {
   "simulation": {
-    "total_time_s": 5e-7,
+    "total_time_s": 5e-5,
     "dt_s": 1e-9,
     "write_interval": 500,
     "integrator": "RK4",
@@ -10,7 +10,7 @@
   },
   "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
   "physics": {
-    "collision_model": "None",
+    "collision_model": "HSS",
     "enable_space_charge": false
   },
   "output": {

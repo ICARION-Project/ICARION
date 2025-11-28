@@ -48,6 +48,9 @@
 #include "core/integrator/strategies/RK45Strategy.h"
 #include "core/integrator/strategies/BorisStrategy.h"
 #include "core/physics/forces/ForceRegistry.h"
+#include "core/physics/forces/ElectricFieldForce.h"
+#include "core/physics/forces/MagneticFieldForce.h"
+#include "core/physics/forces/DampingForce.h"
 #include "core/physics/forces/SpaceChargeDirect.h"
 #include "core/physics/forces/SpaceChargeGrid.h"
 #include "core/physics/spacecharge/spaceChargeSolver.h"
@@ -299,10 +302,43 @@ int main(int argc, char* argv[]) {
         // Create ForceRegistry for each domain (Phase 12 enhancement)
         std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries;
         for (const auto& domain : config.domains) {
-            force_registries.push_back(std::make_shared<physics::ForceRegistry>(domain));
+            auto registry = std::make_shared<physics::ForceRegistry>(domain);
+            
+            // Add fundamental forces
+            registry->add_force(std::make_unique<physics::ElectricFieldForce>(domain));
+            
+            // Add magnetic field force if configured (B > 0)
+            if (domain.fields.magnetic.enabled) {
+                registry->add_force(std::make_unique<physics::MagneticFieldForce>(domain.fields.magnetic));
+            }
+            
+            // Add collision damping for Friction model
+            if (config.physics.collision_model == config::CollisionModel::Friction) {
+                registry->add_force(std::make_unique<physics::DampingForce>(
+                    domain.environment, 
+                    physics::DampingModel::Friction,
+                    nullptr  // Species DB not available here, will use ion CCS
+                ));
+            }
+            
+            force_registries.push_back(registry);
         }
         log::Logger::main()->info("Created {} ForceRegistry instances (one per domain)", 
                                   force_registries.size());
+        log::Logger::main()->info("  ✓ ElectricFieldForce added to all registries");
+        
+        // Count magnetic field usage
+        size_t mag_count = 0;
+        for (const auto& domain : config.domains) {
+            if (domain.fields.magnetic.enabled) mag_count++;
+        }
+        if (mag_count > 0) {
+            log::Logger::main()->info("  ✓ MagneticFieldForce added to {} registries", mag_count);
+        }
+        
+        if (config.physics.collision_model == config::CollisionModel::Friction) {
+            log::Logger::main()->info("  ✓ DampingForce added to all registries (Friction model)");
+        }
         
         // Auto-select space charge method based on ion count
         // N < 1000: Direct N-body (SpaceChargeForce, O(N²), exact)

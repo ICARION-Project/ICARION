@@ -23,8 +23,8 @@ import os
 from pathlib import Path
 
 # IMS parameters
-DRIFT_LENGTH_M = 0.01  # 1 cm short drift tube
-DRIFT_TUBE_RADIUS_M = 0.005  # 5 mm radius
+DRIFT_LENGTH_M = 0.05  # 5 cm drift tube
+DRIFT_TUBE_RADIUS_M = 0.05  # 5 cm radius (large to minimize wall losses)
 
 # Parameter sweeps
 E_FIELDS_VM = [1000.0, 5000.0, 10000.0]  # V/m (Low, Medium, High)
@@ -34,12 +34,12 @@ COLLISION_MODELS = ["HSS", "EHSS", "Friction"]  # Langevin and HSD are experimen
 
 # Physical constants
 T_K = 300.0  # Temperature
-K0_H3Op_SI = 3.2e-4  # m²/(V·s) - H3O+ in N2 reduced mobility
+K0_H3Op_SI = 10.5e-4  # m²/(V·s) - H3O+ in He reduced mobility (much higher than N2)
 P0 = 101325.0  # Pa
 T0 = 273.15  # K
 
 # Simulation parameters
-N_IONS = 1000  # Sufficient for good statistics
+N_IONS = 10000  # Many ions for good statistics and validation
 RNG_SEED = 42
 
 def calc_drift_time(E_Vm, pressure_Pa):
@@ -59,13 +59,13 @@ def calc_collision_freq(pressure_Pa):
     # ν = n * σ * v_rel
     # Simplified: ν ≈ P / (k_B * T) * σ * v_thermal
     k_B = 1.380649e-23  # J/K
-    m_gas = 28.0 * 1.66054e-27  # N2 mass in kg
+    m_gas = 4.0 * 1.66054e-27  # He mass in kg (much lighter than N2)
     m_ion = 19.0 * 1.66054e-27  # H3O+ mass
     mu = (m_ion * m_gas) / (m_ion + m_gas)  # Reduced mass
     
     v_rel = ((8 * k_B * T_K) / (3.14159 * mu))**0.5  # Mean relative velocity
     n = pressure_Pa / (k_B * T_K)  # Number density
-    sigma = 104.0e-20  # CCS in m²
+    sigma = 24.9e-20  # CCS in m² for H3O+ in He (much smaller than N2)
     
     nu = n * sigma * v_rel
     return nu
@@ -92,7 +92,7 @@ def generate_config(E_Vm, pressure_Pa, collision_model):
             "write_interval": write_interval,
             "integrator": "RK4",
             "enable_gpu": False,
-            "enable_openmp": False,
+            "enable_openmp": True,
             "rng_seed": RNG_SEED
         },
         "physics": {
@@ -128,32 +128,20 @@ def generate_config(E_Vm, pressure_Pa, collision_model):
                 "domain_index": 0,
                 "name": "IMS Drift Tube",
                 "instrument": "IMS",
-                "solver": "none",
                 "geometry": {
-                    "origin_m": [0.0, 0.0, -0.01],  # Buffer region
-                    "length_m": DRIFT_LENGTH_M + 0.02,  # Include buffer
+                    "origin_m": [0.0, 0.0, 0.0],
+                    "length_m": DRIFT_LENGTH_M,
                     "radius_m": DRIFT_TUBE_RADIUS_M
                 },
-                "environment": {
-                    "gas_species": "N2",
+                "env": {
+                    "gas_species": "He",
                     "temperature_K": T_K,
                     "pressure_Pa": pressure_Pa,
-                    "gas_velocity_ms": [0.0, 0.0, 0.0]
+                    "gas_velocity_m_s": [0.0, 0.0, 0.0]
                 },
                 "fields": {
-                    "dc": {
-                        "axial_V": E_Vm * DRIFT_LENGTH_M,
-                        "quad_V": 0.0,
-                        "EN_Td": 0.0
-                    },
-                    "rf": {
-                        "voltage_V": 0.0,
-                        "frequency_Hz": 0.0,
-                        "phase_rad": 0.0
-                    },
-                    "ac": {
-                        "voltage_V": 0.0,
-                        "frequency_Hz": 0.0
+                    "DC": {
+                        "axial_V": E_Vm * DRIFT_LENGTH_M
                     }
                 }
             }
@@ -210,7 +198,7 @@ v_drift = K₀ × E × (N₀/N)
 ```
 
 ### Parameters:
-- **Ion:** H3O+ (K₀ = 3.2 cm²/(V·s) in N2)
+- **Ion:** H3O+ (K₀ = 10.5 cm²/(V·s) in He)
 - **E-fields:** 1000, 5000, 10000 V/m
 - **Pressures:** 100, 1000, 10000 Pa
 - **Collision Models:**

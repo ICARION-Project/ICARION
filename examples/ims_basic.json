@@ -13,7 +13,7 @@
     "enable_space_charge": true
   },
   "output": {
-    "folder": "../results/ims",
+    "folder": "results/ims",
     "trajectory_file": "ims_trajectories.h5",
     "print_progress": true
   },
@@ -39,9 +39,9 @@
       "name": "drift_region",
       "instrument": "IMS",
       "geometry": {
-        "origin_m": [0.0, 0.0, 0.0],
-        "length_m": 0.05,
-        "radius_m": 0.015
+        "origin_m": [0.0, 0.0, -0.01],
+        "length_m": 0.06,
+        "radius_m": 0.5
       },
       "env": {
         "temperature_K": 300.0,

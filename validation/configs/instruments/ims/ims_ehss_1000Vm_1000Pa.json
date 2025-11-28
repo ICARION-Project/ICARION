@@ -1,11 +1,11 @@
 {
   "simulation": {
-    "total_time_s": 0.0014040525536639526,
-    "dt_s": 1.0633108427525809e-10,
-    "write_interval": 1320453,
+    "total_time_s": 0.0021395086532022133,
+    "dt_s": 2.399552330320532e-10,
+    "write_interval": 891628,
     "integrator": "RK4",
     "enable_gpu": false,
-    "enable_openmp": false,
+    "enable_openmp": true,
     "rng_seed": 42
   },
   "physics": {
@@ -23,7 +23,7 @@
     "species": [
       {
         "species_id": "H3O+",
-        "count": 1000,
+        "count": 10000,
         "position": {
           "type": "gaussian",
           "center": [
@@ -49,40 +49,28 @@
       "domain_index": 0,
       "name": "IMS Drift Tube",
       "instrument": "IMS",
-      "solver": "none",
       "geometry": {
         "origin_m": [
           0.0,
           0.0,
-          -0.01
+          0.0
         ],
-        "length_m": 0.03,
-        "radius_m": 0.005
+        "length_m": 0.05,
+        "radius_m": 0.05
       },
-      "environment": {
-        "gas_species": "N2",
+      "env": {
+        "gas_species": "He",
         "temperature_K": 300.0,
         "pressure_Pa": 1000.0,
-        "gas_velocity_ms": [
+        "gas_velocity_m_s": [
           0.0,
           0.0,
           0.0
         ]
       },
       "fields": {
-        "dc": {
-          "axial_V": 10.0,
-          "quad_V": 0.0,
-          "EN_Td": 0.0
-        },
-        "rf": {
-          "voltage_V": 0.0,
-          "frequency_Hz": 0.0,
-          "phase_rad": 0.0
-        },
-        "ac": {
-          "voltage_V": 0.0,
-          "frequency_Hz": 0.0
+        "DC": {
+          "axial_V": 50.0
         }
       }
     }

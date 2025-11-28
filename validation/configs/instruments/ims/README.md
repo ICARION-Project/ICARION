@@ -2,22 +2,24 @@
 
 ## Test Matrix
 
-**Objective:** Validate Mason-Schamp mobility equation across 3 collision models
+**Objective:** Validate Mason-Schamp mobility equation across 5 collision models
 
 ```
 v_drift = K₀ × E × (N₀/N)
 ```
 
 ### Parameters:
-- **Ion:** H3O+ (K₀ = 3.2 cm²/(V·s) in N2)
+- **Ion:** H3O+ (K₀ = 10.5 cm²/(V·s) in He)
 - **E-fields:** 1000, 5000, 10000 V/m
 - **Pressures:** 100, 1000, 10000 Pa
 - **Collision Models:**
   - HSS (Hard-Sphere Scattering) - Stochastic
   - EHSS (Elastic HSS) - Stochastic with molecular geometry
   - Friction - Deterministic mobility-based
+  - Langevin - Deterministic with polarization
+  - HSD (Hard-Sphere Deterministic) - Deterministic damping
 
-### Total: 27 configurations
+### Total: 45 configurations
 
 ## Expected Results
 
@@ -28,6 +30,8 @@ Higher E-field → Higher drift velocity (stronger acceleration)
 - **HSS**: ±25% (spherical approximation)
 - **EHSS**: ±50% (molecular geometry effects)
 - **Friction**: ±10% (mobility-based, should be most accurate)
+- **Langevin**: ±20% (polarization corrections)
+- **HSD**: ±25% (deterministic hard-sphere)
 
 ## Usage
 

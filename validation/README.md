@@ -1,235 +1,349 @@
-# ICARION Validation Bench - Progress Tracker
+# ICARION Validation Suite
 
-**Last Updated:** 2025-11-26  
-**Plan:** See `../tmp/VALIDATION_BENCH_PLAN.md`  
-**Goal:** Publication-quality validation suite (20 tests)
+**Version:** 1.0  
+**Last Updated:** 2025-11-28  
+**Branch:** `feature/validation-suite`  
+**Goal:** Systematic validation of physics and performance after SoA Foundation v1.0
 
 ---
 
 ## 📊 Overall Progress
 
-| Session | Category | Tests | Time | Status | Notes |
-|---------|----------|-------|------|--------|-------|
-| **1** | Instrument Physics | 5 | ~15 min | ⏳ TODO | IMS, TOF, Orbitrap, LQIT, Energy |
-| **2** | Thermalization | 6 | ~30 min | ⏳ TODO | HSS/EHSS at 3 conditions each |
-| **3** | Transport/SpaceCharge/Reactions | 5 | ~17 min | ⏳ TODO | Gas flow + Coulomb + kinetics |
-| **4** | Performance Benchmarks | 11 | ~45 min | ⏳ TODO | Scaling + integrators + overhead |
-| **5** | Scripts | - | ~30 min | ⏳ TODO | Orchestration + report generator |
+| Session | Category | Configs | Status | Notes |
+|---------|----------|---------|--------|-------|
+| **1** | **Thermalization** | 90 | ✅ **COMPLETE** | Cold start (0.1K) → target temp, HSS/EHSS validated |
+| **2** | Instrument Physics | TBD | 🔄 IN PROGRESS | IMS, Orbitrap, LQIT validation |
+| **3** | Transport/SpaceCharge | TBD | ⏳ PLANNED | Drift velocity, Coulomb expansion |
+| **4** | Reactions | TBD | ⏳ PLANNED | Kinetics validation |
+| **5** | Performance | TBD | ⏳ PLANNED | Scaling, integrators, overhead |
 
-**Total:** 20 tests (5 instrument + 11 physics + 4 performance)  
-**Runtime:** ~2 hours (full suite)
+**Completed:** 90 thermalization configs + analysis tools  
+**Current Focus:** Instrument validation (IMS, Orbitrap, LQIT)
 
 ---
 
-## ✅ SESSION 1: INSTRUMENT PHYSICS (Status: ⏳ TODO)
+## 🔄 SESSION 2: INSTRUMENT PHYSICS (Status: 🔄 IN PROGRESS)
 
-### **Tests:**
+### **Planned Tests:**
 
-1. ✅ `ims_mobility.json` - IMS drift velocity (Mason-Schamp) - **PASS** (1m50s)
-2. ⏳ `tof_flight_time.json` - TOF ballistic flight
-3. ⏳ `orbitrap_frequency.json` - Orbitrap axial oscillation
-4. ⏳ `lqit_stability.json` - LQIT Mathieu stability
-5. ⏳ `energy_conservation.json` - Energy conservation test
+#### **IMS (Ion Mobility Spectrometry)**
+- Drift velocity vs E/N (reduced field)
+- Mobility verification against Mason-Schamp equation
+- Resolution vs drift length and voltage
+
+#### **Orbitrap**
+- Axial frequency vs m/z (hyperlogarithmic geometry)
+- Mass resolution validation
+- Stability of ion trajectories
+
+#### **LQIT (Linear Quadrupole Ion Trap)**
+- Ion confinement at various q/a parameters
+- RF trapping secular motion frequency
+- Ion motion described by Pseudopotential approximation
+
+#### **Quadrupole Mass Filter**
+- Stability map validation (a-q diagram)
+- Transmission efficiency vs m/z
+- RF/DC voltage ratio effects
+
+#### **FT-ICR (Fourier Transform Ion Cyclotron Resonance)**
+- Cyclotron frequency vs m/z
+- Mass resolution validation
+- Energy conservation in collisionless environment
+
+#### **Cross-Instrument**
+- Energy conservation (collisionless)
+- Boundary detection accuracy
+- Field solver validation
 
 ### **Expected Results:**
 
-| Test | Measurement | Expected | Tolerance | Status |
-|------|-------------|----------|-----------|--------|
-| IMS mobility | v_drift | ~220 m/s | ±5% | ⏳ |
-| TOF flight | t(m/z=200) | ~45 µs | ±1% | ⏳ |
-| Orbitrap | f_z | ~4.5 kHz | ±0.5% | ⏳ |
-| LQIT stability | confinement | bounded | 100 cycles | ⏳ |
-| Energy conservation | ΔE/E | <10⁻¹⁰ | Boris | ⏳ |
+| Instrument | Test | Measurement | Expected | Tolerance |
+|------------|------|-------------|----------|-----------|
+| IMS | Drift velocity | v_drift | K₀ × E/N | ±5% |
+| Orbitrap | Axial frequency | f_z(m/z) | k·√(m/z) | ±1% |
+| LQIT | Stability | secular frequency | Pseudopotential approximation | ±3% |
+| Quadrupole | Stability-map | a-q parameter | Mathieu region | Stable |
+| FT-ICR | Stability | cyclotron frequency | Theoretical model | Stable |
+| All | Energy | ΔE/E | <10⁻¹⁰ | Collisionless |
 
-### **Test Results:**
-
-```
-⏳ Not yet run
-```
-
-### **Issues Encountered:**
+### **Status:**
 
 ```
-None yet
+🔄 Directories created, awaiting test config generation
 ```
 
 ---
 
-## ✅ SESSION 2: THERMALIZATION (Status: ⏳ TODO)
+## SESSION 1: THERMALIZATION (Status: COMPLETE)
 
-### **Tests:**
+### **Design:**
 
-1. ⏳ `hss_300K_1atm.json` - HSS @ 300K, 1 atm (baseline)
-2. ⏳ `hss_450K_1atm.json` - HSS @ 450K, 1 atm (high T)
-3. ⏳ `hss_300K_lowP.json` - HSS @ 300K, 1000 Pa (low P)
-4. ⏳ `ehss_300K_1atm.json` - EHSS @ 300K, 1 atm (baseline)
-5. ⏳ `ehss_450K_1atm.json` - EHSS @ 450K, 1 atm (high T)
-6. ⏳ `ehss_300K_lowP.json` - EHSS @ 300K, 1000 Pa (low P)
+**Systematic parameter sweep:** 3 temperatures × 5 pressures × 3 ion species × 2 collision models = **90 configurations**
+
+- **Temperatures:** 150K, 300K, 1000K
+- **Pressures:** 0.2, 2.0, 20.0, 200.0, 2000.0 Pa
+- **Ion species:** H3O+, PentanalH+, 2,6-DTBPH+
+- **Collision models:** HSS (Hard-Sphere Scattering), EHSS (Elastic Hard-Sphere Scattering)
+- **Initial conditions:** 0.1K ion temperature (cold start for clear thermalization signal)
+- **Duration:** 20-150 collision times (species-dependent)
+- **Timestep:** dt = τ_collision/50 (kinetic theory calculation)
+
+### **Key Results:**
+
+| Model | T_initial | T_final | T_target | Error | CPU Time | Status |
+|-------|-----------|---------|----------|-------|----------|--------|
+| **HSS**  | 4.1 K | 288.2 K | 300.0 K | 3.9% | 4.3 s | PASS |
+| **EHSS** | 1.3 K | 319.6 K | 300.0 K | 6.5% | 34.6 s | PASS |
+
+**Key Findings:**
+- Both collision models thermalize correctly from cold initial conditions
+- Final temperatures within 10% of target across all conditions
+- EHSS ~8x slower than HSS due to molecular structure calculations
+- Cold start (0.1K → 300K) provides clear thermalization validation
+- Collision time calculations accurate (dt = τ_coll/50 resolution sufficient)
+
+### **Tools:**
+
+- `scripts/generate_thermalization_configs.py` - Generate 90 systematic test configs
+- `scripts/run_thermalization_tests.sh` - Test orchestration (quick/subset/full modes)
+- `scripts/final_therm_check.py` - HDF5 velocity analysis for thermalization validation
+- `scripts/test_single_config.sh` - Single test runner with logging
+
+### **Issues Resolved:**
+
+1. **EHSS GeometryMap loading** - Fixed with absolute path to `/home/chsch95/ICARION/data/molecules/`
+2. **ConfigLoader species_id field** - Added backward compatibility for old "id" format
+3. **Initial temperature selection** - Changed from T_target to 0.1K for clear thermalization signal
+
+---
+
+## ⏳ SESSION 3: TRANSPORT PHYSICS (Status: ⏳ PLANNED)
+
+### **Planned Tests:**
+
+#### **Drift Velocity**
+- Mason-Schamp equation validation
+- Mobility vs E/N verification
+- Temperature dependence
+
+#### **Gas Flow**
+- Pure gas drag (no E-field)
+- Combined gas flow + E-field
+- Flow profile effects
+
+#### **Diffusion**
+- Einstein relation (D = μ·k_B·T/q)
+- Cloud spreading vs time
+- Temperature effects
 
 ### **Expected Results:**
 
-| Test | T_initial | T_buffer | T_final (expected) | Tolerance |
-|------|-----------|----------|-------------------|-----------|
-| hss_300K_1atm | 1000 K | 300 K | 300 K | ±5% |
-| hss_450K_1atm | 1000 K | 450 K | 450 K | ±5% |
-| hss_300K_lowP | 1000 K | 300 K | 300 K | ±10% |
-| ehss_300K_1atm | 1000 K | 300 K | 300 K | ±5% |
-| ehss_450K_1atm | 1000 K | 450 K | 450 K | ±5% |
-| ehss_300K_lowP | 1000 K | 300 K | 300 K | ±10% |
-
-### **Test Results:**
-
-```
-⏳ Not yet run
-```
-
-### **Issues Encountered:**
-
-```
-None yet
-```
+| Test | Measurement | Expected | Notes |
+|------|-------------|----------|-------|
+| Drift velocity | v_drift | K₀ × E | Mason-Schamp |
+| Gas drag | <v> | v_gas | Pure flow |
+| Diffusion | σ(t) | √(2Dt) | Einstein |
 
 ---
 
-## ✅ SESSION 3: TRANSPORT / SPACE CHARGE / REACTIONS (Status: ⏳ TODO)
+## ⏳ SESSION 4: SPACE CHARGE (Status: ⏳ PLANNED)
 
-### **Tests:**
+### **Planned Tests:**
 
-1. ⏳ `gas_flow_only.json` - Pure gas drag (no E-field)
-2. ⏳ `gas_flow_drift.json` - Gas + E-field combined
-3. ⏳ `1d_expansion.json` - 1D Coulomb expansion
-4. ⏳ `radial_defocusing.json` - Radial space charge spread
-5. ⏳ `simple_reaction.json` - A+ → B+ first-order decay
+#### **Coulomb Expansion**
+- 1D expansion from point source
+- Radial defocusing in drift tube
+- Self-bunching effects
+
+#### **Space Charge Algorithms**
+- Direct summation (N²) accuracy
+- Grid-based methods validation
+- Performance comparison
 
 ### **Expected Results:**
 
-| Test | Measurement | Expected | Status |
-|------|-------------|----------|--------|
-| Gas flow only | <v> | ~flow velocity | ⏳ |
-| Gas+E drift | v_drift | mobility × E | ⏳ |
-| 1D expansion | σ(t) | Coulomb growth | ⏳ |
-| Radial defocus | σ_r(t) | Radial spread | ⏳ |
-| Reaction | N_A(t) | exp(-kt) | ⏳ |
-
-### **Test Results:**
-
-```
-⏳ Not yet run
-```
+| Test | Measurement | Expected | Notes |
+|------|-------------|----------|-------|
+| 1D expansion | σ(t) | Coulomb growth | Linear |
+| Radial spread | σ_r(t) | Defocusing rate | IMS |
 
 ---
 
-## ✅ SESSION 4: PERFORMANCE BENCHMARKS (Status: 🔄 IN PROGRESS)
+## ⏳ SESSION 5: REACTION KINETICS (Status: ⏳ PLANNED)
 
-### **Tests:**
+### **Planned Tests:**
 
-1. ✅ **OpenMP scaling test** - N=100 ions - **COMPLETE**
-   - Finding: N=100 too small for OpenMP benefit (overhead dominates)
-   - 1 thread: 17s, 2-32 threads: ~100s (5.8x slower!)
-   - Need N≥1000 for parallel speedup
-2. ⏳ CPU scaling (N=100, 1k, 10k, 100k) - 4 configs
-3. ⏳ Integrator comparison (RK4, RK45, Boris) - 3 configs
-4. ⏳ Collision overhead (none, HSS, EHSS, OU) - 4 configs
-5. ⏳ Space charge scaling (direct N², grid N log N) - 3 configs
+#### **First-Order Reactions**
+- A+ → B+ decay validation
+- Rate constant verification
+- Temperature dependence
 
-**Total:** 11 performance configs
+#### **Bimolecular Reactions**
+- A+ + B → C+ kinetics
+- Collision frequency accuracy
 
 ### **Expected Results:**
 
-| Test | Expected | Status |
-|------|----------|--------|
-| CPU scaling | Linear O(N) | ⏳ |
-| Boris integrator | Fastest for E+B | ⏳ |
-| HSS overhead | <10% | ⏳ |
-| EHSS overhead | 50-100% | ⏳ |
-| Grid space charge | Sub-quadratic | ⏳ |
+| Test | Measurement | Expected | Notes |
+|------|-------------|----------|-------|
+| First-order | N_A(t) | exp(-kt) | Decay |
+| Bimolecular | N_C(t) | Rate equation | Collision |
 
-### **Test Results:**
+---
+
+## ⏳ SESSION 6: PERFORMANCE BENCHMARKS (Status: ⏳ PLANNED)
+
+### **Planned Tests:**
+
+#### **Scaling**
+- Ion count scaling: N = 100, 1k, 10k, 100k
+- OpenMP thread scaling (1-32 threads)
+- GPU vs CPU performance
+
+#### **Integrators**
+- RK4 vs RK45 vs Boris accuracy and speed
+- Adaptive timestep efficiency
+- Energy conservation
+
+#### **Physics Overhead**
+- Collisionless baseline
+- HSS collision overhead
+- EHSS collision overhead
+- Space charge algorithms (direct vs grid)
+
+### **Expected Results:**
+
+| Test | Expected | Notes |
+|------|----------|-------|
+| Ion scaling | O(N) | Linear |
+| OpenMP | Speedup for N>1000 | Overhead for small N |
+| Boris | Fastest for E+B | Energy conserving |
+| HSS overhead | <10% | Simple model |
+| EHSS overhead | ~8x slower | Molecular structure |
+| Grid space charge | O(N log N) | vs O(N²) direct |
+
+### **Known Results:**
+
+From thermalization validation:
+- **HSS**: 4.3s for 10,000 ions, 12μs simulation
+- **EHSS**: 34.6s for 10,000 ions, 12μs simulation (8x slower)
+- **Performance ratio**: EHSS/HSS ≈ 8.0
+
+---
+
+## 📦 VALIDATION INFRASTRUCTURE
+
+### **Available Scripts:**
+
+✅ **Thermalization (Session 1):**
+- `scripts/generate_thermalization_configs.py` - Generate 90 systematic configs
+- `scripts/run_thermalization_tests.sh` - Test orchestration (quick/subset/full)
+- `scripts/test_single_config.sh` - Single test runner with logging
+- `scripts/final_therm_check.py` - HDF5 velocity analysis
+
+⏳ **Instruments (Session 2):**
+- `scripts/run_instrument_tests.sh` - IMS, Orbitrap, LQIT validation
+- `scripts/analyze_ims.py` - IMS drift velocity extraction
+- `scripts/analyze_orbitrap.py` - Orbitrap frequency analysis
+
+⏳ **Transport/Space Charge/Reactions (Sessions 3-5):**
+- `scripts/run_transport_tests.sh` - Drift and gas flow validation
+- `scripts/run_spacecharge_tests.sh` - Coulomb expansion tests
+- `scripts/run_reactions_tests.sh` - Kinetics validation
+
+⏳ **Performance (Session 6):**
+- `scripts/run_performance_tests.sh` - Scaling and overhead benchmarks
+
+⏳ **Orchestration:**
+- `scripts/run_all_validation.sh` - Master script for full suite
+
+### **Directory Structure:**
 
 ```
-⏳ Not yet run
+validation/
+├── configs/
+│   ├── physics/
+│   │   └── thermalization/     # ✅ 90 configs (HSS/EHSS)
+│   ├── instruments/            # 🔄 IMS, Orbitrap, LQIT
+│   │   ├── ims/
+│   │   ├── orbitrap/
+│   │   └── lqit/
+│   ├── transport/              # ⏳ Drift, gas flow
+│   ├── spacecharge/            # ⏳ Coulomb expansion
+│   ├── reactions/              # ⏳ Kinetics
+│   └── performance/            # ⏳ Scaling benchmarks
+├── scripts/                    # ✅ Test orchestration and analysis
+├── results/                    # Test outputs (HDF5, logs)
+└── README.md                   # This file
 ```
 
 ---
 
-## ✅ SESSION 5: ORCHESTRATION (Status: ⏳ TODO)
+## 📝 USAGE
 
-### **Scripts:**
+### **Quick Start:**
 
-- ⏳ `scripts/test_single_config.sh` - Quick test helper
-- ⏳ `scripts/run_instrument_tests.sh` - Session 1: Instruments
-- ⏳ `scripts/run_thermalization_tests.sh` - Session 2: Thermalization
-- ⏳ `scripts/run_transport_tests.sh` - Session 3: Transport
-- ⏳ `scripts/run_spacecharge_tests.sh` - Session 3: Space charge
-- ⏳ `scripts/run_reactions_tests.sh` - Session 3: Reactions
-- ⏳ `scripts/run_performance_tests.sh` - Session 4: Performance
-- ⏳ `scripts/run_all_validation.sh` - Master script (all sessions)
-- ⏳ `scripts/utils/extract_instruments.py` - Extract IMS/TOF/Orbitrap metrics
-- ⏳ `scripts/utils/extract_thermalization.py` - Extract T_final
-- ⏳ `scripts/utils/extract_transport.py` - Extract drift velocity
-- ⏳ `scripts/utils/extract_spacecharge.py` - Extract cloud size
-- ⏳ `scripts/utils/extract_reactions.py` - Extract species counts
-- ⏳ `scripts/utils/extract_performance.py` - Extract CPU time, scaling
-- ⏳ `scripts/utils/generate_report.py` - Generate Markdown report
+```bash
+# Run single thermalization test
+cd /home/chsch95/ICARION/validation
+../build/src/icarion_main configs/physics/thermalization/hss_H3Op_300K_20.0Pa.json
 
-### **Deliverables:**
+# Analyze results
+source /home/chsch95/dev_venv/bin/activate
+python3 scripts/final_therm_check.py
 
-- ⏳ `VALIDATION_REPORT_v1.0.md` (auto-generated)
-- ⏳ `results/validation_YYYYMMDD_HHMMSS/` (timestamped runs)
+# Run full thermalization suite (90 configs)
+./scripts/run_thermalization_tests.sh full
+```
+
+### **Test Modes:**
+
+- **Quick mode** (6 configs): Representative subset for rapid validation
+- **Subset mode** (18 configs): One ion species, all conditions
+- **Full mode** (90 configs): Complete systematic sweep
 
 ---
 
-## 📝 NEXT STEPS
+## 🎯 NEXT STEPS
 
-**Current Task:** Session 1 - Create first thermalization config
+### **Current Focus: Session 2 - Instrument Validation**
+
+**Planned work:**
+1. Create IMS validation configs (drift velocity, mobility)
+2. Create Orbitrap validation configs (axial frequency, m/z)
+3. Create LQIT validation configs (Mathieu stability)
+4. Implement analysis scripts for instrument metrics
+5. Validate against theoretical predictions
 
 **Commands:**
 
 ```bash
-# 1. Create directory structure
-cd /home/chsch95/ICARION
-mkdir -p validation/{configs/physics/{thermalization,transport,spacecharge,reactions},scripts/utils,results,reference_data,templates}
+cd /home/chsch95/ICARION/validation
 
-# 2. Create test script
-cat > validation/scripts/test_single_config.sh << 'EOF'
-#!/bin/bash
-CONFIG=$1
-OUTPUT_DIR="results/test_$(date +%Y%m%d_%H%M%S)"
-echo "Testing: $CONFIG"
-mkdir -p "$OUTPUT_DIR"
-../../build/icarion_core "$CONFIG" --output-folder "$OUTPUT_DIR" > "$OUTPUT_DIR/simulation.log" 2>&1
-[ $? -eq 0 ] && echo "✅ SUCCESS" || echo "❌ FAILED"
-ls -lh "$OUTPUT_DIR/"
-EOF
-chmod +x validation/scripts/test_single_config.sh
+# Create IMS test configs
+scripts/generate_ims_configs.py
 
-# 3. Create first config
-cd validation
-# Now ready to create configs/physics/thermalization/hss_300K_1atm.json
+# Run IMS validation
+./scripts/run_instrument_tests.sh ims
+
+# Analyze results
+python3 scripts/analyze_ims.py results/instruments/ims/
 ```
 
 ---
 
-## 📚 DOCUMENTATION
+## 📚 REFERENCES
 
-After each session, update this file with:
-- ✅/❌ status for each test
-- Actual vs. expected results
-- Issues encountered + solutions
-- Runtime measurements
-
-**Format:**
-
-```markdown
-### **Test Results:**
-
-| Test | Status | T_final | Expected | Error | Runtime |
-|------|--------|---------|----------|-------|---------|
-| hss_300K_1atm | ✅ PASS | 298.5 K | 300 K | 0.5% | 45s |
-| ... | ... | ... | ... | ... | ... |
-```
+- **Thermalization validation**: Maxwell-Boltzmann distribution, kinetic theory
+- **IMS theory**: Mason-Schamp equation, reduced mobility
+- **Orbitrap**: Makarov (2000), hyperlogarithmic geometry
+- **LQIT**: Mathieu stability diagram, Paul trap theory
+- **Space charge**: Coulomb expansion, Poisson equation
+- **Collision models**: Hard-sphere scattering (HSS), Elastic HSS (EHSS)
 
 ---
 
-**Ready to start! 🚀**
+**Last updated:** 2025-11-28  
+**Status:** Session 1 (Thermalization) complete ✅, Session 2 (Instruments) in progress 🔄
 

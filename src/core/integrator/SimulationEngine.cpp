@@ -509,42 +509,238 @@ std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
 // ============================================================================
 
 std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
-    // Phase 2: Simplified SoA wrapper
-    // Convert to AoS, run simulation, convert back
-    // This maintains correctness while providing memory footprint benefits
-    // Phase 3 will eliminate conversions and provide full performance gains
+    // Phase 3: Direct SoA simulation loop (no upfront conversion)
     
-    PROFILE_SCOPE_IF_ENABLED("SoA Run");
-    
-    // Convert to legacy format
+    // Convert to legacy format for initialization only
     std::vector<IonState> ions_legacy = ensemble.to_legacy();
     
-    // Run using existing AoS implementation
-    std::vector<IonState> result = run(ions_legacy);
+    // 1. Initialize subsystems
+    initialize(ions_legacy);
     
-    // Update ensemble with final state
-    ensemble = core::IonEnsemble::from_legacy(result);
+    // 2. Main time loop using SoA
+    const double dt = config_.simulation.dt_s;
+    current_time_ = 0.0;
+    current_step_ = 0;
     
-    return result;
+    output_manager_->log_progress("Starting main simulation loop (SoA)");
+    
+    // Helper to check if we should continue
+    auto should_continue_soa = [&]() -> bool {
+        if (current_time_ >= config_.simulation.total_time_s) {
+            return false;
+        }
+        // Check if any ion is active
+        for (size_t i = 0; i < ensemble.size(); ++i) {
+            if (ensemble.is_active(i)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    
+    while (should_continue_soa()) {
+        // Process one timestep using SoA
+        process_timestep_soa(ensemble, dt);
+        
+        // Log trajectory snapshot (write every write_interval steps)
+        if (current_step_ % config_.simulation.write_interval == 0) {
+            PROFILE_SCOPE_IF_ENABLED("Output Writing");
+            // Convert to legacy for output (temporary - Phase 5 will optimize)
+            std::vector<IonState> ions_snapshot = ensemble.to_legacy();
+            output_manager_->log_step(current_time_, ions_snapshot);
+        }
+        
+        // Update time and step counter
+        current_time_ += dt;
+        current_step_++;
+        
+        // Progress logging (every 10%)
+        {
+            PROFILE_SCOPE_IF_ENABLED("Progress Update");
+            log_progress(current_time_);
+        }
+    }
+    
+    // 3. Finalization
+    output_manager_->log_progress("Simulation completed (SoA)");
+    
+    // Count active ions
+    size_t active_count = 0;
+    for (size_t i = 0; i < ensemble.size(); ++i) {
+        if (ensemble.is_active(i)) {
+            active_count++;
+        }
+    }
+    
+    std::ostringstream msg;
+    msg << "Final state: " << active_count << "/" << ensemble.size() << " ions active";
+    output_manager_->log_progress(msg.str());
+    
+    // Convert to legacy format for finalization
+    std::vector<IonState> ions_final = ensemble.to_legacy();
+    output_manager_->finalize(current_time_, ions_final);
+    
+    // Safety report
+    if (config_.simulation.enable_safety_logging) {
+        std::string report_file = config_.output.folder + "/numerical_safety_report.txt";
+        safety::NumericalSafetyLogger::getInstance().generateSafetyReport(report_file);
+        
+        auto stats = safety::NumericalSafetyLogger::getInstance().getStatistics();
+        std::ostringstream safety_msg;
+        safety_msg << "Numerical safety: " << stats.total_violations << " violations detected";
+        if (stats.recovery_attempts > 0) {
+            safety_msg << ", " << stats.successful_recoveries << "/" 
+                      << stats.recovery_attempts << " recoveries successful";
+        }
+        output_manager_->log_progress(safety_msg.str());
+        output_manager_->log_progress("Safety report written: " + report_file);
+    }
+    
+    return ions_final;
 }
 
 void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double dt) {
-    // For Phase 2, simply convert to AoS, process, and convert back
-    // This is a compatibility layer until Phase 3 (full SoA integration)
-    // Still provides memory footprint benefits from IonEnsemble storage
+    // Phase 3: Direct SoA processing (no conversions!)
+    const int n_ions = static_cast<int>(ensemble.size());
     
-    PROFILE_SCOPE_IF_ENABLED("SoA Process Timestep");
+    // Initialize per-ion RNGs on first call
+    if (rng_by_ion_.empty()) {
+        PROFILE_SCOPE_IF_ENABLED("RNG Initialization");
+        rng_by_ion_.reserve(n_ions);
+        for (int i = 0; i < n_ions; ++i) {
+            uint64_t ion_seed = config_.simulation.rng_seed + static_cast<uint64_t>(i);
+            rng_by_ion_.emplace_back(ion_seed);
+        }
+    }
     
-    // Convert to legacy format
-    std::vector<IonState> ions_legacy = ensemble.to_legacy();
+    // Get raw array pointers for cache-friendly iteration
+    auto* pos_x = ensemble.pos_x_data();
+    auto* pos_y = ensemble.pos_y_data();
+    auto* pos_z = ensemble.pos_z_data();
+    auto* active = ensemble.active_data();
     
-    // Process using existing AoS code
-    process_timestep(ions_legacy, dt);
-    
-    // Convert back to SoA
-    // Note: This is inefficient but maintains correctness for Phase 2
-    // Phase 3 will eliminate these conversions
-    ensemble = core::IonEnsemble::from_legacy(ions_legacy);
+    // Parallel ion processing (OpenMP if enabled)
+    #pragma omp parallel if(config_.simulation.enable_openmp)
+    {
+        #pragma omp for schedule(static, 256)
+        for (int i = 0; i < n_ions; ++i) {
+            EhssRng& ion_rng = rng_by_ion_[i];
+            
+            // Skip inactive ions
+            if (!active[i]) {
+                continue;
+            }
+            
+            // 1. Find current domain
+            Vec3 pos(pos_x[i], pos_y[i], pos_z[i]);
+            int domain_idx;
+            {
+                PROFILE_SCOPE_IF_ENABLED("Domain Finding");
+                domain_idx = domain_manager_->find_domain_index(pos);
+                if (domain_idx < 0) {
+                    active[i] = false;
+                    continue;
+                }
+            }
+            
+            const auto& domain_config = config_.domains[domain_idx];
+            
+            // 2. Update domain cache if domain changed
+            if (ensemble.domain_index(i) != domain_idx) {
+                ensemble.update_domain_cache(i, domain_idx,
+                    domain_config.environment.temperature_K,
+                    domain_config.environment.particle_density_m_3,
+                    domain_config.environment.gas_mass_kg);
+            }
+            
+            // 3-5. Collision/Reaction handling using SoA views
+            if (collision_handler_) {
+                PROFILE_SCOPE_IF_ENABLED("Collision Handling");
+                auto collision_view = ensemble.collision_data(i);
+                collision_handler_->handle_collision_soa(collision_view, dt, ion_rng, 
+                                                        domain_config.environment);
+            }
+            
+            if (reaction_handler_ && !config_.reaction_db.reactions.empty()) {
+                PROFILE_SCOPE_IF_ENABLED("Reaction Handling");
+                auto reaction_view = ensemble.reaction_data(i);
+                auto* CCS_arr = ensemble.CCS_data();
+                auto* mobility_arr = ensemble.mobility_data();
+                
+                reaction_handler_->handle_reaction_soa(reaction_view, CCS_arr, mobility_arr,
+                    dt, ion_rng, config_.reaction_db, config_.species_db,
+                    domain_config.environment);
+            }
+            
+            // 6-7. Integration
+            // For now, still convert to IonState for integrator (Phase 3B will optimize this)
+            {
+                PROFILE_SCOPE_IF_ENABLED("Integration");
+                
+                IonState ion_temp;
+                ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]);
+                ion_temp.vel = ensemble.get_vel(i);
+                ion_temp.mass_kg = ensemble.mass_data()[i];
+                ion_temp.ion_charge_C = ensemble.charge_data()[i];
+                ion_temp.t = ensemble.time(i);
+                
+                // Get force registry for this domain
+                const auto& force_registry = force_registries_[domain_idx];
+                
+                // Convert ensemble for space charge (temporary)
+                std::vector<IonState> ions_temp = ensemble.to_legacy();
+                
+                // Integrate
+                integrator_->step(ion_temp, current_time_, dt, *force_registry, ions_temp);
+                
+                // Write back
+                pos_x[i] = ion_temp.pos.x;
+                pos_y[i] = ion_temp.pos.y;
+                pos_z[i] = ion_temp.pos.z;
+                ensemble.set_vel(i, ion_temp.vel);
+            }
+            
+            // 8. Boundary checks
+            {
+                PROFILE_SCOPE_IF_ENABLED("Boundary Checks");
+                
+                Vec3 pos_after(pos_x[i], pos_y[i], pos_z[i]);
+                
+                // Simple cylindrical boundary check
+                bool still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON);
+                still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
+                
+                if (still_inside) {
+                    double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
+                    still_inside = (r <= domain_config.geometry.radius_m + DOMAIN_BOUNDARY_EPSILON);
+                }
+                
+                if (!still_inside) {
+                    active[i] = false;
+                    continue;
+                }
+            }
+            
+            // 9. Update time
+            ensemble.set_time(i, ensemble.time(i) + dt);
+            
+            // 10. Numerical safety checks
+            Vec3 pos_check(pos_x[i], pos_y[i], pos_z[i]);
+            Vec3 vel_check = ensemble.get_vel(i);
+            
+            bool position_valid = ICARION::safety::is_finite(pos_check);
+            bool velocity_valid = ICARION::safety::is_finite(vel_check);
+            
+            if (!position_valid || !velocity_valid) {
+                active[i] = false;
+                
+                if (!config_.simulation.enable_safety_logging) {
+                    std::cerr << "Warning: Ion " << i << " has invalid state at t = " 
+                              << ensemble.time(i) << " s, deactivating" << std::endl;
+                }
+            }
+        }  // End parallel for
+    }  // End parallel region
 }
 
 }  // namespace integrator

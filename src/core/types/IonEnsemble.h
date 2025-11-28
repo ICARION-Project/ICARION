@@ -204,7 +204,7 @@ public:
     const uint8_t* active_data() const { return hot_.active.data(); }
     const uint8_t* born_data() const { return hot_.born.data(); }
     
-    // Cold data
+    // Cold data (const access)
     const std::string& species_id(size_t i) const { 
         return cold_.species_pool[cold_.species_id[i]]; 
     }
@@ -212,11 +212,23 @@ public:
     double mobility(size_t i) const { return cold_.mobility[i]; }
     double birth_time(size_t i) const { return cold_.birth_time[i]; }
     
-    // Domain cache
+    // Cold data (mutable access for SoA processing)
+    double* CCS_data() { return cold_.CCS.data(); }
+    double* mobility_data() { return cold_.mobility.data(); }
+    const std::vector<std::string>* species_pool() const { return &cold_.species_pool; }
+    const uint32_t* species_id_indices() const { return cold_.species_id.data(); }
+    
+    // Domain cache (const access)
     int domain_index(size_t i) const { return domain_.domain_index[i]; }
     double temperature(size_t i) const { return domain_.temperature[i]; }
     double gas_density(size_t i) const { return domain_.gas_density[i]; }
     double neutral_mass(size_t i) const { return domain_.neutral_mass[i]; }
+    
+    // Domain cache (mutable access for SoA processing)
+    int32_t* domain_index_data() { return domain_.domain_index.data(); }
+    double* temperature_data() { return domain_.temperature.data(); }
+    double* gas_density_data() { return domain_.gas_density.data(); }
+    double* neutral_mass_data() { return domain_.neutral_mass.data(); }
     
     // Output data
     int history_index(size_t i) const { return output_.history_index[i]; }

@@ -48,3 +48,26 @@ set_tests_properties(test_simulation_engine_soa PROPERTIES
     LABELS "unit;soa;integration"
     TIMEOUT 60
 )
+
+# Benchmark for SoA performance (Phase 3)
+
+add_executable(benchmark_soa_performance benchmark_soa_performance.cpp)
+
+target_link_libraries(benchmark_soa_performance
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(benchmark_soa_performance
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
+
+# Register with CTest (marked as benchmark, runs only when requested)
+add_test(NAME benchmark_soa_performance COMMAND benchmark_soa_performance "[performance]")
+
+set_tests_properties(benchmark_soa_performance PROPERTIES
+    LABELS "benchmark;soa;performance"
+    TIMEOUT 120
+)

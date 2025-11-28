@@ -4,6 +4,7 @@
 #include "DomainConfigLoader.h"
 #include "WaveformLoader.h"
 #include "../conversion/UnitConverter.h"
+#include "core/log/Logger.h"
 #include <stdexcept>
 #include <iostream>
 
@@ -48,7 +49,7 @@ DomainConfig DomainConfigLoader::load(
     
     // === Fields ===
     if (json.isMember("fields")) {
-        config.fields = load_fields(json["fields"], global_waveforms);
+        config.fields = load_fields(json["fields"], global_waveforms, config.geometry, config.environment);
     }
     // Fields are optional (e.g., pure drift with only gas flow)
     
@@ -160,7 +161,7 @@ EnvironmentConfig DomainConfigLoader::load_environment(const Json::Value& json) 
     return env;
 }
 
-FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json, const std::map<std::string, Waveform>& global_waveforms) {
+FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json, const std::map<std::string, Waveform>& global_waveforms, const GeometryConfig& geometry, const EnvironmentConfig& environment) {
     FieldsConfig fields;
     
     // v1.1: Load domain-local waveform library first (for @reference resolution)
@@ -172,9 +173,9 @@ FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json, const std:
         }
     }
     
-    // DC fields (pass both local and global libraries)
+    // DC fields (pass both local and global libraries, plus geometry for EN_Td→axial_V conversion)
     if (json.isMember("DC")) {
-        fields.dc = load_dc_fields(json["DC"], fields.waveform_library, global_waveforms);
+        fields.dc = load_dc_fields(json["DC"], fields.waveform_library, global_waveforms, geometry, environment);
     }
     
     // RF fields (pass both local and global libraries)
@@ -241,13 +242,51 @@ FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json, const std:
     return fields;
 }
 
-DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library) {
+DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library, const GeometryConfig& geometry, const EnvironmentConfig& environment) {
     DCFieldConfig dc;
     
-    // v1.1: Voltage specification (static or waveform)
-    if (json.isMember("axial_V")) {
+    bool has_axial_V = json.isMember("axial_V");
+    bool has_EN_Td = json.isMember("EN_Td");
+    
+    // Field strength specification (E/N) - v1.1: can also be waveform
+    if (has_EN_Td) {
+        try {
+            dc.EN_Td = WaveformLoader::load_value_or_waveform(json["EN_Td"], local_library, global_library);
+            
+            // Convert EN_Td to axial_V using E = (E/N) × N where N = P/(kB×T)
+            if (dc.EN_Td.constant_value.has_value()) {
+                // Compute EN_Vm2 for storage
+                dc.EN_Vm2 = UnitConverter::townsend_to_Vm2(dc.EN_Td.constant_value.value());
+                
+                // Convert to axial_V: V = E × L where E = (E/N) × N
+                const double EN_Td = dc.EN_Td.constant_value.value();
+                const double k_B = 1.380649e-23;  // J/K
+                const double N = environment.pressure_Pa / (k_B * environment.temperature_K);  // m^-3
+                const double E_Vm = EN_Td * 1e-21 * N;  // 1 Td = 1e-21 V·m²
+                const double axial_V = E_Vm * geometry.length_m;
+                
+                // Set axial_V from EN_Td (will be overridden if axial_V is explicitly set)
+                dc.axial_V.constant_value = axial_V;
+                
+                if (!has_axial_V) {
+                    log::Logger::config()->debug("  Converted EN_Td={:.1f} Td to axial_V={:.1f} V (E={:.0f} V/m, L={:.3f} m, N={:.2e} m⁻³)", 
+                                                 EN_Td, axial_V, E_Vm, geometry.length_m, N);
+                }
+            }
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load DC EN_Td: ") + e.what());
+        }
+    }
+    
+    // v1.1: Voltage specification (static or waveform) - OVERRIDES EN_Td if both present
+    if (has_axial_V) {
         try {
             dc.axial_V = WaveformLoader::load_value_or_waveform(json["axial_V"], local_library, global_library);
+            
+            if (has_EN_Td) {
+                log::Logger::config()->warn("  Both 'axial_V' and 'EN_Td' specified - using axial_V={} V (EN_Td ignored)", 
+                                           dc.axial_V.constant_value.value_or(0.0));
+            }
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to load DC axial_V: ") + e.what());
         }
@@ -266,19 +305,6 @@ DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const 
             dc.radial_V = WaveformLoader::load_value_or_waveform(json["radial_V"], local_library, global_library);
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to load DC radial_V: ") + e.what());
-        }
-    }
-    
-    // Field strength specification (alternative) - v1.1: can also be waveform
-    if (json.isMember("EN_Td")) {
-        try {
-            dc.EN_Td = WaveformLoader::load_value_or_waveform(json["EN_Td"], local_library, global_library);
-            // If static, compute EN_Vm2
-            if (dc.EN_Td.constant_value.has_value()) {
-                dc.EN_Vm2 = UnitConverter::townsend_to_Vm2(dc.EN_Td.constant_value.value());
-            }
-        } catch (const std::exception& e) {
-            throw std::runtime_error(std::string("Failed to load DC EN_Td: ") + e.what());
         }
     }
     

@@ -23,9 +23,6 @@ static std::vector<IonState> create_test_ions(size_t n) {
         ion.reduced_mobility_cm2_Vs = 2.0;
         ion.species_id = (i % 2 == 0) ? "H3O+" : "H2O";
         ion.birth_time_s = i * 1e-6;
-        ion.domain_temperature_K = 300.0;
-        ion.domain_particle_density_m3 = 2.4e25;
-        ion.domain_neutral_mass_kg = 4.0e-26;
         ion.current_domain_index = 0;
         ion.history_index = static_cast<int>(i);
         ion.t = i * 1e-9;

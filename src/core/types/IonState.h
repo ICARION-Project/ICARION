@@ -72,13 +72,6 @@ struct alignas(64) IonState {
     bool born = false;                    ///< true if created by reaction during simulation
     int current_domain_index = 0;         ///< Index of current instrument domain
     
-    // Domain specific parameters (cached for collision calculations) #todo this is weird
-    double domain_neutral_mass_kg = 0.0;  ///< Background gas mass [kg] in current domain
-    double domain_temperature_K   = 0.0;  ///< Gas temperature [K] in current domain
-    double domain_particle_density_m3   = 0.0;   ///< Neutral density [1/m³] for collisions
-    double domain_neutral_polarizability_m3 = 0.0; ///< Neutral polarizability [m³] for Langevin
-    Vec3 domain_gas_velocity_m_s = Vec3{0.0, 0.0, 0.0}; ///< Gas flow velocity [m/s]
-    
     double t = 0.0;   ///< Current simulation time [s] (for adaptive integrators)
     double dt = 0.0;  ///< Individual timestep [s] per ion for adaptive RK45 solver
 

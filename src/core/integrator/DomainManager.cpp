@@ -145,10 +145,7 @@ void DomainManager::check_aperture_crossing(IonState& ion, int domain_idx,
 void DomainManager::update_domain_properties(IonState& ion, int domain_idx) const {
     const auto& dom = get_domain(domain_idx);
     
-    ion.domain_neutral_mass_kg = dom.environment.gas_mass_kg;
-    ion.domain_temperature_K = dom.environment.temperature_K;
-    ion.domain_particle_density_m3 = dom.environment.particle_density_m_3;
-    ion.domain_gas_velocity_m_s = dom.environment.gas_velocity_m_s;
+    // Domain cache fields removed from IonState - only update domain index
     ion.current_domain_index = dom.domain_index;
 }
 

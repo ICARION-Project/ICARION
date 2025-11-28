@@ -42,7 +42,6 @@ int main() {
         ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{6000.0, 0.0, 0.0};  // Start with high energy in x
-        ion.domain_gas_velocity_m_s = env.gas_velocity_m_s;
         
         EhssRng rng(456 + ion_idx);
         

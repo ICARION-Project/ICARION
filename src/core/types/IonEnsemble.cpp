@@ -41,10 +41,10 @@ IonEnsemble IonEnsemble::from_legacy(const std::vector<IonState>& ions) {
         ensemble.cold_.birth_time[i] = ion.birth_time_s;
         ensemble.cold_.species_id[i] = ensemble.get_species_index(ion.species_id);
         
-        // Domain cache
-        ensemble.domain_.temperature[i] = ion.domain_temperature_K;
-        ensemble.domain_.gas_density[i] = ion.domain_particle_density_m3;
-        ensemble.domain_.neutral_mass[i] = ion.domain_neutral_mass_kg;
+        // Domain cache - initialize to defaults (updated by DomainManager)
+        ensemble.domain_.temperature[i] = 0.0;
+        ensemble.domain_.gas_density[i] = 0.0;
+        ensemble.domain_.neutral_mass[i] = 0.0;
         ensemble.domain_.domain_index[i] = ion.current_domain_index;
         
         // Output data
@@ -78,11 +78,7 @@ std::vector<IonState> IonEnsemble::to_legacy() const {
         ion.species_id = cold_.species_pool[cold_.species_id[i]];
         
         // Domain cache
-        ion.domain_temperature_K = domain_.temperature[i];
-        ion.domain_particle_density_m3 = domain_.gas_density[i];
-        ion.domain_neutral_mass_kg = domain_.neutral_mass[i];
         ion.current_domain_index = domain_.domain_index[i];
-        ion.domain_gas_velocity_m_s = {0, 0, 0};  // Not stored in SoA (rarely used)
         
         // Output data
         ion.history_index = output_.history_index[i];

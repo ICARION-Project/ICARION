@@ -30,7 +30,7 @@ bool OUCollisionHandler::handle_collision(
     // Apply Ornstein-Uhlenbeck velocity kick
     // Uses existing helper function from collisionHelpers.h
     // apply_damping_ controls whether damping is applied (false when using DampingForce)
-    apply_ou_velocity_kick(ion, rng, dt, gamma_, T_K, apply_damping_);
+    apply_ou_velocity_kick(ion, rng, dt, gamma_, T_K, env.gas_velocity_m_s, apply_damping_);
     
     return true;  // Always "collides" (continuous process)
 }

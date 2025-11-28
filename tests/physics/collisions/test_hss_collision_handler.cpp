@@ -75,7 +75,6 @@ TEST_CASE("HSSCollisionHandler: Thermalization of H3O+", "[collision][hss][therm
         ion.ion_charge_C = ELEM_CHARGE_C;
         ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
         ion.pos = Vec3{0.0, 0.0, 0.0};
-        ion.domain_gas_velocity_m_s = env.gas_velocity_m_s;
         
         // Start with small initial velocity (triggers collisions)
         const double v_init = 100.0;  // m/s
@@ -157,7 +156,6 @@ TEST_CASE("HSSCollisionHandler: Thermalization from high energy", "[collision][h
         ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{10.0 * v_thermal, 0.0, 0.0};  // 10x thermal in x-direction
-        ion.domain_gas_velocity_m_s = env.gas_velocity_m_s;
         
         double v_init2 = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;
         sum_v2_initial += v_init2;
@@ -224,7 +222,6 @@ TEST_CASE("HSSCollisionHandler: Isotropic velocity distribution", "[collision][h
         ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{1000.0, 0.0, 0.0};  // Start with directed velocity
-        ion.domain_gas_velocity_m_s = env.gas_velocity_m_s;
         
         EhssRng rng(999 + ion_idx);
         

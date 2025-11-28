@@ -90,7 +90,6 @@ TEST_CASE("OUCollisionHandler: Thermalization of H3O+", "[collision][ou][thermal
         ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{0.0, 0.0, 0.0};  // Start from rest
-        ion.domain_gas_velocity_m_s = env.gas_velocity_m_s;
         
         // Use different RNG seed for each ion
         EhssRng rng(42 + ion_idx);
@@ -165,7 +164,6 @@ TEST_CASE("OUCollisionHandler: Thermalization from high energy", "[collision][ou
         ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{10.0 * v_thermal, 0.0, 0.0};  // 10x thermal in x-direction
-        ion.domain_gas_velocity_m_s = env.gas_velocity_m_s;
         
         double v_init2 = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;
         sum_v2_initial += v_init2;
@@ -234,7 +232,6 @@ TEST_CASE("OUCollisionHandler: Isotropic velocity distribution", "[collision][ou
         ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{1000.0, 0.0, 0.0};  // Start with directed velocity
-        ion.domain_gas_velocity_m_s = env.gas_velocity_m_s;
         
         EhssRng rng(999 + ion_idx);
         
@@ -301,7 +298,6 @@ TEST_CASE("OUCollisionHandler: Fluctuation-Dissipation balance", "[collision][ou
         ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{v_thermal, 0.0, 0.0};  // Start at thermal energy
-        ion.domain_gas_velocity_m_s = env.gas_velocity_m_s;
         
         EhssRng rng(777 + ion_idx);
         

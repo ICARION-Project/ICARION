@@ -128,17 +128,21 @@ TEST_CASE("SimulationEngine SoA - Memory footprint", "[soa][memory]") {
         auto ions = create_test_ions(1000);
         auto ensemble = IonEnsemble::from_legacy(ions);
         
-        // AoS: ~220 bytes/ion
+        // AoS: ~180 bytes/ion (after removing domain cache fields)
         size_t aos_footprint = ions.size() * sizeof(IonState);
         
-        // SoA: ~120 bytes/ion (45% reduction)
+        // SoA: ~120 bytes/ion
         size_t soa_footprint = ensemble.memory_footprint();
         
-        // Verify 40-50% reduction
+        // Verify 30-35% reduction (after Phase 4 domain cache cleanup)
         double reduction = 1.0 - static_cast<double>(soa_footprint) / aos_footprint;
         
-        REQUIRE(reduction > 0.40);  // At least 40% reduction
-        REQUIRE(reduction < 0.50);  // At most 50% reduction
+        INFO("AoS footprint: " << aos_footprint << " bytes (" << aos_footprint/1000 << " bytes/ion)");
+        INFO("SoA footprint: " << soa_footprint << " bytes (" << soa_footprint/1000 << " bytes/ion)");
+        INFO("Reduction: " << reduction * 100 << "%");
+        
+        REQUIRE(reduction > 0.25);  // At least 25% reduction (after Phase 4)
+        REQUIRE(reduction < 0.35);  // ~30% reduction expected
         
         // Verify per-ion footprint
         size_t per_ion = soa_footprint / ions.size();

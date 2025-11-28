@@ -179,4 +179,5 @@ void apply_ou_velocity_kick(IonState& y,
                             double dt,
                             double gamma,
                             double T_K,
-                            bool apply_damping = true);
+                            const Vec3& gas_velocity_m_s,
+                            bool apply_damping);

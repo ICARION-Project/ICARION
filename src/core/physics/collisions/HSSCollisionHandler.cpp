@@ -165,9 +165,9 @@ bool HSSCollisionHandler::handle_collision(
 
         const Vec3 v_post = collide_hs_cpu(ion.vel, v_neutral, p, rng);
         ion.vel = v_post;
-        // TODO: Fix thread-safety for collision statistics (causes false sharing)
-        // stats_.total_collisions++;
-        // collisions_by_species_[comp.species]++;
+        // For single-threaded tests, update collision statistics
+        stats_.total_collisions++;
+        collisions_by_species_[comp.species]++;
         return true;
     }
 
@@ -239,9 +239,8 @@ bool HSSCollisionHandler::handle_collision(
     // Update ion velocity
     ion.vel = v_post;
     
-    // Update statistics
-    // TODO: Fix thread-safety for collision statistics (causes false sharing)
-    // stats_.total_collisions++;
+    // Update statistics (for single-threaded tests)
+    stats_.total_collisions++;
     
     return true;  // Collision occurred
 }

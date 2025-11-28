@@ -1,24 +1,17 @@
 {
   "reactions": [
     {
-      "id": "rxn_001_h3o_to_h5o2",
+      "id": "rxn_001_h3o_to_pentanalH+",
       "reactant": "H3O+",
-      "product": "H5O2+",
-      "rate_constant": 3.5e-15,
+      "product": "PentanalH+",
+      "rate_constant": 3e-9,
       "order": [
         {
-          "species": "H2O",
+          "species": "Pentanal",
           "exponent": 1,
-          "concentration_m3": 2.5e25
+          "concentration_m3": 2.5e19
         }
       ]
-    },
-    {
-      "id": "rxn_002_h5o2_dissociation",
-      "reactant": "H5O2+",
-      "product": "H3O+",
-      "rate_constant": 1.2e-16,
-      "order": []
     }
   ]
 }

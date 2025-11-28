@@ -173,13 +173,19 @@ IonConfig ConfigLoader::parse_ion_config(const Json::Value& json,
         for (const auto& spec_json : json["species"]) {
             IonSpeciesConfig spec;
             
-            // Required fields
-            if (!spec_json.isMember("id") || !spec_json.isMember("count") ||
+            // Required fields (check both old 'id' and new 'species_id' formats)
+            if ((!spec_json.isMember("id") && !spec_json.isMember("species_id")) || 
+                !spec_json.isMember("count") ||
                 !spec_json.isMember("position") || !spec_json.isMember("velocity")) {
-                throw std::runtime_error("Ion species config missing required fields (id, count, position, velocity)");
+                throw std::runtime_error("Ion species config missing required fields (species_id/id, count, position, velocity)");
             }
             
-            spec.species_id = spec_json["id"].asString();
+            // Support both old and new field names
+            if (spec_json.isMember("species_id")) {
+                spec.species_id = spec_json["species_id"].asString();
+            } else {
+                spec.species_id = spec_json["id"].asString();
+            }
             spec.count = spec_json["count"].asInt();
             
             // Parse position distribution

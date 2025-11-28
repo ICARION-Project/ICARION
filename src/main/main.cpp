@@ -52,6 +52,7 @@
 #include "core/physics/forces/SpaceChargeGrid.h"
 #include "core/physics/spacecharge/spaceChargeSolver.h"
 #include "core/physics/collisions/CollisionHandlerFactory.h"
+#include "core/physics/collisions/geometryUtils.h"
 #include "core/physics/reactions/ReactionHandlerFactory.h"
 #include "core/log/Logger.h"
 #include "utils/cli_parser.h"
@@ -404,10 +405,36 @@ int main(int argc, char* argv[]) {
         
         // Create collision handler (from config.physics.collision_model)
         const double gamma_for_ou = 0.0;  // OU damping coefficient not used for stochastic models
+        
+        // Load geometry map for EHSS (if needed)
+        std::unique_ptr<physics::GeometryMap> geometry_map_ptr = nullptr;
+        const physics::GeometryMap* geometry_map = nullptr;
+        
+        if (config.physics.collision_model == config::CollisionModel::EHSS) {
+            // Collect all ion species from config
+            std::unordered_set<std::string> species_ids;
+            for (const auto& species : config.ions.species) {
+                species_ids.insert(species.species_id);
+            }
+            
+            try {
+                log::Logger::main()->info("Loading molecular geometries for EHSS collision model");
+                geometry_map_ptr = std::make_unique<physics::GeometryMap>(
+                    physics::load_geometry_map(species_ids, "/home/chsch95/ICARION/data/molecules/", false)
+                );
+                geometry_map = geometry_map_ptr.get();
+                log::Logger::main()->info("Loaded {} molecular geometries", geometry_map->size());
+            } catch (const std::exception& e) {
+                log::Logger::main()->error("Failed to load molecular geometries: {}", e.what());
+                log::Logger::main()->warn("Falling back to HSS collision model");
+                // Don't exit, let CollisionHandlerFactory handle the fallback
+            }
+        }
+        
         std::shared_ptr<physics::ICollisionHandler> collision_handler = 
             physics::CollisionHandlerFactory::create(
                 config.physics,
-                nullptr,        // geometry map (EHSS only; provided in SimulationEngine paths)
+                geometry_map,   // Now properly loaded for EHSS
                 gamma_for_ou,
                 false,          // enable_logging
                 &config.species_db

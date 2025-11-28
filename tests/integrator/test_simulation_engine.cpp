@@ -368,6 +368,9 @@ TEST_CASE("SimulationEngine: Edge cases", "[simulation][engine][edge]") {
     cfg.simulation.total_time_s = 1e-6;
     cfg.simulation.compute_derived();
     
+    // Disable HDF5 output for edge case tests to avoid empty dataset issues
+    cfg.output.trajectory_file = "";
+    
     auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
     

@@ -3,32 +3,35 @@
     "H3O+": {
       "mass_amu": 19.02,
       "charge": 1,
-      "mobility_cm2Vs": 2.8,
-      "CCS_A2": 11.0,
+      "mobility_cm2Vs": 24.1,
+      "CCS_A2": 24.9,
       "name": "Hydronium ion",
       "reference_temperature_K": 273.15,
       "reference_pressure_Pa": 101325,
-      "ccs_method": "trajectory"
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/H3O+.json"
     },
-    "H5O2+": {
-      "mass_amu": 37.03,
+    "PentanalH+": {
+      "mass_amu": 87.0,
       "charge": 1,
-      "mobility_cm2Vs": 2.1,
-      "CCS_A2": 14.5,
-      "name": "Protonated water dimer"
+      "mobility_cm2Vs": 10.25,
+      "CCS_A2": 53.7,
+      "name": "Pentanal protonated",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/PentanalH+.json"
     },
-    "O2-": {
-      "mass_amu": 31.998,
-      "charge": -1,
-      "mobility_cm2Vs": 2.3,
-      "CCS_A2": 13.2,
-      "name": "Superoxide ion"
-    },
-    "H2O": {
-      "mass_amu": 18.015,
-      "charge": 0,
-      "polarizability_A3": 1.45,
-      "name": "Water"
+    "2,6-DTBPH+": {
+      "mass_amu": 192.0,
+      "charge": 1,
+      "mobility_cm2Vs": 6.25,
+      "CCS_A2": 87.02,
+      "name": "2,6-DTBPH protonated",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/26DTBPH+.json"
     },
     "He": {
       "mass_amu": 4.003,
@@ -36,11 +39,10 @@
       "polarizability_A3": 0.205,
       "name": "Helium"
     },
-    "N2": {
-      "mass_amu": 28.014,
+    "Pentanal": {
+      "mass_amu": 86.13,
       "charge": 0,
-      "polarizability_A3": 1.74,
-      "name": "Nitrogen"
+      "name": "Pentanal"
     }
   }
 }

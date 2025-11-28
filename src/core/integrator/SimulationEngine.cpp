@@ -672,32 +672,15 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
                     domain_config.environment);
             }
             
-            // 6-7. Integration
-            // For now, still convert to IonState for integrator (Phase 3B will optimize this)
+            // 6-7. Integration (Phase 3B: Direct SoA!)
             {
                 PROFILE_SCOPE_IF_ENABLED("Integration");
-                
-                IonState ion_temp;
-                ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]);
-                ion_temp.vel = ensemble.get_vel(i);
-                ion_temp.mass_kg = ensemble.mass_data()[i];
-                ion_temp.ion_charge_C = ensemble.charge_data()[i];
-                ion_temp.t = ensemble.time(i);
                 
                 // Get force registry for this domain
                 const auto& force_registry = force_registries_[domain_idx];
                 
-                // Convert ensemble for space charge (temporary)
-                std::vector<IonState> ions_temp = ensemble.to_legacy();
-                
-                // Integrate
-                integrator_->step(ion_temp, current_time_, dt, *force_registry, ions_temp);
-                
-                // Write back
-                pos_x[i] = ion_temp.pos.x;
-                pos_y[i] = ion_temp.pos.y;
-                pos_z[i] = ion_temp.pos.z;
-                ensemble.set_vel(i, ion_temp.vel);
+                // Integrate directly using SoA (no conversion!)
+                integrator_->step_soa(ensemble, i, current_time_, dt, *force_registry);
             }
             
             // 8. Boundary checks

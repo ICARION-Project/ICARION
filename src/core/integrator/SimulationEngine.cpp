@@ -545,9 +545,8 @@ std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
         // Log trajectory snapshot (write every write_interval steps)
         if (current_step_ % config_.simulation.write_interval == 0) {
             PROFILE_SCOPE_IF_ENABLED("Output Writing");
-            // Convert to legacy for output (temporary - Phase 5 will optimize)
-            std::vector<IonState> ions_snapshot = ensemble.to_legacy();
-            output_manager_->log_step(current_time_, ions_snapshot);
+            // Phase 5: Direct SoA→HDF5 writing (no conversion overhead)
+            output_manager_->log_step_soa(current_time_, ensemble);
         }
         
         // Update time and step counter
@@ -576,9 +575,8 @@ std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
     msg << "Final state: " << active_count << "/" << ensemble.size() << " ions active";
     output_manager_->log_progress(msg.str());
     
-    // Convert to legacy format for finalization
-    std::vector<IonState> ions_final = ensemble.to_legacy();
-    output_manager_->finalize(current_time_, ions_final);
+    // Phase 5: Direct SoA finalization (no conversion overhead)
+    output_manager_->finalize_soa(current_time_, ensemble);
     
     // Safety report
     if (config_.simulation.enable_safety_logging) {
@@ -596,7 +594,8 @@ std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
         output_manager_->log_progress("Safety report written: " + report_file);
     }
     
-    return ions_final;
+    // Return final ions in legacy format (for API compatibility)
+    return ensemble.to_legacy();
 }
 
 void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double dt) {

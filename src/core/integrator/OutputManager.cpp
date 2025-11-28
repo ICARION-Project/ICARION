@@ -139,6 +139,31 @@ void OutputManager::log_step(double t, const std::vector<IonState>& ions) {
     trajectory_buffer_.push_back(ions);
 }
 
+void OutputManager::log_step_soa(double t, const core::IonEnsemble& ensemble) {
+    if (!initialized_) {
+        throw std::runtime_error("OutputManager: Must call initialize() before log_step_soa()");
+    }
+    
+    if (finalized_) {
+        throw std::runtime_error("OutputManager: Cannot log after finalize()");
+    }
+    
+    last_time_ = t;
+    
+    // Check if flush needed BEFORE adding 
+    if (should_write_before_add(t)) {
+        flush();
+    }
+    
+    // Convert to legacy format for now (Phase 5 optimization: direct SoA write)
+    // TODO: Implement direct SoA→HDF5 writing to avoid this conversion
+    std::vector<IonState> ions_snapshot = ensemble.to_legacy();
+    
+    // Buffer snapshot (same as legacy path)
+    times_buffer_.push_back(t);
+    trajectory_buffer_.push_back(std::move(ions_snapshot));
+}
+
 void OutputManager::log_progress(const std::string& message) {
     std::lock_guard<std::mutex> lock(text_log_mutex_);
     if (text_log_file_.is_open()) {
@@ -283,6 +308,15 @@ void OutputManager::finalize(double t_final, const std::vector<IonState>& final_
     
     finalized_ = true;
     initialized_ = false;
+}
+
+void OutputManager::finalize_soa(double t_final, const core::IonEnsemble& final_ensemble) {
+    // Convert to legacy format for now (Phase 5 optimization: direct SoA finalization)
+    // TODO: Implement direct SoA finalization to avoid this conversion
+    std::vector<IonState> final_ions = final_ensemble.to_legacy();
+    
+    // Use legacy finalize method
+    finalize(t_final, final_ions);
 }
 
 }  // namespace integrator

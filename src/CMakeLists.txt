@@ -73,6 +73,7 @@ file(GLOB_RECURSE ICARION_UTILS_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/utils/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/utils/*.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/types/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/types/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/param/*.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/param/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cpp"

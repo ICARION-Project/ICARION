@@ -109,6 +109,20 @@ public:
         const std::vector<IonState>& all_ions
     ) override;
     
+    /**
+     * @brief RK4 integration using SoA (Phase 3B - optimized)
+     * 
+     * Direct array access for cache efficiency.
+     * No IonState construction overhead.
+     */
+    void step_soa(
+        core::IonEnsemble& ensemble,
+        size_t ion_idx,
+        double t,
+        double dt,
+        const physics::ForceRegistry& force_registry
+    ) override;
+    
     std::string name() const override { return "RK4"; }
     bool is_adaptive() const override { return false; }
 };

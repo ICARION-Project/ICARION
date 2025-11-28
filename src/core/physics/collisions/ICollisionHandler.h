@@ -20,6 +20,7 @@
 #pragma once
 
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"  // For IonCollisionData view
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/physics/collisions/collisionHelpers.h"  // EhssRng
 #include <string>
@@ -97,6 +98,42 @@ public:
         EhssRng& rng,
         const config::EnvironmentConfig& env
     ) = 0;
+    
+    /**
+     * @brief Handle collision using SoA view (Phase 3 - cache-optimized)
+     * 
+     * Zero-copy access to ion data via view struct.
+     * Default implementation converts to IonState and calls handle_collision().
+     * 
+     * @param[in,out] view Ion collision data view (velocity modified in-place)
+     * @param[in] dt Timestep [s]
+     * @param[in,out] rng Random number generator
+     * @param[in] env Environment configuration
+     * 
+     * @return true if collision occurred, false otherwise
+     * 
+     * @note Override this for optimal SoA performance. Default wrapper provided for compatibility.
+     */
+    virtual bool handle_collision_soa(
+        core::IonCollisionData& view,
+        double dt,
+        EhssRng& rng,
+        const config::EnvironmentConfig& env
+    ) {
+        // Default: convert to IonState and call legacy method
+        IonState ion;
+        ion.pos = view.kin.pos();
+        ion.vel = view.kin.vel();
+        ion.mass_kg = view.kin.get_mass();
+        ion.ion_charge_C = view.kin.get_charge();
+        ion.CCS_m2 = view.get_CCS();
+        
+        bool result = handle_collision(ion, dt, rng, env);
+        
+        // Write back modified velocity
+        view.kin.set_vel(ion.vel);
+        return result;
+    }
     
     /**
      * @brief Get collision model name

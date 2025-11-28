@@ -377,6 +377,7 @@ void apply_ou_velocity_kick(IonState& y,
                             double dt,
                             double gamma,
                             double T_K,
+                            const Vec3& gas_velocity_m_s,
                             bool apply_damping)
 {
     if (gamma <= 0.0 || dt <= 0.0) return;
@@ -384,10 +385,10 @@ void apply_ou_velocity_kick(IonState& y,
     const double m = y.mass_kg;
     const double kBT_over_m = BOLTZMANN_CONSTANT * T_K / m;
     
-    // gas (mean) velocity is already stored on y
-    const double ux = y.domain_gas_velocity_m_s.x;
-    const double uy = y.domain_gas_velocity_m_s.y;
-    const double uz = y.domain_gas_velocity_m_s.z;
+    // gas (mean) velocity passed from environment (usually [0,0,0])
+    const double ux = gas_velocity_m_s.x;
+    const double uy = gas_velocity_m_s.y;
+    const double uz = gas_velocity_m_s.z;
 
     if (apply_damping) {
         // Full OU process: v(t+dt) = u + (v(t)-u)*exp(-γ*dt) + σ*N(0,1)

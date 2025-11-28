@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"  // For SoA integration
 #include "core/config/types/DomainConfig.h"
 #include "core/physics/forces/ForceRegistry.h"
 
@@ -126,6 +127,41 @@ public:
      * to provide error estimation and timestep control.
      */
     virtual bool is_adaptive() const = 0;
+    
+    /**
+     * @brief Advance single ion using SoA (Structure of Arrays) data layout
+     * 
+     * Phase 3B: Cache-optimized integration using direct array access.
+     * Default implementation converts to IonState and calls step().
+     * 
+     * @param ensemble Ion ensemble (SoA)
+     * @param ion_idx Index of ion to integrate
+     * @param t Current simulation time [s]
+     * @param dt Timestep size [s]
+     * @param force_registry Force computation engine
+     * 
+     * **Performance Benefits:**
+     * - Direct array access (no IonState construction)
+     * - Better cache locality
+     * - Reduced memory allocations
+     * 
+     * @note Override for optimal SoA performance. Default wrapper provided.
+     */
+    virtual void step_soa(
+        core::IonEnsemble& ensemble,
+        size_t ion_idx,
+        double t,
+        double dt,
+        const physics::ForceRegistry& force_registry
+    ) {
+        // Default: convert to IonState and call legacy method
+        auto ions_temp = ensemble.to_legacy();
+        step(ions_temp[ion_idx], t, dt, force_registry, ions_temp);
+        
+        // Write back
+        ensemble.set_pos(ion_idx, ions_temp[ion_idx].pos);
+        ensemble.set_vel(ion_idx, ions_temp[ion_idx].vel);
+    }
 };
 
 } // namespace integrator

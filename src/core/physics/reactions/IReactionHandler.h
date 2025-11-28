@@ -9,6 +9,7 @@
 #pragma once
 
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"  // For IonReactionData view
 #include "core/config/types/ReactionConfig.h"
 #include "core/config/types/SpeciesConfig.h"
 #include "core/config/types/EnvironmentConfig.h"
@@ -91,8 +92,58 @@ public:
     ) = 0;
     
     /**
+     * @brief Handle reactions using SoA view (Phase 3 - cache-optimized)
+     * 
+     * Zero-copy access to ion data via view struct.
+     * Default implementation converts to IonState and calls handle_reaction().
+     * 
+     * @param[in,out] view Ion reaction data view (species may be modified)
+     * @param[in,out] cold_data Cold data arrays (CCS, mobility) for species updates
+     * @param[in] dt Timestep [s]
+     * @param[in,out] rng Random number generator
+     * @param[in] reaction_db Reaction database
+     * @param[in] species_db Species database
+     * @param[in] env Environment configuration
+     * 
+     * @return true if reaction occurred, false otherwise
+     * 
+     * @note Override for optimal SoA performance. Default wrapper provided for compatibility.
+     */
+    virtual bool handle_reaction_soa(
+        core::IonReactionData& view,
+        double* CCS_array,
+        double* mobility_array,
+        double dt,
+        EhssRng& rng,
+        const config::ReactionDatabase& reaction_db,
+        const config::SpeciesDatabase& species_db,
+        const config::EnvironmentConfig& env
+    ) {
+        // Default: convert to IonState and call legacy method
+        IonState ion;
+        ion.pos = view.kin.pos();
+        ion.vel = view.kin.vel();
+        ion.mass_kg = view.kin.get_mass();
+        ion.ion_charge_C = view.kin.get_charge();
+        ion.species_id = view.species_id();
+        ion.CCS_m2 = CCS_array[view.kin.index];
+        ion.reduced_mobility_cm2_Vs = mobility_array[view.kin.index];
+        
+        bool result = handle_reaction(ion, dt, rng, reaction_db, species_db, env);
+        
+        // Write back modified data
+        view.kin.set_vel(ion.vel);
+        view.kin.set_pos(ion.pos);
+        // Note: species_id update requires ensemble method (handled by caller)
+        CCS_array[view.kin.index] = ion.CCS_m2;
+        mobility_array[view.kin.index] = ion.reduced_mobility_cm2_Vs;
+        
+        return result;
+    }
+    
+    /**
      * @brief Get handler name
-     * @return Human-readable handler name (e.g., "Stochastic", "None")
+     * @return Human-readable handler name (e.g., \"Stochastic\", \"None\")
      */
     virtual std::string name() const = 0;
     

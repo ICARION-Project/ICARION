@@ -167,7 +167,7 @@ TEST_CASE("EHSSCollisionHandler: Thermalization from high energy", "[collision][
         ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{10.0 * v_thermal, 0.0, 0.0};  // 10x thermal in x-direction
-        ion.domain_gas_velocity_m_s = env.gas_velocity_m_s;
+        // domain_gas_velocity_m_s removed from IonState (passed via EnvironmentConfig)
         
         double v_init2 = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;
         sum_v2_initial += v_init2;

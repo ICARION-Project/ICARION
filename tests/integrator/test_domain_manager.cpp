@@ -148,10 +148,7 @@ TEST_CASE("DomainManager: Update ion properties") {
     manager.update_domain_properties(ion, 1);
     
     REQUIRE(ion.current_domain_index == 1);
-    REQUIRE(ion.domain_temperature_K == Approx(300.0).margin(1e-6));
-    // particle_density is computed from P/(kB*T), approximately 2.44e25 for 1 atm at 300K
-    REQUIRE(ion.domain_particle_density_m3 == Approx(2.44e25).margin(1e23));
-    REQUIRE(ion.domain_neutral_mass_kg == Approx(6.646e-27).margin(1e-30));  // He-4 mass
+    // Domain cache fields removed from IonState - DomainManager now only updates domain index
 }
 
 TEST_CASE("DomainManager: Full workflow") {

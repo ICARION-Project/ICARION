@@ -24,3 +24,27 @@ set_tests_properties(test_ion_ensemble PROPERTIES
     LABELS "unit;soa"
     TIMEOUT 30
 )
+
+# Unit test for SimulationEngine SoA integration (Phase 2)
+
+add_executable(test_simulation_engine_soa test_simulation_engine_soa.cpp)
+
+target_link_libraries(test_simulation_engine_soa
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_simulation_engine_soa
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
+
+# Register with CTest
+add_test(NAME test_simulation_engine_soa COMMAND test_simulation_engine_soa)
+
+# Add to test suite
+set_tests_properties(test_simulation_engine_soa PROPERTIES
+    LABELS "unit;soa;integration"
+    TIMEOUT 60
+)

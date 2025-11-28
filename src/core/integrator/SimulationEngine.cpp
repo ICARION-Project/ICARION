@@ -504,5 +504,48 @@ std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
     return ions;
 }
 
+// ============================================================================
+// SoA (Structure of Arrays) Implementation - Phase 2
+// ============================================================================
+
+std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
+    // Phase 2: Simplified SoA wrapper
+    // Convert to AoS, run simulation, convert back
+    // This maintains correctness while providing memory footprint benefits
+    // Phase 3 will eliminate conversions and provide full performance gains
+    
+    PROFILE_SCOPE_IF_ENABLED("SoA Run");
+    
+    // Convert to legacy format
+    std::vector<IonState> ions_legacy = ensemble.to_legacy();
+    
+    // Run using existing AoS implementation
+    std::vector<IonState> result = run(ions_legacy);
+    
+    // Update ensemble with final state
+    ensemble = core::IonEnsemble::from_legacy(result);
+    
+    return result;
+}
+
+void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double dt) {
+    // For Phase 2, simply convert to AoS, process, and convert back
+    // This is a compatibility layer until Phase 3 (full SoA integration)
+    // Still provides memory footprint benefits from IonEnsemble storage
+    
+    PROFILE_SCOPE_IF_ENABLED("SoA Process Timestep");
+    
+    // Convert to legacy format
+    std::vector<IonState> ions_legacy = ensemble.to_legacy();
+    
+    // Process using existing AoS code
+    process_timestep(ions_legacy, dt);
+    
+    // Convert back to SoA
+    // Note: This is inefficient but maintains correctness for Phase 2
+    // Phase 3 will eliminate these conversions
+    ensemble = core::IonEnsemble::from_legacy(ions_legacy);
+}
+
 }  // namespace integrator
 }  // namespace ICARION

@@ -33,6 +33,50 @@
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/26DTBPH+.json"
     },
+    "CaffeineH+": {
+      "mass_amu": 195.08,
+      "charge": 1,
+      "mobility_cm2Vs": 4.51,
+      "CCS_A2": 137.1,
+      "name": "Caffeine protonated",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/CaffeineH+.json"
+    },
+    "DexamethasoneH+": {
+      "mass_amu": 393.47,
+      "charge": 1,
+      "mobility_cm2Vs": 4.434,
+      "CCS_A2": 190.7,
+      "name": "Dexamethasone protonated",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/DexamethasoneH+.json"
+    },
+    "BetamethasoneH+": {
+      "mass_amu": 393.47,
+      "charge": 1,
+      "mobility_cm2Vs": 4.467,
+      "CCS_A2": 189.6,
+      "name": "Betamethasone protonated",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/BetamethasoneH+.json"
+    },
+    "ReserpineH+": {
+      "mass_amu": 609.66,
+      "charge": 1,
+      "mobility_cm2Vs": 3.02,
+      "CCS_A2": 254.3,
+      "name": "Reserpine protonated",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/ReserpineH+.json"
+    },
     "He": {
       "mass_amu": 4.003,
       "charge": 0,

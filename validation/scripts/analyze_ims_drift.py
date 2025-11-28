@@ -10,18 +10,27 @@ import numpy as np
 import sys
 
 # Mason-Schamp parameters
-K0_H3Op_He = 10.5e-4  # m²/(V·s) - H3O+ in He reduced mobility
+K0_H3Op_He = 24.1e-4  # m²/(V·s) - H3O+ in He reduced mobility (from species_database_v1.json)
 P0 = 101325.0  # Pa
 T0 = 273.15  # K
 T = 300.0  # K
 
-def analyze_drift(h5_file, E_Vm, P_Pa):
+def analyze_drift(h5_file):
     """Analyze drift velocity from HDF5 trajectory data"""
     
     with h5py.File(h5_file, 'r') as f:
+        # Read simulation parameters from HDF5
+        axial_V = f['domains/domain_0/fields/dc/axial_V'][()]
+        length_m = f['domains/domain_0/geometry/length_m'][()]
+        E_Vm = axial_V / length_m
+        P_Pa = f['domains/domain_0/environment/pressure_Pa'][()]
+        T_K = f['domains/domain_0/environment/temperature_K'][()]
+        N_m3 = f['domains/domain_0/environment/particle_density_m3'][()]
+        
+        # Read trajectory data
         positions = f['/trajectory/positions'][:]  # (time, ion, xyz)
         times = f['/trajectory/time'][:]
-        
+    
     # Get z-positions (drift direction)
     z_pos = positions[:, :, 2]
     
@@ -45,12 +54,14 @@ def analyze_drift(h5_file, E_Vm, P_Pa):
     v_drift_mean = np.mean(drift_velocities)
     v_drift_std = np.std(drift_velocities)
     
-    # Mason-Schamp prediction
-    N_ratio = (P0 / P_Pa) * (T / T0)
+    # Mason-Schamp prediction using actual gas density
+    LOSCHMIDT = 2.6867774e25  # m^-3
+    N_ratio = LOSCHMIDT / N_m3
     v_expected = K0_H3Op_He * E_Vm * N_ratio
     
     error_pct = 100 * (v_drift_mean - v_expected) / v_expected
     
+    print(f"  E-field: {E_Vm:.1f} V/m @ P={P_Pa:.0f} Pa, T={T_K:.0f} K")
     print(f"  Drifted ions: {n_drifted}/{len(z_start)}")
     print(f"  Drift distance: {np.mean(drift_distance[drifted_mask])*1e3:.1f} ± {np.std(drift_distance[drifted_mask])*1e3:.1f} mm")
     print(f"  Drift velocity: {v_drift_mean:.1f} ± {v_drift_std:.1f} m/s")
@@ -60,22 +71,24 @@ def analyze_drift(h5_file, E_Vm, P_Pa):
     return v_drift_mean, v_expected, error_pct
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: analyze_ims_drift.py <h5_file1> [h5_file2] ...")
+        sys.exit(1)
+    
     print("=" * 70)
     print("IMS Drift Velocity Analysis")
     print("=" * 70)
     
-    tests = [
-        ("Friction", "ims_friction_5000Vm_100Pa.h5", 5000, 100),
-        ("HSS", "ims_hss_5000Vm_100Pa.h5", 5000, 100),
-        ("EHSS", "ims_ehss_5000Vm_100Pa.h5", 5000, 100),
-    ]
-    
     results = []
-    for model, filename, E, P in tests:
-        print(f"\n{model} @ E={E} V/m, P={P} Pa:")
-        h5_path = f"../results/v1.0_test/instruments/ims/{filename}"
+    for h5_file in sys.argv[1:]:
+        # Extract model name from filename (e.g., ims_hss_966Vm_100Pa.h5 -> HSS)
+        import os
+        basename = os.path.basename(h5_file)
+        model = basename.split('_')[1].upper()
+        
+        print(f"\n{model}:")
         try:
-            result = analyze_drift(h5_path, E, P)
+            result = analyze_drift(h5_file)
             if result:
                 results.append((model, result))
         except Exception as e:

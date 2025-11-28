@@ -26,8 +26,8 @@ from pathlib import Path
 DRIFT_LENGTH_M = 0.05  # 5 cm drift tube
 DRIFT_TUBE_RADIUS_M = 0.05  # 5 cm radius (large to minimize wall losses)
 
-# Parameter sweeps
-E_FIELDS_VM = [1000.0, 5000.0, 10000.0]  # V/m (Low, Medium, High)
+# Parameter sweeps using EN_Td (reduced field) - typical IMS values
+EN_TD_VALUES = [10.0, 40.0, 100.0]  # Td (Low, Medium, High) - realistic IMS range
 PRESSURES_PA = [100.0, 1000.0, 10000.0]  # Pa (Low, Medium, High)
 ION_SPECIES = "H3O+"
 COLLISION_MODELS = ["HSS", "EHSS", "Friction"]  # Langevin and HSD are experimental
@@ -42,12 +42,20 @@ T0 = 273.15  # K
 N_IONS = 10000  # Many ions for good statistics and validation
 RNG_SEED = 42
 
-def calc_drift_time(E_Vm, pressure_Pa):
+def calc_EN_to_E(EN_Td, pressure_Pa):
+    """Convert reduced field E/N [Td] to E-field [V/m]"""
+    k_B = 1.380649e-23  # J/K
+    N = pressure_Pa / (k_B * T_K)  # Number density [m^-3]
+    E_Vm = EN_Td * 1e-21 * N  # 1 Td = 1e-21 V·m²
+    return E_Vm
+
+def calc_drift_time(EN_Td, pressure_Pa):
     """Calculate expected drift time from Mason-Schamp equation"""
+    E_Vm = calc_EN_to_E(EN_Td, pressure_Pa)
     N_ratio = (P0 / pressure_Pa) * (T_K / T0)
     v_drift = K0_H3Op_SI * E_Vm * N_ratio
     t_drift = DRIFT_LENGTH_M / v_drift
-    return t_drift, v_drift
+    return t_drift, v_drift, E_Vm
 
 def calc_dt(collision_freq_Hz):
     """Calculate timestep from collision frequency"""
@@ -70,10 +78,10 @@ def calc_collision_freq(pressure_Pa):
     nu = n * sigma * v_rel
     return nu
 
-def generate_config(E_Vm, pressure_Pa, collision_model):
+def generate_config(EN_Td, pressure_Pa, collision_model):
     """Generate a single IMS validation config"""
     
-    t_drift, v_drift = calc_drift_time(E_Vm, pressure_Pa)
+    t_drift, v_drift, E_Vm = calc_drift_time(EN_Td, pressure_Pa)
     collision_freq = calc_collision_freq(pressure_Pa)
     
     # Simulation time: 5x drift time for good statistics
@@ -141,7 +149,7 @@ def generate_config(E_Vm, pressure_Pa, collision_model):
                 },
                 "fields": {
                     "DC": {
-                        "axial_V": E_Vm * DRIFT_LENGTH_M
+                        "EN_Td": EN_Td
                     }
                 }
             }
@@ -157,17 +165,17 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"Generating IMS validation configs in {output_dir}")
-    print(f"Test matrix: {len(E_FIELDS_VM)} E-fields × {len(PRESSURES_PA)} pressures × {len(COLLISION_MODELS)} models = {len(E_FIELDS_VM) * len(PRESSURES_PA) * len(COLLISION_MODELS)} configs")
+    print(f"Test matrix: {len(EN_TD_VALUES)} E/N values × {len(PRESSURES_PA)} pressures × {len(COLLISION_MODELS)} models = {len(EN_TD_VALUES) * len(PRESSURES_PA) * len(COLLISION_MODELS)} configs")
     
     count = 0
-    for E_Vm in E_FIELDS_VM:
+    for EN_Td in EN_TD_VALUES:
         for pressure_Pa in PRESSURES_PA:
             for collision_model in COLLISION_MODELS:
                 
-                config = generate_config(E_Vm, pressure_Pa, collision_model)
+                config = generate_config(EN_Td, pressure_Pa, collision_model)
                 
                 # Filename
-                filename = f"ims_{collision_model.lower()}_{E_Vm:.0f}Vm_{pressure_Pa:.0f}Pa.json"
+                filename = f"ims_{collision_model.lower()}_{EN_Td:.0f}Td_{pressure_Pa:.0f}Pa.json"
                 filepath = output_dir / filename
                 
                 # Write config
@@ -177,9 +185,9 @@ def main():
                 count += 1
                 
                 # Print summary
-                t_drift, v_drift = calc_drift_time(E_Vm, pressure_Pa)
+                t_drift, v_drift, E_Vm = calc_drift_time(EN_Td, pressure_Pa)
                 collision_freq = calc_collision_freq(pressure_Pa)
-                print(f"  {count:2d}. {collision_model:9s} | E={E_Vm:5.0f} V/m | P={pressure_Pa:5.0f} Pa | "
+                print(f"  {count:2d}. {collision_model:9s} | E/N={EN_Td:4.0f} Td ({E_Vm:5.0f} V/m) | P={pressure_Pa:5.0f} Pa | "
                       f"v_drift={v_drift:6.1f} m/s | t_drift={t_drift*1e6:5.1f} µs | ν_coll={collision_freq/1e6:.2f} MHz")
     
     print(f"\n✅ Generated {count} IMS validation configurations")
@@ -199,16 +207,14 @@ v_drift = K₀ × E × (N₀/N)
 
 ### Parameters:
 - **Ion:** H3O+ (K₀ = 10.5 cm²/(V·s) in He)
-- **E-fields:** 1000, 5000, 10000 V/m
+- **Reduced fields (E/N):** 10, 40, 100 Td (realistic IMS range)
 - **Pressures:** 100, 1000, 10000 Pa
 - **Collision Models:**
   - HSS (Hard-Sphere Scattering) - Stochastic
   - EHSS (Elastic HSS) - Stochastic with molecular geometry
   - Friction - Deterministic mobility-based
-  - Langevin - Deterministic with polarization
-  - HSD (Hard-Sphere Deterministic) - Deterministic damping
 
-### Total: 45 configurations
+### Total: 27 configurations
 
 ## Expected Results
 

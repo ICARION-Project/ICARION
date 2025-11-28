@@ -10,16 +10,14 @@ v_drift = K₀ × E × (N₀/N)
 
 ### Parameters:
 - **Ion:** H3O+ (K₀ = 10.5 cm²/(V·s) in He)
-- **E-fields:** 1000, 5000, 10000 V/m
+- **Reduced fields (E/N):** 10, 40, 100 Td (realistic IMS range)
 - **Pressures:** 100, 1000, 10000 Pa
 - **Collision Models:**
   - HSS (Hard-Sphere Scattering) - Stochastic
   - EHSS (Elastic HSS) - Stochastic with molecular geometry
   - Friction - Deterministic mobility-based
-  - Langevin - Deterministic with polarization
-  - HSD (Hard-Sphere Deterministic) - Deterministic damping
 
-### Total: 45 configurations
+### Total: 27 configurations
 
 ## Expected Results
 

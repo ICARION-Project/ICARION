@@ -394,6 +394,107 @@ void HDF5Writer::append_trajectory_batch_soa(
 
 ---
 
+## ACTUAL RESULTS (November 2025)
+
+### ✅ Completed Phases
+
+**Phase 1: Core Data Structures** ✅
+- IonEnsemble implemented with 45% → 30% memory reduction (192→134 bytes/ion)
+- View classes working: IonKinematics, IonCollisionData, IonReactionData
+
+**Phase 2: Integration Refactoring** ✅  
+- SimulationEngine::run_soa() implemented
+- Performance improvement: **1.3-1.5x speedup**
+- 100 ions: 1.49x, 500 ions: 1.39x, 1000 ions: 1.32x
+
+**Phase 3: Handler Refactoring** ✅
+- ICollisionHandler::handle_collision_soa() added
+- IReactionHandler::handle_reaction_soa() added  
+- Zero-copy views working correctly
+
+**Phase 4: Domain Cache Cleanup** ✅
+- Removed 5 domain fields from IonState (SSOT principle)
+- IonState: 220 → 192 bytes (-28 bytes)
+- DomainManager uses EnvironmentConfig directly
+
+### 🔄 Phase 6: OpenMP Validation (PARTIAL SUCCESS)
+
+**Expected:** 6-8x speedup on 8 cores  
+**Actual:** 1.4x speedup on 8 cores (18% parallel efficiency)
+
+**Results (20K ions, 5000 timesteps):**
+```
+SoA Performance:
+  1 thread:  254 ms
+  2 threads: 209 ms (speedup: 1.22x)
+  4 threads: 186 ms (speedup: 1.37x)  
+  8 threads: 180 ms (speedup: 1.41x)
+
+AoS Performance:
+  1 thread:  353 ms
+  4 threads: 256 ms (speedup: 1.38x)
+```
+
+**Analysis:** SoA ≈ AoS scaling (both ~1.4x), no significant multi-core advantage yet.
+
+### 🎯 Summary: Moderate Success
+
+**✅ Achieved:**
+- 1.3-1.5x single-core speedup (CPU efficiency)
+- 30% memory reduction (cache friendliness)  
+- Clean architecture for future optimizations
+- Working OpenMP foundation
+
+**❌ Not Achieved:**
+- 6-8x multi-core speedup (limited to 1.4x)
+- Expected "dramatic" 2-3x performance gains
+- False sharing elimination (scaling similar to AoS)
+
+### 🔧 Remaining Multi-Core Bottlenecks
+
+**Identified Issues:**
+1. **Shared Resources:** RNG, DomainManager, OutputManager contention
+2. **Memory Bandwidth:** 20K × 134 bytes = 2.7MB memory bandwidth bound
+3. **Load Imbalance:** Non-uniform work distribution  
+4. **Hidden Synchronization:** Unknown locks in SimulationEngine
+
+### 📋 Future Phases (Post-Commit)
+
+**Phase 7: Multi-Core Optimization** (2-3 days)
+- Thread-local RNG pools
+- NUMA-aware memory allocation
+- Lock-free algorithms for shared data
+- Work-stealing for load balancing
+- **Target:** 4-6x speedup on 8 cores
+
+**Phase 8: Vectorization** (1 day)
+- SIMD intrinsics for position/velocity updates
+- Compiler auto-vectorization hints
+- **Target:** 2x additional speedup
+
+**Phase 9: GPU Preparation** (2 days)  
+- CUDA-compatible data layout
+- Unified memory management
+- **Target:** Foundation for 10-50x GPU acceleration
+
+---
+
+## Lessons Learned
+
+**SoA Benefits Realized:**
+- ✅ Memory layout optimization
+- ✅ Cache efficiency improvements  
+- ✅ Architectural foundation for scaling
+
+**Expected vs Reality:**
+- ❌ Multi-core scaling harder than anticipated
+- ❌ Memory bound workloads don't scale linearly
+- ✅ Single-core optimization successful
+
+**Recommendation:** Commit current work as solid foundation, continue with targeted multi-core optimization.
+
+---
+
 ## Expected Performance Improvements
 
 ### Cache Efficiency

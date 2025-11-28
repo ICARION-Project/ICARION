@@ -71,3 +71,27 @@ set_tests_properties(benchmark_soa_performance PROPERTIES
     LABELS "benchmark;soa;performance"
     TIMEOUT 120
 )
+
+# Benchmark for OpenMP SoA scaling (Phase 6)
+
+add_executable(benchmark_openmp_soa benchmark_openmp_soa.cpp)
+
+target_link_libraries(benchmark_openmp_soa
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+        OpenMP::OpenMP_CXX
+)
+
+target_include_directories(benchmark_openmp_soa
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
+
+# Register with CTest (marked as benchmark, runs only when requested)
+add_test(NAME benchmark_openmp_soa COMMAND benchmark_openmp_soa "[openmp]")
+
+set_tests_properties(benchmark_openmp_soa PROPERTIES
+    LABELS "benchmark;soa;openmp;performance"
+    TIMEOUT 180
+)

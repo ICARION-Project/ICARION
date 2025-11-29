@@ -57,7 +57,10 @@ SimulationEngine::SimulationEngine(
     }
     
     // Create domain manager
-    domain_manager_ = std::make_unique<DomainManager>(config_.domains);
+    domain_manager_ = std::make_unique<DomainManager>(
+        config_.domains,
+        config_.simulation.rng_seed
+    );
     
     // Create output manager
     std::string hdf5_path = config_.output.folder + "/" + config_.output.trajectory_file;

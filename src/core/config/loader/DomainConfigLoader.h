@@ -36,6 +36,7 @@ private:
     static GeometryConfig load_geometry(const Json::Value& json);
     static EnvironmentConfig load_environment(const Json::Value& json);
     static FieldsConfig load_fields(const Json::Value& json, const std::map<std::string, Waveform>& global_waveforms, const GeometryConfig& geometry, const EnvironmentConfig& environment);
+    static BoundaryConfig load_boundary(const Json::Value& json, double domain_temperature_K);
     
     // Field sub-components (v1.1: now accept waveform library for reference resolution + geometry/env for EN_Td conversion)
     static DCFieldConfig load_dc_fields(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library, const GeometryConfig& geometry, const EnvironmentConfig& environment);

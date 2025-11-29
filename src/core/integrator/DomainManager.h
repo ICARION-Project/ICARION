@@ -21,7 +21,11 @@
 #include "core/config/types/DomainConfig.h"  // SSOT: config::DomainConfig
 #include "core/types/Vec3.h"                // Vec3
 #include "core/types/IonState.h"            // IonState
+#include "boundaries/BoundaryAction.h"
+#include "boundaries/BoundaryActionFactory.h"
 #include <vector>
+#include <memory>
+#include <random>
 
 namespace ICARION {
 namespace integrator {
@@ -68,12 +72,16 @@ public:
     /**
      * @brief Construct domain manager
      * @param domains Vector of domain configs (reference, not owned)
+     * @param rng_seed Random seed for boundary actions (diffuse/thermal reflection)
      * 
      * Stores a const reference to domains (owned by FullConfig).
-     * All methods are const (no state modification).
+     * Creates boundary actions for each domain based on config.
      * SSOT: Uses config::DomainConfig (modern format), not legacy InstrumentDomain.
      */
-    explicit DomainManager(const std::vector<config::DomainConfig>& domains);
+    explicit DomainManager(
+        const std::vector<config::DomainConfig>& domains,
+        unsigned int rng_seed = 42
+    );
     
     /**
      * @brief Find which domain contains the ion position
@@ -206,6 +214,16 @@ public:
     
 private:
     const std::vector<config::DomainConfig>& domains_;  ///< Reference to domain list (not owned, SSOT)
+    std::vector<std::unique_ptr<BoundaryAction>> boundary_actions_;  ///< Boundary actions per domain
+    std::mt19937 rng_;  ///< Random number generator for boundary actions
+    
+    /**
+     * @brief Compute surface normal at boundary intersection
+     * @param pos_local Position in local coordinates [m]
+     * @param domain_idx Domain index
+     * @return Unit normal vector pointing inward
+     */
+    Vec3 compute_surface_normal(const Vec3& pos_local, int domain_idx) const;
     
     /**
      * @brief Check if position is inside domain (internal helper)

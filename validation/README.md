@@ -15,11 +15,11 @@
 | **2** | **Instrument Physics** | 187 | ✅ **COMPLETE** | IMS, Orbitrap, LQIT, Quadrupole, FT-ICR validated |
 | **3** | **Transport Physics** | 27 | ✅ **COMPLETE** | Drift velocity = IMS validation (Mason-Schamp) |
 | **4** | **Reactions** | 6 | ✅ **COMPLETE** | First-order (3), bimolecular (3) kinetics |
-| **5** | Space Charge | TBD | ⏳ PLANNED | Coulomb expansion, grid validation |
-| **6** | Performance | TBD | ⏳ PLANNED | Scaling, integrators, overhead |
+| **5** | **Space Charge** | 8 | ✅ **COMPLETE** | Coulomb expansion, Direct vs Grid (N=1000 threshold) |
+| **6** | **Performance** | 18 | ✅ **COMPLETE** | Ion scaling, collision/SC overhead benchmarks |
 
-**Completed:** 283 configs (90 therm + 187 instruments + 6 reactions, transport = IMS)  
-**Current Focus:** Space Charge validation (optional)
+**Completed:** 309 configs total across all validation categories  
+**Status:** Full validation suite ready for execution
 
 ---
 

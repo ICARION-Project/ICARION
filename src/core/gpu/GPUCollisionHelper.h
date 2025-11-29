@@ -33,14 +33,20 @@
 
 #ifdef ICARION_USE_GPU
 
-#include "GPUContext.h"
-#include "GPUMemoryPool.h"
 #include "core/types/IonState.h"
+#include "core/types/Vec3.h"
 #include "core/config/types/EnvironmentConfig.h"
-#include "core/physics/collisions/ICollisionHandler.h"
 #include <vector>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <utility>
+
+// Forward declarations
+namespace ICARION { namespace gpu {
+    class GPUContext;
+    class GPUMemoryPool;
+}}
 
 // cuRAND forward declarations
 struct curandStateXORWOW;
@@ -49,33 +55,9 @@ typedef struct curandStateXORWOW curandState;
 namespace ICARION {
 namespace gpu {
 
-/**
- * @brief GPU-friendly environment parameters
- */
-struct EnvironmentParams_GPU {
-    double temperature_K;
-    double pressure_Pa;
-    double neutral_mass_kg;
-    double neutral_radius_m;
-    double gas_velocity_x;
-    double gas_velocity_y;
-    double gas_velocity_z;
-    double mean_free_path_m;
-    double thermal_velocity_m_s;
-};
-
-/**
- * @brief GPU-friendly geometry data for EHSS
- */
-struct GeometryData_GPU {
-    double* atom_x;          ///< Atom x-coordinates [m]
-    double* atom_y;          ///< Atom y-coordinates [m]
-    double* atom_z;          ///< Atom z-coordinates [m]
-    double* atom_radii;      ///< Atomic radii [m]
-    int* atom_counts;        ///< Number of atoms per species
-    int* atom_offsets;       ///< Offset into atom arrays
-    int num_species;         ///< Total number of species
-};
+// Forward declarations from collision_kernels_gpu.cuh
+struct EnvironmentParams_GPU;
+struct GeometryData_GPU;
 
 /**
  * @brief Performance statistics for GPU collision processing
@@ -140,13 +122,18 @@ public:
     );
     
     /**
+     * @brief Type alias for geometry map
+     */
+    using GeometryMap = std::unordered_map<std::string, std::pair<std::vector<Vec3>, std::vector<double>>>;
+    
+    /**
      * @brief Set molecular geometry for EHSS model
      * 
      * Must be called before processing if using EHSS model.
      * 
      * @param geometry_map Species → (atom_centers, atom_radii)
      */
-    void set_geometry(const physics::GeometryMap& geometry_map);
+    void set_geometry(const GeometryMap& geometry_map);
     
     /**
      * @brief Get performance statistics
@@ -207,7 +194,7 @@ private:
     // Geometry data (for EHSS)
     GeometryData_GPU geometry_gpu_;
     bool geometry_uploaded_ = false;
-    const physics::GeometryMap* geometry_map_host_ = nullptr;
+    const GeometryMap* geometry_map_host_ = nullptr;
     
     // Performance statistics
     CollisionStats_GPU stats_;

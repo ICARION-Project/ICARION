@@ -2,10 +2,12 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 /**
- * @file GPUCollisionHelper.cpp
+ * @file GPUCollisionHelper.cu
  * @brief GPU collision helper implementation
  */
 
+// Include GPUContext BEFORE GPUCollisionHelper.h to resolve forward declaration
+#include "GPUContext.h"
 #include "GPUCollisionHelper.h"
 #include "collision_kernels_gpu.cuh"
 #include "utils/constants.h"
@@ -14,6 +16,7 @@
 #include <chrono>
 #include <cmath>
 #include <algorithm>
+#include <cstdint>
 
 namespace ICARION {
 namespace gpu {
@@ -189,13 +192,13 @@ EnvironmentParams_GPU GPUCollisionHelper::convert_environment_params(
         double total_mass = 0.0;
         double total_fraction = 0.0;
         for (const auto& gas : env.gas_mixture) {
-            total_mass += gas.mass_amu * ATOMIC_MASS_UNIT * gas.mole_fraction;
+            total_mass += gas.mass_kg * gas.mole_fraction;
             total_fraction += gas.mole_fraction;
         }
         params.neutral_mass_kg = total_mass / total_fraction;
         
         // Use first gas radius (simplification)
-        params.neutral_radius_m = env.gas_mixture[0].kinetic_diameter_m / 2.0;
+        params.neutral_radius_m = env.gas_mixture[0].radius_m;
     } else {
         // Fallback to environment-level properties
         params.neutral_mass_kg = 28.0 * AMU_TO_KG;  // N2 default
@@ -219,7 +222,7 @@ EnvironmentParams_GPU GPUCollisionHelper::convert_environment_params(
     return params;
 }
 
-void GPUCollisionHelper::set_geometry(const physics::GeometryMap& geometry_map) {
+void GPUCollisionHelper::set_geometry(const GeometryMap& geometry_map) {
     geometry_map_host_ = &geometry_map;
     
     if (collision_model_ == "EHSS") {
@@ -271,7 +274,7 @@ bool GPUCollisionHelper::process_collisions_batch(
         // Flatten ion data (CPU → GPU)
         std::vector<double> vx_host(n_ions), vy_host(n_ions), vz_host(n_ions);
         std::vector<double> mass_host(n_ions), ccs_host(n_ions);
-        std::vector<bool> active_host(n_ions);
+        std::vector<uint8_t> active_host(n_ions);  // Use uint8_t instead of bool
         std::vector<int> species_indices_host(n_ions);
         
         for (size_t i = 0; i < n_ions; ++i) {
@@ -280,7 +283,7 @@ bool GPUCollisionHelper::process_collisions_batch(
             vz_host[i] = ions[i].vel.z;
             mass_host[i] = ions[i].mass_kg;
             ccs_host[i] = ions[i].CCS_m2;
-            active_host[i] = ions[i].active;
+            active_host[i] = ions[i].active ? 1 : 0;
             species_indices_host[i] = 0;  // TODO: map species_id to index
         }
         
@@ -295,7 +298,7 @@ bool GPUCollisionHelper::process_collisions_batch(
                         cudaMemcpyHostToDevice, context_.get_stream());
         cudaMemcpyAsync(d_ccs, ccs_host.data(), n_ions * sizeof(double), 
                         cudaMemcpyHostToDevice, context_.get_stream());
-        cudaMemcpyAsync(d_active, active_host.data(), n_ions * sizeof(bool), 
+        cudaMemcpyAsync(d_active, active_host.data(), n_ions * sizeof(uint8_t), 
                         cudaMemcpyHostToDevice, context_.get_stream());
         
         if (collision_model_ == "EHSS") {

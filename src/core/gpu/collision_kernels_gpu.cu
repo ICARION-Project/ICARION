@@ -366,6 +366,7 @@ __global__ void ehss_collision_kernel(
         // Sample impact parameter (uniform disk)
         bool collision_detected = false;
         double contact_x, contact_y, contact_z;
+        double impact_x = 0.0, impact_y = 0.0, impact_z = 0.0;  // Declare outside loop
         
         for (int attempt = 0; attempt < MAX_COLLISION_ATTEMPTS && !collision_detected; ++attempt) {
             // Random point in disk of radius bmax
@@ -375,9 +376,9 @@ __global__ void ehss_collision_kernel(
             double b_y = r * sin(theta);
             
             // Impact point = b_x*t1 + b_y*t2
-            double impact_x = b_x * t1_x + b_y * t2_x;
-            double impact_y = b_x * t1_y + b_y * t2_y;
-            double impact_z = b_x * t1_z + b_y * t2_z;
+            impact_x = b_x * t1_x + b_y * t2_x;
+            impact_y = b_x * t1_y + b_y * t2_y;
+            impact_z = b_x * t1_z + b_y * t2_z;
             
             // Ray-trace through rotated atoms
             for (int j = 0; j < n_atoms; ++j) {

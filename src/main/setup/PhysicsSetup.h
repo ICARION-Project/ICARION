@@ -1,0 +1,134 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
+/**
+ * @file PhysicsSetup.h
+ * @brief Physics module initialization helper for main.cpp
+ * 
+ * Extracts physics module setup logic (~190 lines) from monolithic main.cpp.
+ * Creates force registries, integration strategy, collision/reaction handlers.
+ */
+
+#pragma once
+
+#include "core/config/types/FullConfig.h"
+#include "core/types/IonState.h"
+#include "core/physics/forces/ForceRegistry.h"
+#include "core/integrator/strategies/IIntegrationStrategy.h"
+#include "core/physics/collisions/ICollisionHandler.h"
+#include "core/physics/reactions/IReactionHandler.h"
+#include <vector>
+#include <memory>
+
+namespace ICARION::setup {
+
+/**
+ * @brief Physics module initialization result
+ * 
+ * Contains all physics dependencies needed by SimulationEngine.
+ */
+struct PhysicsModules {
+    /// Force registries (one per domain)
+    std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries;
+    
+    /// Integration strategy (RK4, RK45, or Boris)
+    std::shared_ptr<integrator::IIntegrationStrategy> integrator;
+    
+    /// Collision handler (EHSS, HSS, OU, or Friction)
+    std::shared_ptr<physics::ICollisionHandler> collision_handler;
+    
+    /// Reaction handler (stochastic or deterministic)
+    std::shared_ptr<physics::IReactionHandler> reaction_handler;
+};
+
+/**
+ * @brief Physics setup helper
+ * 
+ * Handles physics module initialization with auto-configuration:
+ * - Space charge method selection (Direct vs Grid based on N)
+ * - Molecular geometry loading for EHSS
+ * - Force registry per domain with appropriate forces
+ */
+class PhysicsSetup {
+public:
+    /**
+     * @brief Initialize all physics modules
+     * 
+     * Creates:
+     * - ForceRegistry per domain with:
+     *   * ElectricFieldForce (always)
+     *   * MagneticFieldForce (if B > 0)
+     *   * DampingForce (if Friction model)
+     *   * SpaceChargeDirect or SpaceChargeGrid (if enabled, auto-selected)
+     * - Integration strategy (RK4/RK45/Boris from config)
+     * - Collision handler (EHSS/HSS/OU/Friction from config)
+     * - Reaction handler (if reactions enabled)
+     * 
+     * @param config Simulation configuration (SSOT)
+     * @param ions Initial ion ensemble (for space charge grid estimation)
+     * @return Physics modules ready for SimulationEngine
+     * 
+     * @note Space charge method auto-selection:
+     *       - N < 1000: SpaceChargeDirect (exact O(N²))
+     *       - N ≥ 1000: SpaceChargeGrid (fast O(N log N))
+     */
+    static PhysicsModules initialize(
+        const config::FullConfig& config,
+        const std::vector<core::IonState>& ions
+    );
+
+private:
+    /**
+     * @brief Create force registries (one per domain)
+     * 
+     * Adds fundamental forces to each domain:
+     * - ElectricFieldForce (always)
+     * - MagneticFieldForce (if B > 0)
+     * - DampingForce (if Friction model)
+     */
+    static std::vector<std::shared_ptr<physics::ForceRegistry>> create_force_registries(
+        const config::FullConfig& config
+    );
+    
+    /**
+     * @brief Add space charge forces to registries
+     * 
+     * Auto-selects method based on ion count:
+     * - Direct N-body if N < 1000
+     * - Grid-based Poisson if N ≥ 1000
+     */
+    static void add_space_charge_forces(
+        std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
+        const config::FullConfig& config,
+        const std::vector<core::IonState>& ions
+    );
+    
+    /**
+     * @brief Create integration strategy from config
+     * 
+     * Supported: RK4, RK45, Boris
+     * Defaults to RK45 if unknown.
+     */
+    static std::shared_ptr<integrator::IIntegrationStrategy> create_integrator(
+        const config::FullConfig& config
+    );
+    
+    /**
+     * @brief Create collision handler from config
+     * 
+     * Loads molecular geometries for EHSS if needed.
+     * Falls back to HSS if geometry loading fails.
+     */
+    static std::shared_ptr<physics::ICollisionHandler> create_collision_handler(
+        const config::FullConfig& config
+    );
+    
+    /**
+     * @brief Create reaction handler from config
+     */
+    static std::shared_ptr<physics::IReactionHandler> create_reaction_handler(
+        const config::FullConfig& config
+    );
+};
+
+}  // namespace ICARION::setup

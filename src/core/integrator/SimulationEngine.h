@@ -217,6 +217,16 @@ private:
     bool try_gpu_integration(std::vector<IonState>& ions, double dt);
     
     /**
+     * @brief Extract field provider from force registry
+     * @param domain_id Domain index
+     * @return Pointer to field provider or nullptr if not available
+     * 
+     * Searches force registry for ElectricFieldForce and extracts its field provider.
+     * Used by GPU integration to upload fields to texture memory.
+     */
+    const ::IFieldProvider* extract_field_provider(int domain_id) const;
+    
+    /**
      * @brief Log GPU performance statistics
      * 
      * Called at simulation end to report GPU usage and speedup.

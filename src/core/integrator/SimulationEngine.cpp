@@ -7,6 +7,7 @@
 #include "core/utils/safety/numericalSafetyLogger.h"
 #include "core/utils/mathUtils.h"
 #include "core/utils/Profiler.h"
+#include "core/physics/forces/ElectricFieldForce.h"
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -163,6 +164,27 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
     }
 }
 
+const IFieldProvider* SimulationEngine::extract_field_provider(int domain_id) const {
+    // Validate domain_id
+    if (domain_id < 0 || domain_id >= static_cast<int>(force_registries_.size())) {
+        return nullptr;
+    }
+    
+    const auto& registry = force_registries_[domain_id];
+    if (!registry) {
+        return nullptr;
+    }
+    
+    // Search for ElectricFieldForce in registry
+    for (const auto& force : registry->forces()) {
+        if (auto* e_force = dynamic_cast<const physics::ElectricFieldForce*>(force.get())) {
+            return e_force->get_field_provider();
+        }
+    }
+    
+    return nullptr;  // No field provider found
+}
+
 bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double dt) {
     PROFILE_SCOPE_IF_ENABLED("GPU Integration");
     
@@ -172,13 +194,10 @@ bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double d
         return false;  // Use CPU path
     }
     
-    // TODO Phase 7: Extract field provider from ForceRegistry
-    // For now, use nullptr (zero fields) for GPU integration
-    // Full field integration requires:
-    // 1. Field provider registry (map domain_id -> IFieldProvider*)
-    // 2. Multi-domain field handling in GPU kernel
-    // 3. Dynamic field provider extraction from ElectricFieldForce
-    const IFieldProvider* field_provider = nullptr;
+    // Extract field provider for GPU integration
+    // Note: Currently assumes single-domain or domain 0 fields
+    // Multi-domain field handling deferred (requires per-ion domain tracking)
+    const IFieldProvider* field_provider = extract_field_provider(0);
     
     // Attempt GPU batch integration
     if (!gpu_helper_->integrate_batch_rk4(ions, dt, current_time_, field_provider)) {

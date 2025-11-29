@@ -142,7 +142,7 @@ void GPUContext::cleanup() {
     initialized_ = false;
 }
 
-void GPUContext::synchronize() {
+void GPUContext::synchronize() const {
     if (!initialized_) {
         throw std::runtime_error("GPUContext not initialized");
     }

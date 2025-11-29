@@ -94,7 +94,7 @@ public:
     /**
      * @brief Synchronize the stream (wait for all operations to complete)
      */
-    void synchronize();
+    void synchronize() const;
 
     /**
      * @brief Check if context is valid and operational

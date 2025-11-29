@@ -1,0 +1,95 @@
+{
+  "metadata": {
+    "description": "RK45 Adaptive Integrator Test - Stiff Harmonic Oscillator",
+    "author": "ICARION Development Team",
+    "date": "2025-11-29",
+    "version": "1.1"
+  },
+  "simulation": {
+    "dt": 1e-9,
+    "t_max": 1e-6,
+    "rng_seed": 42,
+    "integrator": "RK45"
+  },
+  "output": {
+    "dir": "results/test_rk45",
+    "basename": "adaptive_test",
+    "format": "hdf5",
+    "trajectories": {
+      "enabled": true,
+      "interval": 1e-10
+    },
+    "final_state": {
+      "enabled": true
+    },
+    "log_level": "info"
+  },
+  "ion_cloud": {
+    "generation_method": "grid",
+    "count": 10,
+    "species": "H+",
+    "grid": {
+      "nx": 2,
+      "ny": 1,
+      "nz": 5,
+      "x_range": [-0.001, 0.001],
+      "y_range": [0.0, 0.0],
+      "z_range": [0.01, 0.02]
+    },
+    "velocity": {
+      "vx": 0.0,
+      "vy": 0.0,
+      "vz": 100.0
+    }
+  },
+  "domains": [
+    {
+      "name": "test_chamber",
+      "geometry": {
+        "type": "cylindrical",
+        "length": 0.1,
+        "radius": 0.01
+      },
+      "fields": {
+        "analytical": {
+          "type": "uniform",
+          "Ex": 0.0,
+          "Ey": 0.0,
+          "Ez": 1000.0
+        },
+        "magnetic": {
+          "Bx": 0.0,
+          "By": 0.0,
+          "Bz": 0.0
+        }
+      },
+      "boundary": {
+        "action": "absorption"
+      }
+    }
+  ],
+  "environment": {
+    "temperature_K": 300.0,
+    "pressure_Pa": 1.0,
+    "gas_mixture": [
+      {
+        "species": "N2",
+        "mole_fraction": 1.0
+      }
+    ]
+  },
+  "physics": {
+    "forces": {
+      "electric_field": true,
+      "magnetic_field": false,
+      "space_charge": false,
+      "damping": false
+    },
+    "collisions": {
+      "enabled": false
+    },
+    "reactions": {
+      "enabled": false
+    }
+  }
+}

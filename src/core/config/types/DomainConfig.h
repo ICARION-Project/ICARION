@@ -7,6 +7,7 @@
 #include "GeometryConfig.h"
 #include "EnvironmentConfig.h"
 #include "FieldsConfig.h"
+#include "BoundaryConfig.h"
 #include "SolverEnums.h"
 #include "core/config/types/InstrumentTypes.h"
 #include "core/utils/mathUtils.h"
@@ -36,6 +37,7 @@ struct DomainConfig {
     GeometryConfig geometry;
     EnvironmentConfig environment;
     FieldsConfig fields;
+    BoundaryConfig boundary;                            ///< Boundary action configuration
     
     // === Solver ===
     // FUTURE: Allow per-domain solver selection via SolverModule
@@ -91,6 +93,7 @@ struct DomainConfig {
         result.merge(geometry.validate());
         result.merge(environment.validate());
         result.merge(fields.validate());
+        result.merge(boundary.validate());
         
         // Instrument-specific validation (warnings only for missing typical fields)
         switch (instrument) {

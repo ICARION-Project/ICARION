@@ -172,8 +172,16 @@ bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double d
         return false;  // Use CPU path
     }
     
+    // TODO Phase 7: Extract field provider from ForceRegistry
+    // For now, use nullptr (zero fields) for GPU integration
+    // Full field integration requires:
+    // 1. Field provider registry (map domain_id -> IFieldProvider*)
+    // 2. Multi-domain field handling in GPU kernel
+    // 3. Dynamic field provider extraction from ElectricFieldForce
+    const IFieldProvider* field_provider = nullptr;
+    
     // Attempt GPU batch integration
-    if (!gpu_helper_->integrate_batch_rk4(ions, dt, current_time_)) {
+    if (!gpu_helper_->integrate_batch_rk4(ions, dt, current_time_, field_provider)) {
         return false;  // GPU failed, use CPU fallback
     }
     

@@ -12,8 +12,9 @@ This guide provides practical instructions for extending ICARION with new featur
 1. [Adding New Force Types](#adding-new-force-types)
 2. [Adding New Collision Models](#adding-new-collision-models)
 3. [Adding New Instrument Types](#adding-new-instrument-types)
-4. [Testing Guidelines](#testing-guidelines)
-5. [Code Style and Conventions](#code-style-and-conventions)
+4. [GPU Development Guide](#gpu-development-guide) **NEW in v1.1**
+5. [Testing Guidelines](#testing-guidelines)
+6. [Code Style and Conventions](#code-style-and-conventions)
 
 ---
 
@@ -630,6 +631,421 @@ Add to class docstring or separate documentation:
  * - Linear approximation near axis
  */
 ```
+
+---
+
+## GPU Development Guide
+
+**Added:** November 2025 (v1.1 development)
+**Status:** Phases 1-2 complete, ongoing development
+
+### Overview
+
+ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
+
+### Prerequisites
+
+**Build Requirements:**
+- CUDA Toolkit 11.0+ (tested with CUDA 12.0)
+- GPU with Compute Capability 7.5+ (Turing, Ampere, Ada, Hopper)
+- CMake 3.16+
+
+**Build GPU-enabled ICARION:**
+```bash
+cmake -B build -DUSE_GPU_ACCEL=ON
+make -C build -j$(nproc)
+```
+
+**Check GPU availability at runtime:**
+```cpp
+#include "core/gpu/GPUContext.h"
+
+if (icarion::gpu::GPUContext::is_cuda_available()) {
+    auto context = icarion::gpu::GPUContext::create(0);  // Device 0
+    std::cout << "GPU: " << context->get_properties().name << "\n";
+}
+```
+
+### Adding a New GPU Kernel
+
+#### Example: Adding GPU Collision Kernel
+
+**Step 1: Create Kernel File (`src/core/gpu/collision_batch.cu`)**
+
+```cuda
+#include "collision_batch.cuh"
+#include "core/gpu/GPUContext.h"
+
+namespace icarion {
+namespace gpu {
+
+// Device function: Compute collision for one ion
+__device__ bool check_collision_gpu(
+    const Vec3& pos,
+    const Vec3& vel,
+    double mass,
+    double charge,
+    double dt,
+    // ... collision parameters
+) {
+    // Your collision logic here
+    return collision_occurred;
+}
+
+// Kernel: Process all ions in parallel
+__global__ void collision_batch_kernel(
+    // Input/output ion state arrays (SoA)
+    const double* x, const double* y, const double* z,
+    const double* vx, const double* vy, const double* vz,
+    double* vx_out, double* vy_out, double* vz_out,
+    const double* mass, const double* charge,
+    const bool* active, bool* collision_flags,
+    // Collision parameters
+    double dt, int N,
+    // ... collision model params
+) {
+    // Grid-stride loop (handles any N)
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+         i < N;
+         i += gridDim.x * blockDim.x) {
+        
+        if (!active[i]) continue;
+        
+        Vec3 pos = {x[i], y[i], z[i]};
+        Vec3 vel = {vx[i], vy[i], vz[i]};
+        
+        // Check collision
+        bool collided = check_collision_gpu(
+            pos, vel, mass[i], charge[i], dt, /* params */
+        );
+        
+        if (collided) {
+            collision_flags[i] = true;
+            // Update velocity
+            vx_out[i] = /* new vx */;
+            vy_out[i] = /* new vy */;
+            vz_out[i] = /* new vz */;
+        }
+    }
+}
+
+// Host function: Launch kernel
+void collision_batch(
+    const IonStateGPU& ions_in,
+    IonStateGPU& ions_out,
+    /* collision params */,
+    cudaStream_t stream
+) {
+    int N = ions_in.count;
+    int threads = 256;
+    int blocks = std::min((N + threads - 1) / threads, 2048);
+    
+    collision_batch_kernel<<<blocks, threads, 0, stream>>>(
+        ions_in.x, ions_in.y, ions_in.z,
+        ions_in.vx, ions_in.vy, ions_in.vz,
+        ions_out.vx, ions_out.vy, ions_out.vz,
+        ions_in.mass, ions_in.charge,
+        ions_in.active, /* collision_flags */,
+        dt, N, /* params */
+    );
+    
+    CUDA_CHECK(cudaGetLastError());
+}
+
+} // namespace gpu
+} // namespace icarion
+```
+
+**Step 2: Create Header (`src/core/gpu/collision_batch.cuh`)**
+
+```cpp
+#ifndef ICARION_COLLISION_BATCH_CUH
+#define ICARION_COLLISION_BATCH_CUH
+
+#include "utils/IonState_GPU.h"
+#include <cuda_runtime.h>
+
+namespace icarion {
+namespace gpu {
+
+/**
+ * @brief Batch collision processing on GPU
+ * 
+ * @param ions_in Input ion states
+ * @param ions_out Output ion states (velocities modified)
+ * @param ... Collision model parameters
+ * @param stream CUDA stream for async execution
+ */
+void collision_batch(
+    const IonStateGPU& ions_in,
+    IonStateGPU& ions_out,
+    /* params */,
+    cudaStream_t stream = 0
+);
+
+} // namespace gpu
+} // namespace icarion
+
+#endif
+```
+
+**Step 3: Create Helper Class (`src/core/gpu/GPUCollisionHelper.h/cpp`)**
+
+Follow the pattern from `GPUIntegrationHelper`:
+
+```cpp
+class GPUCollisionHelper {
+public:
+    static std::unique_ptr<GPUCollisionHelper> create(
+        const GPUContext& context,
+        size_t threshold = 10000  // GPU for N >= 10k
+    );
+    
+    bool process_collisions_batch(
+        std::vector<IonState>& ions,
+        /* params */
+    );
+};
+```
+
+**Step 4: Integrate into SimulationEngine**
+
+```cpp
+// In SimulationEngine::process_timestep()
+#ifdef ICARION_USE_GPU
+    if (gpu_collision_helper_ && ions.size() >= threshold) {
+        if (gpu_collision_helper_->process_collisions_batch(ions, params)) {
+            return;  // GPU success
+        }
+    }
+#endif
+
+    // CPU fallback
+    collision_handler_->process_collisions(ions, dt, t);
+```
+
+### GPU Development Best Practices
+
+#### 1. Memory Access Patterns
+
+**✅ GOOD: Coalesced Access (SoA)**
+```cuda
+// Threads access consecutive memory locations
+for (int i = threadIdx.x; i < N; i += blockDim.x) {
+    x[i] = compute(x[i]);  // Coalesced: x[0], x[1], x[2], ...
+}
+```
+
+**❌ BAD: Strided Access (AoS)**
+```cuda
+// Threads access non-consecutive memory
+struct Ion { double x, y, z, vx, vy, vz; };
+Ion* ions;
+for (int i = threadIdx.x; i < N; i += blockDim.x) {
+    ions[i].x = compute(ions[i].x);  // Strided: ions[0].x, ions[1].x, ...
+}
+```
+
+#### 2. Kernel Launch Configuration
+
+**Grid-Stride Loop Pattern:**
+```cuda
+__global__ void my_kernel(double* data, int N) {
+    // Each thread processes multiple elements
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+         i < N;
+         i += gridDim.x * blockDim.x) {
+        
+        data[i] = compute(data[i]);
+    }
+}
+
+// Launch with limited blocks (avoids scheduler overhead)
+int threads = 256;  // Good occupancy on most GPUs
+int blocks = std::min((N + threads - 1) / threads, 2048);
+my_kernel<<<blocks, threads>>>(data, N);
+```
+
+**Why Grid-Stride?**
+- Works for any N (1 to 10M+)
+- Optimal occupancy across GPU architectures
+- Reduces scheduling overhead
+- Better instruction cache utilization
+
+#### 3. Error Handling
+
+**Always check CUDA errors:**
+```cuda
+// After kernel launch
+CUDA_CHECK(cudaGetLastError());
+
+// After synchronization
+CUDA_CHECK(cudaStreamSynchronize(stream));
+
+// Asynchronous error check
+cudaError_t err = cudaGetLastError();
+if (err != cudaSuccess) {
+    // Log error and fall back to CPU
+    fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(err));
+    return false;
+}
+```
+
+#### 4. Async Pipeline
+
+**Overlap CPU and GPU work:**
+```cpp
+// Upload (async)
+ion_state_conversion::upload_ions(ions, ions_gpu_in, stream);
+
+// Compute (async, queued after upload)
+my_kernel<<<blocks, threads, 0, stream>>>(ions_gpu_in, ions_gpu_out);
+
+// Download (async, queued after compute)
+ion_state_conversion::download_ions(ions_gpu_out, ions, stream);
+
+// Synchronize once at end
+context.synchronize();
+```
+
+#### 5. Performance Profiling
+
+**Use NVIDIA Nsight Systems:**
+```bash
+# Profile GPU-enabled run
+nsys profile -o report ./icarion_main config.json
+
+# View timeline
+nsys-ui report.nsys-rep
+```
+
+**Key metrics to check:**
+- Kernel duration
+- Memory transfer time
+- GPU occupancy
+- Warp execution efficiency
+
+### Testing GPU Code
+
+#### Unit Tests
+
+**Test GPU context:**
+```cpp
+TEST(GPUContext, Creation) {
+    if (!GPUContext::is_cuda_available()) {
+        GTEST_SKIP() << "CUDA not available";
+    }
+    
+    auto context = GPUContext::create(0);
+    ASSERT_NE(context, nullptr);
+    EXPECT_GT(context->get_properties().total_memory, 0);
+}
+```
+
+**Test kernel correctness:**
+```cpp
+TEST(IntegrationKernel, SingleIon) {
+    auto context = GPUContext::create(0);
+    
+    // CPU reference
+    IonState ion_cpu = /* initial state */;
+    rk4_step_cpu(ion_cpu, dt);
+    
+    // GPU result
+    std::vector<IonState> ions = {ion_cpu};
+    GPUIntegrationHelper helper(context, 1);  // Threshold = 1
+    helper.integrate_batch_rk4(ions, dt, 0.0);
+    
+    // Compare (tolerance: 1e-12)
+    EXPECT_NEAR(ions[0].pos.x, ion_cpu.pos.x, 1e-12);
+}
+```
+
+#### Performance Tests
+
+**Measure speedup:**
+```cpp
+TEST(GPUPerformance, LargeScale) {
+    auto context = GPUContext::create(0);
+    std::vector<IonState> ions(100000);
+    
+    // CPU baseline
+    auto t0 = now();
+    cpu_integrate(ions, dt);
+    auto cpu_time = elapsed(t0);
+    
+    // GPU time
+    t0 = now();
+    gpu_helper->integrate_batch_rk4(ions, dt, 0.0);
+    auto gpu_time = elapsed(t0);
+    
+    double speedup = cpu_time / gpu_time;
+    EXPECT_GT(speedup, 10.0);  // At least 10× speedup
+}
+```
+
+### Common Pitfalls
+
+#### ❌ Don't: Mix Host and Device Pointers
+```cpp
+double* host_ptr = new double[N];
+double* device_ptr;
+cudaMalloc(&device_ptr, N * sizeof(double));
+
+// ERROR: Can't dereference device pointer on CPU
+double x = device_ptr[0];  // Segfault!
+
+// ERROR: Can't pass host pointer to kernel
+my_kernel<<<...>>>(host_ptr, N);  // Invalid memory access!
+```
+
+#### ✅ Do: Use Explicit Transfer
+```cpp
+cudaMemcpy(device_ptr, host_ptr, N * sizeof(double), cudaMemcpyHostToDevice);
+my_kernel<<<...>>>(device_ptr, N);
+cudaMemcpy(host_ptr, device_ptr, N * sizeof(double), cudaMemcpyDeviceToHost);
+```
+
+#### ❌ Don't: Forget to Synchronize
+```cpp
+my_kernel<<<...>>>(data, N);
+// Kernel is async! Results not ready yet!
+use_results(data);  // Race condition!
+```
+
+#### ✅ Do: Synchronize Before Using Results
+```cpp
+my_kernel<<<...>>>(data, N);
+cudaStreamSynchronize(stream);  // Wait for kernel
+use_results(data);  // Safe now
+```
+
+### GPU Code Review Checklist
+
+Before submitting GPU code, verify:
+
+- [ ] Error checking after every CUDA call
+- [ ] Grid-stride loop for scalability
+- [ ] Coalesced memory access (SoA layout)
+- [ ] Proper synchronization
+- [ ] CPU fallback on GPU errors
+- [ ] Unit tests with CPU reference
+- [ ] Performance tests (speedup measurement)
+- [ ] Documentation of kernel algorithm
+- [ ] Conditional compilation (`#ifdef ICARION_USE_GPU`)
+
+### Additional Resources
+
+**CUDA Programming Guide:**
+- https://docs.nvidia.com/cuda/cuda-c-programming-guide/
+
+**CUDA Best Practices:**
+- https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/
+
+**ICARION GPU Examples:**
+- `src/core/gpu/integrate_rk4_batch.cu` - RK4 kernel reference implementation
+- `src/core/gpu/GPUIntegrationHelper.cpp` - Helper class pattern
+- `tmp/GPU_ACCELERATION_PLAN.md` - Detailed architecture
 
 ---
 

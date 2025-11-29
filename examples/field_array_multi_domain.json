@@ -1,0 +1,102 @@
+{
+  "simulation": {
+    "total_time_s": 1e-5,
+    "dt_s": 1e-9,
+    "write_interval": 10,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "None",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "results/field_array_multi_domain",
+    "trajectory_file": "trajectories.h5",
+    "print_progress": false
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 50,
+        "domain_index": 0,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      },
+      {
+        "id": "H3O+",
+        "count": 50,
+        "domain_index": 1,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.026],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "drift_region_1",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.025,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 101325.0,
+        "gas_species": "N2",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "field_array_terms": [
+          {
+            "file": "examples/field_arrays/ims_drift_200Vcm.h5",
+            "scale_type": "Constant",
+            "constant_V": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "drift_region_2",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.025],
+        "length_m": 0.025,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 101325.0,
+        "gas_species": "N2",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "field_array_terms": [
+          {
+            "file": "examples/field_arrays/ims_drift_200Vcm.h5",
+            "scale_type": "Constant",
+            "constant_V": 0.5
+          }
+        ]
+      }
+    }
+  ]
+}

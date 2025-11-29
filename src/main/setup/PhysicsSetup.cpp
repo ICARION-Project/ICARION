@@ -65,26 +65,46 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
         if (!domain.fields.field_array_terms.empty()) {
             log::Logger::main()->info("Loading field arrays for domain '{}'", domain.name);
             
-            // Load field arrays from HDF5 files
+            // Load all field arrays for this domain
+            std::vector<const FieldArray*> domain_field_ptrs;
+            
             for (const auto& term : domain.fields.field_array_terms) {
                 try {
                     FieldArray field = load_field_array(term.file);
-                    log::Logger::main()->info("  ✓ Loaded: {} (grid: {}×{}×{})",
+                    
+                    std::string scale_desc;
+                    using ScaleKind = config::FieldsConfig::FieldArrayTerm::ScaleKind;
+                    switch (term.kind) {
+                        case ScaleKind::Constant:
+                            scale_desc = fmt::format("constant={:.2f}V", term.constant);
+                            break;
+                        case ScaleKind::DC_Axial:
+                            scale_desc = "scale=DC.axial_V";
+                            break;
+                        case ScaleKind::DC_Quad:
+                            scale_desc = "scale=DC.quad_V";
+                            break;
+                        case ScaleKind::DC_Radial:
+                            scale_desc = "scale=DC.radial_V";
+                            break;
+                        case ScaleKind::RF:
+                            scale_desc = fmt::format("scale=RF (f={:.0f}Hz, φ={:.2f}rad)", 
+                                                    term.frequency_Hz, term.phase_rad);
+                            break;
+                    }
+                    
+                    log::Logger::main()->info("  ✓ Loaded: {} (grid: {}×{}×{}, {})",
                                               term.file,
                                               field.nx,
                                               field.ny,
-                                              field.nz);
+                                              field.nz,
+                                              scale_desc);
                     
                     // Store field array on heap to get stable pointer
-                    // (unique_ptr ensures pointer stability even if vector reallocates)
                     auto field_ptr = std::make_unique<FieldArray>(std::move(field));
                     const FieldArray* raw_ptr = field_ptr.get();
                     field_arrays_storage_.push_back(std::move(field_ptr));
-                    
-                    // Create field provider from the loaded array
-                    // TODO: Handle multiple field arrays (superposition)
-                    // For now, use the last array loaded
-                    electric_field_provider = std::make_shared<GridFieldProvider>(raw_ptr);
+                    domain_field_ptrs.push_back(raw_ptr);
                     
                 } catch (const std::exception& e) {
                     log::Logger::main()->error("Failed to load field array: {} - {}",
@@ -93,7 +113,20 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
                 }
             }
             
-            if (electric_field_provider) {
+            // Create field provider
+            // NOTE: Current implementation uses only the FIRST field array
+            // TODO: Implement superposition of multiple arrays with time-varying scaling
+            // E_total(r,t) = Σ_i scale_i(t) · E_i(r)
+            // where scale_i(t) depends on term.kind (Constant, DC_Axial, RF, etc.)
+            if (!domain_field_ptrs.empty()) {
+                electric_field_provider = std::make_shared<GridFieldProvider>(domain_field_ptrs[0]);
+                
+                if (domain_field_ptrs.size() > 1) {
+                    log::Logger::main()->warn("  ⚠ Multiple field arrays loaded but superposition not yet implemented!");
+                    log::Logger::main()->warn("  ⚠ Using only first array: {}", 
+                                             domain.fields.field_array_terms[0].file);
+                }
+                
                 log::Logger::main()->info("  ✓ Created GridFieldProvider for domain '{}'", domain.name);
             }
         }

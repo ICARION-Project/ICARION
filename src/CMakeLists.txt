@@ -130,7 +130,10 @@ endif()
 # Build example main (optional)
 # ---------------------------------------------------------------------
 
-add_executable(icarion_main main/main.cpp)
+add_executable(icarion_main 
+    main/main.cpp
+    main/setup/PhysicsSetup.cpp
+)
 target_link_libraries(icarion_main PRIVATE icarion_core)
 
 # CCS precompute tool

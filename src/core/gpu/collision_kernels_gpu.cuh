@@ -30,6 +30,8 @@
 
 #pragma once
 
+#include <cstdint>  // For uint8_t
+
 #ifdef __CUDACC__
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
@@ -42,10 +44,7 @@ namespace ICARION {
 namespace gpu {
 
 /**
- * @brief GPU-friendly environment parameters (constant memory)
- * 
- * Copied to GPU constant memory for fast access.
- * Avoids pointer indirection during collision kernel execution.
+ * @brief GPU-friendly environment parameters
  */
 struct EnvironmentParams_GPU {
     double temperature_K;
@@ -60,20 +59,20 @@ struct EnvironmentParams_GPU {
 };
 
 /**
- * @brief GPU-friendly geometry data for EHSS
- * 
- * Stored in global memory, accessed via texture memory for coalescing.
- * Each species has variable number of atoms.
+ * @brief GPU geometry data for EHSS
  */
 struct GeometryData_GPU {
-    double* atom_x;          ///< Atom x-coordinates [m] (flattened array)
-    double* atom_y;          ///< Atom y-coordinates [m]
-    double* atom_z;          ///< Atom z-coordinates [m]
-    double* atom_radii;      ///< Atomic radii [m]
-    int* atom_counts;        ///< Number of atoms per species
-    int* atom_offsets;       ///< Offset into atom arrays for each species
-    int num_species;         ///< Total number of species
+    double* atom_x = nullptr;
+    double* atom_y = nullptr;
+    double* atom_z = nullptr;
+    double* atom_radii = nullptr;
+    int* atom_counts = nullptr;
+    int* atom_offsets = nullptr;
+    int num_species = 0;
 };
+
+}  // namespace gpu
+}  // namespace ICARION
 
 /**
  * @brief Initialize cuRAND states for collision kernels
@@ -121,7 +120,7 @@ __global__ void hss_collision_kernel(
     double* vz_inout,
     const double* mass,
     const double* ccs,
-    const bool* active,
+    const uint8_t* active,
     curandState* curand_states,
     const EnvironmentParams_GPU env,
     double dt,
@@ -165,7 +164,7 @@ __global__ void ehss_collision_kernel(
     const double* mass,
     const double* ccs,
     const int* species_indices,
-    const bool* active,
+    const uint8_t* active,
     curandState* curand_states,
     const EnvironmentParams_GPU env,
     const GeometryData_GPU geometry,
@@ -196,7 +195,7 @@ void launch_hss_collision_batch(
     double* vz_inout,
     const double* mass,
     const double* ccs,
-    const bool* active,
+    const uint8_t* active,
     curandState* curand_states,
     const EnvironmentParams_GPU& env,
     double dt,
@@ -230,7 +229,7 @@ void launch_ehss_collision_batch(
     const double* mass,
     const double* ccs,
     const int* species_indices,
-    const bool* active,
+    const uint8_t* active,
     curandState* curand_states,
     const EnvironmentParams_GPU& env,
     const GeometryData_GPU& geometry,

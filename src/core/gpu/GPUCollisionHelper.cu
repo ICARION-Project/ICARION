@@ -6,59 +6,30 @@
  * @brief GPU collision helper implementation
  */
 
-// Include GPUContext BEFORE GPUCollisionHelper.h to resolve forward declaration
-#include "GPUContext.h"
+/**
+ * @file GPUCollisionHelper.cu
+ * @brief CUDA implementation (kernel launches and device code only)
+ * 
+ * Factory/constructor/destructor moved to _host.cpp to avoid nvcc issues with GPUContext.
+ * This file contains only GPU kernel launches and device memory management.
+ */
+
 #include "GPUCollisionHelper.h"
 #include "collision_kernels_gpu.cuh"
 #include "utils/constants.h"
 #include <cuda_runtime.h>
 #include <stdexcept>
-#include <chrono>
 #include <cmath>
 #include <algorithm>
 #include <cstdint>
 
+// Forward declarations for timing (avoid <chrono> with nvcc)
+extern "C" {
+    double get_current_time_ms();  // Implemented in _host.cpp
+}
+
 namespace ICARION {
 namespace gpu {
-
-std::unique_ptr<GPUCollisionHelper> GPUCollisionHelper::create(
-    const GPUContext& context,
-    size_t threshold,
-    const std::string& collision_model,
-    unsigned long long rng_seed
-) {
-    if (!GPUContext::is_cuda_available()) {
-        return nullptr;
-    }
-    
-    try {
-        return std::unique_ptr<GPUCollisionHelper>(
-            new GPUCollisionHelper(context, threshold, collision_model, rng_seed)
-        );
-    } catch (const std::exception&) {
-        return nullptr;
-    }
-}
-
-GPUCollisionHelper::GPUCollisionHelper(
-    const GPUContext& context,
-    size_t threshold,
-    const std::string& collision_model,
-    unsigned long long rng_seed
-)
-    : context_(context),
-      threshold_(threshold),
-      collision_model_(collision_model),
-      rng_seed_(rng_seed),
-      stats_{}
-{
-    if (collision_model != "HSS" && collision_model != "EHSS") {
-        throw std::invalid_argument(
-            "GPUCollisionHelper: Unsupported collision model '" + collision_model +
-            "'. Supported: 'HSS', 'EHSS'."
-        );
-    }
-}
 
 GPUCollisionHelper::~GPUCollisionHelper() {
     if (d_curand_states_) {
@@ -66,13 +37,16 @@ GPUCollisionHelper::~GPUCollisionHelper() {
     }
     
     // Free geometry GPU memory
-    if (geometry_uploaded_) {
-        cudaFree(geometry_gpu_.atom_x);
-        cudaFree(geometry_gpu_.atom_y);
-        cudaFree(geometry_gpu_.atom_z);
-        cudaFree(geometry_gpu_.atom_radii);
-        cudaFree(geometry_gpu_.atom_counts);
-        cudaFree(geometry_gpu_.atom_offsets);
+    if (geometry_gpu_) {
+        if (geometry_uploaded_) {
+            cudaFree(geometry_gpu_->atom_x);
+            cudaFree(geometry_gpu_->atom_y);
+            cudaFree(geometry_gpu_->atom_z);
+            cudaFree(geometry_gpu_->atom_radii);
+            cudaFree(geometry_gpu_->atom_counts);
+            cudaFree(geometry_gpu_->atom_offsets);
+        }
+        delete geometry_gpu_;
     }
 }
 
@@ -86,25 +60,32 @@ void GPUCollisionHelper::initialize_curand_states(size_t n_states) {
         cudaFree(d_curand_states_);
     }
     
-    // Allocate new states
-    cudaMalloc(&d_curand_states_, n_states * sizeof(curandState));
+    // Allocate
+    cudaMalloc((void**)&d_curand_states_, n_states * sizeof(curandState));
     n_curand_states_ = n_states;
     
     // Initialize states
     constexpr int THREADS_PER_BLOCK = 256;
     int blocks = (n_states + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     
-    init_curand_states<<<blocks, THREADS_PER_BLOCK, 0, context_.get_stream()>>>(
+    cudaStream_t stream = (cudaStream_t)cuda_stream_;
+    
+    init_curand_states<<<blocks, THREADS_PER_BLOCK, 0, stream>>>(
         d_curand_states_, rng_seed_, n_states
     );
     
-    cudaStreamSynchronize(context_.get_stream());
+    cudaStreamSynchronize(stream);
     curand_initialized_ = true;
 }
 
 void GPUCollisionHelper::upload_geometry_to_gpu() {
     if (!geometry_map_host_ || geometry_uploaded_) {
         return;
+    }
+    
+    // Allocate GeometryData_GPU struct
+    if (!geometry_gpu_) {
+        geometry_gpu_ = new GeometryData_GPU();
     }
     
     const auto& geom_map = *geometry_map_host_;
@@ -154,28 +135,28 @@ void GPUCollisionHelper::upload_geometry_to_gpu() {
     }
     
     // Allocate GPU memory
-    cudaMalloc(&geometry_gpu_.atom_x, total_atoms * sizeof(double));
-    cudaMalloc(&geometry_gpu_.atom_y, total_atoms * sizeof(double));
-    cudaMalloc(&geometry_gpu_.atom_z, total_atoms * sizeof(double));
-    cudaMalloc(&geometry_gpu_.atom_radii, total_atoms * sizeof(double));
-    cudaMalloc(&geometry_gpu_.atom_counts, n_species * sizeof(int));
-    cudaMalloc(&geometry_gpu_.atom_offsets, n_species * sizeof(int));
+    cudaMalloc(&geometry_gpu_->atom_x, total_atoms * sizeof(double));
+    cudaMalloc(&geometry_gpu_->atom_y, total_atoms * sizeof(double));
+    cudaMalloc(&geometry_gpu_->atom_z, total_atoms * sizeof(double));
+    cudaMalloc(&geometry_gpu_->atom_radii, total_atoms * sizeof(double));
+    cudaMalloc(&geometry_gpu_->atom_counts, n_species * sizeof(int));
+    cudaMalloc(&geometry_gpu_->atom_offsets, n_species * sizeof(int));
     
     // Upload to GPU
-    cudaMemcpy(geometry_gpu_.atom_x, atom_x_host.data(), 
+    cudaMemcpy(geometry_gpu_->atom_x, atom_x_host.data(), 
                total_atoms * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(geometry_gpu_.atom_y, atom_y_host.data(), 
+    cudaMemcpy(geometry_gpu_->atom_y, atom_y_host.data(), 
                total_atoms * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(geometry_gpu_.atom_z, atom_z_host.data(), 
+    cudaMemcpy(geometry_gpu_->atom_z, atom_z_host.data(), 
                total_atoms * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(geometry_gpu_.atom_radii, atom_radii_host.data(), 
+    cudaMemcpy(geometry_gpu_->atom_radii, atom_radii_host.data(), 
                total_atoms * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(geometry_gpu_.atom_counts, atom_counts_host.data(), 
+    cudaMemcpy(geometry_gpu_->atom_counts, atom_counts_host.data(), 
                n_species * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(geometry_gpu_.atom_offsets, atom_offsets_host.data(), 
+    cudaMemcpy(geometry_gpu_->atom_offsets, atom_offsets_host.data(), 
                n_species * sizeof(int), cudaMemcpyHostToDevice);
     
-    geometry_gpu_.num_species = n_species;
+    geometry_gpu_->num_species = n_species;
     geometry_uploaded_ = true;
 }
 
@@ -257,7 +238,7 @@ bool GPUCollisionHelper::process_collisions_batch(
         // Allocate device memory (could use GPUMemoryPool here)
         double *d_vx, *d_vy, *d_vz;
         double *d_mass, *d_ccs;
-        bool *d_active;
+        uint8_t *d_active;
         int *d_species_indices = nullptr;
         
         cudaMalloc(&d_vx, n_ions * sizeof(double));
@@ -265,7 +246,7 @@ bool GPUCollisionHelper::process_collisions_batch(
         cudaMalloc(&d_vz, n_ions * sizeof(double));
         cudaMalloc(&d_mass, n_ions * sizeof(double));
         cudaMalloc(&d_ccs, n_ions * sizeof(double));
-        cudaMalloc(&d_active, n_ions * sizeof(bool));
+        cudaMalloc(&d_active, n_ions * sizeof(uint8_t));
         
         if (collision_model_ == "EHSS") {
             cudaMalloc(&d_species_indices, n_ions * sizeof(int));
@@ -284,27 +265,27 @@ bool GPUCollisionHelper::process_collisions_batch(
             mass_host[i] = ions[i].mass_kg;
             ccs_host[i] = ions[i].CCS_m2;
             active_host[i] = ions[i].active ? 1 : 0;
-            species_indices_host[i] = 0;  // TODO: map species_id to index
-        }
+        
+        cudaStream_t stream = (cudaStream_t)cuda_stream_;
         
         // Upload
         cudaMemcpyAsync(d_vx, vx_host.data(), n_ions * sizeof(double), 
-                        cudaMemcpyHostToDevice, context_.get_stream());
+                        cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(d_vy, vy_host.data(), n_ions * sizeof(double), 
-                        cudaMemcpyHostToDevice, context_.get_stream());
+                        cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(d_vz, vz_host.data(), n_ions * sizeof(double), 
-                        cudaMemcpyHostToDevice, context_.get_stream());
+                        cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(d_mass, mass_host.data(), n_ions * sizeof(double), 
-                        cudaMemcpyHostToDevice, context_.get_stream());
+                        cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(d_ccs, ccs_host.data(), n_ions * sizeof(double), 
-                        cudaMemcpyHostToDevice, context_.get_stream());
+                        cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(d_active, active_host.data(), n_ions * sizeof(uint8_t), 
-                        cudaMemcpyHostToDevice, context_.get_stream());
+                        cudaMemcpyHostToDevice, stream);
         
         if (collision_model_ == "EHSS") {
             cudaMemcpyAsync(d_species_indices, species_indices_host.data(), 
                             n_ions * sizeof(int), 
-                            cudaMemcpyHostToDevice, context_.get_stream());
+                            cudaMemcpyHostToDevice, stream);
         }
         
         auto t_upload = std::chrono::high_resolution_clock::now();
@@ -319,7 +300,7 @@ bool GPUCollisionHelper::process_collisions_batch(
                 d_mass, d_ccs, d_active,
                 d_curand_states_,
                 env_gpu, dt, n_ions,
-                context_.get_stream()
+                stream
             );
         } else {  // EHSS
             if (!geometry_uploaded_) {
@@ -331,7 +312,7 @@ bool GPUCollisionHelper::process_collisions_batch(
                 d_mass, d_ccs, d_species_indices, d_active,
                 d_curand_states_,
                 env_gpu, geometry_gpu_, dt, n_ions,
-                context_.get_stream()
+                stream
             );
         }
         
@@ -341,13 +322,13 @@ bool GPUCollisionHelper::process_collisions_batch(
         
         // Download modified velocities
         cudaMemcpyAsync(vx_host.data(), d_vx, n_ions * sizeof(double), 
-                        cudaMemcpyDeviceToHost, context_.get_stream());
+                        cudaMemcpyDeviceToHost, stream);
         cudaMemcpyAsync(vy_host.data(), d_vy, n_ions * sizeof(double), 
-                        cudaMemcpyDeviceToHost, context_.get_stream());
+                        cudaMemcpyDeviceToHost, stream);
         cudaMemcpyAsync(vz_host.data(), d_vz, n_ions * sizeof(double), 
-                        cudaMemcpyDeviceToHost, context_.get_stream());
+                        cudaMemcpyDeviceToHost, stream);
         
-        cudaStreamSynchronize(context_.get_stream());
+        cudaStreamSynchronize(stream);
         
         auto t_download = std::chrono::high_resolution_clock::now();
         

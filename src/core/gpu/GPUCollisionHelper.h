@@ -41,12 +41,15 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <cstdint>  // For uint8_t
 
-// Forward declarations
-namespace ICARION { namespace gpu {
-    class GPUContext;
-    class GPUMemoryPool;
-}}
+namespace ICARION { 
+namespace gpu {
+    class GPUContext;  // Forward declaration
+    struct EnvironmentParams_GPU;  // Forward declaration (defined in collision_kernels_gpu.cuh)
+    struct GeometryData_GPU;  // Forward declaration (defined in collision_kernels_gpu.cuh)
+}
+}
 
 // cuRAND forward declarations
 struct curandStateXORWOW;
@@ -89,7 +92,7 @@ public:
      * @return Unique pointer to helper, or nullptr if GPU unavailable
      */
     static std::unique_ptr<GPUCollisionHelper> create(
-        const GPUContext& context,
+        const gpu::GPUContext& context,
         size_t threshold = 5000,
         const std::string& collision_model = "HSS",
         unsigned long long rng_seed = 42
@@ -154,7 +157,7 @@ public:
 
 private:
     GPUCollisionHelper(
-        const GPUContext& context,
+        const gpu::GPUContext& context,
         size_t threshold,
         const std::string& collision_model,
         unsigned long long rng_seed
@@ -181,7 +184,7 @@ private:
         const config::EnvironmentConfig& env
     ) const;
     
-    const GPUContext& context_;
+    void* cuda_stream_;  // cudaStream_t stored as void* to avoid nvcc header issues
     size_t threshold_;
     std::string collision_model_;  // "HSS" or "EHSS"
     unsigned long long rng_seed_;
@@ -192,7 +195,7 @@ private:
     bool curand_initialized_ = false;
     
     // Geometry data (for EHSS)
-    GeometryData_GPU geometry_gpu_;
+    GeometryData_GPU* geometry_gpu_ = nullptr;
     bool geometry_uploaded_ = false;
     const GeometryMap* geometry_map_host_ = nullptr;
     

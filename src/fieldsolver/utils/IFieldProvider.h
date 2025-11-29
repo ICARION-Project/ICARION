@@ -40,6 +40,21 @@ public:
     virtual Vec3 get_E(const Vec3& pos) const = 0;
     
     /**
+     * @brief Evaluate time-dependent electric field at given position
+     * @param pos Position [m] in simulation domain
+     * @param t Current simulation time [s]
+     * @return Electric field E [V/m] at position and time
+     * 
+     * Optional method for time-varying fields (RF modulation, time-varying voltages).
+     * Default implementation ignores time and calls get_E(pos).
+     * Override in derived classes for true time-dependent fields.
+     */
+    virtual Vec3 get_E(const Vec3& pos, double t) const {
+        (void)t;
+        return get_E(pos);
+    }
+    
+    /**
      * @brief Evaluate electric potential at given position
      * @param pos Position [m] in simulation domain
      * @return Electric potential φ [V] at position

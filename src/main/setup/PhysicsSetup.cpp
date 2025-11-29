@@ -16,6 +16,7 @@
 #include "core/physics/reactions/ReactionHandlerFactory.h"
 #include "core/io/fieldArrayLoader.h"
 #include "fieldsolver/utils/GridFieldProvider.h"
+#include "fieldsolver/utils/CompositeFieldProvider.h"
 #include "core/log/Logger.h"
 #include <algorithm>
 #include <unordered_set>
@@ -66,7 +67,7 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
             log::Logger::main()->info("Loading field arrays for domain '{}'", domain.name);
             
             // Load all field arrays for this domain
-            std::vector<const FieldArray*> domain_field_ptrs;
+            std::vector<CompositeFieldProvider::FieldTerm> composite_terms;
             
             for (const auto& term : domain.fields.field_array_terms) {
                 try {
@@ -104,7 +105,15 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
                     auto field_ptr = std::make_unique<FieldArray>(std::move(field));
                     const FieldArray* raw_ptr = field_ptr.get();
                     field_arrays_storage_.push_back(std::move(field_ptr));
-                    domain_field_ptrs.push_back(raw_ptr);
+                    
+                    // Create composite term
+                    CompositeFieldProvider::FieldTerm composite_term;
+                    composite_term.field_array = raw_ptr;
+                    composite_term.kind = term.kind;
+                    composite_term.constant_scale = term.constant;
+                    composite_term.frequency_Hz = term.frequency_Hz;
+                    composite_term.phase_rad = term.phase_rad;
+                    composite_terms.push_back(composite_term);
                     
                 } catch (const std::exception& e) {
                     log::Logger::main()->error("Failed to load field array: {} - {}",
@@ -113,21 +122,18 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
                 }
             }
             
-            // Create field provider
-            // NOTE: Current implementation uses only the FIRST field array
-            // TODO: Implement superposition of multiple arrays with time-varying scaling
-            // E_total(r,t) = Σ_i scale_i(t) · E_i(r)
-            // where scale_i(t) depends on term.kind (Constant, DC_Axial, RF, etc.)
-            if (!domain_field_ptrs.empty()) {
-                electric_field_provider = std::make_shared<GridFieldProvider>(domain_field_ptrs[0]);
-                
-                if (domain_field_ptrs.size() > 1) {
-                    log::Logger::main()->warn("  ⚠ Multiple field arrays loaded but superposition not yet implemented!");
-                    log::Logger::main()->warn("  ⚠ Using only first array: {}", 
-                                             domain.fields.field_array_terms[0].file);
+            // Create field provider with superposition support
+            if (!composite_terms.empty()) {
+                if (composite_terms.size() == 1) {
+                    // Single field array: use simple GridFieldProvider for efficiency
+                    electric_field_provider = std::make_shared<GridFieldProvider>(composite_terms[0].field_array);
+                    log::Logger::main()->info("  ✓ Created GridFieldProvider for domain '{}'", domain.name);
+                } else {
+                    // Multiple field arrays: use CompositeFieldProvider for superposition
+                    electric_field_provider = std::make_shared<CompositeFieldProvider>(composite_terms, &domain);
+                    log::Logger::main()->info("  ✓ Created CompositeFieldProvider with {} field terms for domain '{}'", 
+                                             composite_terms.size(), domain.name);
                 }
-                
-                log::Logger::main()->info("  ✓ Created GridFieldProvider for domain '{}'", domain.name);
             }
         }
         

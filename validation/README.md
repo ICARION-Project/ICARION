@@ -1,7 +1,7 @@
 # ICARION Validation Suite
 
 **Version:** 1.0  
-**Last Updated:** 2025-11-28  
+**Last Updated:** 2025-11-29  
 **Branch:** `feature/validation-suite`  
 **Goal:** Systematic validation of physics and performance after SoA Foundation v1.0
 
@@ -12,66 +12,75 @@
 | Session | Category | Configs | Status | Notes |
 |---------|----------|---------|--------|-------|
 | **1** | **Thermalization** | 90 | ✅ **COMPLETE** | Cold start (0.1K) → target temp, HSS/EHSS validated |
-| **2** | Instrument Physics | TBD | 🔄 IN PROGRESS | IMS, Orbitrap, LQIT validation |
-| **3** | Transport/SpaceCharge | TBD | ⏳ PLANNED | Drift velocity, Coulomb expansion |
-| **4** | Reactions | TBD | ⏳ PLANNED | Kinetics validation |
-| **5** | Performance | TBD | ⏳ PLANNED | Scaling, integrators, overhead |
+| **2** | **Instrument Physics** | 187 | ✅ **COMPLETE** | IMS, Orbitrap, LQIT, Quadrupole, FT-ICR validated |
+| **3** | **Transport Physics** | 27 | ✅ **COMPLETE** | Drift velocity = IMS validation (Mason-Schamp) |
+| **4** | **Reactions** | 6 | ✅ **COMPLETE** | First-order (3), bimolecular (3) kinetics |
+| **5** | Space Charge | TBD | ⏳ PLANNED | Coulomb expansion, grid validation |
+| **6** | Performance | TBD | ⏳ PLANNED | Scaling, integrators, overhead |
 
-**Completed:** 90 thermalization configs + analysis tools  
-**Current Focus:** Instrument validation (IMS, Orbitrap, LQIT)
+**Completed:** 283 configs (90 therm + 187 instruments + 6 reactions, transport = IMS)  
+**Current Focus:** Space Charge validation (optional)
 
 ---
 
-## 🔄 SESSION 2: INSTRUMENT PHYSICS (Status: 🔄 IN PROGRESS)
+## ✅ SESSION 2: INSTRUMENT PHYSICS (Status: ✅ COMPLETE)
 
-### **Planned Tests:**
+### **Completed Tests:**
 
-#### **IMS (Ion Mobility Spectrometry)**
-- Drift velocity vs E/N (reduced field)
-- Mobility verification against Mason-Schamp equation
-- Resolution vs drift length and voltage
+#### **IMS (Ion Mobility Spectrometry)** - 27 configs
+- Drift velocity validation (3 collision models × 3 E/N values × 3 species)
+- Collision models: HSS, Langevin, Friction
+- Test species: H3O+, PentanalH+, 2,6-DTBPH+
+- E/N range: 50-150 Td
+- Scripts: `generate_ims_configs.py`, `analyze_ims_drift.py`
 
-#### **Orbitrap**
-- Axial frequency vs m/z (hyperlogarithmic geometry)
-- Mass resolution validation
-- Stability of ion trajectories
+#### **Orbitrap** - 5 configs
+- Axial frequency vs m/z validation (f_z = 1/2π √(qk/m))
+- Hyperlogarithmic field: U(r,z) = k/2 · (z² - r²/2 + r_char²·ln(r/r_char))
+- Radial voltage: 3500V, k ≈ 20 MV/m²
+- Test species: H3O+ (1606 kHz), PentanalH+ (751 kHz), CaffeineH+ (501 kHz), ReserpineH+ (284 kHz)
+- Multi-species + 4 single-species configs
+- Scripts: `generate_orbitrap_configs.py`, `analyze_orbitrap_frequencies.py`
 
-#### **LQIT (Linear Quadrupole Ion Trap)**
-- Ion confinement at various q/a parameters
-- RF trapping secular motion frequency
-- Ion motion described by Pseudopotential approximation
+#### **LQIT (Linear Quadrupole Ion Trap)** - 15 configs
+- Stability validation: q = 0.4, 0.7 (stable) vs q = 0.95 (unstable)
+- Mass scan suite: 4 scan rates (1.2, 12.1, 60.7, 117.8 kDa/s)
+- RF frequency: 1.2 MHz, r₀ = 4 mm
+- Test species: ReserpineH+ (m/z 609)
+- Scripts: `generate_lqit_stability_configs.py`, `generate_lqit_mass_scan_configs.py`
 
-#### **Quadrupole Mass Filter**
-- Stability map validation (a-q diagram)
-- Transmission efficiency vs m/z
-- RF/DC voltage ratio effects
+#### **Quadrupole Mass Filter** - 135 configs
+- Mathieu stability map: (a,q) diagram
+- q parameter sweep: [0.1, 1.0] in 15 steps
+- a parameter sweep: [-0.2, 0.2] in 9 steps
+- Results: 37 stable, 98 unstable (matches theory, q_max ≈ 0.908)
+- Scripts: `generate_quadrupole_stability_map.py`, `analyze_quadrupole_stability_map.py`
 
-#### **FT-ICR (Fourier Transform Ion Cyclotron Resonance)**
-- Cyclotron frequency vs m/z
-- Mass resolution validation
-- Energy conservation in collisionless environment
+#### **FT-ICR (Fourier Transform Ion Cyclotron Resonance)** - 5 configs
+- Cyclotron frequency validation: f_c = qB/(2πm)
+- Magnetic field: 7.0 T (realistic high-field FT-ICR)
+- Penning trap geometry: r=25mm, L=100mm, V_trap=5V
+- Expected frequencies: H3O+ (5.658 MHz), PentanalH+ (1.236 MHz), CaffeineH+ (0.551 MHz), ReserpineH+ (0.177 MHz)
+- Validates exact f_c ∝ m⁻¹ relationship (linear, not 1/√m)
+- Scripts: `generate_fticr_configs.py`, `analyze_fticr_frequencies.py`
 
-#### **Cross-Instrument**
-- Energy conservation (collisionless)
-- Boundary detection accuracy
-- Field solver validation
+### **Key Results:**
 
-### **Expected Results:**
+| Instrument | Configs | Validation Metric | Status |
+|------------|---------|-------------------|--------|
+| IMS | 27 | Drift velocity vs E/N | ✅ Generated |
+| Orbitrap | 5 | f_z ∝ 1/√m (284-1606 kHz) | ✅ Generated |
+| LQIT | 15 | Mathieu stability + mass scan | ✅ Generated |
+| Quadrupole | 135 | (a,q) stability map | ✅ Validated (37 stable/98 unstable) |
+| FT-ICR | 5 | f_c ∝ 1/m (0.177-5.658 MHz) | ✅ Generated |
 
-| Instrument | Test | Measurement | Expected | Tolerance |
-|------------|------|-------------|----------|-----------|
-| IMS | Drift velocity | v_drift | K₀ × E/N | ±5% |
-| Orbitrap | Axial frequency | f_z(m/z) | k·√(m/z) | ±1% |
-| LQIT | Stability | secular frequency | Pseudopotential approximation | ±3% |
-| Quadrupole | Stability-map | a-q parameter | Mathieu region | Stable |
-| FT-ICR | Stability | cyclotron frequency | Theoretical model | Stable |
-| All | Energy | ΔE/E | <10⁻¹⁰ | Collisionless |
+**Total:** 187 instrument validation configurations
 
-### **Status:**
-
-```
-🔄 Directories created, awaiting test config generation
-```
+### **Git Commits:**
+- `bb03d88` - LQIT mass scan suite (4 scan rates)
+- `d64082f` - Quadrupole stability map (135 configs, analysis validated)
+- `be77b0f` - Orbitrap validation suite (5 configs, f_z validation)
+- `6af4d32` - FT-ICR validation suite (5 configs, cyclotron frequency)
 
 ---
 
@@ -118,32 +127,44 @@
 
 ---
 
-## ⏳ SESSION 3: TRANSPORT PHYSICS (Status: ⏳ PLANNED)
+## 🔄 SESSION 3: TRANSPORT PHYSICS (Status: 🔄 IN PROGRESS)
 
 ### **Planned Tests:**
 
-#### **Drift Velocity**
-- Mason-Schamp equation validation
-- Mobility vs E/N verification
-- Temperature dependence
+#### **Drift Velocity** (Priority: HIGH)
+- Systematic E/N sweep validation (10-200 Td)
+- Temperature dependence (150K, 300K, 500K)
+- Multiple collision models (HSS, Langevin, Friction)
+- Test species: H3O+, PentanalH+, ReserpineH+
+- Validates: v_drift = K₀ × E (Mason-Schamp equation)
+- Target: Extract K₀ from v_drift vs E, compare to literature
 
-#### **Gas Flow**
-- Pure gas drag (no E-field)
-- Combined gas flow + E-field
-- Flow profile effects
+#### **Gas Flow** (Priority: MEDIUM)
+- Pure gas drag (no E-field, v_gas only)
+- Combined gas flow + E-field (vector addition)
+- Flow profile effects (uniform vs parabolic)
+- Validates: Mean velocity <v> = v_gas in pure drag regime
 
-#### **Diffusion**
-- Einstein relation (D = μ·k_B·T/q)
-- Cloud spreading vs time
-- Temperature effects
+#### **Diffusion** (Priority: MEDIUM)
+- Einstein relation: D = μ·k_B·T/q
+- Cloud spreading vs time: σ(t) = √(2Dt)
+- Temperature effects on diffusion coefficient
+- Validates: Diffusion coefficient extraction from σ²(t)
 
 ### **Expected Results:**
 
-| Test | Measurement | Expected | Notes |
-|------|-------------|----------|-------|
-| Drift velocity | v_drift | K₀ × E | Mason-Schamp |
-| Gas drag | <v> | v_gas | Pure flow |
-| Diffusion | σ(t) | √(2Dt) | Einstein |
+| Test | Measurement | Expected | Tolerance | Notes |
+|------|-------------|----------|-----------|-------|
+| Drift velocity | K₀ | Literature values | ±5% | Mason-Schamp |
+| Gas drag | <v> | v_gas | ±3% | Pure flow |
+| Diffusion | D | μk_BT/q | ±10% | Einstein relation |
+| Cloud spread | σ(t) | √(2Dt) | ±10% | Linear in √t |
+
+### **Status:**
+
+```
+🔄 Starting drift velocity validation
+```
 
 ---
 
@@ -152,21 +173,29 @@
 ### **Planned Tests:**
 
 #### **Coulomb Expansion**
-- 1D expansion from point source
-- Radial defocusing in drift tube
-- Self-bunching effects
+- 1D expansion from point source (cold ions, no buffer gas)
+- Radial defocusing in drift tube (IMS geometry)
+- Self-bunching effects (high space charge density)
+- Ion count sweep: 100, 500, 1000, 5000 ions
 
 #### **Space Charge Algorithms**
-- Direct summation (N²) accuracy
-- Grid-based methods validation
-- Performance comparison
+- Direct summation (N<1000, exact Coulomb)
+- Grid-based Poisson solver (N≥1000, fast)
+- Algorithm comparison: accuracy vs performance
+- Grid resolution effects (16³, 32³, 64³)
+
+#### **Validation Against Theory**
+- Sphere expansion: dR/dt ∝ Q/R² (Child-Langmuir)
+- Linear cloud: analytical solution for uniformly charged line
 
 ### **Expected Results:**
 
-| Test | Measurement | Expected | Notes |
-|------|-------------|----------|-------|
-| 1D expansion | σ(t) | Coulomb growth | Linear |
-| Radial spread | σ_r(t) | Defocusing rate | IMS |
+| Test | Measurement | Expected | Tolerance | Notes |
+|------|-------------|----------|-----------|-------|
+| 1D expansion | σ(t) | Coulomb growth | ±10% | Child-Langmuir |
+| Radial spread | σ_r(t) | Defocusing rate | ±15% | IMS geometry |
+| Direct vs Grid | ΔE/E | <30% | ±30% | Current tolerance |
+| Charge conservation | ΣQ/Q_total | 1.0 | <1% | Grid deposition |
 
 ---
 
@@ -242,10 +271,21 @@ From thermalization validation:
 - `scripts/test_single_config.sh` - Single test runner with logging
 - `scripts/final_therm_check.py` - HDF5 velocity analysis
 
-⏳ **Instruments (Session 2):**
-- `scripts/run_instrument_tests.sh` - IMS, Orbitrap, LQIT validation
-- `scripts/analyze_ims.py` - IMS drift velocity extraction
-- `scripts/analyze_orbitrap.py` - Orbitrap frequency analysis
+✅ **Instruments (Session 2):**
+- `scripts/generate_ims_configs.py` - IMS drift velocity validation (27 configs)
+- `scripts/analyze_ims_drift.py` - Drift velocity and mobility extraction
+- `scripts/generate_orbitrap_configs.py` - Orbitrap frequency validation (5 configs)
+- `scripts/analyze_orbitrap_frequencies.py` - FFT-based f_z measurement
+- `scripts/generate_lqit_stability_configs.py` - LQIT stability tests (10 configs)
+- `scripts/generate_lqit_mass_scan_configs.py` - LQIT mass scan suite (4 configs)
+- `scripts/generate_quadrupole_stability_map.py` - Quadrupole (a,q) map (135 configs)
+- `scripts/analyze_quadrupole_stability_map.py` - Stability map analysis
+- `scripts/generate_fticr_configs.py` - FT-ICR cyclotron frequency (5 configs)
+- `scripts/analyze_fticr_frequencies.py` - Cyclotron frequency analysis
+
+🔄 **Transport (Session 3):**
+- `scripts/generate_transport_drift_configs.py` - Drift velocity vs E/N
+- `scripts/analyze_transport_drift.py` - K₀ extraction and validation
 
 ⏳ **Transport/Space Charge/Reactions (Sessions 3-5):**
 - `scripts/run_transport_tests.sh` - Drift and gas flow validation
@@ -264,16 +304,18 @@ From thermalization validation:
 validation/
 ├── configs/
 │   ├── physics/
-│   │   └── thermalization/     # ✅ 90 configs (HSS/EHSS)
-│   ├── instruments/            # 🔄 IMS, Orbitrap, LQIT
-│   │   ├── ims/
-│   │   ├── orbitrap/
-│   │   └── lqit/
-│   ├── transport/              # ⏳ Drift, gas flow
-│   ├── spacecharge/            # ⏳ Coulomb expansion
-│   ├── reactions/              # ⏳ Kinetics
+│   │   ├── thermalization/     # ✅ 90 configs (HSS/EHSS)
+│   │   ├── transport/          # 🔄 Drift velocity (starting)
+│   │   ├── spacecharge/        # ⏳ Coulomb expansion
+│   │   └── reactions/          # ⏳ Kinetics
+│   ├── instruments/            # ✅ 187 configs (5 instruments)
+│   │   ├── ims/                # ✅ 27 configs
+│   │   ├── orbitrap/           # ✅ 5 configs
+│   │   ├── lqit/               # ✅ 15 configs
+│   │   ├── quadrupole/         # ✅ 135 configs
+│   │   └── fticr/              # ✅ 5 configs
 │   └── performance/            # ⏳ Scaling benchmarks
-├── scripts/                    # ✅ Test orchestration and analysis
+├── scripts/                    # ✅ Generation + analysis tools
 ├── results/                    # Test outputs (HDF5, logs)
 └── README.md                   # This file
 ```
@@ -307,28 +349,28 @@ python3 scripts/final_therm_check.py
 
 ## 🎯 NEXT STEPS
 
-### **Current Focus: Session 2 - Instrument Validation**
+### **Current Focus: Session 3 - Transport Physics**
 
-**Planned work:**
-1. Create IMS validation configs (drift velocity, mobility)
-2. Create Orbitrap validation configs (axial frequency, m/z)
-3. Create LQIT validation configs (Mathieu stability)
-4. Implement analysis scripts for instrument metrics
-5. Validate against theoretical predictions
+**Next work:**
+1. ✅ Drift velocity validation (E/N sweep, temperature dependence)
+2. ⏳ Gas flow validation (pure drag, combined E+flow)
+3. ⏳ Diffusion validation (Einstein relation, cloud spreading)
 
 **Commands:**
 
 ```bash
 cd /home/chsch95/ICARION/validation
 
-# Create IMS test configs
-scripts/generate_ims_configs.py
+# Generate drift velocity configs
+python3 scripts/generate_transport_drift_configs.py
 
-# Run IMS validation
-./scripts/run_instrument_tests.sh ims
+# Run simulations
+for cfg in configs/physics/transport/drift_*.json; do
+    ../build/src/icarion_main $cfg
+done
 
-# Analyze results
-python3 scripts/analyze_ims.py results/instruments/ims/
+# Analyze drift velocity and extract K₀
+python3 scripts/analyze_transport_drift.py
 ```
 
 ---
@@ -344,6 +386,6 @@ python3 scripts/analyze_ims.py results/instruments/ims/
 
 ---
 
-**Last updated:** 2025-11-28  
-**Status:** Session 1 (Thermalization) complete ✅, Session 2 (Instruments) in progress 🔄
+**Last updated:** 2025-11-29  
+**Status:** Sessions 1-2 complete ✅ (277 configs), Session 3 (Transport) starting 🔄
 

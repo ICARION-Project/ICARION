@@ -1,0 +1,89 @@
+{
+  "simulation": {
+    "total_time_s": 0.0005,
+    "dt_s": 1e-06,
+    "write_interval": 10,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "None",
+    "enable_space_charge": false,
+    "enable_reactions": true,
+    "reactions": {
+      "database_path": "/home/chsch95/ICARION/data/reaction_database.json",
+      "reactions": [
+        {
+          "reactant_ion": "ReactantA+",
+          "product_ion": "ProductB+",
+          "rate_constant_cm3_s": 4e-10,
+          "reaction_type": "unimolecular"
+        }
+      ]
+    }
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/physics/reactions",
+    "trajectory_file": "first_order_decay_k1e+04.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "ReactantA+",
+        "count": 1000,
+        "position": {
+          "type": "uniform",
+          "min": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.01,
+            0.01,
+            0.01
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "First-order decay k=1e+04 /s",
+      "instrument": "Generic",
+      "geometry": {
+        "type": "box",
+        "dimensions": [
+          0.01,
+          0.01,
+          0.01
+        ],
+        "origin_m": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 1000.0,
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {}
+    }
+  ]
+}

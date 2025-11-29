@@ -3,10 +3,15 @@
 
 #include "core/gpu/GPUContext.h"
 #include "core/gpu/GPUMemoryPool.h"
+#include "core/gpu/FieldArrayGPU.h"
 #include "core/types/IonState.h"
 #include "utils/IonState_GPU.h"
 #include <vector>
 #include <memory>
+
+// Forward declarations
+class IFieldProvider;
+struct FieldArray;
 
 namespace icarion {
 namespace gpu {
@@ -50,14 +55,18 @@ public:
      * @param ions Ion states (modified in-place)
      * @param dt Timestep [s]
      * @param t Current time [s]
+     * @param field_provider Optional field provider for position-dependent fields
      * @return true if GPU integration succeeded, false if fallback needed
      * 
-     * @note Currently uses zero fields (Phase 3 will add field interpolation)
+     * If field_provider is provided and implements GridFieldProvider,
+     * fields will be uploaded to GPU for hardware-accelerated interpolation.
+     * Otherwise uses zero fields (free-particle motion).
      */
     bool integrate_batch_rk4(
         std::vector<ICARION::core::IonState>& ions,
         double dt,
-        double t
+        double t,
+        const IFieldProvider* field_provider = nullptr
     );
     
     /**
@@ -102,9 +111,16 @@ private:
     IonStateGPU ions_gpu_out_;
     size_t allocated_capacity_;
     
+    // GPU field storage (managed)
+    FieldArrayGPU field_array_gpu_;
+    bool has_gpu_fields_;
+    
     size_t threshold_;
     bool enabled_;
     Stats stats_;
+    
+    // Helper: Try to extract FieldArray from IFieldProvider
+    const FieldArray* try_extract_field_array(const IFieldProvider* provider) const;
 };
 
 } // namespace gpu

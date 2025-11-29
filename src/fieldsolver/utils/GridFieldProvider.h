@@ -81,6 +81,17 @@ public:
         return 0.0;
     }
 
+    /**
+     * @brief Get underlying FieldArray (for GPU upload)
+     * @return Pointer to FieldArray or nullptr if using FieldSnapshot
+     * 
+     * Used by GPU integration to extract field data for texture upload.
+     * Returns nullptr if provider was constructed from FieldSnapshot.
+     */
+    const FieldArray* get_field_array() const {
+        return fld_;
+    }
+
 private:
     const ICARION::fields::FieldSnapshot* snapshot_ = nullptr;  ///< Live field server snapshot (optional)
     const FieldArray* fld_ = nullptr;          ///< Preloaded field array (alternative source)

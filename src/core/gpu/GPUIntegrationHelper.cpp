@@ -1,5 +1,8 @@
 #include "GPUIntegrationHelper.h"
 #include "integrate_rk4_batch.cuh"
+#include "FieldArrayGPU_conversion.h"
+#include "fieldsolver/utils/GridFieldProvider.h"
+#include "core/io/fieldArrayLoader.h"
 #include <chrono>
 #include <stdexcept>
 
@@ -29,6 +32,8 @@ GPUIntegrationHelper::GPUIntegrationHelper(
     : context_(context)
     , memory_pool_(std::move(memory_pool))
     , allocated_capacity_(0)
+    , field_array_gpu_{}
+    , has_gpu_fields_(false)
     , threshold_(threshold)
     , enabled_(true)
     , stats_{}
@@ -42,13 +47,36 @@ GPUIntegrationHelper::~GPUIntegrationHelper() {
     if (ions_gpu_out_.is_allocated()) {
         ions_gpu_out_.free();
     }
+    if (has_gpu_fields_) {
+        free_field_array_gpu(field_array_gpu_);
+    }
+}
+
+const FieldArray* GPUIntegrationHelper::try_extract_field_array(
+    const IFieldProvider* provider
+) const {
+    if (!provider) {
+        return nullptr;
+    }
+    
+    // Try to downcast to GridFieldProvider
+    const GridFieldProvider* grid_provider = dynamic_cast<const GridFieldProvider*>(provider);
+    if (!grid_provider) {
+        return nullptr;  // Not a grid-based provider (e.g., BEM, analytical)
+    }
+    
+    // Extract FieldArray pointer (returns nullptr if using FieldSnapshot)
+    return grid_provider->get_field_array();
 }
 
 bool GPUIntegrationHelper::integrate_batch_rk4(
     std::vector<ICARION::core::IonState>& ions,
     double dt,
-    double t
+    double t,
+    const IFieldProvider* field_provider
 ) {
+    (void)t;  // Time not currently used (fields are time-independent for now)
+    
     if (!enabled_ || ions.size() < threshold_) {
         return false;  // Caller should use CPU path
     }
@@ -77,16 +105,35 @@ bool GPUIntegrationHelper::integrate_batch_rk4(
         ions_gpu_in_.count = N;
         ions_gpu_out_.count = N;
         
-        // TODO Phase 3: Extract fields from ForceRegistry
-        // For now, use zero fields (testing phase)
-        Vec3 E_field = {0.0, 0.0, 0.0};
-        Vec3 B_field = {0.0, 0.0, 0.0};
+        // Try to extract field array from provider
+        const FieldArray* field_array = try_extract_field_array(field_provider);
         
-        // Upload (async)
+        // Upload fields to GPU if available
+        bool use_field_interpolation = false;
+        if (field_array && is_field_valid_for_gpu(*field_array)) {
+            // Free previous GPU fields if any
+            if (has_gpu_fields_) {
+                free_field_array_gpu(field_array_gpu_);
+                has_gpu_fields_ = false;
+            }
+            
+            // Upload new fields
+            try {
+                upload_field_array_to_gpu(*field_array, field_array_gpu_);
+                has_gpu_fields_ = true;
+                use_field_interpolation = true;
+            }
+            catch (const std::exception& e) {
+                fprintf(stderr, "Warning: Failed to upload fields to GPU: %s\n", e.what());
+                fprintf(stderr, "         Falling back to zero fields.\n");
+                use_field_interpolation = false;
+            }
+        }
+        
+        // Upload ions (async)
         ion_state_conversion::upload_ions(ions, ions_gpu_in_, context_.get_stream());
         
         // Initialize output buffer with input state (preserves mass, charge, species_id, domain_id)
-        // Kernel will only update pos/vel/active
         CUDA_CHECK(cudaMemcpyAsync(ions_gpu_out_.mass, ions_gpu_in_.mass, N * sizeof(double), 
                                   cudaMemcpyDeviceToDevice, context_.get_stream()));
         CUDA_CHECK(cudaMemcpyAsync(ions_gpu_out_.charge, ions_gpu_in_.charge, N * sizeof(double), 
@@ -96,15 +143,28 @@ bool GPUIntegrationHelper::integrate_batch_rk4(
         CUDA_CHECK(cudaMemcpyAsync(ions_gpu_out_.domain_id, ions_gpu_in_.domain_id, N * sizeof(int), 
                                   cudaMemcpyDeviceToDevice, context_.get_stream()));
         
-        // Integrate (async)
-        integrate_rk4_batch(
-            ions_gpu_in_,
-            ions_gpu_out_,
-            E_field,
-            B_field,
-            dt,
-            context_.get_stream()
-        );
+        // Integrate with fields or zero fields
+        if (use_field_interpolation) {
+            integrate_rk4_batch_with_fields(
+                ions_gpu_in_,
+                ions_gpu_out_,
+                field_array_gpu_,
+                dt,
+                context_.get_stream()
+            );
+        } else {
+            // Zero fields (free-particle motion)
+            Vec3 E_zero = {0.0, 0.0, 0.0};
+            Vec3 B_zero = {0.0, 0.0, 0.0};
+            integrate_rk4_batch(
+                ions_gpu_in_,
+                ions_gpu_out_,
+                E_zero,
+                B_zero,
+                dt,
+                context_.get_stream()
+            );
+        }
         
         // Download (async + sync)
         ion_state_conversion::download_ions(ions_gpu_out_, ions, context_.get_stream());

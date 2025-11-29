@@ -1,0 +1,80 @@
+{
+  "simulation": {
+    "total_time_s": 0.0001,
+    "dt_s": 1e-09,
+    "write_interval": 100,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/instruments/orbitrap",
+    "trajectory_file": "orbitrap_CaffeineH+_V10.00.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "CaffeineH+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "std": [
+            0.0005,
+            0.0005,
+            0.001
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "Orbitrap V=10.00V (k\u2248-1414112 V/m\u00b2)",
+      "instrument": "Orbitrap",
+      "geometry": {
+        "radius_in_m": 0.01,
+        "radius_out_m": 0.02,
+        "radius_char_m": 0.014,
+        "length_m": 0.04,
+        "origin_m": [
+          0.0,
+          0.0,
+          -0.02
+        ]
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-06,
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {
+        "DC": {
+          "radial_V": 10.0
+        }
+      }
+    }
+  ]
+}

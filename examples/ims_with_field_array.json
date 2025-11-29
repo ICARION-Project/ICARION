@@ -1,0 +1,64 @@
+{
+  "simulation": {
+    "total_time_s": 1e-5,
+    "dt_s": 1e-9,
+    "write_interval": 10,
+    "integrator": "RK4",
+    "enable_gpu": true,
+    "gpu_threshold": 50,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "results/ims_field_array_test",
+    "trajectory_file": "trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "drift_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 101325.0,
+        "gas_species": "N2",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "field_array_terms": [
+          {
+            "file": "examples/field_arrays/ims_drift_200Vcm.h5",
+            "scale_type": "Constant",
+            "constant_V": 1.0
+          }
+        ]
+      }
+    }
+  ]
+}

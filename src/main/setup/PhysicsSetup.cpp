@@ -14,6 +14,8 @@
 #include "core/physics/collisions/CollisionHandlerFactory.h"
 #include "core/physics/collisions/geometryUtils.h"
 #include "core/physics/reactions/ReactionHandlerFactory.h"
+#include "core/io/fieldArrayLoader.h"
+#include "fieldsolver/utils/GridFieldProvider.h"
 #include "core/log/Logger.h"
 #include <algorithm>
 #include <unordered_set>
@@ -29,6 +31,7 @@ PhysicsModules PhysicsSetup::initialize(
     PhysicsModules modules;
     
     // Create force registries for each domain
+    // (This will populate field_arrays_storage_ if field arrays are present)
     modules.force_registries = create_force_registries(config);
     
     // Add space charge forces if enabled
@@ -56,8 +59,53 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
     for (const auto& domain : config.domains) {
         auto registry = std::make_shared<physics::ForceRegistry>(domain);
         
-        // Add electric field force (always)
-        registry->add_force(std::make_unique<physics::ElectricFieldForce>(domain));
+        // Check for field arrays and create field provider if present
+        std::shared_ptr<::IFieldProvider> electric_field_provider = nullptr;
+        
+        if (!domain.fields.field_array_terms.empty()) {
+            log::Logger::main()->info("Loading field arrays for domain '{}'", domain.name);
+            
+            // Load field arrays from HDF5 files
+            for (const auto& term : domain.fields.field_array_terms) {
+                try {
+                    FieldArray field = load_field_array(term.file);
+                    log::Logger::main()->info("  ✓ Loaded: {} (grid: {}×{}×{})",
+                                              term.file,
+                                              field.nx,
+                                              field.ny,
+                                              field.nz);
+                    
+                    // Store field array on heap to get stable pointer
+                    // (unique_ptr ensures pointer stability even if vector reallocates)
+                    auto field_ptr = std::make_unique<FieldArray>(std::move(field));
+                    const FieldArray* raw_ptr = field_ptr.get();
+                    field_arrays_storage_.push_back(std::move(field_ptr));
+                    
+                    // Create field provider from the loaded array
+                    // TODO: Handle multiple field arrays (superposition)
+                    // For now, use the last array loaded
+                    electric_field_provider = std::make_shared<GridFieldProvider>(raw_ptr);
+                    
+                } catch (const std::exception& e) {
+                    log::Logger::main()->error("Failed to load field array: {} - {}",
+                                               term.file, e.what());
+                    throw;
+                }
+            }
+            
+            if (electric_field_provider) {
+                log::Logger::main()->info("  ✓ Created GridFieldProvider for domain '{}'", domain.name);
+            }
+        }
+        
+        // Add electric field force
+        if (electric_field_provider) {
+            // Use field provider mode (interpolated fields from FieldArray)
+            registry->add_force(std::make_unique<physics::ElectricFieldForce>(electric_field_provider));
+        } else {
+            // Use analytical mode (instrument-specific fields)
+            registry->add_force(std::make_unique<physics::ElectricFieldForce>(domain));
+        }
         
         // Add magnetic field force if configured
         if (domain.fields.magnetic.enabled) {

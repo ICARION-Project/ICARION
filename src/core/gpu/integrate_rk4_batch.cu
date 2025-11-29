@@ -59,7 +59,7 @@ __global__ void integrate_rk4_batch_kernel(
     const double* __restrict__ vz_in,
     const double* __restrict__ mass,
     const double* __restrict__ charge,
-    const bool* __restrict__ active,
+    const bool* __restrict__ active_in,
     
     // Output state (t + dt)
     double* __restrict__ x_out,
@@ -68,6 +68,7 @@ __global__ void integrate_rk4_batch_kernel(
     double* __restrict__ vx_out,
     double* __restrict__ vy_out,
     double* __restrict__ vz_out,
+    bool* __restrict__ active_out,
     
     // Fields (constant for now - will be replaced with field interpolation)
     Vec3 E_field,
@@ -79,8 +80,11 @@ __global__ void integrate_rk4_batch_kernel(
 ) {
     // Grid-stride loop
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += gridDim.x * blockDim.x) {
+        // Always copy active flag (ions don't change active state during integration)
+        active_out[i] = active_in[i];
+        
         // Skip inactive ions
-        if (!active[i]) {
+        if (!active_in[i]) {
             // Copy unchanged state
             x_out[i] = x_in[i];
             y_out[i] = y_in[i];
@@ -166,6 +170,7 @@ void integrate_rk4_batch(
         // Output
         ions_out.x, ions_out.y, ions_out.z,
         ions_out.vx, ions_out.vy, ions_out.vz,
+        ions_out.active,
         
         // Fields
         E_field, B_field,

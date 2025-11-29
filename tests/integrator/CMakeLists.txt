@@ -40,3 +40,21 @@ target_link_libraries(test_simulation_engine PRIVATE icarion_core Catch2::Catch2
 target_include_directories(test_simulation_engine PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME test_simulation_engine COMMAND test_simulation_engine)
+
+# GPU Integration Tests (conditional on USE_GPU_ACCEL)
+
+if (USE_GPU_ACCEL)
+    add_executable(test_gpu_integration test_gpu_integration.cpp)
+    target_link_libraries(test_gpu_integration PRIVATE icarion_core Catch2::Catch2WithMain)
+    target_include_directories(test_gpu_integration PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    
+    add_test(NAME test_gpu_integration COMMAND test_gpu_integration)
+    set_tests_properties(test_gpu_integration PROPERTIES LABELS "gpu;integration")
+    
+    add_executable(test_cpu_gpu_parity test_cpu_gpu_parity.cpp)
+    target_link_libraries(test_cpu_gpu_parity PRIVATE icarion_core Catch2::Catch2WithMain)
+    target_include_directories(test_cpu_gpu_parity PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    
+    add_test(NAME test_cpu_gpu_parity COMMAND test_cpu_gpu_parity)
+    set_tests_properties(test_cpu_gpu_parity PROPERTIES LABELS "gpu;parity;integration")
+endif()

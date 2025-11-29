@@ -85,6 +85,17 @@ bool GPUIntegrationHelper::integrate_batch_rk4(
         // Upload (async)
         ion_state_conversion::upload_ions(ions, ions_gpu_in_, context_.get_stream());
         
+        // Initialize output buffer with input state (preserves mass, charge, species_id, domain_id)
+        // Kernel will only update pos/vel/active
+        CUDA_CHECK(cudaMemcpyAsync(ions_gpu_out_.mass, ions_gpu_in_.mass, N * sizeof(double), 
+                                  cudaMemcpyDeviceToDevice, context_.get_stream()));
+        CUDA_CHECK(cudaMemcpyAsync(ions_gpu_out_.charge, ions_gpu_in_.charge, N * sizeof(double), 
+                                  cudaMemcpyDeviceToDevice, context_.get_stream()));
+        CUDA_CHECK(cudaMemcpyAsync(ions_gpu_out_.species_id, ions_gpu_in_.species_id, N * sizeof(int), 
+                                  cudaMemcpyDeviceToDevice, context_.get_stream()));
+        CUDA_CHECK(cudaMemcpyAsync(ions_gpu_out_.domain_id, ions_gpu_in_.domain_id, N * sizeof(int), 
+                                  cudaMemcpyDeviceToDevice, context_.get_stream()));
+        
         // Integrate (async)
         integrate_rk4_batch(
             ions_gpu_in_,

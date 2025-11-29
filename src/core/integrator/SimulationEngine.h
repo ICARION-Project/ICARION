@@ -37,6 +37,11 @@
 #include <vector>
 #include <memory>
 
+#ifdef ICARION_USE_GPU
+#include "core/gpu/GPUContext.h"
+#include "core/gpu/GPUIntegrationHelper.h"
+#endif
+
 namespace ICARION {
 namespace integrator {
 
@@ -174,6 +179,13 @@ private:
     // Per-ion RNG states (persistent across timesteps!)
     std::vector<physics::EhssRng> rng_by_ion_;
     
+#ifdef ICARION_USE_GPU
+    // GPU acceleration (optional)
+    std::unique_ptr<icarion::gpu::GPUContext> gpu_context_;
+    std::unique_ptr<icarion::gpu::GPUIntegrationHelper> gpu_helper_;
+    size_t gpu_threshold_ = 5000;  ///< Minimum ions for GPU dispatch
+#endif
+    
     /**
      * @brief Initialize simulation subsystems
      * @param ions Initial ion ensemble (for metadata)
@@ -181,6 +193,36 @@ private:
      * Creates DomainManager and OutputManager, writes initial HDF5 metadata.
      */
     void initialize(const std::vector<IonState>& ions);
+    
+#ifdef ICARION_USE_GPU
+    /**
+     * @brief Initialize GPU acceleration (if available and enabled)
+     * @param enable_gpu Whether GPU is enabled in config
+     * 
+     * Attempts to create GPUContext and GPUIntegrationHelper.
+     * If GPU unavailable, disabled, or initialization fails, continues with CPU-only.
+     * 
+     * Called automatically during initialize().
+     */
+    void initialize_gpu(bool enable_gpu);
+    
+    /**
+     * @brief Try GPU batch integration (if enabled and above threshold)
+     * @param ions Ion ensemble
+     * @param dt Timestep [s]
+     * @return true if GPU integration succeeded, false if CPU fallback needed
+     * 
+     * Automatically falls back to CPU if GPU unavailable or N < threshold.
+     */
+    bool try_gpu_integration(std::vector<IonState>& ions, double dt);
+    
+    /**
+     * @brief Log GPU performance statistics
+     * 
+     * Called at simulation end to report GPU usage and speedup.
+     */
+    void finalize_gpu();
+#endif
     
     /**
      * @brief Process one timestep for all ions (legacy AoS)

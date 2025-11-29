@@ -105,7 +105,112 @@ void SimulationEngine::initialize(const std::vector<IonState>& ions) {
         << "dt = " << config_.simulation.dt_s * 1e9 << " ns, "
         << "t_max = " << config_.simulation.total_time_s * 1e6 << " µs";
     output_manager_->log_progress(msg.str());
+    
+#ifdef ICARION_USE_GPU
+    // Initialize GPU acceleration (optional, controlled by config)
+    initialize_gpu(config_.simulation.enable_gpu);
+#endif
 }
+
+#ifdef ICARION_USE_GPU
+void SimulationEngine::initialize_gpu(bool enable_gpu) {
+    PROFILE_SCOPE_IF_ENABLED("GPU Initialization");
+    
+    // Check if GPU is enabled in config
+    if (!enable_gpu) {
+        output_manager_->log_progress("GPU: Disabled in configuration, using CPU-only");
+        return;
+    }
+    
+    try {
+        // Check if CUDA is available
+        if (!icarion::gpu::GPUContext::is_cuda_available()) {
+            output_manager_->log_progress("GPU: CUDA not available, using CPU-only");
+            return;
+        }
+        
+        // Create GPU context (device 0)
+        gpu_context_ = icarion::gpu::GPUContext::create(0);
+        if (!gpu_context_) {
+            output_manager_->log_progress("GPU: Failed to create context, using CPU-only");
+            return;
+        }
+        
+        // Log GPU properties
+        const auto& props = gpu_context_->get_properties();
+        std::ostringstream gpu_msg;
+        gpu_msg << "GPU: " << props.name 
+                << " (Compute " << props.compute_capability_major << "." << props.compute_capability_minor
+                << ", " << props.total_memory / (1024*1024) << " MB)";
+        output_manager_->log_progress(gpu_msg.str());
+        
+        // Create GPU integration helper
+        gpu_helper_ = icarion::gpu::GPUIntegrationHelper::create(*gpu_context_, gpu_threshold_);
+        if (!gpu_helper_) {
+            output_manager_->log_progress("GPU: Failed to create integration helper, using CPU-only");
+            gpu_context_.reset();
+            return;
+        }
+        
+        std::ostringstream threshold_msg;
+        threshold_msg << "GPU: Integration enabled for N >= " << gpu_threshold_ << " ions";
+        output_manager_->log_progress(threshold_msg.str());
+    }
+    catch (const std::exception& e) {
+        output_manager_->log_progress(std::string("GPU: Initialization failed: ") + e.what());
+        gpu_helper_.reset();
+        gpu_context_.reset();
+    }
+}
+
+bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double dt) {
+    PROFILE_SCOPE_IF_ENABLED("GPU Integration");
+    
+    // Check if GPU available and threshold met
+    int n_ions = static_cast<int>(ions.size());
+    if (!gpu_helper_ || n_ions < static_cast<int>(gpu_helper_->get_threshold())) {
+        return false;  // Use CPU path
+    }
+    
+    // Attempt GPU batch integration
+    if (!gpu_helper_->integrate_batch_rk4(ions, dt, current_time_)) {
+        return false;  // GPU failed, use CPU fallback
+    }
+    
+    // GPU success! Update ion times (GPU only updates pos/vel)
+    #pragma omp parallel for if(config_.simulation.enable_openmp)
+    for (int i = 0; i < n_ions; ++i) {
+        if (ions[i].active) {
+            ions[i].t += dt;
+        }
+    }
+    
+    return true;  // GPU path complete
+}
+
+void SimulationEngine::finalize_gpu() {
+    if (!gpu_helper_) {
+        return;  // GPU not initialized
+    }
+    
+    const auto& stats = gpu_helper_->get_stats();
+    
+    if (stats.gpu_integrations == 0) {
+        output_manager_->log_progress("GPU: No batches processed (all below threshold)");
+        return;
+    }
+    
+    // Log GPU statistics
+    std::ostringstream msg;
+    msg << "GPU Statistics:\n"
+        << "  Batches:      " << stats.gpu_integrations << "\n"
+        << "  Total ions:   " << stats.total_ions_gpu << "\n"
+        << "  Total time:   " << stats.total_time_ms << " ms\n"
+        << "  Avg/batch:    " << (stats.total_time_ms / stats.gpu_integrations) << " ms";
+    
+    output_manager_->log_progress(msg.str());
+}
+#endif
 
 void SimulationEngine::apply_ion_birth(std::vector<IonState>& ions, double t) {
     for (auto& ion : ions) {
@@ -136,6 +241,16 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         }
     }
     
+#ifdef ICARION_USE_GPU
+    // Try GPU acceleration (auto-fallback to CPU if unavailable)
+    if (try_gpu_integration(ions, dt)) {
+        return;  // GPU succeeded
+    }
+#endif
+    
+    // ====================================================================
+    // CPU Path (fallback or small N)
+    // ====================================================================
     // Parallel ion processing (OpenMP if enabled)
     // Note: Using schedule(static) for better cache locality and lower overhead
     // Dynamic scheduling was causing severe performance degradation due to task queue contention
@@ -294,6 +409,11 @@ std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
         output_manager_->log_progress(safety_msg.str());
         output_manager_->log_progress("Safety report written: " + report_file);
     }
+    
+#ifdef ICARION_USE_GPU
+    // Log GPU performance statistics
+    finalize_gpu();
+#endif
     
     return ions;
 }

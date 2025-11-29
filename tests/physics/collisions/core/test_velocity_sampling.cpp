@@ -22,6 +22,7 @@
 
 using namespace ICARION::physics::collision_core;
 using namespace ICARION::core;
+using ICARION::physics::EhssRng;
 using Catch::Matchers::WithinAbs;
 using Catch::Matchers::WithinRel;
 

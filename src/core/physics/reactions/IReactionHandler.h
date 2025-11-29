@@ -13,7 +13,7 @@
 #include "core/config/types/ReactionConfig.h"
 #include "core/config/types/SpeciesConfig.h"
 #include "core/config/types/EnvironmentConfig.h"
-#include "core/physics/collisions/collisionHelpers.h"  // EhssRng
+#include "core/types/CollisionTypes.h"  // EhssRng
 #include <string>
 
 namespace ICARION {

@@ -9,11 +9,12 @@
 #include "core/config/types/ReactionConfig.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/config/types/SpeciesConfig.h"
-#include "core/physics/collisions/collisionHelpers.h"
+#include "core/types/CollisionTypes.h"
 #include "utils/constants.h"
 
 using Catch::Approx;
 using namespace ICARION;
+using ICARION::physics::EhssRng;
 
 TEST_CASE("StochasticReactionHandler uses mixture partial densities", "[reaction][multigas]") {
     // Species DB

@@ -3,7 +3,6 @@
 
 #include "OUCollisionHandler.h"
 #include "core/physics/collisions/core/CollisionKernels.h"
-#include "collisionHelpers.h"
 #include <stdexcept>
 
 namespace ICARION::physics {

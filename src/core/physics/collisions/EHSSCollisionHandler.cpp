@@ -4,7 +4,7 @@
 #include "EHSSCollisionHandler.h"
 #include "core/physics/collisions/core/CollisionKernels.h"
 #include "core/physics/collisions/core/VelocitySampling.h"
-#include "collisionHelpers.h"
+#include "core/physics/collisions/core/CollisionGeometry.h"
 #include "utils/constants.h"
 #include "core/log/Logger.h"
 #include <cmath>
@@ -168,7 +168,7 @@ double EHSSCollisionHandler::compute_effective_ccs(
         double Rmat[3][3];
         const int n_orientations = 64;
         for (int k = 0; k < n_orientations; ++k) {
-            rand_rotation(rng, Rmat);
+            collision_core::CollisionGeometry::generate_random_rotation(rng, Rmat);
             double Rmax = 0.0;
             for (size_t i = 0; i < radii.size(); ++i) {
                 Vec3 c{

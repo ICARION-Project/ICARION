@@ -13,6 +13,7 @@
 
 using Catch::Approx;
 using namespace ICARION;
+using ICARION::physics::EhssRng;
 
 namespace {
 

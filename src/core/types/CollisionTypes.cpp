@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
+#include "core/types/CollisionTypes.h"
+
+namespace ICARION::physics {
+
+PhysicsRng::PhysicsRng(uint64_t seed)
+    : eng_(seed)
+    , uni_(0.0, 1.0)
+    , norm_(0.0, 1.0)
+{}
+
+double PhysicsRng::uniform01() {
+    return uni_(eng_);
+}
+
+double PhysicsRng::normal() {
+    return norm_(eng_);
+}
+
+} // namespace ICARION::physics

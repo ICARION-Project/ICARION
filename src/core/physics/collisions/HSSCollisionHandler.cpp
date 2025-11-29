@@ -4,7 +4,6 @@
 #include "HSSCollisionHandler.h"
 #include "core/physics/collisions/core/CollisionKernels.h"
 #include "core/physics/collisions/core/VelocitySampling.h"
-#include "collisionHelpers.h"
 #include "utils/constants.h"
 #include "core/log/Logger.h"
 #include <cmath>

@@ -31,7 +31,7 @@
 
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
-#include "core/physics/collisions/collisionHelpers.h"  // For EhssRng
+#include "core/types/CollisionTypes.h"  // For EhssRng
 #include <vector>
 
 namespace ICARION::physics::collision_core {
@@ -173,6 +173,134 @@ private:
     static constexpr int BMAX_EXPANSION_ATTEMPT = 64;
     static constexpr double BMAX_EXPANSION_FACTOR = 1.5;
     
+    // ========================================================================
+    // EHSS Internal Data Structures
+    // ========================================================================
+    
+    /**
+     * @brief Result of molecule rotation and impact parameter calculation
+     */
+    struct RotatedMolecule {
+        std::vector<Vec3> atom_positions;  ///< Rotated atom positions
+        double max_impact_parameter;        ///< Maximum impact parameter b_max
+    };
+    
+    /**
+     * @brief Impact geometry (tangent basis + neutral offset)
+     */
+    struct ImpactGeometry {
+        Vec3 tangent1;          ///< First tangent vector (perpendicular to collision axis)
+        Vec3 tangent2;          ///< Second tangent vector
+        Vec3 neutral_offset;    ///< Neutral molecule offset in impact plane
+    };
+    
+    /**
+     * @brief Result of collision detection
+     */
+    struct CollisionResult {
+        bool hit;               ///< True if collision occurred
+        Vec3 contact_normal;    ///< Normal vector at contact point (points toward ion)
+    };
+    
+    // ========================================================================
+    // EHSS Helper Functions
+    // ========================================================================
+    
+    /**
+     * @brief Rotate molecule randomly and compute max impact parameter
+     * 
+     * Randomly rotates the molecule geometry and computes the maximum impact
+     * parameter b_max by projecting all atoms onto the plane perpendicular
+     * to the collision axis.
+     * 
+     * @param atom_centers Atom positions in molecule frame [m]
+     * @param atom_radii Atomic radii [m]
+     * @param collision_axis Direction of relative velocity (unit vector)
+     * @param ion_radius Ion hard-sphere radius [m]
+     * @param sigma_eff_m2 Optional effective cross-section [m²] for b_max expansion
+     * @param rng Random number generator
+     * @return Rotated molecule with b_max
+     */
+    static RotatedMolecule rotate_and_analyze_molecule(
+        const std::vector<Vec3>& atom_centers,
+        const std::vector<double>& atom_radii,
+        const Vec3& collision_axis,
+        double ion_radius,
+        double sigma_eff_m2,
+        EhssRng& rng
+    );
+    
+    /**
+     * @brief Sample impact geometry (tangent basis + neutral offset)
+     * 
+     * Constructs orthonormal tangent basis and samples random impact parameter.
+     * 
+     * @param collision_axis Direction of relative velocity (unit vector)
+     * @param b_max Maximum impact parameter [m]
+     * @param rng Random number generator
+     * @return Impact geometry
+     */
+    static ImpactGeometry sample_impact_geometry(
+        const Vec3& collision_axis,
+        double b_max,
+        EhssRng& rng
+    );
+    
+    /**
+     * @brief Detect collision with rotated atoms
+     * 
+     * Checks if the ion collides with any atom in the rotated molecule.
+     * If collision occurs, computes the contact normal.
+     * 
+     * @param rotated_atoms Rotated atom positions [m]
+     * @param atom_radii Atomic radii [m]
+     * @param neutral_offset Neutral molecule offset in impact plane [m]
+     * @param collision_axis Direction of relative velocity (unit vector)
+     * @param ion_radius Ion hard-sphere radius [m]
+     * @return Collision result (hit flag + contact normal)
+     */
+    static CollisionResult detect_atom_collision(
+        const std::vector<Vec3>& rotated_atoms,
+        const std::vector<double>& atom_radii,
+        const Vec3& neutral_offset,
+        const Vec3& collision_axis,
+        double ion_radius
+    );
+    
+    /**
+     * @brief Compute specular reflection velocity
+     * 
+     * Reflects relative velocity off contact normal: v' = v - 2(v·n)n
+     * 
+     * @param relative_velocity Relative velocity before collision [m/s]
+     * @param contact_normal Normal vector at contact point (unit vector)
+     * @return Reflected relative velocity [m/s]
+     */
+    static Vec3 compute_reflected_velocity(
+        const Vec3& relative_velocity,
+        const Vec3& contact_normal
+    );
+    
+    /**
+     * @brief Transform reflected relative velocity back to lab frame
+     * 
+     * Computes COM velocity and adds reflected relative velocity.
+     * 
+     * @param v_rel_reflected Reflected relative velocity [m/s] (COM frame)
+     * @param v_ion_lab Ion velocity before collision [m/s] (lab frame)
+     * @param v_neutral_lab Neutral velocity [m/s] (lab frame)
+     * @param ion_mass Ion mass [kg]
+     * @param neutral_mass Neutral mass [kg]
+     * @return Ion velocity after collision [m/s] (lab frame)
+     */
+    static Vec3 to_lab_frame(
+        const Vec3& v_rel_reflected,
+        const Vec3& v_ion_lab,
+        const Vec3& v_neutral_lab,
+        double ion_mass,
+        double neutral_mass
+    );
+    
     /**
      * @brief Sample random isotropic direction on unit sphere
      * 
@@ -183,40 +311,6 @@ private:
      * @return Unit vector with isotropic distribution
      */
     static Vec3 sample_isotropic_direction(EhssRng& rng);
-    
-    /**
-     * @brief Transform to center-of-mass frame
-     * 
-     * Computes COM velocity and returns ion velocity in COM frame.
-     * 
-     * @param v_ion_lab Ion velocity in lab frame
-     * @param v_neutral_lab Neutral velocity in lab frame
-     * @param ion_mass Ion mass
-     * @param neutral_mass Neutral mass
-     * @return Ion velocity in COM frame
-     */
-    static Vec3 to_com_frame(
-        const Vec3& v_ion_lab,
-        const Vec3& v_neutral_lab,
-        double ion_mass,
-        double neutral_mass
-    );
-    
-    /**
-     * @brief Transform from center-of-mass frame back to lab frame
-     * 
-     * @param v_ion_com Ion velocity in COM frame
-     * @param v_neutral_lab Neutral velocity in lab frame (needed for COM velocity)
-     * @param ion_mass Ion mass
-     * @param neutral_mass Neutral mass
-     * @return Ion velocity in lab frame
-     */
-    static Vec3 from_com_frame(
-        const Vec3& v_ion_com,
-        const Vec3& v_neutral_lab,
-        double ion_mass,
-        double neutral_mass
-    );
 };
 
 } // namespace ICARION::physics::collision_core

@@ -20,7 +20,7 @@
 #pragma once
 
 #include "core/types/Vec3.h"
-#include "core/physics/collisions/collisionHelpers.h"  // For EhssRng
+#include "core/types/CollisionTypes.h"  // For EhssRng
 #include "utils/constants.h"
 
 namespace ICARION::physics::collision_core {

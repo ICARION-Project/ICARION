@@ -20,6 +20,7 @@
 
 using namespace ICARION::physics::collision_core;
 using namespace ICARION::core;  // For Vec3
+using ICARION::physics::EhssRng;
 using Catch::Matchers::WithinAbs;
 
 // Numerical tolerance for floating-point comparisons

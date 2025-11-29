@@ -15,6 +15,18 @@ target_include_directories(test_collision_geometry PRIVATE
 )
 add_test(NAME CollisionGeometry COMMAND test_collision_geometry)
 
+# Test: VelocitySampling (core module - Phase 2)
+add_executable(test_velocity_sampling core/test_velocity_sampling.cpp)
+target_link_libraries(test_velocity_sampling PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_velocity_sampling PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME VelocitySampling COMMAND test_velocity_sampling)
+
 # Test: Collision Handler Factory
 add_executable(test_collision_factory test_collision_factory.cpp)
 target_link_libraries(test_collision_factory PRIVATE

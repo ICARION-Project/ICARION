@@ -29,7 +29,7 @@
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/integrator/strategies/IIntegrationStrategy.h"
 #include "core/physics/collisions/ICollisionHandler.h"
-#include "core/physics/collisions/collisionHelpers.h"  // EhssRng
+#include "core/types/CollisionTypes.h"  // EhssRng
 #include "core/physics/reactions/IReactionHandler.h"
 #include "core/integrator/DomainManager.h"
 #include "core/integrator/OutputManager.h"
@@ -171,7 +171,7 @@ private:
     int current_step_ = 0;
     
     // Per-ion RNG states (persistent across timesteps!)
-    std::vector<EhssRng> rng_by_ion_;
+    std::vector<physics::EhssRng> rng_by_ion_;
     
     /**
      * @brief Initialize simulation subsystems

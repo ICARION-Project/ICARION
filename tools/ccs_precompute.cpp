@@ -22,7 +22,8 @@
 #include <filesystem>
 
 #include "utils/constants.h"
-#include "core/physics/collisions/collisionHelpers.h"
+#include "core/types/CollisionTypes.h"
+#include "core/physics/collisions/core/CollisionGeometry.h"
 #include "core/io/moleculeLoader.h"
 #include "core/physics/collisions/geometryUtils.h"
 #include <json/json.h>
@@ -106,12 +107,12 @@ double compute_oapa_ccs(const std::vector<Vec3>& centers,
                         const std::vector<double>& radii,
                         double neutral_radius,
                         int n_orientations) {
-    EhssRng rng(12345);
+    ICARION::physics::EhssRng rng(12345);
     double A_sum = 0.0;
     double R[3][3];
 
     for (int k = 0; k < n_orientations; ++k) {
-        rand_rotation(rng, R);
+        ICARION::physics::collision_core::CollisionGeometry::generate_random_rotation(rng, R);
 
         double Rmax = 0.0;
         for (size_t i = 0; i < centers.size(); ++i) {

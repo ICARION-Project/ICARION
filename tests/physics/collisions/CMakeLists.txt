@@ -3,6 +3,42 @@
 
 # Collision handler tests
 
+# Test: CollisionGeometry (core module - Phase 1)
+add_executable(test_collision_geometry core/test_collision_geometry.cpp)
+target_link_libraries(test_collision_geometry PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_collision_geometry PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME CollisionGeometry COMMAND test_collision_geometry)
+
+# Test: VelocitySampling (core module - Phase 2)
+add_executable(test_velocity_sampling core/test_velocity_sampling.cpp)
+target_link_libraries(test_velocity_sampling PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_velocity_sampling PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME VelocitySampling COMMAND test_velocity_sampling)
+
+# Test: CollisionKernels (core module - Phase 3)
+add_executable(test_collision_kernels core/test_collision_kernels.cpp)
+target_link_libraries(test_collision_kernels PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_collision_kernels PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME CollisionKernels COMMAND test_collision_kernels)
+
 # Test: Collision Handler Factory
 add_executable(test_collision_factory test_collision_factory.cpp)
 target_link_libraries(test_collision_factory PRIVATE

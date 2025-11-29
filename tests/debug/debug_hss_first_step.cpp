@@ -4,12 +4,13 @@
 #include <iostream>
 #include <iomanip>
 #include "core/physics/collisions/HSSCollisionHandler.h"
-#include "core/physics/collisions/collisionHelpers.h"
+#include "core/types/CollisionTypes.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/types/IonState.h"
 #include "utils/constants.h"
 
 using namespace ICARION;
+using ICARION::physics::EhssRng;
 
 int main() {
     std::cout << std::fixed << std::setprecision(8);

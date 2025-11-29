@@ -21,6 +21,8 @@
 namespace ICARION {
 namespace integrator {
 
+using physics::EhssRng;
+
 SimulationEngine::SimulationEngine(
     const config::FullConfig& config,
     std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries,

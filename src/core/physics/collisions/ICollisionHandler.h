@@ -22,7 +22,7 @@
 #include "core/types/IonState.h"
 #include "core/types/IonEnsemble.h"  // For IonCollisionData view
 #include "core/config/types/EnvironmentConfig.h"
-#include "core/physics/collisions/collisionHelpers.h"  // EhssRng
+#include "core/types/CollisionTypes.h"  // EhssRng
 #include <string>
 #include <cstddef>
 

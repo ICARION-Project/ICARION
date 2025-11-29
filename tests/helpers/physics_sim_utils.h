@@ -15,11 +15,13 @@
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/physics/forces/DampingForce.h"
 #include "core/physics/collisions/CollisionHandlerFactory.h"
-#include "core/physics/collisions/collisionHelpers.h"
+#include "core/types/CollisionTypes.h"
 #include "core/integrator/SimulationEngine.h"
 #include "core/integrator/strategies/RK4Strategy.h"
 
 namespace ICARION::tests {
+
+using physics::EhssRng;
 
 struct SimpleSimTrace {
     std::vector<double> times;

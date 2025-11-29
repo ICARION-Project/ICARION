@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "OUCollisionHandler.h"
-#include "collisionHelpers.h"
+#include "core/physics/collisions/core/CollisionKernels.h"
 #include <stdexcept>
 
 namespace ICARION::physics {
@@ -28,9 +28,11 @@ bool OUCollisionHandler::handle_collision(
     const double T_K = env.temperature_K;
     
     // Apply Ornstein-Uhlenbeck velocity kick
-    // Uses existing helper function from collisionHelpers.h
+    // Uses modern CollisionKernels module
     // apply_damping_ controls whether damping is applied (false when using DampingForce)
-    apply_ou_velocity_kick(ion, rng, dt, gamma_, T_K, env.gas_velocity_m_s, apply_damping_);
+    collision_core::CollisionKernels::ou_velocity_update(
+        ion, rng, dt, gamma_, T_K, env.gas_velocity_m_s, apply_damping_
+    );
     
     return true;  // Always "collides" (continuous process)
 }

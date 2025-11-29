@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "EHSSCollisionHandler.h"
+#include "core/physics/collisions/core/CollisionKernels.h"
+#include "core/physics/collisions/core/VelocitySampling.h"
 #include "collisionHelpers.h"
 #include "utils/constants.h"
 #include "core/log/Logger.h"
@@ -51,7 +53,9 @@ bool EHSSCollisionHandler::handle_collision(
         p.Rn = neutral_radius;
         p.sigma_eff = sigma_eff;
 
-        const Vec3 v_neutral = sample_neutral_velocity(p, rng);
+        const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(
+            T_K, m_neutral, v_gas, rng
+        );
         const Vec3 v_rel = ion.vel - v_neutral;
         const double v_rel_mag = norm(v_rel);
         if (v_rel_mag < MIN_RELATIVE_VELOCITY) {
@@ -67,8 +71,10 @@ bool EHSSCollisionHandler::handle_collision(
         Vec3 v_post;
         if (it != geometry_map_.end() && !it->second.first.empty()) {
             const auto& [centers, radii] = it->second;
-            v_post = collide_ehss_cpu_geometry_given_neutral(
-                ion.vel, v_neutral, p, centers, radii, rng
+            // Compute ion radius from CCS or geometry
+            double ion_radius = std::sqrt(ion.CCS_m2 / M_PI);
+            v_post = collision_core::CollisionKernels::ehss_collision(
+                ion.vel, v_neutral, p.mi, m_neutral, ion_radius, centers, radii, rng
             );
         } else {
             throw std::runtime_error("[EHSSCollisionHandler] No geometry for species '" + ion.species_id + "'");

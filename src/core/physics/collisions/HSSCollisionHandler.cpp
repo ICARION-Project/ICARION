@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include "HSSCollisionHandler.h"
+#include "core/physics/collisions/core/CollisionKernels.h"
+#include "core/physics/collisions/core/VelocitySampling.h"
 #include "collisionHelpers.h"
 #include "utils/constants.h"
 #include "core/log/Logger.h"
@@ -156,14 +158,18 @@ bool HSSCollisionHandler::handle_collision(
         }
         p.Rn = comp.radius_m > 0.0 ? comp.radius_m : std::sqrt(std::max(p.sigma_eff, 0.0) / M_PI);
 
-        const Vec3 v_neutral = sample_neutral_velocity(p, rng);
+        const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(
+            env.temperature_K, comp.mass_kg, env.gas_velocity_m_s, rng
+        );
         const Vec3 v_rel = ion.vel - v_neutral;
         const double v_rel_mag_actual = norm(v_rel);
         if (v_rel_mag_actual < MIN_RELATIVE_VELOCITY) {
             return false;
         }
 
-        const Vec3 v_post = collide_hs_cpu(ion.vel, v_neutral, p, rng);
+        const Vec3 v_post = collision_core::CollisionKernels::hss_collision(
+            ion.vel, v_neutral, ion.mass_kg, comp.mass_kg, rng
+        );
         ion.vel = v_post;
         // For single-threaded tests, update collision statistics
         stats_.total_collisions++;
@@ -204,7 +210,9 @@ bool HSSCollisionHandler::handle_collision(
     p.Rn = std::sqrt(sigma_eff / M_PI);  // Effective neutral radius from CCS
     
     // Sample neutral velocity from Maxwell-Boltzmann distribution FIRST
-    const Vec3 v_neutral = sample_neutral_velocity(p, rng);
+    const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(
+        T_K, m_neutral, v_gas, rng
+    );
     
     // Compute relative velocity with the ACTUAL neutral we sampled
     const Vec3 v_rel = ion.vel - v_neutral;
@@ -229,10 +237,11 @@ bool HSSCollisionHandler::handle_collision(
     // ==================================================================="
     
     // Apply isotropic hard-sphere collision
-    const Vec3 v_post = collide_hs_cpu(
+    const Vec3 v_post = collision_core::CollisionKernels::hss_collision(
         ion.vel,      // Ion velocity (lab frame)
         v_neutral,    // Neutral velocity (lab frame)
-        p,            // Parameters
+        ion.mass_kg,  // Ion mass
+        m_neutral,    // Neutral mass
         rng           // RNG
     );
     

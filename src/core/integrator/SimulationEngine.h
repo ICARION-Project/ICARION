@@ -32,6 +32,7 @@
 #include "core/types/CollisionTypes.h"  // EhssRng
 #include "core/physics/reactions/IReactionHandler.h"
 #include "core/integrator/DomainManager.h"
+#include "core/integrator/DomainContext.h"
 #include "core/integrator/OutputManager.h"
 #include <vector>
 #include <memory>
@@ -231,6 +232,110 @@ private:
      * Uses OutputManager for consistent logging.
      */
     void log_progress(double t);
+    
+    // ========================================================================
+    // Ion Processing Pipeline (private inline for performance)
+    // ========================================================================
+    
+    /**
+     * @brief Find domain index for ion position
+     * @return Domain index, or -1 if outside all domains
+     */
+    inline int find_ion_domain(const IonState& ion);
+    
+    /**
+     * @brief Update ion properties when entering new domain
+     */
+    inline void update_domain_properties(IonState& ion, int domain_idx);
+    
+    /**
+     * @brief Apply collision effects to single ion
+     * @param ctx DomainContext (manages coordinate transforms)
+     * @param rng Ion-specific RNG (thread-safe)
+     */
+    inline void process_ion_collisions(
+        IonState& ion,
+        DomainContext& ctx,
+        double dt,
+        physics::EhssRng& rng,
+        int domain_idx
+    );
+    
+    /**
+     * @brief Apply reaction effects to single ion
+     * @param ctx DomainContext (manages coordinate transforms)
+     * @param rng Ion-specific RNG (thread-safe)
+     */
+    inline void process_ion_reactions(
+        IonState& ion,
+        DomainContext& ctx,
+        double dt,
+        physics::EhssRng& rng,
+        int domain_idx
+    );
+    
+    /**
+     * @brief Integrate ion trajectory (RK4/RK45/Boris)
+     * @param ctx DomainContext (manages coordinate transforms)
+     * @param ions Full ion ensemble (needed by integrator for space charge)
+     */
+    inline void integrate_ion_trajectory(
+        IonState& ion,
+        DomainContext& ctx,
+        double dt,
+        int domain_idx,
+        std::vector<IonState>& ions
+    );
+    
+    /**
+     * @brief Check if ion crossed boundaries (aperture, walls)
+     * @param pos_before Position before integration
+     * @return true if ion is still inside domain
+     */
+    inline bool check_ion_boundaries(
+        IonState& ion,
+        DomainContext& ctx,
+        int domain_idx,
+        const Vec3& pos_before
+    );
+    
+    /**
+     * @brief Check geometry-specific boundaries (cylindrical vs Orbitrap)
+     */
+    inline bool check_geometry_boundaries(
+        const Vec3& pos,
+        const config::DomainConfig& domain_config,
+        int domain_idx
+    );
+    
+    /**
+     * @brief Verify numerical safety (NaN, Inf, bounds)
+     */
+    inline void verify_ion_safety(
+        IonState& ion,
+        int ion_index,
+        int domain_idx
+    );
+    
+    /**
+     * @brief Log safety violation event
+     */
+    inline void log_safety_violation(
+        const IonState& ion,
+        int ion_index,
+        int domain_idx,
+        bool position_valid,
+        bool velocity_valid
+    );
+    
+    /**
+     * @brief Check bounds violations (position/velocity magnitude)
+     */
+    inline void check_bounds_violations(
+        IonState& ion,
+        int ion_index,
+        int domain_idx
+    );
 };
 
 }  // namespace integrator

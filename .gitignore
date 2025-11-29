@@ -1,0 +1,36 @@
+# Build artifacts
+build/
+build_*/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# Output files
+*.h5
+*.log
+*.csv
+results/
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Windows metadata
+*:Zone.Identifier
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Testing
+Testing/
+CTestTestfile.cmake

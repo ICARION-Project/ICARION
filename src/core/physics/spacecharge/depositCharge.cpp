@@ -1,0 +1,206 @@
+/**
+ * =====================================================================
+ *
+ *   Ion Collision And Reaction IntegratiON (ICARION)
+ *   -------------------------------------
+ *   A modular C++ framework for simulating ion trajectories 
+ *   in user-defined electric fields and background gas environments.
+ *
+ *   @file        depositCharge.h
+ *   @brief       Utility functions for charge deposition onto a 3D grid in ICARION.
+ *
+ * @details
+ * Provides:
+ * - Function to deposit ion charges onto a 3D grid.
+ * - Support for different deposition methods (NGP, CIC, TSC).
+ * - Charge density computation from ion positions and charges.
+ *
+ *   @date        2025-10-18
+ *   @version     0.1
+ *   @author      Christoph Schäfer
+ *   @license     MIT License
+ *
+ * =====================================================================
+ */
+#include "core/physics/spacecharge/depositCharge.h"
+#include "core/utils/safety/numericalSafetyGuards.h"
+#include <cmath>
+#include <algorithm>
+#include <iostream>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+// Performance thresholds
+namespace {
+    constexpr size_t HIGH_PERFORMANCE_THRESHOLD = 100000;    ///< Enable high-perf mode for >100k ions
+    constexpr size_t ULTRA_HIGH_PERFORMANCE_THRESHOLD = 1000000; ///< Use thread-local storage for >1M ions
+}
+
+/**
+ * @brief Deposit ion charges onto a 3D grid to compute charge density ρ [C/m³].
+ *
+ * Supports simple nearest-grid-point (NGP) deposition.
+ * Optionally extendable to cloud-in-cell (CIC) or TSC weighting.
+ *
+ * @param ions  Vector of all active ions.
+ * @param grid  Simulation grid (geometry & spacing).
+ * @return std::vector<double> Charge density array (size Nx*Ny*Nz).
+ */
+std::vector<double> deposit_charge(const std::vector<IonState>& ions,
+                                   const Grid3D& grid)
+{
+    const int Nx = grid.Nx, Ny = grid.Ny, Nz = grid.Nz;
+    std::vector<double> rho(Nx * Ny * Nz, 0.0);
+
+    const double inv_dx = 1.0 / grid.dx;
+    const double inv_dy = 1.0 / grid.dy;
+    const double inv_dz = 1.0 / grid.dz;
+    
+    // Performance optimization for many ions
+    const size_t num_ions = ions.size();
+    if (num_ions > HIGH_PERFORMANCE_THRESHOLD) {
+        std::cout << "[deposit_charge] High-performance mode for " << num_ions << " ions..." << std::endl;
+    }
+
+    // Pre-calculate cell volume (constant for uniform grid)
+    const double cell_volume = grid.dx * grid.dy * grid.dz;
+    
+    // Safety check: Prevent division by zero
+    if (!ICARION::safety::is_finite_value(cell_volume) || cell_volume <= 0.0) {
+        throw std::runtime_error("[deposit_charge] Invalid cell volume: " + std::to_string(cell_volume) + " (grid spacing may be zero or negative)");
+    }
+    
+    const double inv_cell_volume = 1.0 / cell_volume;
+    
+    // Validate grid resolution vs. ion distribution
+    if (num_ions > 0) {
+        // Estimate ion cloud size from first active ion's typical scale
+        double grid_domain_size = std::max({grid.dx * Nx, grid.dy * Ny, grid.dz * Nz});
+        double max_cell_size = std::max({grid.dx, grid.dy, grid.dz});
+        
+        // Warning: Grid too coarse (cell size > 10% of domain)
+        if (max_cell_size > 0.1 * grid_domain_size && Nx < 32 && Ny < 32 && Nz < 32) {
+            std::cerr << "[deposit_charge] WARNING: Coarse grid detected (" 
+                     << Nx << "x" << Ny << "x" << Nz << "), "
+                     << "cell size = " << max_cell_size*1e6 << " μm. "
+                     << "Consider finer resolution for better accuracy." << std::endl;
+        }
+        
+        // Critical: Very few grid points with many ions
+        size_t total_cells = static_cast<size_t>(Nx) * Ny * Nz;
+        if (num_ions > total_cells * 10) {
+            std::cerr << "[deposit_charge] WARNING: High ion density! "
+                     << num_ions << " ions on " << total_cells << " grid cells "
+                     << "(" << (num_ions / static_cast<double>(total_cells)) << " ions/cell avg). "
+                     << "Grid may be under-resolved. Consider increasing resolution." << std::endl;
+        }
+    }
+    
+    if (num_ions > ULTRA_HIGH_PERFORMANCE_THRESHOLD) {
+        // Ultra-high performance mode for millions of ions
+        // Use thread-local storage to reduce atomic contention
+#ifdef _OPENMP
+        const int num_threads = omp_get_max_threads();
+#else
+        const int num_threads = 1;
+#endif
+        std::vector<std::vector<double>> thread_rho(num_threads, std::vector<double>(rho.size(), 0.0));
+        
+        #pragma omp parallel
+        {
+#ifdef _OPENMP
+            const int thread_id = omp_get_thread_num();
+#else
+            const int thread_id = 0;
+#endif
+            auto& local_rho = thread_rho[thread_id];
+            
+            #pragma omp for nowait
+            for (size_t ion_idx = 0; ion_idx < ions.size(); ++ion_idx) {
+                const auto& ion = ions[ion_idx];
+                if (!ion.active || !ion.born) continue;
+
+                // Fast grid mapping
+                int i = static_cast<int>((ion.pos.x - grid.origin_m.x) * inv_dx);
+                int j = static_cast<int>((ion.pos.y - grid.origin_m.y) * inv_dy);
+                int k = static_cast<int>((ion.pos.z - grid.origin_m.z) * inv_dz);
+
+                if (i >= 0 && j >= 0 && k >= 0 && i < Nx && j < Ny && k < Nz) {
+                    int idx = grid.index(i,j,k);
+                    local_rho[idx] += ion.ion_charge_C * inv_cell_volume;
+                }
+            }
+        }
+        
+        // Combine thread-local results
+        #pragma omp parallel for
+        for (size_t idx = 0; idx < rho.size(); ++idx) {
+            for (int t = 0; t < num_threads; ++t) {
+                rho[idx] += thread_rho[t][idx];
+            }
+        }
+        
+    } else {
+        // Standard CIC (Cloud-In-Cell) deposition with trilinear weighting
+        // Distributes charge over 8 surrounding grid nodes for smooth fields
+        #pragma omp parallel for
+        for (size_t ion_idx = 0; ion_idx < ions.size(); ++ion_idx) {
+            const auto& ion = ions[ion_idx];
+            if (!ion.active || !ion.born)
+                continue;
+
+            // --- Position relative to grid origin ---
+            double x_rel = (ion.pos.x - grid.origin_m.x) * inv_dx;
+            double y_rel = (ion.pos.y - grid.origin_m.y) * inv_dy;
+            double z_rel = (ion.pos.z - grid.origin_m.z) * inv_dz;
+
+            // --- Lower-left grid node (base indices) ---
+            int i0 = static_cast<int>(std::floor(x_rel));
+            int j0 = static_cast<int>(std::floor(y_rel));
+            int k0 = static_cast<int>(std::floor(z_rel));
+
+            // --- Bounds check: Need i0, i0+1, j0, j0+1, k0, k0+1 all in bounds ---
+            if (i0 < 0 || j0 < 0 || k0 < 0 || i0 >= Nx-1 || j0 >= Ny-1 || k0 >= Nz-1)
+                continue; // Ion too close to boundary for CIC (would need 8 nodes)
+
+            // --- Fractional position within cell [0,1] ---
+            double fx = x_rel - i0;
+            double fy = y_rel - j0;
+            double fz = z_rel - k0;
+
+            // --- Trilinear weights (sum = 1.0) ---
+            // w[i][j][k] = weight for node (i0+i, j0+j, k0+k)
+            double w[2][2][2];
+            w[0][0][0] = (1.0 - fx) * (1.0 - fy) * (1.0 - fz);
+            w[1][0][0] = fx * (1.0 - fy) * (1.0 - fz);
+            w[0][1][0] = (1.0 - fx) * fy * (1.0 - fz);
+            w[1][1][0] = fx * fy * (1.0 - fz);
+            w[0][0][1] = (1.0 - fx) * (1.0 - fy) * fz;
+            w[1][0][1] = fx * (1.0 - fy) * fz;
+            w[0][1][1] = (1.0 - fx) * fy * fz;
+            w[1][1][1] = fx * fy * fz;
+
+            // --- Distribute charge to 8 surrounding nodes ---
+            const double charge_density = ion.ion_charge_C * inv_cell_volume;
+            
+            for (int di = 0; di <= 1; ++di) {
+                for (int dj = 0; dj <= 1; ++dj) {
+                    for (int dk = 0; dk <= 1; ++dk) {
+                        int idx = grid.index(i0 + di, j0 + dj, k0 + dk);
+                        double weighted_charge = charge_density * w[di][dj][dk];
+                        
+                        // Atomic add for thread safety
+                        #pragma omp atomic
+                        rho[idx] += weighted_charge;
+                    }
+                }
+            }
+        }
+    }
+    double total_charge = 0.0;
+    for (double r : rho) total_charge += r * (grid.dx * grid.dy * grid.dz);
+    std::cout << "[deposit_charge] Total deposited charge = "
+            << total_charge << " C" << std::endl;
+    return rho;
+}

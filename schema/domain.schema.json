@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/domain.schema.json",
+  "title": "ICARION Domain Configuration",
+  "description": "Complete configuration for a single instrument domain",
+  "type": "object",
+  
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Optional human-readable domain identifier"
+    },
+    
+    "instrument": {
+      "$ref": "common-types.schema.json#/$defs/instrument_type",
+      "description": "Instrument type for this domain"
+    },
+    
+    "integrator": {
+      "$ref": "common-types.schema.json#/$defs/solver_type",
+      "default": "RK4",
+      "description": "Integrator for this domain (overrides global simulation.integrator)"
+    },
+    
+    "geometry": {
+      "$ref": "geometry.schema.json",
+      "description": "Geometric description of the domain"
+    },
+    
+    "env": {
+      "$ref": "environment.schema.json",
+      "description": "Background gas and environmental conditions"
+    },
+    
+    "fields": {
+      "$ref": "fields.schema.json",
+      "description": "Electric and magnetic field configuration"
+    }
+  },
+  
+  "required": ["instrument", "geometry", "env"],
+  "additionalProperties": false
+}

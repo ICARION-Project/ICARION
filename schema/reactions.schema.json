@@ -1,0 +1,170 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://icarion.org/schemas/reactions/v1.0.json",
+  "title": "ICARION Reaction Database Schema",
+  "description": "Schema for ICARION reaction database (v1.0). Defines single reactant to single product reactions with concentration-dependent rate constants.",
+  "type": "object",
+  "required": ["reactions"],
+  "additionalProperties": false,
+  "properties": {
+    "reactions": {
+      "type": "array",
+      "description": "Array of reaction definitions",
+      "items": {
+        "type": "object",
+        "required": ["id", "reactant", "product", "rate_constant"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique reaction identifier",
+            "pattern": "^[A-Za-z0-9_\\-]+$",
+            "minLength": 1
+          },
+          "reactant": {
+            "type": "string",
+            "description": "Species ID of the reactant (must exist in species database)",
+            "pattern": "^[A-Za-z0-9+\\-_]+$",
+            "minLength": 1
+          },
+          "product": {
+            "type": "string",
+            "description": "Species ID of the product (must exist in species database)",
+            "pattern": "^[A-Za-z0-9+\\-_]+$",
+            "minLength": 1
+          },
+          "rate_constant": {
+            "type": "number",
+            "description": "Base rate constant (k₀ or A). Units depend on reaction order: [s⁻¹] for 0th-order (spontaneous), [m³/s] for 2nd-order (1 neutral, exponent=1), [m⁶/s] for 3rd-order (exponent=2 or two exponent=1 terms).",
+            "exclusiveMinimum": 0
+          },
+          "rate_model": {
+            "type": "string",
+            "description": "Temperature dependence model (default: Constant)",
+            "enum": ["Constant", "Arrhenius", "ModifiedArrhenius"],
+            "default": "Constant"
+          },
+          "activation_energy_eV": {
+            "type": "number",
+            "description": "Activation energy in eV (Arrhenius and ModifiedArrhenius models)",
+            "minimum": 0,
+            "default": 0
+          },
+          "temperature_exponent": {
+            "type": "number",
+            "description": "Temperature exponent n for ModifiedArrhenius: k(T) = A × (T/T₀)ⁿ × exp(-Eₐ/(kB·T))",
+            "default": 0
+          },
+          "reference_temperature_K": {
+            "type": "number",
+            "description": "Reference temperature T₀ in Kelvin (ModifiedArrhenius model)",
+            "exclusiveMinimum": 0,
+            "default": 300.0
+          },
+          "order": {
+            "type": "array",
+            "description": "Optional concentration-dependent order terms for effective rate calculation",
+            "items": {
+              "type": "object",
+              "required": ["species", "exponent"],
+              "additionalProperties": false,
+              "properties": {
+                "species": {
+                  "type": "string",
+                  "description": "Species ID for concentration dependence (must exist in species database, or 'neutral' for buffer gas)",
+                  "pattern": "^[A-Za-z0-9+\\-_]+$",
+                  "minLength": 1
+                },
+                "exponent": {
+                  "type": "integer",
+                  "description": "Concentration exponent (VALIDATION: must be 0, 1, or 2)",
+                  "minimum": 0,
+                  "maximum": 2
+                },
+                "concentration_m3": {
+                  "type": "number",
+                  "description": "Fixed concentration in m⁻³. Use -1.0 for buffer gas fallback, ≥0 for explicit value (VALIDATION: must be ≥ -1.0)",
+                  "minimum": -1.0
+                }
+              }
+            },
+            "minItems": 0,
+            "maxItems": 10
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional human-readable description of the reaction",
+            "minLength": 1
+          },
+          "reference": {
+            "type": "string",
+            "description": "Optional literature reference for rate constant",
+            "minLength": 1
+          },
+          "temperature_K": {
+            "type": "number",
+            "description": "Temperature in Kelvin at which rate constant was measured",
+            "exclusiveMinimum": 0
+          }
+        }
+      },
+      "minItems": 0
+    }
+  },
+  "examples": [
+    {
+      "reactions": [
+        {
+          "id": "rxn_001_constant_rate",
+          "reactant": "H3O+",
+          "product": "H5O2+",
+          "rate_constant": 3.5e-15,
+          "rate_model": "Constant",
+          "order": [
+            {
+              "species": "H2O",
+              "exponent": 1,
+              "concentration_m3": 2.5e25
+            }
+          ],
+          "description": "Constant rate (no T-dependence)",
+          "reference": "Smith et al., J. Chem. Phys. (2020)"
+        },
+        {
+          "id": "rxn_002_arrhenius",
+          "reactant": "H3O+",
+          "product": "NH4+",
+          "rate_constant": 1.5e-9,
+          "rate_model": "Arrhenius",
+          "activation_energy_eV": 0.12,
+          "order": [
+            {
+              "species": "NH3",
+              "exponent": 1
+            }
+          ],
+          "description": "Proton transfer with activation barrier (Arrhenius)",
+          "reference": "Doe et al., Int. J. Mass Spectrom. (2021)"
+        },
+        {
+          "id": "rxn_003_capture",
+          "reactant": "H3O+",
+          "product": "H3O+·H2O",
+          "rate_constant": 2.0e-9,
+          "rate_model": "ModifiedArrhenius",
+          "temperature_exponent": -0.5,
+          "reference_temperature_K": 300.0,
+          "activation_energy_eV": 0.0,
+          "order": [
+            {
+              "species": "H2O",
+              "exponent": 1
+            }
+          ],
+          "description": "Ion-dipole capture (T^-0.5 dependence, anti-Arrhenius)",
+          "reference": "Johnson et al., Phys. Chem. Chem. Phys. (2022)"
+        }
+      ]
+    }
+  ]
+}

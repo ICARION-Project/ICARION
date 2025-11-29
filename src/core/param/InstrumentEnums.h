@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
+/**
+ * @file InstrumentEnums.h
+ * @brief GPU-compatible instrument type enum (SSOT compliant)
+ * 
+ * @details
+ * Defines InstrumentGPU enum for GPU kernels. This is synchronized with
+ * the canonical CPU-side InstrumentType enum from instrument/InstrumentTypes.h
+ * 
+ * SSOT: Single source of truth is InstrumentType in InstrumentTypes.h
+ * This file provides GPU-compatible plain enum with compile-time validation.
+ * 
+ * @version 2.0 - SSOT Migration (2025-11-23)
+ * @author ICARION Development Team
+ */
+
+#pragma once
+#include "instrument/InstrumentTypes.h"
+
+/**
+ * @brief GPU-compatible instrument type enum
+ * 
+ * Plain enum (not enum class) for CUDA kernel compatibility.
+ * Values must match ICARION::instrument::InstrumentType exactly.
+ * 
+ * SSOT: InstrumentType (instrument/InstrumentTypes.h) is the single source of truth.
+ * This enum is automatically validated at compile-time via static_assert.
+ */
+enum InstrumentGPU : int { 
+    LQIT = 0,              ///< Linear Quadrupole Ion Trap
+    IMS = 1,               ///< Ion Mobility Spectrometry
+    Orbitrap = 2,          ///< Orbitrap Mass Analyzer
+    QuadrupoleRF = 3,      ///< Quadrupole RF (includes SLIM)
+    TOF = 4,               ///< Time-of-Flight
+    FT_ICR = 5,            ///< Fourier Transform Ion Cyclotron Resonance
+    NoFixedInstrument = 6, ///< Generic/custom instrument
+    UnknownInstrument = 7  ///< Unrecognized instrument type
+};
+
+// ============================================================================
+// SSOT Validation: Ensure GPU enum matches CPU InstrumentType
+// ============================================================================
+// These static_asserts enforce synchronization with the canonical InstrumentType.
+// If these fail, someone changed InstrumentType without updating InstrumentGPU.
+
+using InstrumentType = ICARION::instrument::InstrumentType;
+
+static_assert(static_cast<int>(InstrumentType::LQIT) == static_cast<int>(InstrumentGPU::LQIT), 
+    "SSOT violation: InstrumentGPU::LQIT must match InstrumentType::LQIT");
+static_assert(static_cast<int>(InstrumentType::IMS) == static_cast<int>(InstrumentGPU::IMS), 
+    "SSOT violation: InstrumentGPU::IMS must match InstrumentType::IMS");
+static_assert(static_cast<int>(InstrumentType::Orbitrap) == static_cast<int>(InstrumentGPU::Orbitrap), 
+    "SSOT violation: InstrumentGPU::Orbitrap must match InstrumentType::Orbitrap");
+static_assert(static_cast<int>(InstrumentType::QuadrupoleRF) == static_cast<int>(InstrumentGPU::QuadrupoleRF), 
+    "SSOT violation: InstrumentGPU::QuadrupoleRF must match InstrumentType::QuadrupoleRF");
+static_assert(static_cast<int>(InstrumentType::TOF) == static_cast<int>(InstrumentGPU::TOF), 
+    "SSOT violation: InstrumentGPU::TOF must match InstrumentType::TOF");
+static_assert(static_cast<int>(InstrumentType::FTICR) == static_cast<int>(InstrumentGPU::FT_ICR), 
+    "SSOT violation: InstrumentGPU::FT_ICR must match InstrumentType::FTICR");
+static_assert(static_cast<int>(InstrumentType::NoFixedInstrument) == static_cast<int>(InstrumentGPU::NoFixedInstrument), 
+    "SSOT violation: InstrumentGPU::NoFixedInstrument must match InstrumentType::NoFixedInstrument");
+static_assert(static_cast<int>(InstrumentType::UnknownInstrument) == static_cast<int>(InstrumentGPU::UnknownInstrument), 
+    "SSOT violation: InstrumentGPU::UnknownInstrument must match InstrumentType::UnknownInstrument");
+

@@ -1,0 +1,83 @@
+{
+  "simulation": {
+    "total_time_s": 0.0005,
+    "dt_s": 1.7850413036178111e-12,
+    "write_interval": 100,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "Langevin",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/physics/transport/drift",
+    "trajectory_file": "drift_Langevin_H3O+_150K_100Td.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "H3O+",
+        "count": 200,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            -0.025
+          ],
+          "std": [
+            0.001,
+            0.001,
+            0.001
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 150.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "Drift Tube Langevin H3O+ T=150.0K E/N=100Td",
+      "instrument": "IMS",
+      "geometry": {
+        "type": "cylinder",
+        "radius_m": 0.01,
+        "length_m": 0.05,
+        "origin_m": [
+          0.0,
+          0.0,
+          -0.025
+        ]
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 150.0,
+        "pressure_Pa": 36981.66964285715,
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {
+        "DC": {
+          "uniform_field_V_m": [
+            0.0,
+            0.0,
+            1785714.285714286
+          ]
+        }
+      }
+    }
+  ]
+}

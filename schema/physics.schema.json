@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/physics.schema.json",
+  "title": "ICARION Physics Configuration",
+  "description": "Global physics options for collision models and thermalization",
+  "type": "object",
+  
+  "properties": {
+    "collision_model": {
+      "$ref": "common-types.schema.json#/$defs/collision_model",
+      "default": "NoCollisions",
+      "description": "Collision model selector"
+    },
+    
+    "enable_reactions": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable stochastic chemical reactions"
+    },
+    
+    "enable_space_charge": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable space-charge (Coulomb) forces between ions"
+    },
+    
+    "enable_ou_thermalization": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable global thermalization (e.g. Langevin/friction)"
+    },
+    
+    "force_ou_for_stochastic": {
+      "type": "boolean",
+      "default": false,
+      "description": "Force Ornstein-Uhlenbeck style thermalization for stochastic models"
+    }
+  },
+  
+  "required": [],
+  "additionalProperties": false
+}

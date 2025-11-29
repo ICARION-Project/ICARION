@@ -1,0 +1,78 @@
+{
+  "simulation": {
+    "total_time_s": 1e-05,
+    "dt_s": 1e-09,
+    "write_interval": 10000,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "None",
+    "enable_space_charge": true,
+    "enable_reactions": false
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/performance",
+    "trajectory_file": "spacecharge_overhead_on_N500.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "H3O+",
+        "count": 500,
+        "position": {
+          "type": "uniform",
+          "min": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.01,
+            0.01,
+            0.01
+          ]
+        },
+        "velocity": {
+          "type": "maxwell",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "Space charge ON (N=500)",
+      "instrument": "Generic",
+      "geometry": {
+        "type": "box",
+        "dimensions": [
+          0.01,
+          0.01,
+          0.01
+        ],
+        "origin_m": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 0.0,
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {}
+    }
+  ]
+}

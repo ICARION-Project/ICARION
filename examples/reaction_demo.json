@@ -1,0 +1,60 @@
+{
+  "title": "Ion-Molecule Reactions Example",
+  "simulation": {
+    "integrator": "RK4",
+    "dt_s": 1e-9,
+    "total_time_s": 1e-3,
+    "write_interval": 1000
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false,
+    "enable_reactions": true
+  },
+  "output": {
+    "folder": "./results/reaction_demo",
+    "trajectory_file": "reaction_demo_trajectory.h5",
+    "print_progress": true
+  },
+  "species_database": "../data/species_database_v1.json",
+  "reaction_database": "../data/reactions_database_v1.json",
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 10,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "reaction_cell",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 101325.0,
+        "gas_species": "N2"
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 0.0,
+          "axial_V": 0.0
+        }
+      }
+    }
+  ]
+}

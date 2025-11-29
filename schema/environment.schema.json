@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/environment.schema.json",
+  "title": "ICARION Domain Environment Configuration",
+  "description": "Background gas and environmental conditions for domain",
+  "type": "object",
+  
+  "properties": {
+    "pressure_Pa": {
+      "$ref": "common-types.schema.json#/$defs/pressure",
+      "default": 101325.0,
+      "description": "Gas pressure in Pascals"
+    },
+    
+    "temperature_K": {
+      "$ref": "common-types.schema.json#/$defs/temperature",
+      "default": 300.0,
+      "description": "Gas temperature in Kelvin"
+    },
+    
+    "gas_species": {
+      "$ref": "common-types.schema.json#/$defs/gas_species",
+      "default": "He",
+      "description": "Background gas species identifier"
+    },
+    
+    "gas_velocity_m_s": {
+      "$ref": "common-types.schema.json#/$defs/velocity_vector",
+      "default": [0.0, 0.0, 0.0],
+      "description": "Background gas flow velocity vector (vx, vy, vz) in m/s"
+    },
+
+    "gas_mixture": {
+      "type": "array",
+      "description": "Optional gas mixture; if present, overrides gas_species",
+      "items": {
+        "type": "object",
+        "properties": {
+          "species": { "type": "string" },
+          "mole_fraction": { "type": "number", "minimum": 0.0 },
+          "cross_section_m2": { "type": "number" },
+          "polarizability_m3": { "type": "number" },
+          "participates_in_collisions": { "type": "boolean", "default": true },
+          "participates_in_reactions": { "type": "boolean", "default": true }
+        },
+        "required": ["species", "mole_fraction"],
+        "additionalProperties": false
+      },
+      "default": []
+    }
+  },
+  
+  "required": ["pressure_Pa", "temperature_K", "gas_species"],
+  "additionalProperties": false
+}

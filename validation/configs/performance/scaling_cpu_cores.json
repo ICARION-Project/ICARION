@@ -1,0 +1,61 @@
+{
+  "simulation": {
+    "total_time_s": 5e-5,
+    "dt_s": 1e-9,
+    "write_interval": 500,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "../../results/v1.0_test/performance",
+    "trajectory_file": "scaling_cpu_cores.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 10000,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.0005, 0.0005, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "drift_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.1,
+        "radius_m": 1
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 101325.0,
+        "gas_species": "N2",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 0.0,
+          "axial_V": 200.0
+        }
+      }
+    }
+  ]
+}

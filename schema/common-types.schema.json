@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/common-types.schema.json",
+  "title": "ICARION Common Types",
+  "description": "Reusable type definitions for ICARION configuration schemas",
+  
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "3D vector (x, y, z) in Cartesian coordinates"
+    },
+    
+    "voltage": {
+      "type": "number",
+      "description": "Voltage in Volts [V]"
+    },
+    
+    "frequency": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Frequency in Hertz [Hz]"
+    },
+    
+    "angular_frequency": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Angular frequency in radians per second [rad/s]"
+    },
+    
+    "time": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Time in seconds [s]"
+    },
+    
+    "time_non_negative": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time in seconds [s], including zero"
+    },
+    
+    "length": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Length in meters [m]"
+    },
+    
+    "length_positive": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Length in meters [m], must be positive"
+    },
+    
+    "pressure": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Pressure in Pascals [Pa]"
+    },
+    
+    "temperature": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Temperature in Kelvin [K]"
+    },
+    
+    "velocity": {
+      "type": "number",
+      "description": "Velocity in meters per second [m/s]"
+    },
+    
+    "velocity_vector": {
+      "$ref": "#/$defs/vec3",
+      "description": "3D velocity vector in meters per second [m/s]"
+    },
+    
+    "magnetic_field": {
+      "type": "number",
+      "description": "Magnetic field strength in Tesla [T]"
+    },
+    
+    "magnetic_field_vector": {
+      "$ref": "#/$defs/vec3",
+      "description": "3D magnetic field vector in Tesla [T]"
+    },
+    
+    "magnetic_field_gradient_vector": {
+      "$ref": "#/$defs/vec3",
+      "description": "3D magnetic field gradient vector in Tesla per meter [T/m]"
+    },
+    
+    "reduced_field_strength": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Reduced electric field strength in Townsend [Td] (1 Td = 10^-21 V·m²)"
+    },
+    
+    "phase": {
+      "type": "number",
+      "description": "Phase angle in radians [rad]"
+    },
+    
+    "instrument_type": {
+      "type": "string",
+      "enum": [
+        "LQIT",
+        "IMS",
+        "SIFDT-MS",
+        "SIFDT_MS",
+        "Orbitrap",
+        "Quadrupole",
+        "QuadrupoleRF",
+        "TOF",
+        "FT-ICR",
+        "FT_ICR",
+        "FTICR",
+        "NoFixedInstrument"
+      ],
+      "description": "Instrument type identifier (case-insensitive in parser, use canonical names in JSON)"
+    },
+    
+    "collision_model": {
+      "type": "string",
+      "enum": [
+        "none",
+        "NoCollisions",
+        "EHSS",
+        "HSS",
+        "Langevin",
+        "Friction",
+        "HSD",
+        "HSS",
+        "HardSphere"
+      ],
+      "description": "Collision model. Preferred: EHSS, HSS, HSD, Langevin, Friction. Legacy aliases: hsmc→HSS, HardSphere→HSD"
+    },
+    
+    "solver_type": {
+      "type": "string",
+      "enum": [
+        "RK4",
+        "RK45",
+        "Boris"
+      ],
+      "description": "Numerical integrator type"
+    },
+    
+    "gas_species": {
+      "type": "string",
+      "enum": [
+        "He",
+        "N2",
+        "O2",
+        "Ar",
+        "CO2",
+        "Ne"
+      ],
+      "description": "Background gas species identifier"
+    },
+    
+    "file_path": {
+      "type": "string",
+      "description": "File path (relative or absolute)"
+    },
+    
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Positive integer value"
+    },
+    
+    "non_negative_integer": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Non-negative integer value"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/icarion-config.schema.json",
+  "title": "ICARION v1.0 Configuration",
+  "description": "Complete configuration schema for ICARION ion trajectory simulations (v1.0 with waveform support)",
+  "type": "object",
+  
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Optional human-readable title for the simulation run"
+    },
+    
+    "species_database_path": {
+      "type": "string",
+      "description": "Path to the species database file (JSON/HDF5)"
+    },
+    
+    "reaction_database_path": {
+      "type": "string",
+      "description": "Path to reaction database file"
+    },
+    
+    "ion_cloud_path": {
+      "type": "string",
+      "description": "Path to initial ion cloud distribution file (HDF5)"
+    },
+    
+    "simulation": {
+      "$ref": "simulation.schema.json",
+      "description": "Simulation control parameters"
+    },
+    
+    "physics": {
+      "$ref": "physics.schema.json",
+      "description": "Global physics options"
+    },
+    
+    "output": {
+      "$ref": "output.schema.json",
+      "description": "Output file and logging configuration"
+    },
+    
+    "ions": {
+      "$ref": "ions.schema.json",
+      "description": "Ion initialization configuration (optional, alternative to ion_cloud_path)"
+    },
+    
+    "waveforms": {
+      "$ref": "waveform.schema.json#/definitions/WaveformLibrary",
+      "description": "Named waveform library (v1.0, optional). Define waveforms once and reference with @waveform_id"
+    },
+    
+    "domains": {
+      "type": "array",
+      "description": "List of instrument domains (multi-domain support)",
+      "items": {
+        "$ref": "domain.schema.json"
+      },
+      "minItems": 1
+    }
+  },
+  
+  "required": ["simulation", "physics", "output", "domains"],
+  "additionalProperties": false
+}

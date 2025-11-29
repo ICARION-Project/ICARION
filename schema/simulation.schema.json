@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/simulation.schema.json",
+  "title": "ICARION Simulation Configuration",
+  "description": "Top-level simulation control parameters",
+  "type": "object",
+  
+  "properties": {
+    "total_time_s": {
+      "$ref": "common-types.schema.json#/$defs/time",
+      "description": "Total physical simulation time in seconds"
+    },
+    
+    "dt_s": {
+      "$ref": "common-types.schema.json#/$defs/time",
+      "description": "Base integration time step in seconds"
+    },
+    
+    "write_interval": {
+      "$ref": "common-types.schema.json#/$defs/positive_integer",
+      "default": 100,
+      "description": "Interval (in steps) between trajectory output writes"
+    },
+    
+    "integrator": {
+      "$ref": "common-types.schema.json#/$defs/solver_type",
+      "default": "RK4",
+      "description": "Choice of integrator algorithm"
+    },
+    
+    "enable_gpu": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable GPU acceleration (where supported)"
+    },
+    
+    "enable_openmp": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable OpenMP parallelization (CPU multi-threading)"
+    },
+    
+    "rng_seed": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 42,
+      "description": "Random number generator seed for stochastic processes"
+    },
+    
+    "continue_from": {
+      "type": "string",
+      "default": "",
+      "description": "Optional path to existing trajectory file to continue simulation from"
+    },
+    
+    "continue_from_s": {
+      "$ref": "common-types.schema.json#/$defs/time_non_negative",
+      "description": "Physical time (in seconds) to continue from in the existing trajectory file"
+    },
+    
+    "auto_continue_if_active": {
+      "type": "boolean",
+      "default": false,
+      "description": "If continue_from is set, automatically continue from the end if continue_from_s is not specified"
+    },
+    
+    "rk45_settings": {
+      "type": "object",
+      "description": "Optional settings for adaptive RK45 integrator",
+      "properties": {
+        "abs_tol": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1e-14,
+          "description": "Absolute tolerance for RK45 error control"
+        },
+        "rel_tol": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1e-12,
+          "description": "Relative tolerance for RK45 error control"
+        },
+        "dt_min": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1e-12,
+          "description": "Minimum allowed adaptive timestep [s]"
+        },
+        "safety": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1,
+          "default": 0.84,
+          "description": "Safety factor for timestep adaptation"
+        },
+        "min_factor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.2,
+          "description": "Minimum factor to shrink timestep when error is large"
+        },
+        "max_factor": {
+          "type": "number",
+          "minimum": 1,
+          "default": 2.0,
+          "description": "Maximum factor to increase timestep when error is small"
+        },
+        "max_rejects": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1000,
+          "description": "Maximum number of consecutive rejected steps before aborting"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "numerical_safety": {
+      "type": "object",
+      "description": "Numerical safety guard configuration",
+      "properties": {
+        "enable_nan_checks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable NaN checks"
+        },
+        "enable_bounds_checks": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable bounds checks"
+        },
+        "enable_logging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable logging of safety violations"
+        },
+        "throw_on_violation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Throw exception on violation"
+        },
+        "attempt_recovery": {
+          "type": "boolean",
+          "default": false,
+          "description": "Attempt to recover from violations"
+        },
+        "max_position_m": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1.0,
+          "description": "Maximum allowed ion position magnitude in meters"
+        },
+        "max_velocity_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1e6,
+          "description": "Maximum allowed ion speed in m/s"
+        },
+        "max_acceleration_ms2": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1e12,
+          "description": "Maximum allowed acceleration in m/s²"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  
+  "required": ["total_time_s", "dt_s"],
+  "additionalProperties": false
+}

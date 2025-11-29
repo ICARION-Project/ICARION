@@ -1,0 +1,79 @@
+{
+  "simulation": {
+    "total_time_s": 5e-4,
+    "dt_s": 1e-9,
+    "write_interval": 1000,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 123
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": true
+  },
+  "output": {
+    "folder": "results/ims",
+    "trajectory_file": "ims_trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "drift_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, -0.01],
+        "length_m": 0.06,
+        "radius_m": 0.5
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 200.0,
+        "gas_species": "He",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 10.0,
+          "axial_V": 0.0
+        }
+      }
+    },
+    {
+      "name": "detection_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.05],
+        "length_m": 0.01,
+        "radius_m": 0.015
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 200.0,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 10.0
+        }
+      }
+    }
+  ]
+}

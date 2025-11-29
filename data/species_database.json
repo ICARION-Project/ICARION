@@ -1,0 +1,72 @@
+{
+  "species": [
+    {
+      "id": "H3O+",
+      "name": "Hydronium Ion",
+      "mass_u": 19.02,
+      "charge_e": 1,
+      "CCS_m2": 7.8e-19,
+      "geometry_file": "molecules/H3O+.json"
+    },
+    {
+      "id": "H2O",
+      "name": "Water",
+      "mass_u": 18.015,
+      "charge_e": 0,
+      "CCS_m2": 0.0
+    },
+    {
+      "id": "Pentanal",
+      "name": "Pentanal (C5H10O)",
+      "mass_u": 86.13,
+      "charge_e": 0,
+      "CCS_m2": 8.4e-19
+    },
+    {
+      "id": "PentanalH+",
+      "name": "Protonated Pentanal",
+      "mass_u": 87.138,
+      "charge_e": 1,
+      "CCS_m2": 8.6e-19,
+      "geometry_file": "molecules/PentanalH+.json"
+    },
+    {
+      "id": "PentenalH+",
+      "name": "Protonated Pentenal",
+      "mass_u": 85.122,
+      "charge_e": 1,
+      "CCS_m2": 8.2e-19,
+      "geometry_file": "molecules/PentenalH+.json"
+    },
+    {
+      "id": "He",
+      "name": "Helium",
+      "mass_u": 4.003,
+      "charge_e": 0,
+      "CCS_m2": 0.0
+    },
+    {
+      "id": "N2",
+      "name": "Nitrogen",
+      "mass_u": 28.014,
+      "charge_e": 0,
+      "CCS_m2": 0.0
+    },
+    {
+      "id": "CaffeineH+",
+      "name": "Protonated Caffeine",
+      "mass_u": 195.219,
+      "charge_e": 1,
+      "CCS_m2": 1.371e-18,
+      "geometry_file": "molecules/CaffeineH+.json"
+    },
+    {
+      "id": "26DTBPH+",
+      "name": "Protonated 2,6-Di-tert-butylphenol",
+      "mass_u": 192.33,
+      "charge_e": 1,
+      "CCS_m2": 8.7e-19,
+      "geometry_file": "molecules/26DTBPH+.json"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/output.schema.json",
+  "title": "ICARION Output Configuration",
+  "description": "Output file and logging configuration",
+  "type": "object",
+  
+  "properties": {
+    "folder": {
+      "type": "string",
+      "default": "./results",
+      "description": "Output folder for results (relative or absolute path)"
+    },
+    
+    "trajectory_file": {
+      "type": "string",
+      "default": "trajectories.h5",
+      "description": "Trajectory output filename (HDF5 format)"
+    },
+    
+    "print_progress": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable progress printing to console"
+    }
+  },
+  
+  "required": ["trajectory_file"],
+  "additionalProperties": false
+}

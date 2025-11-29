@@ -1,0 +1,17 @@
+{
+  "reactions": [
+    {
+      "id": "rxn_001_h3o_to_pentanalH+",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 3e-9,
+      "order": [
+        {
+          "species": "Pentanal",
+          "exponent": 1,
+          "concentration_m3": 2.5e19
+        }
+      ]
+    }
+  ]
+}

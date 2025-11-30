@@ -184,6 +184,11 @@ private:
     std::unique_ptr<icarion::gpu::GPUContext> gpu_context_;
     std::unique_ptr<icarion::gpu::GPUIntegrationHelper> gpu_helper_;
     size_t gpu_threshold_ = 5000;  ///< Minimum ions for GPU dispatch
+    
+    // GPU dispatch cache (avoid repeated dynamic_cast)
+    enum class IntegratorType { RK4, RK45, Boris, Unknown };
+    IntegratorType integrator_type_ = IntegratorType::Unknown;
+    bool integrator_type_cached_ = false;
 #endif
     
     /**

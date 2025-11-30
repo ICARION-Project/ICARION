@@ -194,50 +194,89 @@ const IFieldProvider* SimulationEngine::extract_field_provider(int domain_id) co
 bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double dt) {
     PROFILE_SCOPE_IF_ENABLED("GPU Integration");
     
-    // Check if GPU available and threshold met
-    int n_ions = static_cast<int>(ions.size());
-    if (!gpu_helper_ || n_ions < static_cast<int>(gpu_helper_->get_threshold())) {
-        return false;  // Use CPU path
-    }
-    
-    // Extract field provider for GPU integration
-    // Note: Currently assumes single-domain or domain 0 fields
-    // Multi-domain field handling deferred (requires per-ion domain tracking)
-    const IFieldProvider* field_provider = extract_field_provider(0);
-    
-    // =========================================================================
-    // Dynamic dispatch: Select GPU kernel based on integrator type
-    // =========================================================================
-    bool gpu_success = false;
-    
-    // Try RK4 integration (most common)
-    if (auto* rk4 = dynamic_cast<RK4Strategy*>(integrator_.get())) {
-        gpu_success = gpu_helper_->integrate_batch_rk4(ions, dt, current_time_, field_provider);
-    }
-    // Try RK45 integration (adaptive)
-    else if (auto* rk45 = dynamic_cast<RK45Strategy*>(integrator_.get())) {
-        // Get RK45 tolerance parameters from strategy
-        const auto& config = rk45->get_config();
-        gpu_success = gpu_helper_->integrate_batch_rk45(
-            ions, dt, current_time_, field_provider,
-            config.atol, config.rtol
-        );
-    }
-    // Try Boris integration (symplectic)
-    else if (auto* boris = dynamic_cast<BorisStrategy*>(integrator_.get())) {
-        gpu_success = gpu_helper_->integrate_batch_boris(ions, dt, current_time_, field_provider);
-    }
-    else {
-        // Unknown integrator type - fallback to CPU
+    // Early exit: GPU not available
+    if (!gpu_helper_) {
         return false;
     }
     
-    // Check if GPU integration succeeded
-    if (!gpu_success) {
-        return false;  // GPU failed, use CPU fallback
+    // =========================================================================
+    // Smart threshold: Adjust based on integrator complexity
+    // =========================================================================
+    // Cache integrator type to avoid repeated dynamic_cast (expensive!)
+    if (!integrator_type_cached_) {
+        if (dynamic_cast<RK4Strategy*>(integrator_.get())) {
+            integrator_type_ = IntegratorType::RK4;
+        } else if (dynamic_cast<RK45Strategy*>(integrator_.get())) {
+            integrator_type_ = IntegratorType::RK45;
+        } else if (dynamic_cast<BorisStrategy*>(integrator_.get())) {
+            integrator_type_ = IntegratorType::Boris;
+        } else {
+            integrator_type_ = IntegratorType::Unknown;
+        }
+        integrator_type_cached_ = true;
     }
     
-    // GPU success! Update ion times (GPU only updates pos/vel)
+    // Early exit: Unknown integrator
+    if (integrator_type_ == IntegratorType::Unknown) {
+        return false;
+    }
+    
+    // Dynamic threshold based on integrator cost:
+    // - Boris: 1 force eval → lower threshold (GPU beneficial at ~2000 ions)
+    // - RK4:   4 force evals → standard threshold (5000 ions)
+    // - RK45:  6 force evals → standard threshold (5000 ions)
+    size_t effective_threshold = gpu_threshold_;
+    if (integrator_type_ == IntegratorType::Boris) {
+        effective_threshold = gpu_threshold_ / 2;  // Boris cheaper → lower threshold
+    }
+    
+    int n_ions = static_cast<int>(ions.size());
+    if (n_ions < static_cast<int>(effective_threshold)) {
+        return false;  // Below threshold, use CPU
+    }
+    
+    // =========================================================================
+    // Extract field provider (assumes single-domain or domain 0)
+    // =========================================================================
+    const IFieldProvider* field_provider = extract_field_provider(0);
+    
+    // =========================================================================
+    // Dispatch to appropriate GPU kernel (no dynamic_cast overhead!)
+    // =========================================================================
+    bool gpu_success = false;
+    
+    switch (integrator_type_) {
+        case IntegratorType::RK4:
+            gpu_success = gpu_helper_->integrate_batch_rk4(ions, dt, current_time_, field_provider);
+            break;
+            
+        case IntegratorType::RK45: {
+            // Get RK45 tolerance parameters
+            auto* rk45 = static_cast<RK45Strategy*>(integrator_.get());  // Safe: type cached
+            const auto& config = rk45->get_config();
+            gpu_success = gpu_helper_->integrate_batch_rk45(
+                ions, dt, current_time_, field_provider,
+                config.atol, config.rtol
+            );
+            break;
+        }
+            
+        case IntegratorType::Boris:
+            gpu_success = gpu_helper_->integrate_batch_boris(ions, dt, current_time_, field_provider);
+            break;
+            
+        default:
+            return false;  // Should never reach here
+    }
+    
+    // GPU integration failed → fallback to CPU
+    if (!gpu_success) {
+        return false;
+    }
+    
+    // =========================================================================
+    // GPU success! Update ion times (GPU only updates pos/vel, not time)
+    // =========================================================================
     #pragma omp parallel for if(config_.simulation.enable_openmp)
     for (int i = 0; i < n_ions; ++i) {
         if (ions[i].active) {

@@ -24,7 +24,7 @@
       {
         "_comment": "Large ion cloud (5000 ions) for GPU testing",
         "id": "H3O+",
-        "count": 5001,
+        "count": 3000,
         "position": {
           "type": "gaussian",
           "center": [0.0, 0.0, 0.001],

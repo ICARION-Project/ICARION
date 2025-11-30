@@ -287,6 +287,85 @@ bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double d
     return true;  // GPU path complete
 }
 
+bool SimulationEngine::try_gpu_boundary_check(core::IonEnsemble& ensemble, int domain_idx) {
+    // Early exit: GPU not available
+    if (!gpu_helper_) {
+        return false;
+    }
+    
+    const auto& domain_config = config_.domains[domain_idx];
+    
+    // =========================================================================
+    // Conditional GPU Dispatch: Check domain config compatibility
+    // =========================================================================
+    // GPU boundary check is limited to:
+    // - Absorption only (no reflections yet)
+    // - Cylindrical geometry only (no Orbitrap hyperlogarithmic)
+    // 
+    // If domain requires unsupported features → fallback to CPU
+    // =========================================================================
+    
+    // Check 1: Boundary action must be Absorption
+    if (domain_config.boundary.type != config::BoundaryActionType::Absorption) {
+        // Reflections require: surface normals, RNG, thermal accommodation
+        // GPU doesn't support these yet → CPU fallback
+        return false;
+    }
+    
+    // Check 2: Instrument must NOT be Orbitrap
+    if (domain_config.instrument == config::Instrument::Orbitrap) {
+        // Orbitrap uses hyperlogarithmic surface with bisection-based intersection
+        // GPU doesn't support this geometry yet → CPU fallback
+        return false;
+    }
+    
+    // =========================================================================
+    // GPU-compatible configuration! Dispatch to GPU kernel
+    // =========================================================================
+    
+    // Build temporary IonState vector for GPU upload
+    // NOTE: GPU API still uses vector<IonState>, will migrate to SoA later
+    size_t n_ions = ensemble.size();
+    std::vector<IonState> ions(n_ions);
+    
+    auto* pos_x = ensemble.pos_x_data();
+    auto* pos_y = ensemble.pos_y_data();
+    auto* pos_z = ensemble.pos_z_data();
+    auto* vel_x = ensemble.vel_x_data();
+    auto* vel_y = ensemble.vel_y_data();
+    auto* vel_z = ensemble.vel_z_data();
+    auto* mass = ensemble.mass_data();
+    auto* charge = ensemble.charge_data();
+    auto* active = ensemble.active_data();
+    
+    for (size_t i = 0; i < n_ions; ++i) {
+        ions[i].pos = {pos_x[i], pos_y[i], pos_z[i]};
+        ions[i].vel = {vel_x[i], vel_y[i], vel_z[i]};
+        ions[i].mass_kg = mass[i];
+        ions[i].ion_charge_C = charge[i];
+        ions[i].active = static_cast<bool>(active[i]);
+    }
+    
+    // Call GPU batch boundary check
+    bool gpu_success = gpu_helper_->check_boundaries_batch(
+        ions,
+        domain_config.geometry.length_m,
+        domain_config.geometry.radius_m,
+        domain_idx == static_cast<int>(config_.domains.size()) - 1  // is_last_domain
+    );
+    
+    if (!gpu_success) {
+        return false;  // GPU error → CPU fallback
+    }
+    
+    // Sync active flags back to IonEnsemble
+    for (size_t i = 0; i < n_ions; ++i) {
+        active[i] = static_cast<uint8_t>(ions[i].active);
+    }
+    
+    return true;  // GPU boundary check succeeded
+}
+
 void SimulationEngine::finalize_gpu() {
     if (!gpu_helper_) {
         return;  // GPU not initialized
@@ -695,24 +774,44 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
                 integrator_->step_soa(ensemble, i, current_time_, dt, *force_registry);
             }
             
-            // 8. Boundary checks
+            // 8. Boundary checks (per-ion, CPU only for now)
+            // NOTE: GPU batch boundary check would require restructuring to separate pass
             {
                 PROFILE_SCOPE_IF_ENABLED("Boundary Checks");
                 
                 Vec3 pos_after(pos_x[i], pos_y[i], pos_z[i]);
                 
-                // Simple cylindrical boundary check
-                bool still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON);
-                still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
-                
-                if (still_inside) {
-                    double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
-                    still_inside = (r <= domain_config.geometry.radius_m + DOMAIN_BOUNDARY_EPSILON);
-                }
-                
-                if (!still_inside) {
-                    active[i] = false;
-                    continue;
+                // Instrument-specific boundary check
+                if (domain_config.instrument == config::Instrument::Orbitrap) {
+                    Vec3 pos_global = domain_manager_->local_to_global_pos(pos_after, domain_idx);
+                    int check_domain = domain_manager_->find_domain_index(pos_global);
+                    
+                    if (check_domain != domain_idx) {
+                        active[i] = false;
+                        continue;
+                    }
+                } else {
+                    // Cylindrical boundary check
+                    const double EPSILON = 1e-9;
+                    bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
+                    
+                    bool still_inside = (pos_after.z >= -EPSILON);
+                    
+                    if (is_last_domain) {
+                        still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
+                    } else {
+                        still_inside = still_inside && (pos_after.z <= domain_config.geometry.length_m + EPSILON);
+                    }
+                    
+                    if (still_inside) {
+                        double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
+                        still_inside = (r <= domain_config.geometry.radius_m + EPSILON);
+                    }
+                    
+                    if (!still_inside) {
+                        active[i] = false;
+                        continue;
+                    }
                 }
             }
             

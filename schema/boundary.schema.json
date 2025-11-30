@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.0/boundary.schema.json",
+  "title": "ICARION Boundary Configuration",
+  "description": "Ion-boundary interaction behavior when ions hit domain walls",
+  "type": "object",
+  
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["Absorption", "absorption", "SpecularReflection", "specular", "DiffuseReflection", "diffuse", "ThermalReflection", "thermal"],
+      "default": "Absorption",
+      "description": "Boundary action type: Absorption (ion removed), SpecularReflection (elastic bounce), DiffuseReflection (cosine-weighted + partial thermalization), ThermalReflection (Maxwell-Boltzmann re-emission)"
+    },
+    
+    "accommodation_coeff": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "default": 1.0,
+      "description": "Energy accommodation coefficient [0,1]. 0=fully elastic (specular), 1=fully thermal. Used for DiffuseReflection: v_out = (1-α)*v_in + α*v_thermal"
+    },
+    
+    "temperature_K": {
+      "type": "number",
+      "exclusiveMinimum": 0.0,
+      "default": 300.0,
+      "description": "Wall temperature [K] for thermal/diffuse reflection. If omitted, uses domain environment temperature"
+    }
+  },
+  
+  "additionalProperties": false
+}

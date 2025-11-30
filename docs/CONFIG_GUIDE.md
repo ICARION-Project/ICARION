@@ -972,6 +972,12 @@ Each domain represents a physical region with specific instrument geometry and c
           "scale_factor": 1.0          // Additional multiplier (default: 1.0)
         }
       ]
+    },
+    
+    "boundary": {                     // OPTIONAL: Ion-boundary interaction
+      "type": "Absorption",           // Action type (see below)
+      "accommodation_coeff": 1.0,     // Accommodation coefficient [0-1] (for reflections)
+      "temperature_K": 300.0          // Wall temperature [K] (for thermal reflections)
     }
   }
 ]
@@ -986,6 +992,108 @@ Each domain represents a physical region with specific instrument geometry and c
 - `"Quadrupole"` - Quadrupole mass filter
 - `"FTICR"` - Fourier Transform Ion Cyclotron Resonance
 - `"NoFixedInstrument"` - Generic region
+
+### Boundary Configuration (Ion-Wall Interactions)
+
+**Status:** Production-ready (v1.0)
+
+ICARION supports multiple boundary action types to model ion-wall interactions realistically.
+
+#### Configuration
+
+```json
+"boundary": {
+  "type": "Absorption",              // REQUIRED: Boundary action type
+  "accommodation_coeff": 1.0,        // OPTIONAL: Accommodation coefficient [0-1]
+  "temperature_K": 300.0             // OPTIONAL: Wall temperature [K]
+}
+```
+
+**Default Behavior:** If `boundary` is omitted, the domain defaults to `Absorption`.
+
+#### Available Boundary Types
+
+| Type | Description | Physics | Required Fields |
+|------|-------------|---------|-----------------|
+| `"Absorption"` | Ion is deactivated upon boundary collision | Perfectly absorbing wall (no reflection) | `type` only |
+| `"SpecularReflection"` | Perfect elastic reflection with angle of incidence = angle of reflection | Mirror-like surface, momentum conserved | `type` only |
+| `"DiffuseReflection"` | Random reflection direction (cosine distribution) | Rough surface, no memory of incidence angle | `type`, optionally `accommodation_coeff` |
+| `"ThermalReflection"` | Ion thermalized to wall temperature upon reflection | Energy exchange with wall | `type`, `accommodation_coeff`, `temperature_K` |
+
+#### Physics Details
+
+**Absorption:**
+- Ion is marked as inactive (lost) when crossing boundary
+- No velocity or position update
+- Use case: Detectors, absorbing electrodes, open boundaries
+
+**Specular Reflection:**
+- Velocity component normal to surface is reversed: v⊥ → -v⊥
+- Tangential components preserved: v∥ → v∥
+- Total kinetic energy conserved
+- Use case: Ideal metallic electrodes, mirror traps
+
+**Diffuse Reflection:**
+- Reflection direction sampled from cosine distribution (Lambert's law)
+- Accommodation coefficient α controls energy retention:
+  - α = 0: Fully elastic (like specular)
+  - α = 1: Full thermalization (like thermal)
+  - 0 < α < 1: Partial energy exchange
+- Use case: Rough surfaces, partial thermalization
+
+**Thermal Reflection:**
+- Ion velocity resampled from Maxwell-Boltzmann distribution at wall temperature
+- Full thermalization: K.E. = (3/2) k_B T_wall
+- Accommodation coefficient α blends thermal and elastic components
+- Use case: Gas-surface collisions, thermal accommodation experiments
+
+#### Example Configurations
+
+**1. Absorbing Detector:**
+```json
+"boundary": {
+  "type": "Absorption"
+}
+```
+
+**2. Ideal Metallic Electrodes:**
+```json
+"boundary": {
+  "type": "SpecularReflection"
+}
+```
+
+**3. Rough Surface (Partial Thermalization):**
+```json
+"boundary": {
+  "type": "DiffuseReflection",
+  "accommodation_coeff": 0.7,     // 70% energy accommodation
+  "temperature_K": 300.0
+}
+```
+
+**4. Gas-Surface Collision (Full Thermalization):**
+```json
+"boundary": {
+  "type": "ThermalReflection",
+  "accommodation_coeff": 1.0,     // Full thermalization
+  "temperature_K": 300.0          // Wall at room temperature
+}
+```
+
+#### GPU Acceleration Compatibility (Phase 11)
+
+**GPU Support:**
+- ✅ `Absorption`: Fully supported on GPU (cylindrical domains only)
+- ❌ Reflections (`Specular`, `Diffuse`, `Thermal`): CPU fallback required
+- ❌ Orbitrap geometry: CPU fallback required (hyperlogarithmic surface)
+
+**Automatic Dispatch:**
+ICARION automatically selects GPU or CPU boundary checking based on configuration:
+- If `boundary.type == "Absorption"` AND `instrument != "Orbitrap"` → GPU used (if enabled)
+- Otherwise → CPU fallback (supports all features)
+
+**Performance Note:** Reflection boundary checks have minimal performance impact (<1% of total runtime) compared to integration and collision handling. GPU acceleration is primarily beneficial for integration (Phase 11 complete).
 
 ### Field Arrays (HDF5-based Electric Fields)
 

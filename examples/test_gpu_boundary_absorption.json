@@ -1,0 +1,63 @@
+{
+  "simulation": {
+    "total_time_s": 1e-6,
+    "dt_s": 1e-9,
+    "write_interval": 100,
+    "integrator": "RK4",
+    "enable_gpu": true,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "results/test_gpu_boundary_absorption",
+    "trajectory_file": "trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 10000,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.02],
+          "std": [0.005, 0.005, 0.005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "cylindrical_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.1,
+        "radius_m": 0.05
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 101325.0,
+        "gas_species": "N2",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 50.0,
+          "axial_V": 0.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    }
+  ]
+}

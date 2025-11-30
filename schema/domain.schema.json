@@ -35,6 +35,11 @@
     "fields": {
       "$ref": "fields.schema.json",
       "description": "Electric and magnetic field configuration"
+    },
+    
+    "boundary": {
+      "$ref": "boundary.schema.json",
+      "description": "Ion-boundary interaction behavior (absorption, reflection, etc.). Defaults to Absorption if omitted"
     }
   },
   

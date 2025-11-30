@@ -232,6 +232,27 @@ private:
     const ::IFieldProvider* extract_field_provider(int domain_id) const;
     
     /**
+     * @brief Try GPU batch boundary checking (conditional on domain config)
+     * @param ensemble Ion ensemble (SoA)
+     * @param domain_idx Domain index
+     * @return true if GPU boundary check succeeded, false if CPU fallback needed
+     * 
+     * **Conditional Dispatch:**
+     * - GPU boundary check only used if:
+     *   1. Boundary type is Absorption (GPU doesn't support reflections yet)
+     *   2. Instrument is NOT Orbitrap (GPU doesn't support hyperlogarithmic boundaries)
+     * - Falls back to CPU for:
+     *   - Specular/Diffuse/Thermal Reflection (requires surface normals + RNG)
+     *   - Orbitrap (requires bisection-based intersection)
+     * 
+     * **GPU Limitations (Phase 11):**
+     * - Geometry: Cylindrical only (no Orbitrap hyperlogarithmic surface)
+     * - Action: Absorption only (no reflection, no thermal accommodation)
+     * - Future: Phase 12 will add reflection + Orbitrap support
+     */
+    bool try_gpu_boundary_check(core::IonEnsemble& ensemble, int domain_idx);
+    
+    /**
      * @brief Log GPU performance statistics
      * 
      * Called at simulation end to report GPU usage and speedup.

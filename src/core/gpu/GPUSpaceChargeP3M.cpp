@@ -12,52 +12,11 @@
 #include <cstdio>
 #include <vector>
 
-namespace ICARION {
+namespace icarion {
 namespace gpu {
 
-// Forward declare CUDA kernels (implemented in .cu file)
-extern void launch_p2g_cic_kernel(
-    const Vec3* d_positions,
-    const double* d_charges,
-    float* d_charge_density,
-    int n_ions,
-    Vec3 domain_min,
-    Vec3 inv_spacing,
-    int nx, int ny, int nz,
-    cudaStream_t stream
-);
-
-extern void launch_poisson_solve_fourier_kernel(
-    cufftComplex* d_rho_fft,
-    cufftComplex* d_phi_fft,
-    int nx, int ny, int nz_half,
-    float dx, float dy, float dz,
-    float epsilon_0,
-    cudaStream_t stream
-);
-
-extern void launch_compute_E_field_kernel(
-    const float* d_potential,
-    float* d_Ex, float* d_Ey, float* d_Ez,
-    int nx, int ny, int nz,
-    float dx, float dy, float dz,
-    cudaStream_t stream
-);
-
-extern void launch_g2p_cic_kernel(
-    const Vec3* d_positions,
-    Vec3* d_E_fields,
-    const float* d_Ex_grid,
-    const float* d_Ey_grid,
-    const float* d_Ez_grid,
-    int n_ions,
-    Vec3 domain_min,
-    Vec3 inv_spacing,
-    int nx, int ny, int nz,
-    cudaStream_t stream
-);
-
-// Implementation of main compute function (continued from .cu file)
+// Kernel launch wrappers are implemented as member functions in .cu file
+// Implementation of main compute function
 bool GPUSpaceChargeP3M::compute_space_charge_field(
     const std::vector<IonState>& ions,
     std::vector<Vec3>& E_field_out
@@ -121,22 +80,22 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
     // =========================================================================
     // Step 2: Clear charge density grid
     // =========================================================================
-    cudaMemset(d_charge_density_, 0, grid_size * sizeof(float));
+    cudaMemset(d_charge_density_, 0, grid_size * sizeof(double));
     
     // =========================================================================
     // Step 3: Particle-to-Grid (P²G) - scatter charges
     // =========================================================================
     launch_p2g_cic_kernel(
-        d_ion_positions_, d_ion_charges_, d_charge_density_,
-        n_ions, config_.domain_min, inv_spacing,
-        nx, ny, nz, nullptr
+        d_ion_positions_, d_ion_charges_,
+        n_ions, d_charge_density_
     );
+    cudaDeviceSynchronize();  // Wait for P2G to complete
     cudaEventRecord(p2g_end);
     
     // =========================================================================
     // Step 4: FFT forward (charge density → Fourier space)
     // =========================================================================
-    cufftResult fft_result = cufftExecR2C(fft_plan_forward_, d_charge_density_, d_potential_fft_);
+    cufftResult fft_result = cufftExecD2Z(fft_plan_forward_, d_charge_density_, d_potential_fft_);
     if (fft_result != CUFFT_SUCCESS) {
         fprintf(stderr, "[GPUSpaceChargeP3M] Forward FFT failed: %d\n", fft_result);
         cudaEventDestroy(start); cudaEventDestroy(stop);
@@ -149,19 +108,17 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
     // =========================================================================
     // Step 5: Solve Poisson equation in Fourier space
     // =========================================================================
-    int nz_half = nz/2 + 1;
     launch_poisson_solve_fourier_kernel(
         d_potential_fft_, d_potential_fft_,  // In-place solve
-        nx, ny, nz_half,
-        spacing.x, spacing.y, spacing.z,
-        config_.epsilon_0, nullptr
+        config_.epsilon_0
     );
+    cudaDeviceSynchronize();  // Wait for Poisson solve
     cudaEventRecord(poisson_end);
     
     // =========================================================================
     // Step 6: FFT inverse (potential in Fourier space → real space)
     // =========================================================================
-    fft_result = cufftExecC2R(fft_plan_inverse_, d_potential_fft_, d_potential_);
+    fft_result = cufftExecZ2D(fft_plan_inverse_, d_potential_fft_, d_potential_);
     if (fft_result != CUFFT_SUCCESS) {
         fprintf(stderr, "[GPUSpaceChargeP3M] Inverse FFT failed: %d\n", fft_result);
         cudaEventDestroy(start); cudaEventDestroy(stop);
@@ -171,27 +128,27 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
     }
     
     // Normalize FFT output (cuFFT doesn't normalize)
-    float scale = 1.0f / grid_size;
-    // TODO: Add kernel to scale potential or incorporate into E-field computation
+    double scale = 1.0 / grid_size;
+    launch_scale_potential_kernel(d_potential_, scale);
+    cudaDeviceSynchronize();  // Wait for scaling
     
     // =========================================================================
     // Step 7: Compute E-field from potential: E = -∇φ
     // =========================================================================
     launch_compute_E_field_kernel(
-        d_potential_, d_Ex_, d_Ey_, d_Ez_,
-        nx, ny, nz,
-        spacing.x, spacing.y, spacing.z, nullptr
+        d_potential_, d_Ex_, d_Ey_, d_Ez_
     );
+    cudaDeviceSynchronize();  // Wait for E-field computation
     
     // =========================================================================
     // Step 8: Grid-to-Particle (G²P) - interpolate E-field to ions
     // =========================================================================
     launch_g2p_cic_kernel(
-        d_ion_positions_, d_ion_E_fields_,
+        d_ion_positions_, n_ions,
         d_Ex_, d_Ey_, d_Ez_,
-        n_ions, config_.domain_min, inv_spacing,
-        nx, ny, nz, nullptr
+        d_ion_E_fields_
     );
+    cudaDeviceSynchronize();  // Wait for G2P
     cudaEventRecord(g2p_end);
     
     // =========================================================================
@@ -232,6 +189,6 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
 }
 
 } // namespace gpu
-} // namespace ICARION
+} // namespace icarion
 
 #endif // ICARION_USE_GPU

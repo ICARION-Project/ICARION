@@ -37,7 +37,7 @@
 #include <memory>
 #include <cufft.h>
 
-namespace ICARION {
+namespace icarion {
 namespace gpu {
 
 /**
@@ -200,12 +200,12 @@ private:
     double* d_ion_charges_ = nullptr;     ///< Device: ion charges [N]
     Vec3* d_ion_E_fields_ = nullptr;      ///< Device: output E-fields [N]
     
-    float* d_charge_density_ = nullptr;   ///< Device: charge grid [nx×ny×nz]
-    cufftComplex* d_potential_fft_ = nullptr;  ///< Device: FFT of potential [nx×ny×(nz/2+1)]
-    float* d_potential_ = nullptr;        ///< Device: potential grid [nx×ny×nz]
-    float* d_Ex_ = nullptr;               ///< Device: E_x grid [nx×ny×nz]
-    float* d_Ey_ = nullptr;               ///< Device: E_y grid [nx×ny×nz]
-    float* d_Ez_ = nullptr;               ///< Device: E_z grid [nx×ny×nz]
+    double* d_charge_density_ = nullptr;  ///< Device: charge grid [nx×ny×nz]
+    cufftDoubleComplex* d_potential_fft_ = nullptr;  ///< Device: FFT of potential [nx×ny×(nz/2+1)]
+    double* d_potential_ = nullptr;       ///< Device: potential grid [nx×ny×nz]
+    double* d_Ex_ = nullptr;              ///< Device: E_x grid [nx×ny×nz]
+    double* d_Ey_ = nullptr;              ///< Device: E_y grid [nx×ny×nz]
+    double* d_Ez_ = nullptr;              ///< Device: E_z grid [nx×ny×nz]
     
     // cuFFT plan handles
     cufftHandle fft_plan_forward_ = 0;    ///< R2C FFT plan
@@ -219,9 +219,44 @@ private:
     
     // Initialization flag
     bool initialized_ = false;
+    
+    // Kernel launch wrappers (implemented in .cu file)
+    void launch_p2g_cic_kernel(
+        const Vec3* d_positions,
+        const double* d_charges,
+        size_t n_ions,
+        double* d_charge_density
+    );
+    
+    void launch_poisson_solve_fourier_kernel(
+        cufftDoubleComplex* d_rho_hat,
+        cufftDoubleComplex* d_phi_hat,
+        double epsilon_0
+    );
+    
+    void launch_compute_E_field_kernel(
+        const double* d_potential,
+        double* d_Ex,
+        double* d_Ey,
+        double* d_Ez
+    );
+    
+    void launch_g2p_cic_kernel(
+        const Vec3* d_positions,
+        size_t n_ions,
+        const double* d_Ex,
+        const double* d_Ey,
+        const double* d_Ez,
+        Vec3* d_E_fields_out
+    );
+    
+    void launch_scale_potential_kernel(
+        double* d_potential,
+        double scale_factor
+    );
 };
 
 } // namespace gpu
-} // namespace ICARION
+} // namespace icarion
 
 #endif // ICARION_USE_GPU

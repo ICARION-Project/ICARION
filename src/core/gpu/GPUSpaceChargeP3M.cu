@@ -13,7 +13,7 @@
 #include <cmath>
 #include <algorithm>
 
-namespace ICARION {
+namespace icarion {
 namespace gpu {
 
 // =============================================================================
@@ -36,7 +36,7 @@ namespace gpu {
 __global__ void p2g_cic_kernel(
     const Vec3* __restrict__ positions,
     const double* __restrict__ charges,
-    float* __restrict__ charge_density,
+    double* __restrict__ charge_density,
     int n_ions,
     Vec3 domain_min,
     Vec3 inv_spacing,
@@ -83,17 +83,17 @@ __global__ void p2g_cic_kernel(
     int stride_y = nz;
     int stride_x = ny * nz;
     
-    float q_f = static_cast<float>(q);
+    double q_d = q;  // Keep as double for precision
     
     // Distribute charge to 8 corners (atomic adds for thread safety)
-    atomicAdd(&charge_density[i*stride_x + j*stride_y + k], w000 * q_f);
-    atomicAdd(&charge_density[(i+1)*stride_x + j*stride_y + k], w100 * q_f);
-    atomicAdd(&charge_density[i*stride_x + (j+1)*stride_y + k], w010 * q_f);
-    atomicAdd(&charge_density[(i+1)*stride_x + (j+1)*stride_y + k], w110 * q_f);
-    atomicAdd(&charge_density[i*stride_x + j*stride_y + (k+1)], w001 * q_f);
-    atomicAdd(&charge_density[(i+1)*stride_x + j*stride_y + (k+1)], w101 * q_f);
-    atomicAdd(&charge_density[i*stride_x + (j+1)*stride_y + (k+1)], w011 * q_f);
-    atomicAdd(&charge_density[(i+1)*stride_x + (j+1)*stride_y + (k+1)], w111 * q_f);
+    atomicAdd(&charge_density[i*stride_x + j*stride_y + k], w000 * q_d);
+    atomicAdd(&charge_density[(i+1)*stride_x + j*stride_y + k], w100 * q_d);
+    atomicAdd(&charge_density[i*stride_x + (j+1)*stride_y + k], w010 * q_d);
+    atomicAdd(&charge_density[(i+1)*stride_x + (j+1)*stride_y + k], w110 * q_d);
+    atomicAdd(&charge_density[i*stride_x + j*stride_y + (k+1)], w001 * q_d);
+    atomicAdd(&charge_density[(i+1)*stride_x + j*stride_y + (k+1)], w101 * q_d);
+    atomicAdd(&charge_density[i*stride_x + (j+1)*stride_y + (k+1)], w011 * q_d);
+    atomicAdd(&charge_density[(i+1)*stride_x + (j+1)*stride_y + (k+1)], w111 * q_d);
 }
 
 /**
@@ -113,36 +113,39 @@ __global__ void p2g_cic_kernel(
  * **Special case:** k=0 (DC component) → set φ̂(0) = 0 (arbitrary reference)
  */
 __global__ void poisson_solve_fourier_kernel(
-    cufftComplex* __restrict__ rho_fft,
-    cufftComplex* __restrict__ phi_fft,
+    cufftDoubleComplex* __restrict__ rho_fft,
+    cufftDoubleComplex* __restrict__ phi_fft,
     int nx, int ny, int nz_half,
-    float dx, float dy, float dz,
-    float epsilon_0
+    double dx, double dy, double dz,
+    double epsilon_0
 ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    int k = blockIdx.z * blockDim.z + threadIdx.z;
+    int mode_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_modes = nx * ny * nz_half;
+    if (mode_idx >= total_modes) return;
     
-    if (i >= nx || j >= ny || k >= nz_half) return;
+    // Convert 1D index to 3D (i,j,k)
+    int i = mode_idx / (ny * nz_half);
+    int j = (mode_idx % (ny * nz_half)) / nz_half;
+    int k = mode_idx % nz_half;
     
     // Wave vectors (FFT convention: k_i = 2π * freq_i / L_i)
-    float kx = (i < nx/2) ? (2.0f * M_PI * i / (nx * dx)) : (2.0f * M_PI * (i - nx) / (nx * dx));
-    float ky = (j < ny/2) ? (2.0f * M_PI * j / (ny * dy)) : (2.0f * M_PI * (j - ny) / (ny * dy));
-    float kz = 2.0f * M_PI * k / ((nz_half-1) * 2 * dz);  // R2C FFT: only positive frequencies
+    double kx = (i < nx/2) ? (2.0 * M_PI * i / (nx * dx)) : (2.0 * M_PI * (i - nx) / (nx * dx));
+    double ky = (j < ny/2) ? (2.0 * M_PI * j / (ny * dy)) : (2.0 * M_PI * (j - ny) / (ny * dy));
+    double kz = 2.0 * M_PI * k / ((nz_half-1) * 2 * dz);  // R2C FFT: only positive frequencies
     
-    float k2 = kx*kx + ky*ky + kz*kz;
+    double k2 = kx*kx + ky*ky + kz*kz;
     
     int idx = i * ny * nz_half + j * nz_half + k;
     
     // Handle DC component (k=0)
-    if (k2 < 1e-10f) {
-        phi_fft[idx].x = 0.0f;
-        phi_fft[idx].y = 0.0f;
+    if (k2 < 1e-10) {
+        phi_fft[idx].x = 0.0;
+        phi_fft[idx].y = 0.0;
         return;
     }
     
     // Poisson solve: φ̂ = ρ̂ / (ε₀ k²)
-    float scale = 1.0f / (epsilon_0 * k2);
+    double scale = 1.0 / (epsilon_0 * k2);
     phi_fft[idx].x = rho_fft[idx].x * scale;
     phi_fft[idx].y = rho_fft[idx].y * scale;
 }
@@ -161,25 +164,28 @@ __global__ void poisson_solve_fourier_kernel(
  * **Boundary:** Forward/backward differences at edges
  */
 __global__ void compute_E_field_kernel(
-    const float* __restrict__ potential,
-    float* __restrict__ Ex,
-    float* __restrict__ Ey,
-    float* __restrict__ Ez,
+    const double* __restrict__ potential,
+    double* __restrict__ Ex,
+    double* __restrict__ Ey,
+    double* __restrict__ Ez,
     int nx, int ny, int nz,
-    float dx, float dy, float dz
+    double dx, double dy, double dz
 ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    int k = blockIdx.z * blockDim.z + threadIdx.z;
+    int cell_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_cells = nx * ny * nz;
+    if (cell_idx >= total_cells) return;
     
-    if (i >= nx || j >= ny || k >= nz) return;
+    // Convert 1D index to 3D (i,j,k)
+    int i = cell_idx / (ny * nz);
+    int j = (cell_idx % (ny * nz)) / nz;
+    int k = cell_idx % nz;
     
     int stride_y = nz;
     int stride_x = ny * nz;
     int idx = i*stride_x + j*stride_y + k;
     
     // Ex: ∂φ/∂x
-    float phi_xp, phi_xm;
+    double phi_xp, phi_xm;
     if (i == 0) {
         phi_xp = potential[(i+1)*stride_x + j*stride_y + k];
         phi_xm = potential[i*stride_x + j*stride_y + k];
@@ -191,11 +197,11 @@ __global__ void compute_E_field_kernel(
     } else {
         phi_xp = potential[(i+1)*stride_x + j*stride_y + k];
         phi_xm = potential[(i-1)*stride_x + j*stride_y + k];
-        Ex[idx] = -(phi_xp - phi_xm) / (2.0f * dx);
+        Ex[idx] = -(phi_xp - phi_xm) / (2.0 * dx);
     }
     
     // Ey: ∂φ/∂y
-    float phi_yp, phi_ym;
+    double phi_yp, phi_ym;
     if (j == 0) {
         phi_yp = potential[i*stride_x + (j+1)*stride_y + k];
         phi_ym = potential[i*stride_x + j*stride_y + k];
@@ -207,11 +213,11 @@ __global__ void compute_E_field_kernel(
     } else {
         phi_yp = potential[i*stride_x + (j+1)*stride_y + k];
         phi_ym = potential[i*stride_x + (j-1)*stride_y + k];
-        Ey[idx] = -(phi_yp - phi_ym) / (2.0f * dy);
+        Ey[idx] = -(phi_yp - phi_ym) / (2.0 * dy);
     }
     
     // Ez: ∂φ/∂z
-    float phi_zp, phi_zm;
+    double phi_zp, phi_zm;
     if (k == 0) {
         phi_zp = potential[i*stride_x + j*stride_y + (k+1)];
         phi_zm = potential[i*stride_x + j*stride_y + k];
@@ -223,7 +229,7 @@ __global__ void compute_E_field_kernel(
     } else {
         phi_zp = potential[i*stride_x + j*stride_y + (k+1)];
         phi_zm = potential[i*stride_x + j*stride_y + (k-1)];
-        Ez[idx] = -(phi_zp - phi_zm) / (2.0f * dz);
+        Ez[idx] = -(phi_zp - phi_zm) / (2.0 * dz);
     }
 }
 
@@ -237,9 +243,9 @@ __global__ void compute_E_field_kernel(
 __global__ void g2p_cic_kernel(
     const Vec3* __restrict__ positions,
     Vec3* __restrict__ E_fields,
-    const float* __restrict__ Ex_grid,
-    const float* __restrict__ Ey_grid,
-    const float* __restrict__ Ez_grid,
+    const double* __restrict__ Ex_grid,
+    const double* __restrict__ Ey_grid,
+    const double* __restrict__ Ez_grid,
     int n_ions,
     Vec3 domain_min,
     Vec3 inv_spacing,
@@ -381,41 +387,51 @@ bool GPUSpaceChargeP3M::initialize() {
     // Ion data (allocated on-demand in compute_space_charge_field)
     
     // Grid data
-    err = cudaMalloc(&d_charge_density_, grid_size * sizeof(float));
+    err = cudaMalloc(&d_charge_density_, grid_size * sizeof(double));
     if (err != cudaSuccess) {
         fprintf(stderr, "[GPUSpaceChargeP3M] Failed to allocate charge_density: %s\n", cudaGetErrorString(err));
         return false;
     }
     
-    err = cudaMalloc(&d_potential_fft_, fft_size * sizeof(cufftComplex));
+    err = cudaMalloc(&d_potential_fft_, fft_size * sizeof(cufftDoubleComplex));
     if (err != cudaSuccess) {
         fprintf(stderr, "[GPUSpaceChargeP3M] Failed to allocate potential_fft: %s\n", cudaGetErrorString(err));
         return false;
     }
     
-    err = cudaMalloc(&d_potential_, grid_size * sizeof(float));
+    err = cudaMalloc(&d_potential_, grid_size * sizeof(double));
     if (err != cudaSuccess) {
         fprintf(stderr, "[GPUSpaceChargeP3M] Failed to allocate potential: %s\n", cudaGetErrorString(err));
         return false;
     }
     
-    err = cudaMalloc(&d_Ex_, grid_size * sizeof(float));
-    err |= cudaMalloc(&d_Ey_, grid_size * sizeof(float));
-    err |= cudaMalloc(&d_Ez_, grid_size * sizeof(float));
+    err = cudaMalloc(&d_Ex_, grid_size * sizeof(double));
     if (err != cudaSuccess) {
-        fprintf(stderr, "[GPUSpaceChargeP3M] Failed to allocate E-field grids: %s\n", cudaGetErrorString(err));
+        fprintf(stderr, "[GPUSpaceChargeP3M] Failed to allocate Ex: %s\n", cudaGetErrorString(err));
         return false;
     }
     
-    // Create cuFFT plans
+    err = cudaMalloc(&d_Ey_, grid_size * sizeof(double));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[GPUSpaceChargeP3M] Failed to allocate Ey: %s\n", cudaGetErrorString(err));
+        return false;
+    }
+    
+    err = cudaMalloc(&d_Ez_, grid_size * sizeof(double));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[GPUSpaceChargeP3M] Failed to allocate Ez: %s\n", cudaGetErrorString(err));
+        return false;
+    }
+    
+    // Create cuFFT plans (double precision)
     cufftResult fft_err;
-    fft_err = cufftPlan3d(&fft_plan_forward_, nx, ny, nz, CUFFT_R2C);
+    fft_err = cufftPlan3d(&fft_plan_forward_, nx, ny, nz, CUFFT_D2Z);
     if (fft_err != CUFFT_SUCCESS) {
         fprintf(stderr, "[GPUSpaceChargeP3M] Failed to create forward FFT plan: %d\n", fft_err);
         return false;
     }
     
-    fft_err = cufftPlan3d(&fft_plan_inverse_, nx, ny, nz, CUFFT_C2R);
+    fft_err = cufftPlan3d(&fft_plan_inverse_, nx, ny, nz, CUFFT_Z2D);
     if (fft_err != CUFFT_SUCCESS) {
         fprintf(stderr, "[GPUSpaceChargeP3M] Failed to create inverse FFT plan: %d\n", fft_err);
         return false;
@@ -476,17 +492,8 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
     cudaEventCreate(&stop);
     cudaEventRecord(start);
     
-    // TODO: Complete implementation in next file (this is getting long)
-    // Steps:
-    // 1. Upload ions (positions, charges)
-    // 2. Clear charge density grid
-    // 3. P²G kernel
-    // 4. FFT forward
-    // 5. Poisson solve in Fourier space
-    // 6. FFT inverse
-    // 7. Compute E-field
-    // 8. G²P kernel
-    // 9. Download E-fields
+    // Implementation continued in GPUSpaceChargeP3M.cpp
+    // This stub is kept for reference
     
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
@@ -514,5 +521,192 @@ double GPUSpaceChargeP3M::Stats::speedup_vs_direct_cpu() const {
     return cpu_time_ms / avg_time_ms;
 }
 
+// ============================================================================
+// Kernel Launch Wrappers
+// ============================================================================
+
+void GPUSpaceChargeP3M::launch_p2g_cic_kernel(
+    const Vec3* d_positions,
+    const double* d_charges,
+    size_t n_ions,
+    double* d_charge_density
+) {
+    // Grid configuration: 1 thread per ion
+    int threads_per_block = 256;
+    int blocks = (n_ions + threads_per_block - 1) / threads_per_block;
+    
+    // Compute inverse spacing
+    Vec3 domain_size = config_.domain_max - config_.domain_min;
+    Vec3 inv_spacing{
+        config_.grid_nx / domain_size.x,
+        config_.grid_ny / domain_size.y,
+        config_.grid_nz / domain_size.z
+    };
+    
+    p2g_cic_kernel<<<blocks, threads_per_block>>>(
+        d_positions,
+        d_charges,
+        d_charge_density,
+        n_ions,
+        config_.domain_min,
+        inv_spacing,
+        config_.grid_nx,
+        config_.grid_ny,
+        config_.grid_nz
+    );
+    
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[GPUSpaceChargeP3M] P2G kernel launch failed: %s\n", cudaGetErrorString(err));
+    }
+}
+
+void GPUSpaceChargeP3M::launch_poisson_solve_fourier_kernel(
+    cufftDoubleComplex* d_rho_hat,
+    cufftDoubleComplex* d_phi_hat,
+    double epsilon_0
+) {
+    // Grid configuration: 1 thread per Fourier mode
+    // Total Fourier modes = nx * ny * (nz/2 + 1) due to R2C transform
+    size_t nz_fourier = config_.grid_nz / 2 + 1;
+    size_t total_modes = config_.grid_nx * config_.grid_ny * nz_fourier;
+    
+    int threads_per_block = 256;
+    int blocks = (total_modes + threads_per_block - 1) / threads_per_block;
+    
+    // Compute grid spacing
+    Vec3 domain_size = config_.domain_max - config_.domain_min;
+    double dx = domain_size.x / config_.grid_nx;
+    double dy = domain_size.y / config_.grid_ny;
+    double dz = domain_size.z / config_.grid_nz;
+    
+    poisson_solve_fourier_kernel<<<blocks, threads_per_block>>>(
+        d_rho_hat,
+        d_phi_hat,
+        config_.grid_nx,
+        config_.grid_ny,
+        nz_fourier,
+        dx,
+        dy,
+        dz,
+        epsilon_0
+    );
+    
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[GPUSpaceChargeP3M] Poisson kernel launch failed: %s\n", cudaGetErrorString(err));
+    }
+}
+
+void GPUSpaceChargeP3M::launch_compute_E_field_kernel(
+    const double* d_potential,
+    double* d_Ex,
+    double* d_Ey,
+    double* d_Ez
+) {
+    // Grid configuration: 1 thread per grid cell
+    size_t total_cells = config_.grid_nx * config_.grid_ny * config_.grid_nz;
+    
+    int threads_per_block = 256;
+    int blocks = (total_cells + threads_per_block - 1) / threads_per_block;
+    
+    // Compute grid spacing
+    Vec3 domain_size = config_.domain_max - config_.domain_min;
+    double dx = domain_size.x / config_.grid_nx;
+    double dy = domain_size.y / config_.grid_ny;
+    double dz = domain_size.z / config_.grid_nz;
+    
+    compute_E_field_kernel<<<blocks, threads_per_block>>>(
+        d_potential,
+        d_Ex,
+        d_Ey,
+        d_Ez,
+        config_.grid_nx,
+        config_.grid_ny,
+        config_.grid_nz,
+        dx,
+        dy,
+        dz
+    );
+    
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[GPUSpaceChargeP3M] E-field kernel launch failed: %s\n", cudaGetErrorString(err));
+    }
+}
+
+void GPUSpaceChargeP3M::launch_g2p_cic_kernel(
+    const Vec3* d_positions,
+    size_t n_ions,
+    const double* d_Ex,
+    const double* d_Ey,
+    const double* d_Ez,
+    Vec3* d_E_fields_out
+) {
+    // Grid configuration: 1 thread per ion
+    int threads_per_block = 256;
+    int blocks = (n_ions + threads_per_block - 1) / threads_per_block;
+    
+    // Compute inverse spacing
+    Vec3 domain_size = config_.domain_max - config_.domain_min;
+    Vec3 inv_spacing{
+        config_.grid_nx / domain_size.x,
+        config_.grid_ny / domain_size.y,
+        config_.grid_nz / domain_size.z
+    };
+    
+    g2p_cic_kernel<<<blocks, threads_per_block>>>(
+        d_positions,
+        d_E_fields_out,
+        d_Ex,
+        d_Ey,
+        d_Ez,
+        n_ions,
+        config_.domain_min,
+        inv_spacing,
+        config_.grid_nx,
+        config_.grid_ny,
+        config_.grid_nz
+    );
+    
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[GPUSpaceChargeP3M] G2P kernel launch failed: %s\n", cudaGetErrorString(err));
+    }
+}
+
+// FFT normalization scaling kernel
+__global__ void scale_potential_kernel(
+    double* d_potential,
+    size_t total_cells,
+    double scale_factor
+) {
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < total_cells) {
+        d_potential[idx] *= scale_factor;
+    }
+}
+
+void GPUSpaceChargeP3M::launch_scale_potential_kernel(
+    double* d_potential,
+    double scale_factor
+) {
+    size_t total_cells = config_.grid_nx * config_.grid_ny * config_.grid_nz;
+    
+    int threads_per_block = 256;
+    int blocks = (total_cells + threads_per_block - 1) / threads_per_block;
+    
+    scale_potential_kernel<<<blocks, threads_per_block>>>(
+        d_potential,
+        total_cells,
+        scale_factor
+    );
+    
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[GPUSpaceChargeP3M] Scale kernel launch failed: %s\n", cudaGetErrorString(err));
+    }
+}
+
 } // namespace gpu
-} // namespace ICARION
+} // namespace icarion

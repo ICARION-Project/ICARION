@@ -18,17 +18,13 @@
 #include "collision_kernels_gpu.cuh"
 #include "utils/constants.h"
 #include <cuda_runtime.h>
-#include <stdexcept>
 #include <cmath>
-#include <algorithm>
 #include <cstdint>
 
-// Forward declarations for timing (avoid <chrono> with nvcc)
-extern "C" {
-    double get_current_time_ms();  // Implemented in _host.cpp
-}
+// Minimal C++ utilities (avoid STL headers with nvcc)
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-namespace ICARION {
+namespace icarion {
 namespace gpu {
 
 GPUCollisionHelper::~GPUCollisionHelper() {
@@ -160,9 +156,10 @@ void GPUCollisionHelper::upload_geometry_to_gpu() {
     geometry_uploaded_ = true;
 }
 
-EnvironmentParams_GPU GPUCollisionHelper::convert_environment_params(
-    const config::EnvironmentConfig& env
-) const {
+// Static helper function (internal to .cu, no longer in header)
+static EnvironmentParams_GPU convert_environment_params(
+    const ICARION::config::EnvironmentConfig& env
+) {
     EnvironmentParams_GPU params;
     params.temperature_K = env.temperature_K;
     params.pressure_Pa = env.pressure_Pa;
@@ -214,7 +211,7 @@ void GPUCollisionHelper::set_geometry(const GeometryMap& geometry_map) {
 bool GPUCollisionHelper::process_collisions_batch(
     std::vector<IonState>& ions,
     double dt,
-    const config::EnvironmentConfig& env
+    const ICARION::config::EnvironmentConfig& env
 ) {
     size_t n_ions = ions.size();
     
@@ -226,14 +223,12 @@ bool GPUCollisionHelper::process_collisions_batch(
     // Initialize cuRAND states if needed
     if (!curand_initialized_) {
         // Allocate enough states for maximum expected ions
-        size_t n_states = std::max(n_ions, size_t(10000));
+        size_t n_states = MAX(n_ions, 10000);
         initialize_curand_states(n_states);
     }
     
-    auto t_start = std::chrono::high_resolution_clock::now();
-    
-    try {
-        // ====== UPLOAD PHASE ======
+    // Note: No try/catch in CUDA code - nvcc has issues with C++ exception handling
+    // ====== UPLOAD PHASE ======
         
         // Allocate device memory (could use GPUMemoryPool here)
         double *d_vx, *d_vy, *d_vz;
@@ -252,7 +247,7 @@ bool GPUCollisionHelper::process_collisions_batch(
             cudaMalloc(&d_species_indices, n_ions * sizeof(int));
         }
         
-        // Flatten ion data (CPU → GPU)
+        // Flatten ion data (CPU -> GPU)
         std::vector<double> vx_host(n_ions), vy_host(n_ions), vz_host(n_ions);
         std::vector<double> mass_host(n_ions), ccs_host(n_ions);
         std::vector<uint8_t> active_host(n_ions);  // Use uint8_t instead of bool
@@ -265,6 +260,11 @@ bool GPUCollisionHelper::process_collisions_batch(
             mass_host[i] = ions[i].mass_kg;
             ccs_host[i] = ions[i].CCS_m2;
             active_host[i] = ions[i].active ? 1 : 0;
+            if (collision_model_ == "EHSS") {
+                // TODO: Map species_id to species_index using a species database lookup
+                species_indices_host[i] = 0;  // For now, assume single species
+            }
+        }
         
         cudaStream_t stream = (cudaStream_t)cuda_stream_;
         
@@ -288,8 +288,6 @@ bool GPUCollisionHelper::process_collisions_batch(
                             cudaMemcpyHostToDevice, stream);
         }
         
-        auto t_upload = std::chrono::high_resolution_clock::now();
-        
         // ====== COMPUTE PHASE ======
         
         EnvironmentParams_GPU env_gpu = convert_environment_params(env);
@@ -304,19 +302,17 @@ bool GPUCollisionHelper::process_collisions_batch(
             );
         } else {  // EHSS
             if (!geometry_uploaded_) {
-                throw std::runtime_error("GPUCollisionHelper: Geometry not uploaded for EHSS");
+                return false;  // Geometry not uploaded
             }
             
             launch_ehss_collision_batch(
                 d_vx, d_vy, d_vz,
                 d_mass, d_ccs, d_species_indices, d_active,
                 d_curand_states_,
-                env_gpu, geometry_gpu_, dt, n_ions,
+                env_gpu, *geometry_gpu_, dt, n_ions,
                 stream
             );
         }
-        
-        auto t_compute = std::chrono::high_resolution_clock::now();
         
         // ====== DOWNLOAD PHASE ======
         
@@ -329,8 +325,6 @@ bool GPUCollisionHelper::process_collisions_batch(
                         cudaMemcpyDeviceToHost, stream);
         
         cudaStreamSynchronize(stream);
-        
-        auto t_download = std::chrono::high_resolution_clock::now();
         
         // Write back to host ions
         for (size_t i = 0; i < n_ions; ++i) {
@@ -352,23 +346,8 @@ bool GPUCollisionHelper::process_collisions_batch(
         stats_.total_batches++;
         stats_.total_ions_processed += n_ions;
         
-        double upload_time = std::chrono::duration<double, std::milli>(
-            t_compute - t_upload).count();
-        double compute_time = std::chrono::duration<double, std::milli>(
-            t_download - t_compute).count();
-        double download_time = std::chrono::duration<double, std::milli>(
-            t_download - t_download).count();
-        
-        stats_.total_gpu_time_ms += compute_time;
-        stats_.total_transfer_time_ms += upload_time + download_time;
-        
         return true;  // Success
-        
-    } catch (const std::exception& e) {
-        // GPU error → fallback to CPU
-        return false;
-    }
 }
 
 } // namespace gpu
-} // namespace ICARION
+} // namespace icarion

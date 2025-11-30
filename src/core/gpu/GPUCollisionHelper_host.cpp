@@ -16,7 +16,7 @@
 #include <cuda_runtime.h>
 #include <stdexcept>
 
-namespace ICARION {
+namespace icarion {
 namespace gpu {
 
 // Helper functions (implemented here, used by factory/constructor)
@@ -70,4 +70,4 @@ GPUCollisionHelper::GPUCollisionHelper(
 // Destructor implemented in .cu file (needs cudaFree)
 
 } // namespace gpu
-} // namespace ICARION
+} // namespace icarion

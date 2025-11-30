@@ -9,8 +9,9 @@
 #include "collision_kernels_gpu.cuh"
 #include <cmath>
 
-namespace ICARION {
-namespace gpu {
+// ============================================================================
+// Constants and Helper Functions (global scope for kernel access)
+// ============================================================================
 
 // Physical constants
 constexpr double BOLTZMANN_CONSTANT = 1.380649e-23; // J/K
@@ -42,6 +43,8 @@ __device__ inline double sample_maxwell_boltzmann_component(
     double sigma = sqrt(BOLTZMANN_CONSTANT * temperature_K / mass_kg);
     double u1 = curand_uniform_double(state);
     double u2 = curand_uniform_double(state);
+    // Guard against u1 = 0 (which would give log(0) = -inf)
+    if (u1 < 1e-10) u1 = 1e-10;
     return sigma * sqrt(-2.0 * log(u1)) * cos(TWO_PI * u2);
 }
 
@@ -49,6 +52,7 @@ __device__ inline double sample_maxwell_boltzmann_component(
  * @brief Sample isotropic unit vector (uniform on sphere)
  * 
  * Marsaglia (1972) method: rejection sampling on unit sphere
+ * Correct formula from original paper
  */
 __device__ inline void sample_isotropic_direction(
     curandState* state,
@@ -63,10 +67,12 @@ __device__ inline void sample_isotropic_direction(
         s = x * x + y * y;
     } while (s >= 1.0 || s < 1e-10);
     
-    double factor = sqrt((1.0 - s) / s);
-    x *= factor;
-    y *= factor;
+    // Marsaglia (1972): uniform distribution on unit sphere
+    double factor = sqrt(1.0 - s);  // = sqrt(1 - x² - y²)
+    x = 2.0 * x * factor;
+    y = 2.0 * y * factor;
     z = 1.0 - 2.0 * s;
+    // Result: x² + y² + z² = 1 (unit sphere)
 }
 
 /**
@@ -129,7 +135,7 @@ __device__ inline void rotate_euler_zyz(
 }
 
 // ============================================================================
-// Kernel Implementations
+// Kernel Implementations (use global helpers and constants)
 // ============================================================================
 
 __global__ void init_curand_states(
@@ -151,7 +157,7 @@ __global__ void hss_collision_kernel(
     const double* ccs,
     const uint8_t* active,
     curandState* curand_states,
-    const EnvironmentParams_GPU env,
+    const icarion::gpu::EnvironmentParams_GPU env,
     double dt,
     int n_ions
 ) {
@@ -189,10 +195,10 @@ __global__ void hss_collision_kernel(
         
         if (vrel_mag < MIN_VELOCITY_MAG) continue;
         
-        // Collision probability: P = 1 - exp(-v_rel * σ * n * dt / 4)
+        // Collision probability: P = 1 - exp(-n * σ * v_rel * dt)
         // where n = P / (kT) is number density
         double number_density = env.pressure_Pa / (BOLTZMANN_CONSTANT * env.temperature_K);
-        double collision_rate = 0.25 * vrel_mag * sigma * number_density;
+        double collision_rate = vrel_mag * sigma * number_density;
         double collision_prob = 1.0 - exp(-collision_rate * dt);
         
         // Check if collision occurs
@@ -201,34 +207,30 @@ __global__ void hss_collision_kernel(
         
         // ====== COLLISION OCCURS ======
         
-        // Transform to center-of-mass frame
+        // Compute center-of-mass velocity
         double m_neutral = env.neutral_mass_kg;
         double m_total = m_ion + m_neutral;
         double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
         double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
         double vcm_z = (m_ion * vz + m_neutral * vn_z) / m_total;
         
-        double vion_cm_x = vx - vcm_x;
-        double vion_cm_y = vy - vcm_y;
-        double vion_cm_z = vz - vcm_z;
+        // Relative velocity (already computed above as vrel_x, vrel_y, vrel_z)
+        // vrel_mag already computed
         
         // Sample isotropic scattering direction (uniform sphere)
         double nx, ny, nz;
         sample_isotropic_direction(&local_state, nx, ny, nz);
         
         // Preserve relative speed magnitude, change direction
-        double vion_cm_mag = sqrt(vion_cm_x * vion_cm_x + 
-                                   vion_cm_y * vion_cm_y + 
-                                   vion_cm_z * vion_cm_z);
+        double vrel_scattered_x = nx * vrel_mag;
+        double vrel_scattered_y = ny * vrel_mag;
+        double vrel_scattered_z = nz * vrel_mag;
         
-        vion_cm_x = nx * vion_cm_mag;
-        vion_cm_y = ny * vion_cm_mag;
-        vion_cm_z = nz * vion_cm_mag;
-        
-        // Transform back to lab frame
-        vx = vion_cm_x + vcm_x;
-        vy = vion_cm_y + vcm_y;
-        vz = vion_cm_z + vcm_z;
+        // Transform back to lab frame (reduced mass factor)
+        double reduced_mass_factor = m_neutral / m_total;
+        vx = vcm_x + vrel_scattered_x * reduced_mass_factor;
+        vy = vcm_y + vrel_scattered_y * reduced_mass_factor;
+        vz = vcm_z + vrel_scattered_z * reduced_mass_factor;
         
         // Write back
         vx_inout[i] = vx;
@@ -249,8 +251,8 @@ __global__ void ehss_collision_kernel(
     const int* species_indices,
     const uint8_t* active,
     curandState* curand_states,
-    const EnvironmentParams_GPU env,
-    const GeometryData_GPU geometry,
+    const icarion::gpu::EnvironmentParams_GPU env,
+    const icarion::gpu::GeometryData_GPU geometry,
     double dt,
     int n_ions
 ) {
@@ -478,8 +480,11 @@ __global__ void ehss_collision_kernel(
 }
 
 // ============================================================================
-// Host-side Launch Wrappers
+// Host-side Launch Wrappers (back in namespace)
 // ============================================================================
+
+namespace icarion {
+namespace gpu {
 
 void launch_hss_collision_batch(
     double* vx_inout,
@@ -534,4 +539,4 @@ void launch_ehss_collision_batch(
 }
 
 } // namespace gpu
-} // namespace ICARION
+} // namespace icarion

@@ -40,7 +40,7 @@
 #include <cstddef>
 #endif
 
-namespace ICARION {
+namespace icarion {
 namespace gpu {
 
 /**
@@ -72,7 +72,9 @@ struct GeometryData_GPU {
 };
 
 }  // namespace gpu
-}  // namespace ICARION
+}  // namespace icarion
+
+// CUDA kernel declarations (must be outside namespace)
 
 /**
  * @brief Initialize cuRAND states for collision kernels
@@ -122,7 +124,7 @@ __global__ void hss_collision_kernel(
     const double* ccs,
     const uint8_t* active,
     curandState* curand_states,
-    const EnvironmentParams_GPU env,
+    const icarion::gpu::EnvironmentParams_GPU env,
     double dt,
     int n_ions
 );
@@ -166,11 +168,15 @@ __global__ void ehss_collision_kernel(
     const int* species_indices,
     const uint8_t* active,
     curandState* curand_states,
-    const EnvironmentParams_GPU env,
-    const GeometryData_GPU geometry,
+    const icarion::gpu::EnvironmentParams_GPU env,
+    const icarion::gpu::GeometryData_GPU geometry,
     double dt,
     int n_ions
 );
+
+// Host-side launch wrappers (back in namespace for C++ linkage)
+namespace icarion {
+namespace gpu {
 
 /**
  * @brief Host-side wrapper for HSS collision batch
@@ -239,4 +245,4 @@ void launch_ehss_collision_batch(
 );
 
 } // namespace gpu
-} // namespace ICARION
+} // namespace icarion

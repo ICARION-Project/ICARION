@@ -10,7 +10,7 @@
  * 
  * **Design:**
  * - Automatic dispatch: GPU if N >= threshold, else return false
- * - Async pipeline: upload → compute → download
+ * - Async pipeline: upload -> compute -> download
  * - Buffer management via GPUMemoryPool
  * - cuRAND state persistence across timesteps
  * - Performance statistics tracking
@@ -43,9 +43,21 @@
 #include <utility>
 #include <cstdint>  // For uint8_t
 
-namespace ICARION { 
+// Forward declarations (or full includes for non-CUDA files)
+#ifndef __CUDACC__
+    // Regular C++ compilation - include full definition
+    #include "GPUContext.h"
+#else
+    // CUDA compilation - forward declare only (to avoid header issues)
+    namespace icarion {
+    namespace gpu {
+        class GPUContext;
+    }
+    }
+#endif
+
+namespace icarion { 
 namespace gpu {
-    class GPUContext;  // Forward declaration
     struct EnvironmentParams_GPU;  // Forward declaration (defined in collision_kernels_gpu.cuh)
     struct GeometryData_GPU;  // Forward declaration (defined in collision_kernels_gpu.cuh)
 }
@@ -55,7 +67,7 @@ namespace gpu {
 struct curandStateXORWOW;
 typedef struct curandStateXORWOW curandState;
 
-namespace ICARION {
+namespace icarion {
 namespace gpu {
 
 // Forward declarations from collision_kernels_gpu.cuh
@@ -121,7 +133,7 @@ public:
     bool process_collisions_batch(
         std::vector<IonState>& ions,
         double dt,
-        const config::EnvironmentConfig& env
+        const ICARION::config::EnvironmentConfig& env
     );
     
     /**
@@ -134,7 +146,7 @@ public:
      * 
      * Must be called before processing if using EHSS model.
      * 
-     * @param geometry_map Species → (atom_centers, atom_radii)
+     * @param geometry_map Species -> (atom_centers, atom_radii)
      */
     void set_geometry(const GeometryMap& geometry_map);
     
@@ -177,12 +189,8 @@ private:
      */
     void upload_geometry_to_gpu();
     
-    /**
-     * @brief Convert EnvironmentConfig to GPU format
-     */
-    EnvironmentParams_GPU convert_environment_params(
-        const config::EnvironmentConfig& env
-    ) const;
+    // Internal helper (implemented in .cu)
+    // EnvironmentParams_GPU convert_environment_params(const ICARION::config::EnvironmentConfig&) const;
     
     void* cuda_stream_;  // cudaStream_t stored as void* to avoid nvcc header issues
     size_t threshold_;
@@ -204,6 +212,6 @@ private:
 };
 
 } // namespace gpu
-} // namespace ICARION
+} // namespace icarion
 
 #endif // ICARION_USE_GPU

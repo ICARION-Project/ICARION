@@ -4,7 +4,7 @@
 
 set -e
 
-CONFIG="../examples/ims_basic.json"
+CONFIG="configs/performance/cpu_scaling.json"
 RESULTS_DIR="./results/thread_scaling"
 
 echo "============================================"

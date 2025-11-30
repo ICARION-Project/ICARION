@@ -66,4 +66,20 @@ if (USE_GPU_ACCEL)
     set_tests_properties(test_gpu_field_interpolation PROPERTIES 
         LABELS "gpu;fields;integration"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    
+    # GPU RK45 integration test
+    add_executable(test_gpu_rk45 test_gpu_rk45.cpp)
+    target_link_libraries(test_gpu_rk45 PRIVATE icarion_core)
+    target_include_directories(test_gpu_rk45 PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    
+    add_test(NAME test_gpu_rk45 COMMAND test_gpu_rk45)
+    set_tests_properties(test_gpu_rk45 PROPERTIES LABELS "gpu;rk45;integration")
+    
+    # GPU Boris pusher integration test
+    add_executable(test_gpu_boris test_gpu_boris.cpp)
+    target_link_libraries(test_gpu_boris PRIVATE icarion_core)
+    target_include_directories(test_gpu_boris PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    
+    add_test(NAME test_gpu_boris COMMAND test_gpu_boris)
+    set_tests_properties(test_gpu_boris PROPERTIES LABELS "gpu;boris;integration")
 endif()

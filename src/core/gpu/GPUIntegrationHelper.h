@@ -70,6 +70,48 @@ public:
     );
     
     /**
+     * @brief Batch RK45 (Dormand-Prince) integration on GPU
+     * 
+     * Adaptive 4th/5th order Runge-Kutta with automatic step size control.
+     * Each ion adapts its substep size independently based on local error.
+     * 
+     * @param ions Ion states (modified in-place)
+     * @param dt Maximum timestep [s]
+     * @param t Current time [s]
+     * @param field_provider Optional field provider for position-dependent fields
+     * @param atol Absolute tolerance (default: 1e-12)
+     * @param rtol Relative tolerance (default: 1e-6)
+     * @return true if GPU integration succeeded, false if fallback needed
+     */
+    bool integrate_batch_rk45(
+        std::vector<ICARION::core::IonState>& ions,
+        double dt,
+        double t,
+        const IFieldProvider* field_provider = nullptr,
+        double atol = 1e-12,
+        double rtol = 1e-6
+    );
+    
+    /**
+     * @brief Batch Boris pusher integration on GPU
+     * 
+     * Symplectic method optimal for magnetic field-dominated systems.
+     * Second-order accurate and conserves energy in pure B-field.
+     * 
+     * @param ions Ion states (modified in-place)
+     * @param dt Timestep [s]
+     * @param t Current time [s]
+     * @param field_provider Optional field provider for position-dependent fields
+     * @return true if GPU integration succeeded, false if fallback needed
+     */
+    bool integrate_batch_boris(
+        std::vector<ICARION::core::IonState>& ions,
+        double dt,
+        double t,
+        const IFieldProvider* field_provider = nullptr
+    );
+    
+    /**
      * @brief Check if GPU is enabled and operational
      */
     bool is_enabled() const { return enabled_; }

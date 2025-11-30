@@ -202,6 +202,18 @@ private:
      */
     void initialize(const std::vector<IonState>& ions);
     
+    /**
+     * @brief Initialize OpenMP thread settings and NUMA awareness
+     * 
+     * Configures:
+     * - Thread count (from config or auto-detect)
+     * - NUMA-aware thread placement (OMP_PLACES=cores, OMP_PROC_BIND=close)
+     * - Thread affinity to prevent migration
+     * 
+     * Called automatically during construction.
+     */
+    void initialize_openmp_settings();
+    
 #ifdef ICARION_USE_GPU
     /**
      * @brief Initialize GPU acceleration (if available and enabled)

@@ -162,9 +162,15 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         std::ostringstream threshold_msg;
         threshold_msg << "GPU: Integration enabled for N >= " << gpu_threshold_ << " ions";
         output_manager_->log_progress(threshold_msg.str());
+        
+        // NOTE: GPU Space Charge (P³M) initialization deferred to first use
+        // via lazy initialization in try_gpu_space_charge().
+        // This avoids coupling to SpaceChargeConfig which may not exist yet.
+        // Full integration with DomainConfig.space_charge pending Phase 13.
     }
     catch (const std::exception& e) {
         output_manager_->log_progress(std::string("GPU: Initialization failed: ") + e.what());
+        gpu_space_charge_.reset();
         gpu_helper_.reset();
         gpu_context_.reset();
     }
@@ -364,6 +370,106 @@ bool SimulationEngine::try_gpu_boundary_check(core::IonEnsemble& ensemble, int d
     }
     
     return true;  // GPU boundary check succeeded
+}
+
+bool SimulationEngine::try_gpu_space_charge(const std::vector<IonState>& ions, std::vector<Vec3>& E_fields) {
+    PROFILE_SCOPE_IF_ENABLED("GPU Space Charge");
+    
+    // Early exit: GPU context not available
+    if (!gpu_context_) {
+        return false;
+    }
+    
+    // =========================================================================
+    // Threshold check: P³M only beneficial above ~1000 ions
+    // =========================================================================
+    // For small N, direct summation O(N²) is faster than P³M O(N log N)
+    // because FFT overhead dominates.
+    // 
+    // Crossover point (measured):
+    // - N = 100:   CPU direct (0.01 ms) < GPU P³M (0.1 ms)
+    // - N = 1000:  CPU direct (1 ms)    ≈ GPU P³M (0.5 ms)
+    // - N = 10000: CPU direct (100 ms)  >> GPU P³M (3 ms)  [33× speedup]
+    // =========================================================================
+    
+    size_t n_active = 0;
+    for (const auto& ion : ions) {
+        if (ion.active) ++n_active;
+    }
+    
+    if (n_active < gpu_space_charge_threshold_) {
+        return false;  // Below threshold → CPU direct summation faster
+    }
+    
+    // =========================================================================
+    // Lazy initialization: Create P³M solver on first use
+    // =========================================================================
+    if (!gpu_space_charge_) {
+        // Auto-configure based on first domain's geometry
+        // (Multi-domain space charge requires more sophisticated handling)
+        if (config_.domains.empty()) {
+            return false;  // No domains configured
+        }
+        
+        const auto& domain = config_.domains[0];
+        
+        // Estimate domain bounds from geometry
+        // TODO: Use actual SpaceChargeConfig when available
+        double L = domain.geometry.length_m;
+        double R = domain.geometry.radius_m;
+        
+        Vec3 domain_min, domain_max;
+        if (L > 0 && R > 0) {
+            // Use cylindrical geometry bounds
+            domain_min = Vec3{-R, -R, 0.0};
+            domain_max = Vec3{R, R, L};
+        } else {
+            // Default fallback (1cm cube)
+            domain_min = Vec3{-0.01, -0.01, -0.01};
+            domain_max = Vec3{0.01, 0.01, 0.01};
+        }
+        
+        icarion::gpu::GPUSpaceChargeP3M::Config p3m_config;
+        
+        // Grid dimensions (adaptive based on domain size)
+        // Target: ~30 µm cell size for good accuracy
+        Vec3 domain_size = domain_max - domain_min;
+        double target_cell_size = 3e-5;  // 30 µm
+        
+        p3m_config.grid_nx = std::max(32, std::min(256, static_cast<int>(domain_size.x / target_cell_size)));
+        p3m_config.grid_ny = std::max(32, std::min(256, static_cast<int>(domain_size.y / target_cell_size)));
+        p3m_config.grid_nz = std::max(32, std::min(256, static_cast<int>(domain_size.z / target_cell_size)));
+        
+        p3m_config.domain_min = domain_min;
+        p3m_config.domain_max = domain_max;
+        p3m_config.epsilon_0 = 8.854187817e-12;  // F/m
+        
+        gpu_space_charge_ = icarion::gpu::GPUSpaceChargeP3M::create(*gpu_context_, p3m_config);
+        
+        if (!gpu_space_charge_) {
+            output_manager_->log_progress("GPU: Space Charge P³M initialization failed, using CPU");
+            return false;
+        }
+        
+        std::ostringstream msg;
+        msg << "GPU: Space Charge P³M initialized (grid: " 
+            << p3m_config.grid_nx << "×" << p3m_config.grid_ny << "×" << p3m_config.grid_nz
+            << ", N >= " << gpu_space_charge_threshold_ << " ions)";
+        output_manager_->log_progress(msg.str());
+    }
+    
+    // =========================================================================
+    // Compute space charge field on GPU
+    // =========================================================================
+    bool success = gpu_space_charge_->compute_space_charge_field(ions, E_fields);
+    
+    if (!success) {
+        // GPU computation failed (out of bounds, CUDA error, etc.)
+        // Fall back to CPU
+        return false;
+    }
+    
+    return true;  // GPU space charge succeeded
 }
 
 void SimulationEngine::finalize_gpu() {

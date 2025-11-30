@@ -83,9 +83,10 @@ __global__ void p2g_cic_kernel(
     int stride_y = nz;
     int stride_x = ny * nz;
     
-    double q_d = q;  // Keep as double for precision
-    
-    // Distribute charge to 8 corners (atomic adds for thread safety)
+    // Distribute charge to 8 corners (CIC interpolation)
+    // Note: We deposit charge (C), not charge density (C/m³).
+    // The Poisson solver will convert to density by dividing by cell volume.
+    double q_d = q;
     atomicAdd(&charge_density[i*stride_x + j*stride_y + k], w000 * q_d);
     atomicAdd(&charge_density[(i+1)*stride_x + j*stride_y + k], w100 * q_d);
     atomicAdd(&charge_density[i*stride_x + (j+1)*stride_y + k], w010 * q_d);
@@ -113,11 +114,12 @@ __global__ void p2g_cic_kernel(
  * **Special case:** k=0 (DC component) → set φ̂(0) = 0 (arbitrary reference)
  */
 __global__ void poisson_solve_fourier_kernel(
-    cufftDoubleComplex* __restrict__ rho_fft,
+    const cufftDoubleComplex* __restrict__ rho_fft,
     cufftDoubleComplex* __restrict__ phi_fft,
     int nx, int ny, int nz_half,
     double dx, double dy, double dz,
-    double epsilon_0
+    double epsilon_0,
+    double cell_volume
 ) {
     int mode_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total_modes = nx * ny * nz_half;
@@ -128,10 +130,16 @@ __global__ void poisson_solve_fourier_kernel(
     int j = (mode_idx % (ny * nz_half)) / nz_half;
     int k = mode_idx % nz_half;
     
-    // Wave vectors (FFT convention: k_i = 2π * freq_i / L_i)
-    double kx = (i < nx/2) ? (2.0 * M_PI * i / (nx * dx)) : (2.0 * M_PI * (i - nx) / (nx * dx));
-    double ky = (j < ny/2) ? (2.0 * M_PI * j / (ny * dy)) : (2.0 * M_PI * (j - ny) / (ny * dy));
-    double kz = 2.0 * M_PI * k / ((nz_half-1) * 2 * dz);  // R2C FFT: only positive frequencies
+    // Wave vectors for FFT grid
+    // FFT frequency: freq_i = i/N for i < N/2, (i-N)/N for i >= N/2
+    // Wave number: k_i = 2π * freq_i / L = 2π * i / (N * dx) for i < N/2
+    double Lx = nx * dx;
+    double Ly = ny * dy;
+    double Lz = nz_half * 2 * dz;  // Full domain length (R2C stores half)
+    
+    double kx = (i < nx/2) ? (2.0 * M_PI * i / Lx) : (2.0 * M_PI * (i - nx) / Lx);
+    double ky = (j < ny/2) ? (2.0 * M_PI * j / Ly) : (2.0 * M_PI * (j - ny) / Ly);
+    double kz = 2.0 * M_PI * k / Lz;  // R2C: only positive frequencies (k=0 to nz_half-1)
     
     double k2 = kx*kx + ky*ky + kz*kz;
     
@@ -144,8 +152,14 @@ __global__ void poisson_solve_fourier_kernel(
         return;
     }
     
-    // Poisson solve: φ̂ = ρ̂ / (ε₀ k²)
-    double scale = 1.0 / (epsilon_0 * k2);
+    // Poisson equation: ∇²φ = -ρ/ε₀
+    // where ρ is charge density (C/m³)
+    // In Fourier space: -k²φ̂ = -ρ̂/ε₀
+    // Therefore: φ̂ = ρ̂/(ε₀·k²)
+    // 
+    // Note: rho_fft contains charge per cell (C), not density (C/m³).
+    // Convert to density by dividing by cell volume.
+    double scale = 1.0 / (epsilon_0 * k2 * cell_volume);
     phi_fft[idx].x = rho_fft[idx].x * scale;
     phi_fft[idx].y = rho_fft[idx].y * scale;
 }
@@ -537,6 +551,7 @@ void GPUSpaceChargeP3M::launch_poisson_solve_fourier_kernel(
     double dx = domain_size.x / config_.grid_nx;
     double dy = domain_size.y / config_.grid_ny;
     double dz = domain_size.z / config_.grid_nz;
+    double cell_volume = dx * dy * dz;
     
     poisson_solve_fourier_kernel<<<blocks, threads_per_block>>>(
         d_rho_hat,
@@ -547,7 +562,8 @@ void GPUSpaceChargeP3M::launch_poisson_solve_fourier_kernel(
         dx,
         dy,
         dz,
-        epsilon_0
+        epsilon_0,
+        cell_volume
     );
     
     cudaError_t err = cudaGetLastError();

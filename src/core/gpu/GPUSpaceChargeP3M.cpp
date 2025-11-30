@@ -90,6 +90,7 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
         n_ions, d_charge_density_
     );
     cudaDeviceSynchronize();  // Wait for P2G to complete
+    
     cudaEventRecord(p2g_end);
     
     // =========================================================================

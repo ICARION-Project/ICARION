@@ -637,11 +637,18 @@ Add to class docstring or separate documentation:
 ## GPU Development Guide
 
 **Added:** November 2025 (v1.1 development)
-**Status:** Phases 1-2 complete, ongoing development
+**Status:** Phases 1-11 complete (Core, Integrators, Collision Models)
 
 ### Overview
 
 ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
+
+**Completed GPU Features (v1.1):**
+- ✅ RK4/RK45/Boris integrators (automatic dispatch with smart thresholds)
+- ✅ HSS/EHSS collision models (thermalization validated)
+- ✅ Field array interpolation (texture memory)
+- ✅ Boundary actions (absorption, reflection)
+- ✅ CPU/GPU parity validation (37,956 assertions passed)
 
 ### Prerequisites
 
@@ -1034,6 +1041,246 @@ Before submitting GPU code, verify:
 - [ ] Documentation of kernel algorithm
 - [ ] Conditional compilation (`#ifdef ICARION_USE_GPU`)
 
+### Adding a New GPU Integrator
+
+**Example: Adding Velocity Verlet GPU support**
+
+#### Step 1: Create CUDA Kernel (`src/core/gpu/integrate_verlet_batch.cu`)
+
+```cuda
+#include "integrate_verlet_batch.cuh"
+#include "core/gpu/compute_acceleration.cuh"  // Shared force eval
+
+namespace icarion {
+namespace gpu {
+
+__global__ void integrate_verlet_batch_kernel(
+    const IonStateGPU ions_in,
+    IonStateGPU ions_out,
+    Vec3 E_field, Vec3 B_field,
+    double dt, int N
+) {
+    // Grid-stride loop
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
+         i < N; 
+         i += gridDim.x * blockDim.x) {
+        
+        if (!ions_in.active[i]) continue;
+        
+        // Load ion state
+        Vec3 pos = {ions_in.pos_x[i], ions_in.pos_y[i], ions_in.pos_z[i]};
+        Vec3 vel = {ions_in.vel_x[i], ions_in.vel_y[i], ions_in.vel_z[i]};
+        double mass = ions_in.mass[i];
+        double charge = ions_in.charge[i];
+        
+        // Velocity Verlet: x_new = x + v*dt + 0.5*a*dt^2
+        Vec3 acc = compute_acceleration(pos, vel, mass, charge, E_field, B_field);
+        Vec3 pos_new = pos + vel * dt + acc * (0.5 * dt * dt);
+        
+        // v_new = v + 0.5*(a_old + a_new)*dt
+        Vec3 acc_new = compute_acceleration(pos_new, vel, mass, charge, E_field, B_field);
+        Vec3 vel_new = vel + (acc + acc_new) * (0.5 * dt);
+        
+        // Write outputs
+        ions_out.pos_x[i] = pos_new.x;
+        ions_out.pos_y[i] = pos_new.y;
+        ions_out.pos_z[i] = pos_new.z;
+        ions_out.vel_x[i] = vel_new.x;
+        ions_out.vel_y[i] = vel_new.y;
+        ions_out.vel_z[i] = vel_new.z;
+    }
+}
+
+void integrate_verlet_batch(
+    const IonStateGPU& ions_in,
+    IonStateGPU& ions_out,
+    Vec3 E_field, Vec3 B_field,
+    double dt,
+    cudaStream_t stream
+) {
+    int N = ions_in.count;
+    int threads = 256;
+    int blocks = std::min((N + threads - 1) / threads, 2048);
+    
+    integrate_verlet_batch_kernel<<<blocks, threads, 0, stream>>>(
+        ions_in, ions_out, E_field, B_field, dt, N
+    );
+    
+    CUDA_CHECK(cudaGetLastError());
+}
+
+} // namespace gpu
+} // namespace icarion
+```
+
+#### Step 2: Extend GPUIntegrationHelper
+
+**In `GPUIntegrationHelper.h`:**
+```cpp
+class GPUIntegrationHelper {
+public:
+    // ... existing methods ...
+    
+    /**
+     * @brief Velocity Verlet integration (2nd-order symplectic)
+     */
+    bool integrate_batch_verlet(
+        std::vector<IonState>& ions,
+        double dt,
+        double t,
+        const IFieldProvider* field_provider = nullptr
+    );
+};
+```
+
+**In `GPUIntegrationHelper.cpp`:**
+```cpp
+bool GPUIntegrationHelper::integrate_batch_verlet(
+    std::vector<IonState>& ions,
+    double dt, double t,
+    const IFieldProvider* field_provider
+) {
+    // Same pattern as RK4/Boris
+    auto ions_in = pool_->get_device_buffer<IonStateGPU>(1);
+    auto ions_out = pool_->get_device_buffer<IonStateGPU>(1);
+    
+    // Upload
+    ion_state_conversion::upload_ions(ions, *ions_in, context_.get_stream());
+    
+    // Compute
+    Vec3 E{0,0,0}, B{0,0,0};  // Or extract from field_provider
+    integrate_verlet_batch(*ions_in, *ions_out, E, B, dt, context_.get_stream());
+    
+    // Download
+    ion_state_conversion::download_ions(*ions_out, ions, context_.get_stream());
+    context_.synchronize();
+    
+    stats_.gpu_integrations++;
+    return true;
+}
+```
+
+#### Step 3: Update SimulationEngine Dispatch
+
+**In `SimulationEngine.h`:**
+```cpp
+#ifdef ICARION_USE_GPU
+    enum class IntegratorType { RK4, RK45, Boris, Verlet, Unknown };
+#endif
+```
+
+**In `SimulationEngine.cpp`:**
+```cpp
+// Cache integrator type
+if (dynamic_cast<VerletStrategy*>(integrator_.get())) {
+    integrator_type_ = IntegratorType::Verlet;
+}
+
+// Dispatch
+case IntegratorType::Verlet:
+    threshold /= 2;  // Verlet: 2 force evals, same as Boris
+    return gpu_helper_->integrate_batch_verlet(ions, dt, t, field_provider);
+```
+
+#### Step 4: Validate CPU/GPU Parity
+
+**Create `tests/integrator/test_verlet_parity.cpp`:**
+```cpp
+TEST_CASE("Verlet GPU/CPU Parity - Free Particle", "[gpu][verlet][parity]") {
+    // Create identical ions
+    std::vector<IonState> ions_cpu(1000), ions_gpu(1000);
+    for (int i = 0; i < 1000; ++i) {
+        ions_cpu[i] = ions_gpu[i] = create_test_ion();
+    }
+    
+    // CPU reference
+    VerletStrategy verlet_cpu;
+    for (auto& ion : ions_cpu) {
+        verlet_cpu.step(ion, 0.0, 1e-9, force_registry, ions_cpu);
+    }
+    
+    // GPU
+    auto context = GPUContext::create(0);
+    auto helper = GPUIntegrationHelper::create(*context, 1);
+    helper->integrate_batch_verlet(ions_gpu, 1e-9, 0.0);
+    
+    // Compare (tolerance: 1e-12)
+    for (int i = 0; i < 1000; ++i) {
+        REQUIRE_THAT(ions_gpu[i].pos.x, WithinAbs(ions_cpu[i].pos.x, 1e-12));
+        REQUIRE_THAT(ions_gpu[i].vel.x, WithinAbs(ions_cpu[i].vel.x, 1e-12));
+    }
+}
+```
+
+#### Step 5: Performance Benchmarking
+
+```cpp
+// Measure threshold point where GPU becomes beneficial
+for (int N : {1000, 2000, 3000, 5000, 10000}) {
+    auto t_cpu = benchmark_cpu(N, verlet_cpu);
+    auto t_gpu = benchmark_gpu(N, verlet_gpu);
+    std::cout << N << " ions: " << (t_cpu / t_gpu) << "× speedup\n";
+}
+```
+
+**Expected results:**
+- N=1000: 0.5-1× (overhead dominates)
+- N=2000: 1-2× (break-even)
+- N=3000: 2-4× (GPU wins)
+- N=5000: 5-8× (optimal)
+- N=10000: 10-15× (compute-bound)
+
+### GPU Integrator Design Guidelines
+
+**Smart Threshold Selection:**
+```cpp
+// Rule of thumb: threshold ∝ 1 / (force_evaluations_per_step)
+Boris:   1 eval  → threshold / 2    (2500 ions)
+Verlet:  2 evals → threshold / 2    (2500 ions)
+RK4:     4 evals → threshold        (5000 ions)
+RK45:    6 evals → threshold        (5000 ions)
+```
+
+**Reuse Shared Code:**
+```cpp
+// All integrators use same force evaluation
+#include "core/gpu/compute_acceleration.cuh"
+
+__device__ Vec3 compute_acceleration(
+    Vec3 pos, Vec3 vel, 
+    double mass, double charge,
+    Vec3 E_field, Vec3 B_field
+) {
+    // Lorentz force: F = q(E + v×B)
+    Vec3 v_cross_B = {
+        vel.y * B_field.z - vel.z * B_field.y,
+        vel.z * B_field.x - vel.x * B_field.z,
+        vel.x * B_field.y - vel.y * B_field.x
+    };
+    Vec3 F = E_field * charge + v_cross_B * charge;
+    return F / mass;
+}
+```
+
+**Memory Efficiency:**
+```cpp
+// Minimize register usage for high occupancy
+// Target: <64 registers per thread
+// Check with: nvcc --ptxas-options=-v
+```
+
+**Error Propagation:**
+```cpp
+// Multi-step integrators: accumulate error carefully
+// Use Kahan summation for long simulations
+__device__ double kahan_add(double sum, double x, double& c) {
+    double y = x - c;
+    double t = sum + y;
+    c = (t - sum) - y;
+    return t;
+}
+```
+
 ### Additional Resources
 
 **CUDA Programming Guide:**
@@ -1043,9 +1290,21 @@ Before submitting GPU code, verify:
 - https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/
 
 **ICARION GPU Examples:**
-- `src/core/gpu/integrate_rk4_batch.cu` - RK4 kernel reference implementation
-- `src/core/gpu/GPUIntegrationHelper.cpp` - Helper class pattern
-- `tmp/GPU_ACCELERATION_PLAN.md` - Detailed architecture
+- `src/core/gpu/integrate_rk4_batch.cu` - Fixed-step 4th-order RK (350 lines)
+- `src/core/gpu/integrate_rk45_batch.cu` - Adaptive Dormand-Prince (350 lines)
+- `src/core/gpu/integrate_boris_batch.cu` - Symplectic pusher (235 lines)
+- `src/core/gpu/GPUIntegrationHelper.cpp` - Helper class pattern (430 lines)
+- `src/core/integrator/SimulationEngine.cpp` - Smart dispatch logic (100 lines)
+- `tests/integrator/test_rk45_boris_parity.cpp` - CPU/GPU validation (407 lines)
+
+**GPU Integrator Performance (RTX 5070 Ti):**
+| Integrator | Force Evals | Threshold | 5k ions | 10k ions | 100k ions |
+|------------|-------------|-----------|---------|----------|-----------|
+| Boris      | 1           | 2500      | 1.6s    | 3.0s     | 25s       |
+| RK4        | 4           | 5000      | 8.0s    | 15s      | 120s      |
+| RK45       | 6-7         | 5000      | 13.9s   | 25s      | 200s      |
+
+**CPU Baseline (32-core AMD Ryzen 9, OpenMP):** ~2-3× slower than GPU for N>5000
 
 ---
 

@@ -127,10 +127,36 @@ public:
     void set_threshold(size_t new_threshold) { threshold_ = new_threshold; }
     
     /**
+     * @brief Batch boundary checking on GPU (cylindrical geometry)
+     * 
+     * Checks all ions against cylindrical domain boundaries in parallel.
+     * Deactivates ions that are outside bounds.
+     * 
+     * @param ions Ion states (active flags modified in-place)
+     * @param length_m Domain length [m]
+     * @param radius_m Domain radius [m]
+     * @param is_last_domain True if last domain (strict z check)
+     * @return true if GPU check succeeded, false if fallback needed
+     * 
+     * Boundary checks:
+     * - Axial: -ε ≤ z < length (last) or z ≤ length+ε (transition)
+     * - Radial: sqrt(x² + y²) ≤ radius + ε
+     * 
+     * @note Orbitrap hyperlogarithmic boundaries not supported (handled on CPU)
+     */
+    bool check_boundaries_batch(
+        std::vector<ICARION::core::IonState>& ions,
+        double length_m,
+        double radius_m,
+        bool is_last_domain
+    );
+    
+    /**
      * @brief Get performance statistics
      */
     struct Stats {
         size_t gpu_integrations;     ///< Number of GPU batch integrations
+        size_t gpu_boundary_checks;  ///< Number of GPU boundary checks
         size_t total_ions_gpu;        ///< Total ions processed on GPU
         double total_time_ms;         ///< Total GPU time [ms]
     };

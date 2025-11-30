@@ -2,6 +2,7 @@
 #include "integrate_rk4_batch.cuh"
 #include "integrate_rk45_batch.cuh"
 #include "integrate_boris_batch.cuh"
+#include "check_boundaries_batch.cuh"
 #include "FieldArrayGPU_conversion.h"
 #include "fieldsolver/utils/GridFieldProvider.h"
 #include "core/io/fieldArrayLoader.h"
@@ -423,6 +424,76 @@ bool GPUIntegrationHelper::integrate_batch_boris(
     }
     catch (const std::exception& e) {
         fprintf(stderr, "GPU Boris integration failed: %s\n", e.what());
+        enabled_ = false;
+        return false;
+    }
+}
+
+// =============================================================================
+// Boundary Checking
+// =============================================================================
+
+bool GPUIntegrationHelper::check_boundaries_batch(
+    std::vector<ICARION::core::IonState>& ions,
+    double length_m,
+    double radius_m,
+    bool is_last_domain
+) {
+    if (!enabled_) return false;
+    if (ions.empty()) return true;
+    
+    try {
+        const size_t N = ions.size();
+        
+        // Allocate GPU buffers if needed
+        if (N > allocated_capacity_) {
+            if (ions_gpu_in_.is_allocated()) {
+                ions_gpu_in_.free();
+            }
+            ions_gpu_in_.allocate(N);
+            allocated_capacity_ = N;
+        }
+        
+        // Upload ions to GPU (only positions and active flags needed)
+        ion_state_conversion::upload_ions(ions, ions_gpu_in_, context_.get_stream());
+        
+        // Launch boundary check kernel
+        cudaError_t err = ICARION::gpu::check_boundaries_batch(
+            ions_gpu_in_.x,
+            ions_gpu_in_.y,
+            ions_gpu_in_.z,
+            ions_gpu_in_.active,
+            length_m,
+            radius_m,
+            is_last_domain,
+            N,
+            context_.get_stream()
+        );
+        
+        if (err != cudaSuccess) {
+            fprintf(stderr, "GPU boundary check kernel failed: %s\n", cudaGetErrorString(err));
+            enabled_ = false;
+            return false;
+        }
+        
+        // Download active flags back to CPU
+        context_.synchronize();
+        
+        bool* active_flags = new bool[N];
+        cudaMemcpy(active_flags, ions_gpu_in_.active, N * sizeof(bool), cudaMemcpyDeviceToHost);
+        
+        for (size_t i = 0; i < N; ++i) {
+            ions[i].active = active_flags[i];
+        }
+        
+        delete[] active_flags;
+        
+        stats_.gpu_boundary_checks++;
+        
+        return true;
+    }
+    catch (const std::exception& e) {
+        fprintf(stderr, "GPU boundary check failed: %s\n", e.what());
         enabled_ = false;
         return false;
     }

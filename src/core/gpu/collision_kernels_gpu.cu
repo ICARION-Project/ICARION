@@ -291,7 +291,7 @@ __global__ void ehss_collision_kernel(
         
         // Collision probability
         double number_density = env.pressure_Pa / (BOLTZMANN_CONSTANT * env.temperature_K);
-        double collision_rate = 0.25 * vrel_mag * sigma * number_density;
+        double collision_rate = vrel_mag * sigma * number_density;  // No 0.25 factor!
         double collision_prob = 1.0 - exp(-collision_rate * dt);
         
         double u = curand_uniform_double(&local_state);
@@ -301,27 +301,27 @@ __global__ void ehss_collision_kernel(
         
         // Look up geometry for this species
         if (species_idx < 0 || species_idx >= geometry.num_species) {
-            // Fallback to HSS if no geometry
+            // Fallback to HSS if no geometry (use same correct formula as HSS kernel)
             double m_neutral = env.neutral_mass_kg;
             double m_total = m_ion + m_neutral;
             double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
             double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
             double vcm_z = (m_ion * vz + m_neutral * vn_z) / m_total;
             
-            double vion_cm_x = vx - vcm_x;
-            double vion_cm_y = vy - vcm_y;
-            double vion_cm_z = vz - vcm_z;
-            
+            // Sample isotropic scattering direction
             double nx, ny, nz;
             sample_isotropic_direction(&local_state, nx, ny, nz);
             
-            double vion_cm_mag = sqrt(vion_cm_x * vion_cm_x + 
-                                       vion_cm_y * vion_cm_y + 
-                                       vion_cm_z * vion_cm_z);
+            // Preserve relative speed magnitude, change direction
+            double vrel_scattered_x = nx * vrel_mag;
+            double vrel_scattered_y = ny * vrel_mag;
+            double vrel_scattered_z = nz * vrel_mag;
             
-            vx = nx * vion_cm_mag + vcm_x;
-            vy = ny * vion_cm_mag + vcm_y;
-            vz = nz * vion_cm_mag + vcm_z;
+            // Transform back to lab frame (reduced mass factor)
+            double reduced_mass_factor = m_neutral / m_total;
+            vx = vcm_x + vrel_scattered_x * reduced_mass_factor;
+            vy = vcm_y + vrel_scattered_y * reduced_mass_factor;
+            vz = vcm_z + vrel_scattered_z * reduced_mass_factor;
             
             vx_inout[i] = vx;
             vy_inout[i] = vy;

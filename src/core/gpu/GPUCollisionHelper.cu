@@ -302,16 +302,23 @@ bool GPUCollisionHelper::process_collisions_batch(
             );
         } else {  // EHSS
             if (!geometry_uploaded_) {
-                return false;  // Geometry not uploaded
+                // Fallback to HSS if geometry not uploaded
+                launch_hss_collision_batch(
+                    d_vx, d_vy, d_vz,
+                    d_mass, d_ccs, d_active,
+                    d_curand_states_,
+                    env_gpu, dt, n_ions,
+                    stream
+                );
+            } else {
+                launch_ehss_collision_batch(
+                    d_vx, d_vy, d_vz,
+                    d_mass, d_ccs, d_species_indices, d_active,
+                    d_curand_states_,
+                    env_gpu, *geometry_gpu_, dt, n_ions,
+                    stream
+                );
             }
-            
-            launch_ehss_collision_batch(
-                d_vx, d_vy, d_vz,
-                d_mass, d_ccs, d_species_indices, d_active,
-                d_curand_states_,
-                env_gpu, *geometry_gpu_, dt, n_ions,
-                stream
-            );
         }
         
         // ====== DOWNLOAD PHASE ======

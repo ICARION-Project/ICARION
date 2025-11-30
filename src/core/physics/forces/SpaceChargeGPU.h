@@ -6,7 +6,7 @@
 #ifdef ICARION_USE_GPU
 
 #include "IForce.h"
-#include "core/gpu/GPUSpaceChargeP3M.h"
+#include "core/gpu/spacecharge/GPUSpaceChargeP3M.h"
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
 #include <memory>

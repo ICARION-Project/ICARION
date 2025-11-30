@@ -38,9 +38,9 @@
 #include <memory>
 
 #ifdef ICARION_USE_GPU
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUIntegrationHelper.h"
-#include "core/gpu/GPUSpaceChargeP3M.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/core/GPUIntegrationHelper.h"
+#include "core/gpu/spacecharge/GPUSpaceChargeP3M.h"
 #endif
 
 namespace ICARION {

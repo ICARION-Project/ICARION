@@ -32,7 +32,7 @@
 
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
-#include "core/gpu/GPUContext.h"
+#include "core/gpu/core/GPUContext.h"
 #include <vector>
 #include <memory>
 #include <cufft.h>

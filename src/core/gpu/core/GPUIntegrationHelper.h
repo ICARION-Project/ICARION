@@ -1,9 +1,9 @@
 #ifndef ICARION_GPU_INTEGRATION_HELPER_H
 #define ICARION_GPU_INTEGRATION_HELPER_H
 
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUMemoryPool.h"
-#include "core/gpu/FieldArrayGPU.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/core/GPUMemoryPool.h"
+#include "core/gpu/fields/FieldArrayGPU.h"
 #include "core/types/IonState.h"
 #include "utils/IonState_GPU.h"
 #include <vector>

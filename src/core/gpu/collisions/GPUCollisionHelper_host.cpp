@@ -11,7 +11,7 @@
  * - .cu file: Kernel launches and GPU-specific code
  */
 
-#include "GPUContext.h"
+#include "core/gpu/core/GPUContext.h"
 #include "GPUCollisionHelper.h"
 #include <cuda_runtime.h>
 #include <stdexcept>

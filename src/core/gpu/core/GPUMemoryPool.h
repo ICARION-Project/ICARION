@@ -1,7 +1,7 @@
 #ifndef ICARION_GPU_MEMORY_POOL_H
 #define ICARION_GPU_MEMORY_POOL_H
 
-#include "GPUContext.h"
+#include "core/gpu/core/GPUContext.h"
 #include <cuda_runtime.h>
 #include <memory>
 #include <vector>

@@ -46,7 +46,7 @@
 // Forward declarations (or full includes for non-CUDA files)
 #ifndef __CUDACC__
     // Regular C++ compilation - include full definition
-    #include "GPUContext.h"
+    #include "core/gpu/core/GPUContext.h"
 #else
     // CUDA compilation - forward declare only (to avoid header issues)
     namespace icarion {

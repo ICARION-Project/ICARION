@@ -12,7 +12,7 @@
 #ifndef ICARION_FIELD_ARRAY_GPU_CONVERSION_H
 #define ICARION_FIELD_ARRAY_GPU_CONVERSION_H
 
-#include "core/gpu/FieldArrayGPU.h"
+#include "core/gpu/fields/FieldArrayGPU.h"
 #include "core/io/fieldArrayLoader.h"
 
 namespace icarion {

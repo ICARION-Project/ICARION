@@ -16,9 +16,9 @@
  */
 
 #include "integrate_boris_batch.cuh"
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/FieldArrayGPU.h"
-#include "core/gpu/FieldArrayGPU_kernels.cuh"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/fields/FieldArrayGPU.h"
+#include "core/gpu/fields/FieldArrayGPU_kernels.cuh"
 #include <cuda_runtime.h>
 #include <cmath>
 

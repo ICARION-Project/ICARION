@@ -11,8 +11,8 @@
 
 #ifdef ICARION_USE_GPU
 #include "core/physics/forces/SpaceChargeGPU.h"
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUSpaceChargeP3M.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/spacecharge/GPUSpaceChargeP3M.h"
 #endif
 #include "core/integrator/strategies/RK4Strategy.h"
 #include "core/integrator/strategies/RK45Strategy.h"

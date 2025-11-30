@@ -1,5 +1,5 @@
 #include "IonState_GPU.h"
-#include "core/gpu/GPUContext.h"
+#include "core/gpu/core/GPUContext.h"
 #include <cuda_runtime.h>
 #include <vector>
 

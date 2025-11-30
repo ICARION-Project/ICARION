@@ -468,49 +468,7 @@ void GPUSpaceChargeP3M::cleanup() {
     initialized_ = false;
 }
 
-bool GPUSpaceChargeP3M::compute_space_charge_field(
-    const std::vector<IonState>& ions,
-    std::vector<Vec3>& E_field_out
-) {
-    if (!initialized_) {
-        fprintf(stderr, "[GPUSpaceChargeP3M] Solver not initialized\n");
-        return false;
-    }
-    
-    size_t n_ions = ions.size();
-    if (n_ions == 0) {
-        E_field_out.clear();
-        return true;
-    }
-    
-    // Resize output
-    E_field_out.resize(n_ions);
-    
-    // Start timing
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start);
-    
-    // Implementation continued in GPUSpaceChargeP3M.cpp
-    // This stub is kept for reference
-    
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    
-    float elapsed_ms;
-    cudaEventElapsedTime(&elapsed_ms, start, stop);
-    
-    stats_.total_calls++;
-    stats_.total_time_ms += elapsed_ms;
-    stats_.avg_time_ms = stats_.total_time_ms / stats_.total_calls;
-    stats_.last_n_ions = n_ions;
-    
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
-    
-    return true;
-}
+// compute_space_charge_field() is implemented in GPUSpaceChargeP3M.cpp
 
 double GPUSpaceChargeP3M::Stats::speedup_vs_direct_cpu() const {
     if (last_n_ions == 0 || avg_time_ms == 0) return 1.0;

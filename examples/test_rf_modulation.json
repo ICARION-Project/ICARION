@@ -1,0 +1,60 @@
+{
+  "simulation": {
+    "total_time_s": 1e-6,
+    "dt_s": 1e-9,
+    "write_interval": 100,
+    "rng_seed": 42
+  },
+  "output": {
+    "file": "results/test_rf_modulation/test.h5",
+    "trajectory_format": "hdf5"
+  },
+  "physics": {
+    "integrator": "RK4",
+    "collision_model": "none"
+  },
+  "domains": [
+    {
+      "name": "test_domain",
+      "geometry": {
+        "type": "box",
+        "center_m": [0.0, 0.0, 0.025],
+        "size_m": [0.01, 0.01, 0.05]
+      },
+      "fields": {
+        "dc": {
+          "axial_V": 100.0
+        },
+        "rf": {
+          "frequency_Hz": 1000000,
+          "amplitude_V": 50.0,
+          "phase_rad": 0.0
+        },
+        "field_array_terms": [
+          {
+            "file": "examples/field_arrays/ims_drift_200Vcm.h5",
+            "scale_type": "DC_Axial"
+          },
+          {
+            "file": "examples/field_arrays/ims_drift_200Vcm.h5",
+            "scale_type": "RF"
+          }
+        ]
+      }
+    }
+  ],
+  "ions": [
+    {
+      "species": "H3O+",
+      "count": 10,
+      "position": {
+        "type": "point",
+        "center_m": [0.0, 0.0, 0.0]
+      },
+      "velocity": {
+        "type": "thermal",
+        "temperature_K": 300
+      }
+    }
+  ]
+}

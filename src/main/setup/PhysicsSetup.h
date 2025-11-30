@@ -17,6 +17,7 @@
 #include "core/integrator/strategies/IIntegrationStrategy.h"
 #include "core/physics/collisions/ICollisionHandler.h"
 #include "core/physics/reactions/IReactionHandler.h"
+#include "core/io/fieldArrayLoader.h"
 #include <vector>
 #include <memory>
 
@@ -85,10 +86,16 @@ private:
      * - ElectricFieldForce (always)
      * - MagneticFieldForce (if B > 0)
      * - DampingForce (if Friction model)
+     * 
+     * Also loads field arrays from HDF5 files if field_array_terms are present.
      */
     static std::vector<std::shared_ptr<physics::ForceRegistry>> create_force_registries(
         const config::FullConfig& config
     );
+    
+    /// Static storage for field arrays (must persist for simulation lifetime)
+    /// Using unique_ptr to prevent pointer invalidation on vector reallocation
+    static inline std::vector<std::unique_ptr<FieldArray>> field_arrays_storage_;
     
     /**
      * @brief Add space charge forces to registries

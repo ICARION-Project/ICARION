@@ -72,11 +72,21 @@ inline double orbitrap_surface_residual(const Vec3& p_local, double R, double R_
 
 // ==================== DOMAINMANAGER IMPLEMENTATION ====================
 
-DomainManager::DomainManager(const std::vector<config::DomainConfig>& domains)
-    : domains_(domains)
+DomainManager::DomainManager(
+    const std::vector<config::DomainConfig>& domains,
+    unsigned int rng_seed
+) : domains_(domains), rng_(rng_seed)
 {
     if (domains.empty()) {
         throw std::invalid_argument("DomainManager: domains vector is empty");
+    }
+    
+    // Create boundary actions for each domain
+    boundary_actions_.reserve(domains.size());
+    for (const auto& domain : domains) {
+        boundary_actions_.push_back(
+            BoundaryActionFactory::create(domain.boundary, &rng_)
+        );
     }
 }
 
@@ -339,9 +349,51 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
         }
     }
     
-    ion.pos = local_to_global_pos(intersection, domain_idx);
-    ion.vel = {0.0, 0.0, 0.0};
-    ion.active = false;
+    // Compute surface normal at intersection (pointing inward)
+    Vec3 normal = compute_surface_normal(intersection, domain_idx);
+    
+    // Apply boundary action
+    const auto& boundary_action = boundary_actions_[domain_idx];
+    boundary_action->apply(
+        ion,
+        normal,
+        local_to_global_pos(intersection, domain_idx),
+        dom.environment.temperature_K
+    );
+}
+
+Vec3 DomainManager::compute_surface_normal(const Vec3& pos_local, int domain_idx) const {
+    const auto& dom = get_domain(domain_idx);
+    const double R = dom.geometry.radius_m;
+    const double EPSILON = 1e-6;
+    
+    // Determine which surface was hit
+    double r = std::sqrt(pos_local.x * pos_local.x + pos_local.y * pos_local.y);
+    
+    // Radial boundary (cylindrical wall)
+    if (std::abs(r - R) < EPSILON) {
+        // Normal points radially inward: -r_hat
+        return Vec3{-pos_local.x / r, -pos_local.y / r, 0.0};
+    }
+    
+    // Entrance plane (z=0)
+    if (std::abs(pos_local.z) < EPSILON) {
+        // Normal points into domain: +z direction
+        return Vec3{0.0, 0.0, 1.0};
+    }
+    
+    // Exit plane (z=length_m)
+    if (std::abs(pos_local.z - dom.geometry.length_m) < EPSILON) {
+        // Normal points into domain: -z direction
+        return Vec3{0.0, 0.0, -1.0};
+    }
+    
+    // Default: radial inward (safest guess)
+    if (r > NUMERICAL_ZERO) {
+        return Vec3{-pos_local.x / r, -pos_local.y / r, 0.0};
+    } else {
+        return Vec3{0.0, 0.0, 1.0};  // Fallback: axial
+    }
 }
 
 bool DomainManager::is_inside_domain(const config::DomainConfig& dom, const Vec3& globalPos) const {

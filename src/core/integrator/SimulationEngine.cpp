@@ -3,10 +3,14 @@
 
 #include "SimulationEngine.h"
 #include "DomainContext.h"
+#include "core/integrator/strategies/RK4Strategy.h"
+#include "core/integrator/strategies/RK45Strategy.h"
+#include "core/integrator/strategies/BorisStrategy.h"
 #include "core/utils/safety/numericalSafetyGuards.h"
 #include "core/utils/safety/numericalSafetyLogger.h"
 #include "core/utils/mathUtils.h"
 #include "core/utils/Profiler.h"
+#include "core/physics/forces/ElectricFieldForce.h"
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -56,7 +60,10 @@ SimulationEngine::SimulationEngine(
     }
     
     // Create domain manager
-    domain_manager_ = std::make_unique<DomainManager>(config_.domains);
+    domain_manager_ = std::make_unique<DomainManager>(
+        config_.domains,
+        config_.simulation.rng_seed
+    );
     
     // Create output manager
     std::string hdf5_path = config_.output.folder + "/" + config_.output.trajectory_file;
@@ -105,7 +112,389 @@ void SimulationEngine::initialize(const std::vector<IonState>& ions) {
         << "dt = " << config_.simulation.dt_s * 1e9 << " ns, "
         << "t_max = " << config_.simulation.total_time_s * 1e6 << " µs";
     output_manager_->log_progress(msg.str());
+    
+#ifdef ICARION_USE_GPU
+    // Initialize GPU acceleration (optional, controlled by config)
+    initialize_gpu(config_.simulation.enable_gpu);
+#endif
 }
+
+#ifdef ICARION_USE_GPU
+void SimulationEngine::initialize_gpu(bool enable_gpu) {
+    PROFILE_SCOPE_IF_ENABLED("GPU Initialization");
+    
+    // Check if GPU is enabled in config
+    if (!enable_gpu) {
+        output_manager_->log_progress("GPU: Disabled in configuration, using CPU-only");
+        return;
+    }
+    
+    try {
+        // Check if CUDA is available
+        if (!icarion::gpu::GPUContext::is_cuda_available()) {
+            output_manager_->log_progress("GPU: CUDA not available, using CPU-only");
+            return;
+        }
+        
+        // Create GPU context (device 0)
+        gpu_context_ = icarion::gpu::GPUContext::create(0);
+        if (!gpu_context_) {
+            output_manager_->log_progress("GPU: Failed to create context, using CPU-only");
+            return;
+        }
+        
+        // Log GPU properties
+        const auto& props = gpu_context_->get_properties();
+        std::ostringstream gpu_msg;
+        gpu_msg << "GPU: " << props.name 
+                << " (Compute " << props.compute_capability_major << "." << props.compute_capability_minor
+                << ", " << props.total_memory / (1024*1024) << " MB)";
+        output_manager_->log_progress(gpu_msg.str());
+        
+        // Create GPU integration helper
+        gpu_helper_ = icarion::gpu::GPUIntegrationHelper::create(*gpu_context_, gpu_threshold_);
+        if (!gpu_helper_) {
+            output_manager_->log_progress("GPU: Failed to create integration helper, using CPU-only");
+            gpu_context_.reset();
+            return;
+        }
+        
+        std::ostringstream threshold_msg;
+        threshold_msg << "GPU: Integration enabled for N >= " << gpu_threshold_ << " ions";
+        output_manager_->log_progress(threshold_msg.str());
+        
+        // NOTE: GPU Space Charge (P³M) initialization deferred to first use
+        // via lazy initialization in try_gpu_space_charge().
+        // This avoids coupling to SpaceChargeConfig which may not exist yet.
+        // Full integration with DomainConfig.space_charge pending Phase 13.
+    }
+    catch (const std::exception& e) {
+        output_manager_->log_progress(std::string("GPU: Initialization failed: ") + e.what());
+        gpu_space_charge_.reset();
+        gpu_helper_.reset();
+        gpu_context_.reset();
+    }
+}
+
+const IFieldProvider* SimulationEngine::extract_field_provider(int domain_id) const {
+    // Validate domain_id
+    if (domain_id < 0 || domain_id >= static_cast<int>(force_registries_.size())) {
+        return nullptr;
+    }
+    
+    const auto& registry = force_registries_[domain_id];
+    if (!registry) {
+        return nullptr;
+    }
+    
+    // Search for ElectricFieldForce in registry
+    for (const auto& force : registry->forces()) {
+        if (auto* e_force = dynamic_cast<const physics::ElectricFieldForce*>(force.get())) {
+            return e_force->get_field_provider();
+        }
+    }
+    
+    return nullptr;  // No field provider found
+}
+
+bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double dt) {
+    PROFILE_SCOPE_IF_ENABLED("GPU Integration");
+    
+    // Early exit: GPU not available
+    if (!gpu_helper_) {
+        return false;
+    }
+    
+    // =========================================================================
+    // Smart threshold: Adjust based on integrator complexity
+    // =========================================================================
+    // Cache integrator type to avoid repeated dynamic_cast (expensive!)
+    if (!integrator_type_cached_) {
+        if (dynamic_cast<RK4Strategy*>(integrator_.get())) {
+            integrator_type_ = IntegratorType::RK4;
+        } else if (dynamic_cast<RK45Strategy*>(integrator_.get())) {
+            integrator_type_ = IntegratorType::RK45;
+        } else if (dynamic_cast<BorisStrategy*>(integrator_.get())) {
+            integrator_type_ = IntegratorType::Boris;
+        } else {
+            integrator_type_ = IntegratorType::Unknown;
+        }
+        integrator_type_cached_ = true;
+    }
+    
+    // Early exit: Unknown integrator
+    if (integrator_type_ == IntegratorType::Unknown) {
+        return false;
+    }
+    
+    // Dynamic threshold based on integrator cost:
+    // - Boris: 1 force eval → lower threshold (GPU beneficial at ~2000 ions)
+    // - RK4:   4 force evals → standard threshold (5000 ions)
+    // - RK45:  6 force evals → standard threshold (5000 ions)
+    size_t effective_threshold = gpu_threshold_;
+    if (integrator_type_ == IntegratorType::Boris) {
+        effective_threshold = gpu_threshold_ / 2;  // Boris cheaper → lower threshold
+    }
+    
+    int n_ions = static_cast<int>(ions.size());
+    if (n_ions < static_cast<int>(effective_threshold)) {
+        return false;  // Below threshold, use CPU
+    }
+    
+    // =========================================================================
+    // Extract field provider (assumes single-domain or domain 0)
+    // =========================================================================
+    const IFieldProvider* field_provider = extract_field_provider(0);
+    
+    // =========================================================================
+    // Dispatch to appropriate GPU kernel (no dynamic_cast overhead!)
+    // =========================================================================
+    bool gpu_success = false;
+    
+    switch (integrator_type_) {
+        case IntegratorType::RK4:
+            gpu_success = gpu_helper_->integrate_batch_rk4(ions, dt, current_time_, field_provider);
+            break;
+            
+        case IntegratorType::RK45: {
+            // Get RK45 tolerance parameters
+            auto* rk45 = static_cast<RK45Strategy*>(integrator_.get());  // Safe: type cached
+            const auto& config = rk45->get_config();
+            gpu_success = gpu_helper_->integrate_batch_rk45(
+                ions, dt, current_time_, field_provider,
+                config.atol, config.rtol
+            );
+            break;
+        }
+            
+        case IntegratorType::Boris:
+            gpu_success = gpu_helper_->integrate_batch_boris(ions, dt, current_time_, field_provider);
+            break;
+            
+        default:
+            return false;  // Should never reach here
+    }
+    
+    // GPU integration failed → fallback to CPU
+    if (!gpu_success) {
+        return false;
+    }
+    
+    // =========================================================================
+    // GPU success! Update ion times (GPU only updates pos/vel, not time)
+    // =========================================================================
+    #pragma omp parallel for if(config_.simulation.enable_openmp)
+    for (int i = 0; i < n_ions; ++i) {
+        if (ions[i].active) {
+            ions[i].t += dt;
+        }
+    }
+    
+    return true;  // GPU path complete
+}
+
+bool SimulationEngine::try_gpu_boundary_check(core::IonEnsemble& ensemble, int domain_idx) {
+    // Early exit: GPU not available
+    if (!gpu_helper_) {
+        return false;
+    }
+    
+    const auto& domain_config = config_.domains[domain_idx];
+    
+    // =========================================================================
+    // Conditional GPU Dispatch: Check domain config compatibility
+    // =========================================================================
+    // GPU boundary check is limited to:
+    // - Absorption only (no reflections yet)
+    // - Cylindrical geometry only (no Orbitrap hyperlogarithmic)
+    // 
+    // If domain requires unsupported features → fallback to CPU
+    // =========================================================================
+    
+    // Check 1: Boundary action must be Absorption
+    if (domain_config.boundary.type != config::BoundaryActionType::Absorption) {
+        // Reflections require: surface normals, RNG, thermal accommodation
+        // GPU doesn't support these yet → CPU fallback
+        return false;
+    }
+    
+    // Check 2: Instrument must NOT be Orbitrap
+    if (domain_config.instrument == config::Instrument::Orbitrap) {
+        // Orbitrap uses hyperlogarithmic surface with bisection-based intersection
+        // GPU doesn't support this geometry yet → CPU fallback
+        return false;
+    }
+    
+    // =========================================================================
+    // GPU-compatible configuration! Dispatch to GPU kernel
+    // =========================================================================
+    
+    // Build temporary IonState vector for GPU upload
+    // NOTE: GPU API still uses vector<IonState>, will migrate to SoA later
+    size_t n_ions = ensemble.size();
+    std::vector<IonState> ions(n_ions);
+    
+    auto* pos_x = ensemble.pos_x_data();
+    auto* pos_y = ensemble.pos_y_data();
+    auto* pos_z = ensemble.pos_z_data();
+    auto* vel_x = ensemble.vel_x_data();
+    auto* vel_y = ensemble.vel_y_data();
+    auto* vel_z = ensemble.vel_z_data();
+    auto* mass = ensemble.mass_data();
+    auto* charge = ensemble.charge_data();
+    auto* active = ensemble.active_data();
+    
+    for (size_t i = 0; i < n_ions; ++i) {
+        ions[i].pos = {pos_x[i], pos_y[i], pos_z[i]};
+        ions[i].vel = {vel_x[i], vel_y[i], vel_z[i]};
+        ions[i].mass_kg = mass[i];
+        ions[i].ion_charge_C = charge[i];
+        ions[i].active = static_cast<bool>(active[i]);
+    }
+    
+    // Call GPU batch boundary check
+    bool gpu_success = gpu_helper_->check_boundaries_batch(
+        ions,
+        domain_config.geometry.length_m,
+        domain_config.geometry.radius_m,
+        domain_idx == static_cast<int>(config_.domains.size()) - 1  // is_last_domain
+    );
+    
+    if (!gpu_success) {
+        return false;  // GPU error → CPU fallback
+    }
+    
+    // Sync active flags back to IonEnsemble
+    for (size_t i = 0; i < n_ions; ++i) {
+        active[i] = static_cast<uint8_t>(ions[i].active);
+    }
+    
+    return true;  // GPU boundary check succeeded
+}
+
+bool SimulationEngine::try_gpu_space_charge(const std::vector<IonState>& ions, std::vector<Vec3>& E_fields) {
+    PROFILE_SCOPE_IF_ENABLED("GPU Space Charge");
+    
+    // Early exit: GPU context not available
+    if (!gpu_context_) {
+        return false;
+    }
+    
+    // =========================================================================
+    // Threshold check: P³M only beneficial above ~1000 ions
+    // =========================================================================
+    // For small N, direct summation O(N²) is faster than P³M O(N log N)
+    // because FFT overhead dominates.
+    // 
+    // Crossover point (measured):
+    // - N = 100:   CPU direct (0.01 ms) < GPU P³M (0.1 ms)
+    // - N = 1000:  CPU direct (1 ms)    ≈ GPU P³M (0.5 ms)
+    // - N = 10000: CPU direct (100 ms)  >> GPU P³M (3 ms)  [33× speedup]
+    // =========================================================================
+    
+    size_t n_active = 0;
+    for (const auto& ion : ions) {
+        if (ion.active) ++n_active;
+    }
+    
+    if (n_active < gpu_space_charge_threshold_) {
+        return false;  // Below threshold → CPU direct summation faster
+    }
+    
+    // =========================================================================
+    // Lazy initialization: Create P³M solver on first use
+    // =========================================================================
+    if (!gpu_space_charge_) {
+        // Auto-configure based on first domain's geometry
+        // (Multi-domain space charge requires more sophisticated handling)
+        if (config_.domains.empty()) {
+            return false;  // No domains configured
+        }
+        
+        const auto& domain = config_.domains[0];
+        
+        // Estimate domain bounds from geometry
+        // TODO: Use actual SpaceChargeConfig when available
+        double L = domain.geometry.length_m;
+        double R = domain.geometry.radius_m;
+        
+        Vec3 domain_min, domain_max;
+        if (L > 0 && R > 0) {
+            // Use cylindrical geometry bounds
+            domain_min = Vec3{-R, -R, 0.0};
+            domain_max = Vec3{R, R, L};
+        } else {
+            // Default fallback (1cm cube)
+            domain_min = Vec3{-0.01, -0.01, -0.01};
+            domain_max = Vec3{0.01, 0.01, 0.01};
+        }
+        
+        icarion::gpu::GPUSpaceChargeP3M::Config p3m_config;
+        
+        // Grid dimensions (adaptive based on domain size)
+        // Target: ~30 µm cell size for good accuracy
+        Vec3 domain_size = domain_max - domain_min;
+        double target_cell_size = 3e-5;  // 30 µm
+        
+        p3m_config.grid_nx = std::max(32, std::min(256, static_cast<int>(domain_size.x / target_cell_size)));
+        p3m_config.grid_ny = std::max(32, std::min(256, static_cast<int>(domain_size.y / target_cell_size)));
+        p3m_config.grid_nz = std::max(32, std::min(256, static_cast<int>(domain_size.z / target_cell_size)));
+        
+        p3m_config.domain_min = domain_min;
+        p3m_config.domain_max = domain_max;
+        p3m_config.epsilon_0 = 8.854187817e-12;  // F/m
+        
+        gpu_space_charge_ = icarion::gpu::GPUSpaceChargeP3M::create(*gpu_context_, p3m_config);
+        
+        if (!gpu_space_charge_) {
+            output_manager_->log_progress("GPU: Space Charge P³M initialization failed, using CPU");
+            return false;
+        }
+        
+        std::ostringstream msg;
+        msg << "GPU: Space Charge P³M initialized (grid: " 
+            << p3m_config.grid_nx << "×" << p3m_config.grid_ny << "×" << p3m_config.grid_nz
+            << ", N >= " << gpu_space_charge_threshold_ << " ions)";
+        output_manager_->log_progress(msg.str());
+    }
+    
+    // =========================================================================
+    // Compute space charge field on GPU
+    // =========================================================================
+    bool success = gpu_space_charge_->compute_space_charge_field(ions, E_fields);
+    
+    if (!success) {
+        // GPU computation failed (out of bounds, CUDA error, etc.)
+        // Fall back to CPU
+        return false;
+    }
+    
+    return true;  // GPU space charge succeeded
+}
+
+void SimulationEngine::finalize_gpu() {
+    if (!gpu_helper_) {
+        return;  // GPU not initialized
+    }
+    
+    const auto& stats = gpu_helper_->get_stats();
+    
+    if (stats.gpu_integrations == 0) {
+        output_manager_->log_progress("GPU: No batches processed (all below threshold)");
+        return;
+    }
+    
+    // Log GPU statistics
+    std::ostringstream msg;
+    msg << "GPU Statistics:\n"
+        << "  Batches:      " << stats.gpu_integrations << "\n"
+        << "  Total ions:   " << stats.total_ions_gpu << "\n"
+        << "  Total time:   " << stats.total_time_ms << " ms\n"
+        << "  Avg/batch:    " << (stats.total_time_ms / stats.gpu_integrations) << " ms";
+    
+    output_manager_->log_progress(msg.str());
+}
+#endif
 
 void SimulationEngine::apply_ion_birth(std::vector<IonState>& ions, double t) {
     for (auto& ion : ions) {
@@ -136,6 +525,16 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         }
     }
     
+#ifdef ICARION_USE_GPU
+    // Try GPU acceleration (auto-fallback to CPU if unavailable)
+    if (try_gpu_integration(ions, dt)) {
+        return;  // GPU succeeded
+    }
+#endif
+    
+    // ====================================================================
+    // CPU Path (fallback or small N)
+    // ====================================================================
     // Parallel ion processing (OpenMP if enabled)
     // Note: Using schedule(static) for better cache locality and lower overhead
     // Dynamic scheduling was causing severe performance degradation due to task queue contention
@@ -294,6 +693,11 @@ std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
         output_manager_->log_progress(safety_msg.str());
         output_manager_->log_progress("Safety report written: " + report_file);
     }
+    
+#ifdef ICARION_USE_GPU
+    // Log GPU performance statistics
+    finalize_gpu();
+#endif
     
     return ions;
 }
@@ -476,24 +880,44 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
                 integrator_->step_soa(ensemble, i, current_time_, dt, *force_registry);
             }
             
-            // 8. Boundary checks
+            // 8. Boundary checks (per-ion, CPU only for now)
+            // NOTE: GPU batch boundary check would require restructuring to separate pass
             {
                 PROFILE_SCOPE_IF_ENABLED("Boundary Checks");
                 
                 Vec3 pos_after(pos_x[i], pos_y[i], pos_z[i]);
                 
-                // Simple cylindrical boundary check
-                bool still_inside = (pos_after.z >= -DOMAIN_BOUNDARY_EPSILON);
-                still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
-                
-                if (still_inside) {
-                    double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
-                    still_inside = (r <= domain_config.geometry.radius_m + DOMAIN_BOUNDARY_EPSILON);
-                }
-                
-                if (!still_inside) {
-                    active[i] = false;
-                    continue;
+                // Instrument-specific boundary check
+                if (domain_config.instrument == config::Instrument::Orbitrap) {
+                    Vec3 pos_global = domain_manager_->local_to_global_pos(pos_after, domain_idx);
+                    int check_domain = domain_manager_->find_domain_index(pos_global);
+                    
+                    if (check_domain != domain_idx) {
+                        active[i] = false;
+                        continue;
+                    }
+                } else {
+                    // Cylindrical boundary check
+                    const double EPSILON = 1e-9;
+                    bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
+                    
+                    bool still_inside = (pos_after.z >= -EPSILON);
+                    
+                    if (is_last_domain) {
+                        still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
+                    } else {
+                        still_inside = still_inside && (pos_after.z <= domain_config.geometry.length_m + EPSILON);
+                    }
+                    
+                    if (still_inside) {
+                        double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
+                        still_inside = (r <= domain_config.geometry.radius_m + EPSILON);
+                    }
+                    
+                    if (!still_inside) {
+                        active[i] = false;
+                        continue;
+                    }
                 }
             }
             

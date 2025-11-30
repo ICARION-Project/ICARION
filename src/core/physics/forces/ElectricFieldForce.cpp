@@ -65,9 +65,9 @@ Vec3 ElectricFieldForce::compute(const IonState& ion, double t, const ForceConte
     
     // Priority: context field provider > constructor field provider > analytical
     if (ctx.field_provider) {
-        E_field = ctx.field_provider->get_E(ion.pos);
+        E_field = ctx.field_provider->get_E(ion.pos, t);  // Time-dependent evaluation
     } else if (use_field_provider_ && field_provider_) {
-        E_field = field_provider_->get_E(ion.pos);
+        E_field = field_provider_->get_E(ion.pos, t);      // Time-dependent evaluation
     } else {
         E_field = compute_analytical_field(ion, t);
     }

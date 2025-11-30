@@ -37,6 +37,12 @@
 #include <vector>
 #include <memory>
 
+#ifdef ICARION_USE_GPU
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/core/GPUIntegrationHelper.h"
+#include "core/gpu/spacecharge/GPUSpaceChargeP3M.h"
+#endif
+
 namespace ICARION {
 namespace integrator {
 
@@ -174,6 +180,20 @@ private:
     // Per-ion RNG states (persistent across timesteps!)
     std::vector<physics::EhssRng> rng_by_ion_;
     
+#ifdef ICARION_USE_GPU
+    // GPU acceleration (optional)
+    std::unique_ptr<icarion::gpu::GPUContext> gpu_context_;
+    std::unique_ptr<icarion::gpu::GPUIntegrationHelper> gpu_helper_;
+    std::unique_ptr<icarion::gpu::GPUSpaceChargeP3M> gpu_space_charge_;  ///< P³M space charge solver
+    size_t gpu_threshold_ = 5000;  ///< Minimum ions for GPU dispatch
+    size_t gpu_space_charge_threshold_ = 1000;  ///< Minimum ions for GPU space charge
+    
+    // GPU dispatch cache (avoid repeated dynamic_cast)
+    enum class IntegratorType { RK4, RK45, Boris, Unknown };
+    IntegratorType integrator_type_ = IntegratorType::Unknown;
+    bool integrator_type_cached_ = false;
+#endif
+    
     /**
      * @brief Initialize simulation subsystems
      * @param ions Initial ion ensemble (for metadata)
@@ -181,6 +201,85 @@ private:
      * Creates DomainManager and OutputManager, writes initial HDF5 metadata.
      */
     void initialize(const std::vector<IonState>& ions);
+    
+#ifdef ICARION_USE_GPU
+    /**
+     * @brief Initialize GPU acceleration (if available and enabled)
+     * @param enable_gpu Whether GPU is enabled in config
+     * 
+     * Attempts to create GPUContext and GPUIntegrationHelper.
+     * If GPU unavailable, disabled, or initialization fails, continues with CPU-only.
+     * 
+     * Called automatically during initialize().
+     */
+    void initialize_gpu(bool enable_gpu);
+    
+    /**
+     * @brief Try GPU batch integration (if enabled and above threshold)
+     * @param ions Ion ensemble
+     * @param dt Timestep [s]
+     * @return true if GPU integration succeeded, false if CPU fallback needed
+     * 
+     * Automatically falls back to CPU if GPU unavailable or N < threshold.
+     */
+    bool try_gpu_integration(std::vector<IonState>& ions, double dt);
+    
+    /**
+     * @brief Try GPU space charge field computation (P³M algorithm)
+     * @param ions Ion ensemble
+     * @param E_fields Output: E-field at each ion position [V/m]
+     * @return true if GPU space charge succeeded, false if CPU fallback needed
+     * 
+     * **Dispatch Logic:**
+     * - Requires N >= gpu_space_charge_threshold_ (default: 1000 ions)
+     * - Uses P³M algorithm (O(N log N) via FFT)
+     * - Expected speedup: 333× for N=10k, 10,000× for N=100k
+     * 
+     * **Automatically falls back to CPU if:**
+     * - GPU not available
+     * - N < threshold (direct summation O(N²) faster for small N)
+     * - Space charge config missing or disabled
+     */
+    bool try_gpu_space_charge(const std::vector<IonState>& ions, std::vector<Vec3>& E_fields);
+    
+    /**
+     * @brief Extract field provider from force registry
+     * @param domain_id Domain index
+     * @return Pointer to field provider or nullptr if not available
+     * 
+     * Searches force registry for ElectricFieldForce and extracts its field provider.
+     * Used by GPU integration to upload fields to texture memory.
+     */
+    const ::IFieldProvider* extract_field_provider(int domain_id) const;
+    
+    /**
+     * @brief Try GPU batch boundary checking (conditional on domain config)
+     * @param ensemble Ion ensemble (SoA)
+     * @param domain_idx Domain index
+     * @return true if GPU boundary check succeeded, false if CPU fallback needed
+     * 
+     * **Conditional Dispatch:**
+     * - GPU boundary check only used if:
+     *   1. Boundary type is Absorption (GPU doesn't support reflections yet)
+     *   2. Instrument is NOT Orbitrap (GPU doesn't support hyperlogarithmic boundaries)
+     * - Falls back to CPU for:
+     *   - Specular/Diffuse/Thermal Reflection (requires surface normals + RNG)
+     *   - Orbitrap (requires bisection-based intersection)
+     * 
+     * **GPU Limitations (Phase 11):**
+     * - Geometry: Cylindrical only (no Orbitrap hyperlogarithmic surface)
+     * - Action: Absorption only (no reflection, no thermal accommodation)
+     * - Future: Phase 12 will add reflection + Orbitrap support
+     */
+    bool try_gpu_boundary_check(core::IonEnsemble& ensemble, int domain_idx);
+    
+    /**
+     * @brief Log GPU performance statistics
+     * 
+     * Called at simulation end to report GPU usage and speedup.
+     */
+    void finalize_gpu();
+#endif
     
     /**
      * @brief Process one timestep for all ions (legacy AoS)

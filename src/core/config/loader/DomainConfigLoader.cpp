@@ -53,6 +53,12 @@ DomainConfig DomainConfigLoader::load(
     }
     // Fields are optional (e.g., pure drift with only gas flow)
     
+    // === Boundary ===
+    if (json.isMember("boundary")) {
+        config.boundary = load_boundary(json["boundary"], config.environment.temperature_K);
+    }
+    // Boundary actions are optional (default: absorption)
+    
     // === Solver ===
     // Use domain-specific integrator if provided, otherwise fall back to global simulation.integrator
     std::string solver_str = default_integrator;  // Start with global default
@@ -408,6 +414,31 @@ Vec3 DomainConfigLoader::load_vec3(const Json::Value& json, const Vec3& default_
         json[1].asDouble(),
         json[2].asDouble()
     };
+}
+
+BoundaryConfig DomainConfigLoader::load_boundary(const Json::Value& json, double domain_temperature_K) {
+    BoundaryConfig boundary;
+    
+    // Parse boundary action type
+    if (json.isMember("type") && json["type"].isString()) {
+        std::string type_str = json["type"].asString();
+        boundary.type = BoundaryConfig::parse_type(type_str);
+    }
+    // Default: Absorption (already set in BoundaryConfig constructor)
+    
+    // Parse accommodation coefficient (for diffuse/thermal reflection)
+    if (json.isMember("accommodation_coeff") && json["accommodation_coeff"].isNumeric()) {
+        boundary.accommodation_coeff = json["accommodation_coeff"].asDouble();
+    }
+    
+    // Parse wall temperature (defaults to domain environment temperature)
+    if (json.isMember("temperature_K") && json["temperature_K"].isNumeric()) {
+        boundary.temperature_K = json["temperature_K"].asDouble();
+    } else {
+        boundary.temperature_K = domain_temperature_K;
+    }
+    
+    return boundary;
 }
 
 } // namespace ICARION::config

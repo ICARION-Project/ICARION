@@ -16,7 +16,8 @@
 | **3** | **Transport Physics** | 27 | **COMPLETE** | Drift velocity = IMS validation (Mason-Schamp) |
 | **4** | **Reactions** | 6 | **COMPLETE** | First-order (3), bimolecular (3) kinetics |
 | **5** | **Space Charge** | 8 | **COMPLETE** | Coulomb expansion, Direct vs Grid (N=1000 threshold) |
-| **6** | **Performance** | 18 | **COMPLETE** | Ion scaling, collision/SC overhead benchmarks |
+| **6** | **Performance** | 18 | **COMPLETE** | CPU: Ion scaling, collision/SC overhead benchmarks |
+| **7** | **GPU Performance** | 31 | 🔄 **IN PROGRESS** | GPU vs CPU, integrator comparison, thresholds |
 **Completed:** 309 configs total across all validation categories  
 **Status:** Full validation suite ready for execution
 
@@ -126,7 +127,7 @@
 
 ---
 
-## 🔄 SESSION 3: TRANSPORT PHYSICS (Status: 🔄 IN PROGRESS)
+## SESSION 3: TRANSPORT PHYSICS (Status: IN PROGRESS)
 
 ### **Planned Tests:**
 
@@ -220,43 +221,67 @@
 
 ---
 
-## ⏳ SESSION 6: PERFORMANCE BENCHMARKS (Status: ⏳ PLANNED)
+## ✅ SESSION 6: PERFORMANCE BENCHMARKS (Status: ✅ COMPLETE - CPU)
 
-### **Planned Tests:**
+### **CPU Benchmarks (COMPLETE):**
 
 #### **Scaling**
-- Ion count scaling: N = 100, 1k, 10k, 100k
-- OpenMP thread scaling (1-32 threads)
-- GPU vs CPU performance
+- Ion count scaling: N = 100, 1k, 10k, 100k ✅
+- OpenMP thread scaling (1-32 threads) ✅
+- Collision model overhead (HSS, EHSS) ✅
+- Space charge algorithms (direct vs grid) ✅
 
-#### **Integrators**
-- RK4 vs RK45 vs Boris accuracy and speed
-- Adaptive timestep efficiency
-- Energy conservation
-
-#### **Physics Overhead**
-- Collisionless baseline
-- HSS collision overhead
-- EHSS collision overhead
-- Space charge algorithms (direct vs grid)
-
-### **Expected Results:**
-
-| Test | Expected | Notes |
-|------|----------|-------|
-| Ion scaling | O(N) | Linear |
-| OpenMP | Speedup for N>1000 | Overhead for small N |
-| Boris | Fastest for E+B | Energy conserving |
-| HSS overhead | <10% | Simple model |
-| EHSS overhead | ~8x slower | Molecular structure |
-| Grid space charge | O(N log N) | vs O(N²) direct |
-
-### **Known Results:**
+#### **Known Results:**
 
 From thermalization validation:
 - **HSS**: 4.3s for 10,000 ions, 12μs simulation
 - **EHSS**: 34.6s for 10,000 ions, 12μs simulation (8x slower)
 - **Performance ratio**: EHSS/HSS ≈ 8.0
+
+---
+
+## 🚀 SESSION 7: GPU PERFORMANCE BENCHMARKS (Status: 🔄 IN PROGRESS)
+
+### **Overview:**
+
+GPU acceleration validation for integrators (RK4, RK45, Boris) across different ion counts.
+Phase 11 GPU implementation includes smart dispatch with dynamic thresholds.
+
+### **Benchmark Categories (31 configs):**
+
+#### **1. GPU vs CPU Scaling (10 configs)**
+- **Ion counts:** N = 1k, 5k, 10k, 50k, 100k
+- **Integrator:** RK4
+- **Modes:** CPU (enable_gpu: false) + GPU (enable_gpu: true)
+- **Validates:** Speedup ratio at different scales
+
+#### **2. Integrator Comparison (3 configs)**
+- **Integrators:** RK4, RK45, Boris
+- **Ion count:** N = 10,000
+- **Mode:** GPU only
+- **Validates:** Relative GPU performance (Boris fastest, RK45 slowest)
+
+#### **3. Threshold Validation (15 configs)**
+- **RK4/RK45:** N = 4k, 4.5k, 5k, 5.5k, 6k (threshold = 5000)
+- **Boris:** N = 2k, 2.25k, 2.5k, 2.75k, 3k (threshold = 2500)
+- **Validates:** Smart dispatch threshold effectiveness
+
+#### **4. Long Simulation Efficiency (3 configs)**
+- **Simulation time:** 100 µs (10× longer)
+- **Integrators:** RK4, RK45, Boris
+- **Ion count:** N = 10,000
+- **Validates:** GPU efficiency over extended runtime
+
+### **Expected GPU Performance:**
+
+| Integrator | Threshold | Expected Speedup | Force Evals |
+|------------|-----------|------------------|-------------|
+| **RK4**    | 5000      | 3-5×             | 4 per step  |
+| **RK45**   | 5000      | 4-6×             | 6-7 per step (adaptive) |
+| **Boris**  | 2500      | 5-10×            | 1 per step (symplectic) |
+
+**Note:** Boris has lower threshold (2500) due to computational simplicity (single force eval).
+RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evaluations.
 
 ---
 
@@ -278,6 +303,11 @@ From thermalization validation:
 - `scripts/generate_lqit_stability_configs.py` - LQIT stability tests (10 configs)
 - `scripts/generate_lqit_mass_scan_configs.py` - LQIT mass scan suite (4 configs)
 - `scripts/generate_quadrupole_stability_map.py` - Quadrupole (a,q) map (135 configs)
+
+🚀 **GPU Performance (Session 7):**
+- `scripts/generate_gpu_performance_configs.py` - GPU benchmark suite (31 configs)
+- `scripts/run_gpu_performance_tests.sh` - GPU test orchestration
+- `scripts/analyze_gpu_performance.py` - Speedup analysis and plotting
 - `scripts/analyze_quadrupole_stability_map.py` - Stability map analysis
 - `scripts/generate_fticr_configs.py` - FT-ICR cyclotron frequency (5 configs)
 - `scripts/analyze_fticr_frequencies.py` - Cyclotron frequency analysis

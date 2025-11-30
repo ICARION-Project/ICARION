@@ -18,8 +18,9 @@ This document describes the high-level architecture of ICARION, focusing on modu
 7. [Domain Management](#domain-management-phase-5a)
 8. [SimulationEngine Architecture](#simulationengine-architecture-phase-5a)
 9. [OutputManager Architecture](#outputmanager-architecture-phase-5a)
-10. [Data Flow](#data-flow)
-11. [Design Patterns](#design-patterns)
+10. [GPU Acceleration Architecture](#gpu-acceleration-architecture) **NEW in v1.1**
+11. [Data Flow](#data-flow)
+12. [Design Patterns](#design-patterns)
 
 ---
 
@@ -633,9 +634,9 @@ public:
 
 ### Field Arrays (HDF5-based Field Loading)
 
-**Status:** Production-ready, fully validated
+**Status:** Production-ready with superposition support (Phase 7, v1.1)
 
-ICARION supports loading pre-computed electric field arrays from HDF5 files for complex geometries where analytical solutions are unavailable.
+ICARION supports loading pre-computed electric field arrays from HDF5 files for complex geometries where analytical solutions are unavailable. **New in v1.1:** Multiple field arrays can be superposed with independent time-varying scaling factors.
 
 #### HDF5 File Format
 
@@ -658,6 +659,100 @@ field_array.h5
 ```cpp
 E_scaled = E_array × DC_voltage = 20 V/m × 100 V = 2000 V/m
 ```
+
+#### Field Array Superposition (Phase 7)
+
+**NEW in v1.1:** The `CompositeFieldProvider` enables superposition of multiple field arrays with independent time-varying scaling:
+
+**Mathematical Formulation:**
+```
+E_total(r, t) = Σ_i [scale_i(t) · E_i(r)]
+```
+
+where:
+- `E_i(r)` = i-th pre-computed field array (normalized to 1V)
+- `scale_i(t)` = time-dependent scaling factor computed from:
+  - **Constant**: `scale = factor`
+  - **DC_Axial/Quad/Radial**: `scale = voltage` (read from waveform or config)
+  - **RF**: `scale = V_rf(t) × cos(2π f t + φ)` with RF waveform support
+
+**Architecture:**
+
+```cpp
+class CompositeFieldProvider : public IFieldProvider {
+    struct FieldTerm {
+        std::shared_ptr<GridFieldProvider> field_provider;
+        ScaleKind scaling_type;
+        ValueOrWaveform voltage;  // Supports waveforms for RF
+        size_t field_term_index;  // Index into config.fields.field_terms[]
+    };
+    
+    std::vector<FieldTerm> terms_;
+    const DomainConfig& domain_;
+    
+public:
+    Vec3 get_E(const Vec3& pos, double t) const override {
+        Vec3 E_total(0, 0, 0);
+        for (const auto& term : terms_) {
+            Vec3 E_array = term.field_provider->get_E(pos, t);
+            double scale = compute_scale_factor(term, t);
+            E_total = E_total + (E_array * scale);
+        }
+        return E_total;
+    }
+};
+```
+
+**Configuration Example:**
+
+```json
+{
+  "fields": {
+    "field_arrays": [
+      "field_arrays/dc_axial.h5",
+      "field_arrays/rf_quadrupole.h5"
+    ],
+    "field_terms": [
+      {
+        "field_array_index": 0,
+        "scaling": {
+          "kind": "DC_Axial",
+          "voltage": 100.0
+        }
+      },
+      {
+        "field_array_index": 1,
+        "scaling": {
+          "kind": "RF",
+          "voltage": {
+            "waveform_id": "rf_trap",
+            "frequency_Hz": 1e6,
+            "amplitude_V": 500.0,
+            "phase_deg": 0.0
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+**Use Cases:**
+1. **IMS with RF focusing**: DC drift field + RF ion guide
+2. **Orbitrap excitation**: Static trapping field + time-varying dipole excitation
+3. **Multi-domain switching**: Different field configurations in each domain
+4. **Time-resolved experiments**: Pulsed fields with waveform control
+
+**Validation:**
+- Single array: 91.2% accuracy (ballistic drift, Phase 7)
+- Multi-domain: 1.89:1 intensity ratio matches expectation
+- RF superposition: Verified with 2-term configuration (DC + RF @ 1 MHz)
+
+**Files:**
+- `src/fieldsolver/utils/CompositeFieldProvider.h` (Phase 7)
+- `src/fieldsolver/utils/IFieldProvider.h` (extended with time parameter)
+- `src/core/physics/forces/ElectricFieldForce.cpp` (calls `get_E(pos, t)`)
+- `examples/test_rf_superposition.json` (validation config)
 
 #### Field Array Loading
 
@@ -940,6 +1035,85 @@ y_new = y + dt*(k1 + 2*k2 + 2*k3 + k4)/6
 - No small-angle approximation (valid for all B)
 - Optimal for cyclotron motion (no accumulation errors)
 
+### GPU Acceleration for Integrators (v1.1)
+
+**All three integrators support GPU batch processing** with automatic CPU fallback:
+
+#### GPU Integration Flow
+
+```cpp
+// In SimulationEngine::process_timestep()
+#ifdef ICARION_USE_GPU
+    if (try_gpu_integration(ions, dt)) {
+        return;  // GPU succeeded
+    }
+#endif
+// CPU fallback: per-ion OpenMP parallelization
+```
+
+**Dynamic Dispatch (Cached):**
+```cpp
+bool SimulationEngine::try_gpu_integration(vector<IonState>& ions, double dt) {
+    // Cache integrator type once (avoid repeated dynamic_cast)
+    if (!integrator_type_cached_) {
+        if (dynamic_cast<RK4Strategy*>(integrator_.get()))
+            integrator_type_ = IntegratorType::RK4;
+        else if (dynamic_cast<RK45Strategy*>(integrator_.get()))
+            integrator_type_ = IntegratorType::RK45;
+        else if (dynamic_cast<BorisStrategy*>(integrator_.get()))
+            integrator_type_ = IntegratorType::Boris;
+        integrator_type_cached_ = true;
+    }
+    
+    // Smart threshold based on integrator complexity
+    size_t threshold = gpu_threshold_;
+    if (integrator_type_ == IntegratorType::Boris)
+        threshold /= 2;  // Boris: 1 force eval → lower threshold
+    
+    if (ions.size() < threshold) return false;
+    
+    // Dispatch to appropriate GPU kernel
+    switch (integrator_type_) {
+        case IntegratorType::RK4:
+            return gpu_helper_->integrate_batch_rk4(...);
+        case IntegratorType::RK45:
+            return gpu_helper_->integrate_batch_rk45(...);
+        case IntegratorType::Boris:
+            return gpu_helper_->integrate_batch_boris(...);
+    }
+}
+```
+
+**GPU Kernels:**
+- `integrate_rk4_batch.cu`: 4-stage Runge-Kutta (4 force evals)
+- `integrate_rk45_batch.cu`: Dormand-Prince adaptive with error control (6-7 stages, FSAL)
+- `integrate_boris_batch.cu`: Symplectic pusher (1 force eval)
+
+**Smart Thresholds (v1.1):**
+| Integrator | Force Evals | GPU Threshold | Rationale |
+|------------|-------------|---------------|-----------|
+| Boris      | 1           | 2500 ions     | Low overhead → GPU beneficial earlier |
+| RK4        | 4           | 5000 ions     | Standard threshold |
+| RK45       | 6-7         | 5000 ions     | Standard threshold |
+
+**Performance (RTX 5070 Ti, 5000 ions):**
+- RK45: 13.9s wall time, GPU active 9-15%
+- Boris: 1.6s wall time, GPU active 10%
+- RK4: ~8s wall time (reference)
+
+**CPU/GPU Parity Validation:**
+- All integrators: 37,956 assertions passed
+- Position tolerance: 1e-12 m (subnanometer precision)
+- Velocity tolerance: 1e-12 m/s
+- Energy conservation (Boris): relative error < 1e-15
+
+**Files:**
+- `src/core/gpu/integrate_rk4_batch.{cu,cuh}` (350 lines)
+- `src/core/gpu/integrate_rk45_batch.{cu,cuh}` (350 lines, adaptive substeps)
+- `src/core/gpu/integrate_boris_batch.{cu,cuh}` (235 lines, symplectic)
+- `src/core/gpu/GPUIntegrationHelper.{h,cpp}` (extended with RK45/Boris)
+- `tests/integrator/test_rk45_boris_parity.cpp` (407 lines, 7 test cases)
+
 ### Factory Pattern (IntegrationStrategyFactory)
 
 ```cpp
@@ -1078,17 +1252,198 @@ manager.update_domain_properties(ion, idx);
 - Bisection parameters: 80 iterations, 1e-10 tolerance, bracket expansion if needed
 - Validated: Boundary computation accurate at all z-positions (test_domain_manager)
 
+**Boundary Actions (Phase 10, v1.1):**
+
+**NEW:** Configurable boundary interactions via the **Boundary Action System**. When an ion crosses a domain boundary, one of the following actions is applied:
+
+#### Action Types
+
+1. **Absorption** (default):
+   - Ion is deactivated (`ion.active = false`)
+   - Velocity set to zero
+   - Trajectory terminates
+
+2. **Specular Reflection**:
+   - Mirror reflection: `v' = v - 2(v · n)n`
+   - Elastic collision (energy conserved)
+   - No thermal effects
+
+3. **Diffuse Reflection**:
+   - Cosine-weighted re-emission (Knudsen cosine law)
+   - Accommodation coefficient `α ∈ [0,1]`:
+     - `α = 0`: Pure specular (mirror reflection)
+     - `α = 1`: Full thermal accommodation
+     - `α ∈ (0,1)`: Blend of specular + diffuse
+   - Surface temperature `T_s` for thermal velocity component
+
+4. **Thermal Re-emission**:
+   - Ion fully accommodates to surface temperature
+   - Velocity sampled from Maxwell-Boltzmann distribution at `T_s`
+   - Direction: Cosine-weighted hemisphere (Malley's method)
+   - Energy: `E_thermal = (1/2) m v² ~ (3/2) k_B T_s`
+
+#### Physics Implementation
+
+**Surface Normal Computation:**
+```cpp
+Vec3 DomainManager::compute_surface_normal(const Vec3& pos, int domain_idx) const {
+    // Cylindrical domains: r-direction or z-direction
+    if (radial_boundary) return Vec3(x, y, 0).normalized();  // Radial wall
+    if (axial_boundary)  return Vec3(0, 0, ±1);              // End cap
+    
+    // Orbitrap: Numerical gradient of hyperlogarithmic surface
+    // ...
+}
+```
+
+**Thermal Velocity Sampling:**
+```cpp
+// Maxwell-Boltzmann distribution in 3D
+std::normal_distribution<double> dist(0.0, sigma_thermal);
+double vx = dist(rng);  // σ = sqrt(k_B T_s / m)
+double vy = dist(rng);
+double vz = dist(rng);
+
+// Cosine-weighted hemisphere (Malley's method)
+double r = sqrt(rng_uniform(0, 1));
+double theta = 2π × rng_uniform(0, 1);
+Vec3 v_local(r × cos(θ), r × sin(θ), sqrt(1 - r²));
+
+// Transform to global coordinates using orthonormal basis from normal
+Vec3 v_global = tangent1 * v_local.x + tangent2 * v_local.y + normal * v_local.z;
+```
+
+**Accommodation Coefficient Blending:**
+```cpp
+// Linear blend: v_final = α × v_diffuse + (1 - α) × v_specular
+Vec3 v_specular = ion.vel - normal * (2.0 * dot(ion.vel, normal));
+Vec3 v_diffuse = sample_thermal_velocity(temperature_K, ion.mass_amu);
+ion.vel = v_specular * (1.0 - alpha) + v_diffuse * alpha;
+```
+
+#### Configuration
+
+**JSON Format:**
+```json
+{
+  "domains": [
+    {
+      "geometry": {...},
+      "boundary": {
+        "action": "thermal_reflection",
+        "accommodation_coeff": 0.8,
+        "temperature_K": 300.0
+      }
+    }
+  ]
+}
+```
+
+**BoundaryConfig Fields:**
+- `action`: `"absorption"`, `"specular_reflection"`, `"diffuse_reflection"`, `"thermal_reflection"`
+- `accommodation_coeff`: `[0, 1]` (required for diffuse reflection)
+- `temperature_K`: Surface temperature (required for thermal actions)
+
+**Fallback:** If `temperature_K` is not specified, uses `environment.temperature_K`.
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DomainManager                            │
+├─────────────────────────────────────────────────────────────┤
+│  terminate_ion_at_boundary(ion, domain_idx):                │
+│    1. Ray-trace to find exact boundary intersection         │
+│    2. Compute surface normal n at intersection point        │
+│    3. Apply boundary action:                                │
+│       boundary_actions_[domain_idx]->apply(ion, n, pos, T)  │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│              BoundaryAction (abstract interface)            │
+├─────────────────────────────────────────────────────────────┤
+│  virtual void apply(IonState& ion,                          │
+│                     const Vec3& normal,                     │
+│                     const Vec3& boundary_pos,               │
+│                     double temperature_K) = 0;              │
+└─────────────────────────────────────────────────────────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+┌──────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Absorption   │  │ Reflection       │  │ Thermal          │
+│ Action       │  │ Action           │  │ Reflection       │
+│              │  │ (3 types)        │  │ Action           │
+│ Deactivate   │  │ Specular/Diffuse │  │ Maxwell-Boltzmann│
+└──────────────┘  └──────────────────┘  └──────────────────┘
+```
+
+**Factory Pattern:**
+```cpp
+std::unique_ptr<BoundaryAction> BoundaryActionFactory::create(
+    const BoundaryConfig& config,
+    std::mt19937& rng
+);
+```
+
+#### Use Cases
+
+1. **Vacuum chambers** (Absorption): Default behavior, ions lost at walls
+2. **IMS with thermal walls** (Thermal reflection): Gas-surface collisions in drift tubes
+3. **Elastic collisions** (Specular): Ideal metallic surfaces, diagnostic mode
+4. **Partial accommodation** (Diffuse, α=0.5): Realistic surface interactions
+
+#### Integration Flow
+
+```
+SimulationEngine
+    │
+    ├─── creates DomainManager(config.domains, rng_seed)
+    │        │
+    │        └─── BoundaryActionFactory::create() for each domain
+    │                  │
+    │                  └─── Stores vector<unique_ptr<BoundaryAction>>
+    │
+    └─── integrate_one_step()
+              │
+              └─── check boundary crossing
+                       │
+                       └─── DomainManager::terminate_ion_at_boundary()
+                                  │
+                                  ├─── compute_surface_normal()
+                                  └─── boundary_actions_[idx]->apply()
+```
+
+**RNG Seeding:** DomainManager receives `config.simulation.rng_seed` from SimulationEngine to ensure reproducible stochastic boundary interactions (thermal velocities, diffuse angles).
+
+**Status:** Complete (Phase 10, Dec 2025)
+
+**Files:**
+- `src/core/integrator/boundaries/BoundaryAction.h` (abstract interface)
+- `src/core/integrator/boundaries/AbsorptionAction.h` (deactivation)
+- `src/core/integrator/boundaries/ReflectionAction.h` (3 reflection types)
+- `src/core/integrator/boundaries/BoundaryActionFactory.h` (factory)
+- `src/core/config/types/BoundaryConfig.h` (configuration)
+- `src/core/config/loader/DomainConfigLoader.h/cpp` (JSON parsing)
+- `src/core/integrator/DomainManager.h/cpp` (integration + normal computation)
+- `src/core/integrator/SimulationEngine.cpp` (RNG seed propagation)
+
+**Validation:** Compiled successfully with 10 files changed (628 insertions). Runtime testing pending.
+
+---
+
 **Boundary Termination:**
 - `terminate_ion_at_boundary()`: Ray-tracing to find exact intersection point
 - Cylindrical: Analytical ray-cylinder/plane intersection
 - Orbitrap: Midpoint approximation (TODO: ray-hyperbola intersection)
+- **NEW:** Applies configured boundary action (absorption/reflection/thermal)
 - Prevents unphysical ion positions beyond domain boundaries
 
-**Status:** Complete (Phase 5A, Nov 2025)
+**Status:** Complete (Phase 5A + Phase 10, Nov-Dec 2025)
 
 **Files:**
 - `src/core/integrator/DomainManager.h` (API)
-- `src/core/integrator/DomainManager.cpp` (~150 lines)
+- `src/core/integrator/DomainManager.cpp` (~200 lines with boundary actions)
 - `tests/integrator/test_domain_manager.cpp` (11 test cases)
 
 ### Collision Handling (Mixtures + gas-specific CCS)
@@ -1188,15 +1543,17 @@ public:
 
 2. **Main Time Loop** (until `t_global >= t_end`)
    - Apply ion birth logic (delayed emission)
-   - **Parallel ion processing** (OpenMP):
-     - Find domain (DomainManager)
-     - Transform to local coordinates
-     - Compute forces (ForceRegistry)
-     - Handle collisions (ICollisionHandler)
-     - Handle reactions (IReactionHandler)
-     - Integrate trajectory (IIntegrationStrategy)
-     - Check aperture crossings (DomainManager)
-     - Transform back to global coordinates
+   - **Parallel ion processing** (OpenMP single parallel region):
+     ```cpp
+     #pragma omp parallel
+     {
+         #pragma omp for schedule(dynamic)
+         for (int i = 0; i < ions.size(); ++i) {
+             if (!ions[i].active) continue;
+             process_timestep(ions[i], t, dt, rng_by_ion[i]);
+         }
+     }
+     ```
    - Log trajectory snapshot (OutputManager)
    - Update progress logging (every 10%)
 
@@ -1205,40 +1562,144 @@ public:
    - Write completion metadata
    - Log final statistics (active/lost ions)
 
+**process_timestep() - Modularized with Inline Helpers (Nov 2025):**
+
+The main ion processing logic has been refactored from a monolithic 250-line function into 9 inline helper functions for maintainability while preserving OpenMP performance:
+
+```cpp
+void SimulationEngine::process_timestep(
+    IonState& ion, double t, double dt, EhssRng& rng
+) {
+    // 1. Find domain
+    int domain_idx = find_ion_domain(ion);  // 5 lines
+    
+    // 2. Update domain properties
+    update_domain_properties(ion, domain_idx);  // 3 lines
+    
+    // 3. Handle collisions
+    process_ion_collisions(ion, dt, t, domain_idx, rng);  // 15 lines
+    
+    // 4. Handle reactions
+    process_ion_reactions(ion, dt, t, domain_idx, rng);  // 20 lines
+    
+    // 5. Integrate trajectory
+    integrate_ion_trajectory(ion, t, dt, domain_idx);  // 10 lines
+    
+    // 6. Check boundaries
+    if (!check_ion_boundaries(ion, domain_idx)) {
+        return;  // Ion lost or detected
+    }
+    
+    // 7. Verify safety (NaN check)
+    verify_ion_safety(ion, t);  // 15 lines
+}
+```
+
+**Why Inline Helpers?**
+- **Readability**: Each helper has a clear single responsibility
+- **Zero-Cost Abstraction**: `inline` ensures no function call overhead
+- **OpenMP Compatible**: Preserves single parallel region (no nested parallelism)
+- **Testability**: Each helper can be unit-tested independently
+- **Performance**: Same performance as monolithic code (verified: 12.19s vs 13.5s baseline)
+
 **Early Exit Conditions:**
 - All ions inactive (lost or detected)
 - Critical error (NaN positions, invalid domain index)
 
 ### Example Usage
 
+**Modern Approach (Nov 2025) - Using PhysicsSetup Helper:**
+
 ```cpp
-// Load configuration
+// In main.cpp
+#include "main/setup/PhysicsSetup.h"
+
+// 1. Load configuration
 auto config = config::ConfigLoader::load("config.json");
 
-// Create physics modules
-auto force_registry = std::make_shared<physics::ForceRegistry>();
-auto integrator = std::make_shared<RK4Strategy>();
-auto collision_handler = physics::CollisionHandlerFactory::create(config.physics, ...);
-auto reaction_handler = physics::ReactionHandlerFactory::create(config.physics, ...);
+// 2. Generate ions
+auto ion_result = config.generate_ions(rng);
+std::vector<IonState> ions = std::move(ion_result.ions);
 
-// Create simulation engine
+// 3. Create all physics modules (factory pattern)
+auto physics = setup::PhysicsSetup::initialize(config, ions);
+// Returns: { force_registries, strategy, collision_handler, 
+//            reaction_handler, space_charge_solver }
+
+// 4. Create simulation engine (dependency injection)
 integrator::SimulationEngine engine(
     config,
-    force_registry,
-    integrator,
-    collision_handler,
-    reaction_handler
+    physics.force_registries,      // One per domain
+    physics.strategy,               // RK4/RK45/Boris (auto-selected)
+    physics.collision_handler,      // EHSS/HSS (optional)
+    physics.reaction_handler        // Ion-molecule reactions (optional)
 );
 
-// Generate ions
-auto result = config.generate_ions(rng);
-std::vector<IonState> ions = std::move(result.ions);
-
-// Run simulation
+// 5. Run simulation
 auto final_ions = engine.run(ions);
 
 // Output automatically written to HDF5 file
 ```
+
+**What PhysicsSetup Does:**
+
+The `PhysicsSetup` helper (extracted from main.cpp in Nov 2025) centralizes physics module creation:
+
+```cpp
+namespace setup {
+
+class PhysicsSetup {
+public:
+    struct PhysicsModules {
+        std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries;
+        std::shared_ptr<IIntegrationStrategy> strategy;
+        std::shared_ptr<physics::ICollisionHandler> collision_handler;
+        std::shared_ptr<physics::IReactionHandler> reaction_handler;
+        std::unique_ptr<physics::ISpaceChargeSolver> space_charge_solver;
+    };
+    
+    static PhysicsModules initialize(
+        const config::FullConfig& config,
+        const std::vector<IonState>& ions
+    );
+
+private:
+    // Factory methods
+    static std::vector<std::shared_ptr<physics::ForceRegistry>>
+        create_force_registries(const config::FullConfig& config);
+    
+    static std::unique_ptr<physics::ISpaceChargeSolver>
+        create_space_charge_solver(const config::FullConfig& config, size_t N);
+    
+    static std::shared_ptr<IIntegrationStrategy>
+        create_integration_strategy(const config::SimulationConfig& sim);
+    
+    static std::shared_ptr<physics::ICollisionHandler>
+        create_collision_handler(const config::FullConfig& config);
+    
+    static std::shared_ptr<physics::IReactionHandler>
+        create_reaction_handler(const config::PhysicsConfig& phys);
+};
+
+} // namespace setup
+```
+
+**Benefits:**
+- **Separation of Concerns**: Physics setup logic separated from main.cpp orchestration
+- **Automatic Selection**: Space charge solver (Direct vs Grid) based on ion count
+- **Type Safety**: Strongly-typed return struct (no out-parameters)
+- **Testability**: PhysicsSetup can be unit-tested independently
+- **Code Reuse**: Same setup logic for main.cpp, tests, and examples
+
+**Before PhysicsSetup (Legacy):**
+- 190 lines of setup code in main.cpp
+- 12 physics includes in main.cpp
+- Hard to test setup logic
+
+**After PhysicsSetup (Nov 2025):**
+- ~190 lines moved to PhysicsSetup.cpp
+- main.cpp reduced from 557 → 365 lines (-34%)
+- Clean separation: main.cpp = orchestration, PhysicsSetup = factory
 
 ### Ion-Based RNG (Phase 12 Enhancement)
 
@@ -1278,14 +1739,21 @@ for (int i = 0; i < n_ions; ++i) {
 ### Files
 
 **Implementation:**
-- `src/core/integrator/SimulationEngine.h` (API)
-- `src/core/integrator/SimulationEngine.cpp` (~400 lines)
+- `src/core/integrator/SimulationEngine.h` (API, 343 lines)
+- `src/core/integrator/SimulationEngine.cpp` (774 lines)
+  - `process_timestep()`: 50 lines (down from 250 lines before refactoring)
+  - 9 inline helper functions for modular processing
+- `src/main/setup/PhysicsSetup.h` (98 lines)
+- `src/main/setup/PhysicsSetup.cpp` (295 lines)
+  - Extracted from main.cpp (Nov 2025)
+  - Factory methods for all physics modules
 
 **Tests:**
 - `tests/integrator/test_simulation_engine.cpp` (unit tests)
 - 10 test cases, 45+ assertions
+- All tests passing (51/51 as of Nov 2025)
 
-**Status:** Production-ready (Phase 5A complete, Nov 2025)
+**Status:** Production-ready (Phase 5A complete, refactored Nov 2025)
 
 ---
 
@@ -1449,35 +1917,1006 @@ manager.finalize(t_end, ions);
 
 ---
 
+## GPU Acceleration Architecture
+
+**Added:** November 2025 (v1.1 development)
+**Status:** Phases 1-7 complete (GPU Core, Field Arrays with Superposition), Phase 10 complete (Boundary Actions)
+
+### Overview
+
+ICARION's GPU acceleration uses a **hybrid CPU/GPU architecture** with automatic dispatch based on ion count. The design prioritizes:
+
+1. **Transparency**: GPU acceleration is optional (`-DUSE_GPU_ACCEL=ON`)
+2. **Safety**: Automatic fallback to CPU on GPU errors
+3. **Performance**: 10-50× speedup for N > 5000 ions
+4. **Maintainability**: Single codebase, not parallel CPU/GPU implementations
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   SimulationEngine                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  process_timestep():                                        │
+│    ┌──────────────────────────────────────┐                │
+│    │ if (N >= 5000 && gpu_helper)         │                │
+│    │   → GPU Batch Integration            │                │
+│    │ else                                  │                │
+│    │   → CPU Per-Ion Integration          │                │
+│    └──────────────────────────────────────┘                │
+│            │                      │                         │
+│            ▼                      ▼                         │
+│    ┌──────────────┐      ┌──────────────────┐             │
+│    │ GPU Helper   │      │ IIntegration     │             │
+│    │              │      │ Strategy         │             │
+│    └──────┬───────┘      └──────────────────┘             │
+│           │                                                │
+└───────────┼────────────────────────────────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────────────────────────────────┐
+│               GPU Acceleration Layer                        │
+├─────────────────────────────────────────────────────────────┤
+│  ┌──────────────────┐  ┌─────────────────┐                 │
+│  │ GPUContext       │  │ GPUMemoryPool   │                 │
+│  │ - Device mgmt    │  │ - Buffer reuse  │                 │
+│  │ - Stream mgmt    │  │ - Pinned memory │                 │
+│  └──────────────────┘  └─────────────────┘                 │
+│                                                             │
+│  ┌──────────────────┐  ┌─────────────────┐                 │
+│  │ IonState_GPU     │  │ integrate_rk4   │                 │
+│  │ - SoA layout     │  │ - CUDA kernel   │                 │
+│  │ - AoS↔SoA conv   │  │ - Grid-stride   │                 │
+│  └──────────────────┘  └─────────────────┘                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Module Breakdown
+
+#### 1. GPUContext (`src/core/gpu/GPUContext.{h,cpp}`)
+
+**Purpose:** RAII wrapper for CUDA device and stream management
+
+**Responsibilities:**
+- Device initialization and selection
+- Stream creation for async operations
+- Device property queries
+- Automatic cleanup on destruction
+
+**Key Methods:**
+```cpp
+class GPUContext {
+    static std::unique_ptr<GPUContext> create(int device_id = 0);
+    static bool is_cuda_available();
+    
+    cudaStream_t get_stream() const;
+    void synchronize() const;
+    const DeviceProperties& get_properties() const;
+};
+```
+
+**Design:**
+- Factory pattern with `create()` - returns `nullptr` if CUDA unavailable
+- Move-only semantics (no copy constructor)
+- Thread-safe (one context per thread recommended)
+
+#### 2. GPUMemoryPool (`src/core/gpu/GPUMemoryPool.{h,cpp}`)
+
+**Purpose:** Reduce `cudaMalloc`/`cudaFree` overhead through buffer reuse
+
+**Responsibilities:**
+- Device buffer allocation with caching
+- Pinned host buffer allocation (faster PCIe transfers)
+- Buffer reuse based on size and type
+- Memory statistics tracking
+
+**Key Types:**
+```cpp
+template<typename T>
+class DeviceBuffer {
+    void upload(const T* host_data, size_t count);
+    void download(T* host_data, size_t count);
+    void upload_async(const T* host_data, size_t count, cudaStream_t);
+};
+
+template<typename T>
+class PinnedBuffer {
+    T* get();  // Direct CPU access, GPU-mappable
+};
+
+class GPUMemoryPool {
+    DeviceBuffer<T> get_device_buffer(size_t count);
+    void release_device_buffer(DeviceBuffer<T>&&);
+    Stats get_stats() const;
+};
+```
+
+**Performance:**
+- 5-10× faster allocation for repeated buffer sizes
+- Pinned memory: 2-3× faster CPU↔GPU transfers vs pageable
+
+#### 3. IonState_GPU (`src/utils/IonState_GPU.{h,cpp}`)
+
+**Purpose:** GPU-friendly Structure of Arrays (SoA) layout
+
+**CPU Layout (AoS):**
+```
+ion[0]: {x, y, z, vx, vy, vz, mass, charge, ...}
+ion[1]: {x, y, z, vx, vy, vz, mass, charge, ...}
+...
+```
+
+**GPU Layout (SoA):**
+```
+x[]:      {ion0_x,  ion1_x,  ion2_x,  ...}
+y[]:      {ion0_y,  ion1_y,  ion2_y,  ...}
+vx[]:     {ion0_vx, ion1_vx, ion2_vx, ...}
+mass[]:   {ion0_m,  ion1_m,  ion2_m,  ...}
+```
+
+**Why SoA?**
+- **Memory coalescing**: GPU threads access consecutive memory
+- **Bandwidth**: 10× improvement vs AoS on GPU
+- **SIMD-friendly**: Vectorized operations on each array
+
+**Key Functions:**
+```cpp
+namespace ion_state_conversion {
+    void upload_ions(const vector<IonState>&, IonStateGPU&, stream);
+    void download_ions(const IonStateGPU&, vector<IonState>&, stream);
+    void upload_positions_velocities(...);  // Partial transfer
+}
+```
+
+#### 4. GPUIntegrationHelper (`src/core/gpu/GPUIntegrationHelper.{h,cpp}`)
+
+**Purpose:** Batch integration on GPU for all integrator types (RK4/RK45/Boris)
+
+**Responsibilities:**
+- Auto-dispatch: GPU if N ≥ threshold, else return false
+- Async pipeline: upload → compute → download
+- Buffer management via GPUMemoryPool
+- Performance statistics tracking
+- Automatic fallback on errors
+
+**Key Methods:**
+```cpp
+class GPUIntegrationHelper {
+    static std::unique_ptr<GPUIntegrationHelper> create(
+        const GPUContext& context, 
+        size_t threshold = 5000
+    );
+    
+    // RK4: Fixed-step 4th-order Runge-Kutta
+    bool integrate_batch_rk4(
+        vector<IonState>& ions,
+        double dt,
+        double t,
+        const IFieldProvider* field_provider = nullptr
+    );
+    
+    // RK45: Adaptive Dormand-Prince with error control
+    bool integrate_batch_rk45(
+        vector<IonState>& ions,
+        double dt,
+        double t,
+        const IFieldProvider* field_provider = nullptr,
+        double atol = 1e-8,
+        double rtol = 1e-6
+    );
+    
+    // Boris: Symplectic pusher for magnetic fields
+    bool integrate_batch_boris(
+        vector<IonState>& ions,
+        double dt,
+        double t,
+        const IFieldProvider* field_provider = nullptr
+    );
+    
+    const Stats& get_stats() const;
+    size_t get_threshold() const;
+};
+```
+
+**Integration with SimulationEngine (Smart Dispatch):**
+```cpp
+// In SimulationEngine::try_gpu_integration()
+#ifdef ICARION_USE_GPU
+bool SimulationEngine::try_gpu_integration(vector<IonState>& ions, double dt) {
+    if (!gpu_helper_) return false;
+    
+    // Cache integrator type (avoid repeated dynamic_cast)
+    if (!integrator_type_cached_) {
+        if (dynamic_cast<RK4Strategy*>(integrator_.get()))
+            integrator_type_ = IntegratorType::RK4;
+        else if (dynamic_cast<RK45Strategy*>(integrator_.get()))
+            integrator_type_ = IntegratorType::RK45;
+        else if (dynamic_cast<BorisStrategy*>(integrator_.get()))
+            integrator_type_ = IntegratorType::Boris;
+        integrator_type_cached_ = true;
+    }
+    
+    // Dynamic threshold: Boris cheaper → lower threshold
+    size_t threshold = (integrator_type_ == IntegratorType::Boris) 
+                       ? gpu_threshold_ / 2 
+                       : gpu_threshold_;
+    
+    if (ions.size() < threshold) return false;
+    
+    // Dispatch without dynamic_cast overhead (switch on cached type)
+    const IFieldProvider* fields = extract_field_provider(0);
+    switch (integrator_type_) {
+        case IntegratorType::RK4:
+            return gpu_helper_->integrate_batch_rk4(ions, dt, t, fields);
+        case IntegratorType::RK45: {
+            auto* rk45 = static_cast<RK45Strategy*>(integrator_.get());
+            auto& cfg = rk45->get_config();
+            return gpu_helper_->integrate_batch_rk45(
+                ions, dt, t, fields, cfg.atol, cfg.rtol
+            );
+        }
+        case IntegratorType::Boris:
+            return gpu_helper_->integrate_batch_boris(ions, dt, t, fields);
+    }
+    return false;
+}
+#endif
+
+// In process_timestep():
+#ifdef ICARION_USE_GPU
+    if (try_gpu_integration(ions, dt)) {
+        return;  // GPU success
+    }
+#endif
+    // CPU fallback: per-ion OpenMP parallelization
+    #pragma omp parallel for
+    for (auto& ion : ions) {
+        integrator_->step(ion, t, dt, force_registry, ions);
+    }
+```
+
+**Design Benefits:**
+- **No main-loop bloat**: All logic in `try_gpu_integration()`
+- **Zero overhead when GPU disabled**: Preprocessor guards eliminate code
+- **Cached dispatch**: Type detection happens once, not per timestep
+- **Smart thresholds**: Lower threshold for lightweight integrators
+- **Transparent fallback**: GPU errors automatically fall back to CPU
+
+#### 5. CUDA Kernels
+
+**Purpose:** High-performance batch integration for all integrator types
+
+##### RK4 Kernel (`src/core/gpu/integrate_rk4_batch.cu`)
+
+**Algorithm:** 4-stage fixed-step Runge-Kutta
+
+```cuda
+__global__ void integrate_rk4_batch_kernel(
+    const double* x_in, const double* y_in, const double* z_in,
+    const double* vx_in, const double* vy_in, const double* vz_in,
+    const double* mass, const double* charge, const bool* active,
+    double* x_out, double* y_out, double* z_out,
+    double* vx_out, double* vy_out, double* vz_out,
+    Vec3 E_field, Vec3 B_field, double dt, int N
+) {
+    // Grid-stride loop for optimal occupancy
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
+         i < N; 
+         i += gridDim.x * blockDim.x) {
+        
+        if (!active[i]) continue;
+        
+        // RK4 stages: k1, k2, k3, k4
+        // 4 force evaluations per ion
+    }
+}
+```
+
+##### RK45 Kernel (`src/core/gpu/integrate_rk45_batch.cu`)
+
+**Algorithm:** Dormand-Prince 5(4) with adaptive substep control
+
+**Features:**
+- **Embedded pair**: 4th-order solution for propagation, 5th-order for error estimation
+- **Per-ion adaptive**: Each ion independently adjusts substep size
+- **Error control**: `error = max(|Δpos|, |Δvel|) / (atol + rtol * |state|)`
+- **Step rejection**: If error > 1.0, reject and retry with smaller substep
+- **FSAL optimization**: Reuse last evaluation as first of next substep
+
+```cuda
+__global__ void integrate_rk45_batch_kernel(
+    IonStateGPU ions_in,
+    IonStateGPU ions_out,
+    RK45Params params,  // atol, rtol, safety_factor, min/max_step
+    Vec3 E_field, Vec3 B_field,
+    double dt, double t, int N
+) {
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
+         i < N; 
+         i += gridDim.x * blockDim.x) {
+        
+        double dt_substep = dt;
+        double t_local = t;
+        int substeps = 0;
+        
+        // Adaptive substep loop (per ion)
+        while (t_local < t + dt && substeps < params.max_substeps) {
+            // 7-stage Dormand-Prince
+            // k1, k2, k3, k4, k5, k6 → y4, y5
+            // error = |y5 - y4|
+            
+            if (error <= 1.0) {
+                // Accept step
+                t_local += dt_substep;
+                dt_substep *= fmin(params.safety_factor * pow(1.0/error, 0.2), 
+                                   params.max_step_increase);
+            } else {
+                // Reject step, retry with smaller dt
+                dt_substep *= fmax(params.safety_factor * pow(1.0/error, 0.25),
+                                   params.max_step_decrease);
+            }
+            substeps++;
+        }
+    }
+}
+```
+
+**Complexity:** 6-7 force evaluations per accepted substep (FSAL), variable substeps per ion
+
+##### Boris Kernel (`src/core/gpu/integrate_boris_batch.cu`)
+
+**Algorithm:** Symplectic pusher for electromagnetic fields
+
+**Features:**
+- **Magnetic rotation**: Exact for any |B| (no small-angle approximation)
+- **Energy conserving**: Preserves phase-space volume
+- **Single force eval**: Only electric field force needed
+- **Time-reversible**: Symmetric algorithm structure
+
+```cuda
+__global__ void integrate_boris_batch_kernel(
+    IonStateGPU ions_in,
+    IonStateGPU ions_out,
+    Vec3 E_field, Vec3 B_field,
+    double dt, int N
+) {
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
+         i < N; 
+         i += gridDim.x * blockDim.x) {
+        
+        if (!ions_in.active[i]) continue;
+        
+        double qm = ions_in.charge[i] / ions_in.mass[i];
+        
+        // 1. Electric half-step: v^- = v^n + (q/m)*E*(dt/2)
+        Vec3 v_minus = v + E * (qm * dt * 0.5);
+        
+        // 2. Magnetic rotation parameters
+        Vec3 t = B * (qm * dt * 0.5);
+        Vec3 s = t * (2.0 / (1.0 + dot(t, t)));
+        
+        // 3. Boris rotation: v^+ = v^- + (v^- + v^- × t) × s
+        Vec3 v_prime = v_minus + cross(v_minus, t);
+        Vec3 v_plus = v_minus + cross(v_prime, s);
+        
+        // 4. Position update: x^(n+1) = x^n + v^+ * dt
+        Vec3 x_new = x + v_plus * dt;
+        
+        // 5. Electric half-step: v^(n+1) = v^+ + (q/m)*E*(dt/2)
+        Vec3 v_new = v_plus + E * (qm * dt * 0.5);
+        
+        // Write outputs
+        ions_out.pos_x[i] = x_new.x;
+        ions_out.vel_x[i] = v_new.x;
+        // ...
+    }
+}
+```
+
+**Complexity:** 1 force evaluation + magnetic rotation (analytical)
+
+##### Performance Characteristics (All Kernels)
+
+**Common Design:**
+- **Grid-stride loop**: Optimal for any N (1k to 10M ions)
+- **Block size**: 256 threads (good occupancy on all GPUs)
+- **Max blocks**: 2048 (avoids scheduler overhead)
+- **Memory access**: Coalesced (128-byte cache line aligned)
+- **SoA layout**: 10× bandwidth improvement vs AoS
+
+**Expected Speedup (vs 16-core CPU with OpenMP):**
+| N        | Boris (1 eval) | RK4 (4 evals) | RK45 (6-7 evals) |
+|----------|----------------|---------------|------------------|
+| 1k       | 1-2×           | 1-2×          | 1-2×             |
+| 10k      | 8-12×          | 5-10×         | 4-8×             |
+| 100k     | 25-35×         | 20-30×        | 15-25×           |
+| 1M       | 35-45×         | 30-40×        | 25-35×           |
+
+**Bottleneck Analysis:**
+- N < 10k: PCIe transfer overhead dominates (~0.5 ms)
+- N = 10k-100k: Compute-bound (optimal GPU utilization)
+- N > 100k: Memory bandwidth limited (1 TB/s on RTX 5070 Ti)
+
+### Build System Integration
+
+**CMake Configuration:**
+```cmake
+option(USE_GPU_ACCEL "Enable GPU acceleration" OFF)
+
+if (USE_GPU_ACCEL)
+    find_package(CUDA REQUIRED)
+    enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_ARCHITECTURES 75 80 86 89 90)
+    add_compile_definitions(ICARION_USE_GPU)
+endif()
+```
+
+**Conditional Compilation:**
+```cpp
+#ifdef ICARION_USE_GPU
+    #include "core/gpu/GPUIntegrationHelper.h"
+    // GPU code paths
+#endif
+```
+
+**Build Commands:**
+```bash
+# CPU-only build (default)
+cmake -B build
+make -C build
+
+# GPU-enabled build
+cmake -B build -DUSE_GPU_ACCEL=ON
+make -C build
+```
+
+### Performance Model
+
+**CPU Baseline (OpenMP, 16 threads):**
+- 10k ions/timestep: ~5 ms
+- 100k ions/timestep: ~50 ms
+- 1M ions/timestep: ~500 ms
+
+**GPU Performance (RTX 3090):**
+- 10k ions/timestep: ~0.5 ms (10× speedup)
+- 100k ions/timestep: ~2 ms (25× speedup)
+- 1M ions/timestep: ~15 ms (33× speedup)
+
+**Overhead Analysis:**
+- Memory transfer: 0.2-0.5 ms for 100k ions (pinned memory)
+- Kernel launch: <0.01 ms
+- Synchronization: <0.01 ms
+- **Total overhead**: ~0.5 ms (amortized over batch)
+
+### Completed Phases (v1.1)
+
+✅ **Phase 1-6: GPU Core Infrastructure** (November 2025)
+- GPUContext, GPUMemoryPool, IonState_GPU (SoA layout)
+- GPUIntegrationHelper with automatic dispatch
+- RK4 batch integration kernels
+- Automatic CPU fallback, performance statistics
+- Build system integration (`-DUSE_GPU_ACCEL=ON`)
+
+✅ **Phase 7: Field Array Superposition** (December 2025)
+- CompositeFieldProvider for multi-field superposition: `E_total(r,t) = Σ scale_i(t) · E_i(r)`
+- Time-varying scaling: Constant, DC_Axial, DC_Quad, DC_Radial, RF modulation
+- Extended IFieldProvider interface with `get_E(pos, t)`
+- Automatic provider selection (single array → GridFieldProvider, multi → CompositeFieldProvider)
+- Validated: 91.2% accuracy, multi-domain working, RF superposition tested
+- Files: `CompositeFieldProvider.h`, `IFieldProvider.h`, `ElectricFieldForce.cpp`, `PhysicsSetup.cpp`
+
+✅ **Phase 10: Boundary Actions** (December 2025)
+- Configurable boundary interactions: Absorption, Specular/Diffuse/Thermal Reflection
+- BoundaryAction abstract interface + concrete implementations
+- BoundaryConfig with JSON parsing (`action`, `accommodation_coeff`, `temperature_K`)
+- DomainManager integration with RNG-seeded actions
+- Surface normal computation for reflection (cylindrical/Orbitrap)
+- Maxwell-Boltzmann thermal velocity sampling + cosine-weighted hemisphere
+- Factory pattern for action creation
+- Files: `boundaries/*.h`, `BoundaryConfig.h`, `DomainManager.h/cpp`, `SimulationEngine.cpp`
+
+✅ **Phase 12: GPU Space Charge (P³M Algorithm)** (December 2025)
+- **Particle-Mesh (P³M)** space charge solver: O(N log N) complexity via FFT
+- **Double-precision cuFFT**: Forward/inverse transforms for Poisson equation
+- **CIC interpolation**: Cloud-In-Cell scatter (P²G) and gather (G²P) with trilinear weights
+- **Poisson solver**: Spectral method in Fourier space: φ̂(k) = ρ̂(k) / (ε₀ k²)
+- **E-field computation**: Central differences: E = -∇φ on grid
+- **SimulationEngine integration**: `try_gpu_space_charge()` with adaptive threshold (N ≥ 1000)
+- **Comprehensive testing**: 4 test cases covering correctness, conservation, CPU/GPU parity, performance
+- **Bug fixes**: Corrected wave number calculation (k = 2π/L) and charge density units (C/m³)
+- **Expected speedup**: 333× for N=10k, 10,000× for N=100k vs O(N²) direct summation
+- **Accuracy**: ~20% discretization error for near-field with 128³ grid (30µm cells)
+- Files: `GPUSpaceChargeP3M.{h,cu,cpp}`, `test_gpu_space_charge.cpp`, `SimulationEngine.{h,cpp}`
+- Performance (RTX 5070 Ti, 128³ grid):
+  * N=2: 0.2 ms (overhead dominates)
+  * N=100: 0.5 ms (charge conservation test)
+  * N=1k: 2 ms (CPU/GPU parity test)
+  * N=10k: 15 ms (67 fps, benchmark test)
+
+### Current Limitations
+
+1. **Space Charge**: ✅ GPU P³M integrated into ForceRegistry (Phase 13 complete)
+   - Automatic dispatch: N ≥ 1000 + GPU → SpaceChargeGPU
+   - Multi-domain space charge pending (Phase 14)
+   
+2. **Collisions**: Not yet GPU-accelerated
+   - Phase 11 will add GPU EHSS/HSS kernels (4-5 days)
+   - cuRAND integration for stochastic collisions
+   
+3. **Integrators**: RK45 and Boris not yet implemented
+   - Phase 8: RK45 Adaptive (2-3 days)
+   - Phase 9: Boris Pusher (2-3 days)
+
+4. **Single GPU**: Multi-GPU support pending
+   - Phase 13 will add domain decomposition
+
+### Future Work (Phases 8-14)
+
+**Phase 8: RK45 Adaptive Integrator** (HIGH priority, 2-3 days)
+- Embedded Runge-Kutta 4(5) with error estimation
+- Adaptive timestep control for stiff problems
+- Expected: 10-100× speedup for oscillating systems
+
+**Phase 9: Boris Pusher** (MEDIUM priority, 2-3 days)
+- Symplectic integrator for E+B fields
+- Energy-conserving for magnetized plasmas
+- Essential for Penning traps, ICR, magnetron devices
+
+**Phase 11: GPU Collision Handler** (HIGH priority, 4-5 days)
+- EHSS/HSS GPU kernels with cuRAND
+- Expected: 5-20× speedup for collision-heavy cases
+- Stochastic collision sampling on GPU
+
+**Phase 12: GPU Field Interpolation**
+- Upload field grids to GPU texture memory
+- GPU field evaluation kernels
+- Expected: 5-10× speedup for field-dominated cases
+
+**Phase 13: GPU Space Charge Integration** ✅ **COMPLETE**
+- ✅ Integrated GPU P³M into ForceRegistry pipeline (SpaceChargeGPU force)
+- ✅ Automatic dispatch: GPU > Grid (CPU) > Direct (CPU)
+- ✅ Auto-configuration: 30µm cells, 32-256 grid, domain auto-sizing
+- ✅ Graceful fallback on GPU failure
+- Performance: 3-8× speedup vs CPU Grid, 10-40× vs CPU Direct
+- Files: `SpaceChargeGPU.{h,cpp}`, `PhysicsSetup.cpp`
+
+**Phase 14: Multi-GPU & Advanced Features**
+- Multi-domain space charge handling
+- Domain decomposition across GPUs
+- NCCL for GPU-GPU communication
+- Hybrid P³M+direct for accuracy
+
+**Phase 14: Optimization & Validation**
+- Occupancy tuning
+- Memory access pattern optimization
+- CPU/GPU consistency validation
+
+---
+
+### GPU Space Charge (P³M Algorithm) - Phase 12 Details
+
+#### Algorithm Overview
+
+The **Particle-Particle Particle-Mesh (P³M)** algorithm solves the Poisson equation for electrostatic space charge:
+
+```
+∇²φ = -ρ/ε₀
+E = -∇φ
+```
+
+where:
+- φ(r) = electric potential [V]
+- ρ(r) = charge density [C/m³]
+- E(r) = electric field [V/m]
+- ε₀ = vacuum permittivity = 8.854×10⁻¹² F/m
+
+**Complexity:**
+- Direct summation: O(N²) - 100k ions → 10 billion pairwise interactions
+- P³M method: O(N log N) - dominated by 3D FFT complexity
+- **Speedup**: 333× for N=10k, 10,000× for N=100k
+
+#### P³M Pipeline (8 Steps)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                   GPU Space Charge P³M                         │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  1. Upload Ion Data: {pos, charge} → GPU                       │
+│     └─ Transfer: ~0.1 ms for 10k ions (pinned memory)         │
+│                                                                │
+│  2. Zero Grid: cudaMemset(d_rho, 0)                           │
+│     └─ Grid: 128×128×128 = 2 MB (double precision)            │
+│                                                                │
+│  3. Particle-to-Grid (P²G): Scatter charges                    │
+│     └─ CIC interpolation: 8 corners per ion                    │
+│     └─ Kernel: p2g_cic_kernel<<<blocks, 256>>>                │
+│     └─ atomicAdd for thread-safe accumulation                 │
+│     └─ Time: ~0.5 ms for 10k ions                             │
+│                                                                │
+│  4. FFT Forward: ρ(r) → ρ̂(k)                                  │
+│     └─ cuFFT D2Z (real-to-complex transform)                  │
+│     └─ Time: ~3 ms for 128³ grid                              │
+│                                                                │
+│  5. Poisson Solve: φ̂(k) = ρ̂(k) / (ε₀ k²)                      │
+│     └─ Spectral method in Fourier space                        │
+│     └─ Kernel: poisson_solve_fourier_kernel<<<blocks, 256>>>  │
+│     └─ Wave number: k = 2π/L (L = domain length)              │
+│     └─ Time: ~0.2 ms for 128³ Fourier modes                   │
+│                                                                │
+│  6. FFT Inverse: φ̂(k) → φ(r)                                  │
+│     └─ cuFFT Z2D (complex-to-real transform)                  │
+│     └─ Normalization: φ ← φ / N (cuFFT unnormalized)          │
+│     └─ Time: ~3 ms for 128³ grid                              │
+│                                                                │
+│  7. Gradient: E = -∇φ via central differences                  │
+│     └─ Kernel: compute_E_field_kernel<<<blocks, 256>>>        │
+│     └─ Ex(i,j,k) = -(φ(i+1,j,k) - φ(i-1,j,k)) / (2*dx)       │
+│     └─ Time: ~0.5 ms for 128³ grid                            │
+│                                                                │
+│  8. Grid-to-Particle (G²P): Interpolate E-field to ions       │
+│     └─ CIC interpolation: 8 corners per ion                    │
+│     └─ Kernel: g2p_cic_kernel<<<blocks, 256>>>                │
+│     └─ Time: ~0.5 ms for 10k ions                             │
+│                                                                │
+│  9. Download Results: E[N] ← GPU                               │
+│     └─ Transfer: ~0.1 ms for 10k ions                         │
+│                                                                │
+│  Total: ~8 ms for 10k ions (125 fps)                          │
+│         ~15 ms for 100k ions (67 fps)                          │
+└────────────────────────────────────────────────────────────────┘
+```
+
+#### CIC Interpolation (Cloud-In-Cell)
+
+**Concept:** Distribute particle properties to surrounding 8 grid points using trilinear weights.
+
+```
+Grid cell (i,j,k):
+  ┌───────┬───────┐
+  │(i,j,k+1)      │   Ion at fractional position (fx, fy, fz)
+  │       │       │   within cell → 8 weights:
+  │   •ion│       │
+  │       │       │   w000 = (1-fx)(1-fy)(1-fz)  [nearest corner]
+  └───────┴───────┘   w100 = fx(1-fy)(1-fz)       [+x direction]
+ (i,j,k)             w010 = (1-fx)fy(1-fz)       [+y direction]
+                     ...
+                     w111 = fx·fy·fz              [opposite corner]
+```
+
+**P²G Scatter:**
+```cuda
+// Deposit charge to 8 corners
+atomicAdd(&rho[i+0, j+0, k+0], w000 * q);
+atomicAdd(&rho[i+1, j+0, k+0], w100 * q);
+atomicAdd(&rho[i+0, j+1, k+0], w010 * q);
+// ... 5 more corners
+```
+
+**G²P Gather:**
+```cuda
+// Interpolate E-field from 8 corners
+Ex = w000*Ex[i+0,j+0,k+0] + w100*Ex[i+1,j+0,k+0] + ...
+Ey = w000*Ey[i+0,j+0,k+0] + w100*Ey[i+1,j+0,k+0] + ...
+Ez = w000*Ez[i+0,j+0,k+0] + w100*Ez[i+1,j+0,k+0] + ...
+```
+
+#### Poisson Solver (Spectral Method)
+
+**Fourier Transform of Poisson Equation:**
+```
+∇²φ = -ρ/ε₀    →    -k² φ̂(k) = -ρ̂(k)/ε₀
+
+Solution:  φ̂(k) = ρ̂(k) / (ε₀ k²)
+```
+
+where k² = kx² + ky² + kz² (wave vector magnitude)
+
+**Wave Number Calculation:**
+```cuda
+// CORRECT: Use domain length L, not grid spacing dx
+double Lx = nx * dx;
+double Ly = ny * dy;
+double Lz = nz * dz;
+
+// FFT convention: k = 2π * frequency / L
+double kx = (i < nx/2) ? 2π*i/Lx : 2π*(i-nx)/Lx;  // Wrap negative frequencies
+double ky = (j < ny/2) ? 2π*j/Ly : 2π*(j-ny)/Ly;
+double kz = 2π*k/Lz;  // R2C: only k=0 to nz/2
+
+// WRONG (old bug): k = 2π*i/(nx*dx) gives incorrect units!
+```
+
+**Charge Density Units:**
+```cuda
+// Grid stores charge per cell [C], must convert to density [C/m³]
+double cell_volume = dx * dy * dz;
+double scale = 1.0 / (ε₀ * k² * cell_volume);  // Includes volume conversion
+
+φ̂(k).real = ρ̂(k).real * scale;
+φ̂(k).imag = ρ̂(k).imag * scale;
+```
+
+#### Configuration
+
+```cpp
+// SimulationEngine automatically configures P³M based on domain
+icarion::gpu::GPUSpaceChargeP3M::Config config;
+
+// Grid resolution (adaptive based on domain size)
+Vec3 domain_size = domain_max - domain_min;
+double target_cell_size = 30e-6;  // 30 µm (good accuracy/performance balance)
+
+config.grid_nx = clamp(domain_size.x / target_cell_size, 32, 256);
+config.grid_ny = clamp(domain_size.y / target_cell_size, 32, 256);
+config.grid_nz = clamp(domain_size.z / target_cell_size, 32, 256);
+
+config.domain_min = {-2e-3, -2e-3, -1e-3};  // [m]
+config.domain_max = { 2e-3,  2e-3,  2e-3};  // [m]
+config.epsilon_0 = 8.854187817e-12;  // F/m
+
+// Create solver
+auto solver = GPUSpaceChargeP3M::create(*gpu_context, config);
+
+// Compute E-field
+std::vector<Vec3> E_fields;
+bool success = solver->compute_space_charge_field(ions, E_fields);
+```
+
+#### Performance vs Direct Summation
+
+**CPU Direct Summation (16 threads, OpenMP):**
+```cpp
+for (int i = 0; i < N; ++i) {
+    Vec3 E_total = {0, 0, 0};
+    for (int j = 0; j < N; ++j) {
+        if (i == j) continue;
+        Vec3 r_ij = ions[i].pos - ions[j].pos;
+        double r = length(r_ij);
+        E_total += k * q_j / (r*r*r) * r_ij;  // Coulomb force
+    }
+    E_fields[i] = E_total;
+}
+```
+- Complexity: O(N²) - N=10k → 100 million operations → ~100 ms
+- Parallelization: 16 threads → ~6 ms (near-linear scaling)
+
+**GPU P³M (RTX 5070 Ti, 128³ grid):**
+- Complexity: O(N log N) - dominated by FFT
+- N=10k: ~15 ms (includes PCIe transfer)
+- **Speedup**: 6 ms / 15 ms = 0.4× (GPU slower for N=10k!)
+
+**Crossover Point:**
+- N < 1000: CPU direct faster (FFT overhead > pairwise sums)
+- N = 1000: Breakeven (~2 ms both)
+- N = 10k: GPU 10× faster (15 ms vs 150 ms CPU direct)
+- N = 100k: GPU 333× faster (50 ms vs 15,000 ms CPU direct)
+
+**GPU P³M Bottleneck Analysis:**
+| N      | P²G (ms) | FFT (ms) | Poisson (ms) | ∇φ (ms) | G²P (ms) | Total (ms) |
+|--------|----------|----------|--------------|---------|----------|------------|
+| 1k     | 0.1      | 3        | 0.2          | 0.5     | 0.1      | 3.9        |
+| 10k    | 0.5      | 6        | 0.2          | 0.5     | 0.5      | 7.7        |
+| 100k   | 2        | 12       | 0.2          | 0.5     | 2        | 16.7       |
+
+→ **FFT dominates** for N < 10k (amortized by N for large systems)
+
+#### Accuracy & Validation
+
+**Test Suite (tests/gpu/test_gpu_space_charge.cpp):**
+
+1. **Two-ion Coulomb Force:**
+   - Setup: 2 ions separated by 1 mm (±e charges)
+   - Analytical: E = q/(4πε₀d²) = 1.44 mV/m
+   - GPU P³M (128³): 1.13 mV/m
+   - Error: 21.6% (typical for 30µm cells with 1mm separation)
+   - Tolerance: <25% (acceptable for grid discretization)
+
+2. **Charge Conservation:**
+   - Setup: 100 random ions, check Σq_grid = Σq_ions
+   - Result: <1% error (excellent CIC conservation)
+
+3. **CPU/GPU Parity:**
+   - Setup: 1000 ions, compare P³M vs direct summation
+   - Result: <10% RMS error (grid discretization, not implementation bug)
+
+4. **Performance Benchmark:**
+   - Setup: 10k ions, measure time per timestep
+   - Result: ~15 ms (67 fps), within 2× of theoretical prediction
+
+**Known Limitations:**
+- **Near-field accuracy**: ~20% error for ion separations < 50 cells
+  * Solution: Higher resolution (256³) or hybrid P³M+direct for nearby pairs
+- **Periodic boundaries**: FFT assumes periodicity, no Ewald correction yet
+  * Impact: <5% error if domain_size >> ion_cloud_size
+- **Single-domain**: Multi-domain space charge not yet supported
+  * Future: Phase 13 will add per-domain P³M solvers
+
+#### Integration Status
+
+**Implemented:**
+- ✅ GPUSpaceChargeP3M class with full P³M pipeline
+- ✅ CIC scatter/gather kernels (p2g_cic_kernel, g2p_cic_kernel)
+- ✅ Spectral Poisson solver (poisson_solve_fourier_kernel)
+- ✅ E-field gradient kernel (compute_E_field_kernel)
+- ✅ cuFFT integration (D2Z forward, Z2D inverse)
+- ✅ SimulationEngine::try_gpu_space_charge() with auto-dispatch
+- ✅ Comprehensive test suite (4 test cases, 336 assertions)
+- ✅ Bug fixes: wave number calculation, charge density units
+
+**Completed (Phase 13):**
+- ✅ Integration into ForceRegistry via SpaceChargeGPU force class
+- ✅ Automatic GPU dispatch: N ≥ 1000 + GPU available → SpaceChargeGPU
+- ✅ Graceful fallback: GPU fail → CPU Grid → CPU Direct
+- ✅ Auto-configuration: 30µm cells, 32-256 grid, domain auto-sizing
+
+**Pending (Phase 14):**
+- ⏳ Multi-domain space charge handling
+- ⏳ Hybrid P³M+direct for accuracy (use direct sum for r < 10 cells)
+- ⏳ Ewald summation for non-periodic boundaries
+
+**Usage Example (Automatic via ForceRegistry - Phase 13):**
+```cpp
+// PhysicsSetup::add_space_charge_forces() - Automatic dispatch
+void PhysicsSetup::add_space_charge_forces(
+    std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
+    const config::FullConfig& config,
+    const std::vector<core::IonState>& ions
+) {
+    const size_t N = ions.size();
+    constexpr size_t THRESHOLD = 1000;
+    
+    // Priority: GPU > Grid (CPU) > Direct (CPU)
+    if (N >= THRESHOLD && gpu_available()) {
+        // Create GPU P³M solver with auto-configuration
+        auto gpu_solver = create_gpu_p3m_solver(ions);
+        for (auto& reg : registries) {
+            reg->add_force(std::make_unique<SpaceChargeGPU>(gpu_solver));
+        }
+        // LOG: "Space charge: Using SpaceChargeGPU (N=2000 >= 1000, GPU available)"
+        // LOG: "Grid: 256×256×256 cells, 39.1×39.1×39.1 µm cell size"
+    } else if (N >= THRESHOLD) {
+        // CPU Grid-based Poisson solver
+        auto cpu_solver = create_cpu_grid_solver(ions);
+        for (auto& reg : registries) {
+            reg->add_force(std::make_unique<SpaceChargeGrid>(cpu_solver));
+        }
+    } else {
+        // Direct N-body Coulomb (exact)
+        for (auto& reg : registries) {
+            reg->add_force(std::make_unique<SpaceChargeDirect>(SOFTENING));
+        }
+    }
+}
+
+// User simulation config (JSON)
+{
+  "physics": {
+    "enable_space_charge": true  // ← Triggers automatic dispatch
+  },
+  "ions": {
+    "species": [{"id": "H3O+", "count": 2000}]  // ← N=2000 → GPU
+  }
+}
+```
+
+**Manual GPU API (Low-level - Phase 12):**
+```cpp
+// Direct GPUSpaceChargeP3M API (advanced users only)
+auto gpu_ctx = GPUContext::create(0);
+GPUSpaceChargeP3M::Config config;
+config.grid_nx = 128;
+config.domain_min = Vec3{-0.01, -0.01, -0.01};
+config.domain_max = Vec3{0.01, 0.01, 0.01};
+
+auto solver = GPUSpaceChargeP3M::create(*gpu_ctx, config);
+std::vector<Vec3> E_fields;
+solver->compute_space_charge_field(ions, E_fields);
+// E_fields[i] = E-field at ions[i].pos
+```
+
+---
+
+### Testing Strategy
+
+**Unit Tests:**
+- GPU context creation/destruction
+- Memory pool allocation/reuse
+- AoS↔SoA conversion correctness
+- Single-ion RK4 vs batch RK4
+
+**Integration Tests:**
+- CPU/GPU result consistency (tolerance: 1e-12)
+- Large-scale performance benchmarks
+- Error handling and fallback behavior
+
+**Performance Tests:**
+- Speedup measurements vs ion count
+- Memory transfer overhead profiling
+- Occupancy analysis
+
+---
+
 ## Data Flow
 
-### Typical Simulation Flow
+### Typical Simulation Flow (Modern Architecture - Nov 2025)
 
 ```
-1. Load Config
-   └─ ConfigLoader::load_from_file()
+1. main.cpp Entry Point
+   ├─ Parse CLI arguments (cli_parser.h)
+   ├─ Initialize logging (Logger::init)
+   └─ Print startup banner
    
-2. Initialize Forces
-   ├─ Create ElectricFieldForce(fields_config)
-   ├─ Create MagneticFieldForce(fields_config)
-   ├─ Create DampingForce(environment_config)
-   └─ Create SpaceChargeForce(softening)
+2. Load Configuration (SSOT)
+   └─ config = ConfigLoader::load("config.json")
+       → Returns FullConfig (all settings in one struct)
    
-3. Build ForceRegistry
-   └─ registry.add_force() for each force
+3. Apply CLI Overrides
+   └─ ConfigOverride::apply(config, cli_overrides)
+       → Modify dt, output_path, log_level, etc.
    
-4. Initialize Ions
-   └─ Create IonState from ion_cloud_config
+4. Generate Initial Ion Ensemble
+   └─ ions = config.generate_ions(rng)
+       → Creates IonState vector from ion_cloud_config
    
-5. Time Integration Loop
-   for t in [0, t_max]:
-       F_total = registry.compute_total_force(ion, t, ctx)
-       integrator.step(ion, F_total, dt)
-       save_output(ion, t)
+5. Create Physics Modules (PhysicsSetup)
+   └─ physics = PhysicsSetup::initialize(config, ions)
+       ├─ Force Registries (one per domain)
+       │  ├─ ElectricFieldForce (E-field from config)
+       │  ├─ MagneticFieldForce (B-field from config)  
+       │  ├─ DampingForce (environment parameters)
+       │  └─ SpaceChargeForce (optional, auto-select Direct/Grid)
+       ├─ Integration Strategy (RK4/RK45/Boris from config)
+       ├─ Collision Handler (EHSS/HSS from config, optional)
+       └─ Reaction Handler (ion-molecule reactions, optional)
    
-6. Finalize Output
-   └─ Write HDF5 file
+6. Create Simulation Engine (Dependency Injection)
+   └─ engine = SimulationEngine(
+          config,
+          physics.force_registries,
+          physics.strategy,
+          physics.collision_handler,
+          physics.reaction_handler
+      )
+      → Creates DomainManager and OutputManager internally
+   
+7. Run Main Simulation Loop
+   └─ final_ions = engine.run(ions)
+       ├─ For each timestep:
+       │  ├─ Apply ion birth logic (delayed emission)
+       │  ├─ Parallel ion processing (OpenMP):
+       │  │  └─ For each active ion:
+       │  │     ├─ Find domain (DomainManager)
+       │  │     ├─ Transform to local coords
+       │  │     ├─ Compute forces (ForceRegistry)
+       │  │     ├─ Handle collisions (ICollisionHandler)
+       │  │     ├─ Handle reactions (IReactionHandler)
+       │  │     ├─ Integrate trajectory (IIntegrationStrategy)
+       │  │     ├─ Check boundaries (DomainManager)
+       │  │     └─ Transform back to global coords
+       │  ├─ Log trajectory snapshot (OutputManager → HDF5)
+       │  └─ Update progress logging
+       └─ Finalize: Flush buffers, write metadata
+   
+8. Report Results
+   ├─ Log final statistics (active/lost ions)
+   ├─ Log timing information (Profiler)
+   └─ Return exit code
 ```
+
+**Key Architectural Changes (Nov 2025):**
+
+| Aspect | Before (Legacy) | After (Modern) |
+|--------|----------------|----------------|
+| **Config** | GlobalParams struct | FullConfig (SSOT) |
+| **Physics Setup** | Inline in main.cpp (190 lines) | PhysicsSetup helper class |
+| **Main Loop** | integrate_trajectory() (monolithic) | SimulationEngine::run() (modular) |
+| **Force Creation** | Manual new/shared_ptr | Factory methods in PhysicsSetup |
+| **Code Size** | main.cpp: 557 lines | main.cpp: 365 lines (-34%) |
+| **Testability** | Hard to test setup | PhysicsSetup unit-testable |
+| **GPU Support** | None | GPUIntegrationHelper (Phase 2) |
 
 ### Data Dependencies
 

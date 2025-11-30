@@ -95,6 +95,16 @@ public:
      */
     std::string name() const override;
 
+    /**
+     * @brief Get field provider (for GPU field extraction)
+     * @return Pointer to field provider or nullptr if using analytical fields
+     * 
+     * Used by GPU integration to extract field data for texture upload.
+     */
+    const ::IFieldProvider* get_field_provider() const {
+        return field_provider_.get();
+    }
+
 private:
     /**
      * @brief Compute analytical electric field for instrument type

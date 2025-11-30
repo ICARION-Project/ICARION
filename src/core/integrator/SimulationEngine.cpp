@@ -3,6 +3,9 @@
 
 #include "SimulationEngine.h"
 #include "DomainContext.h"
+#include "core/integrator/strategies/RK4Strategy.h"
+#include "core/integrator/strategies/RK45Strategy.h"
+#include "core/integrator/strategies/BorisStrategy.h"
 #include "core/utils/safety/numericalSafetyGuards.h"
 #include "core/utils/safety/numericalSafetyLogger.h"
 #include "core/utils/mathUtils.h"
@@ -202,8 +205,35 @@ bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double d
     // Multi-domain field handling deferred (requires per-ion domain tracking)
     const IFieldProvider* field_provider = extract_field_provider(0);
     
-    // Attempt GPU batch integration
-    if (!gpu_helper_->integrate_batch_rk4(ions, dt, current_time_, field_provider)) {
+    // =========================================================================
+    // Dynamic dispatch: Select GPU kernel based on integrator type
+    // =========================================================================
+    bool gpu_success = false;
+    
+    // Try RK4 integration (most common)
+    if (auto* rk4 = dynamic_cast<RK4Strategy*>(integrator_.get())) {
+        gpu_success = gpu_helper_->integrate_batch_rk4(ions, dt, current_time_, field_provider);
+    }
+    // Try RK45 integration (adaptive)
+    else if (auto* rk45 = dynamic_cast<RK45Strategy*>(integrator_.get())) {
+        // Get RK45 tolerance parameters from strategy
+        const auto& config = rk45->get_config();
+        gpu_success = gpu_helper_->integrate_batch_rk45(
+            ions, dt, current_time_, field_provider,
+            config.atol, config.rtol
+        );
+    }
+    // Try Boris integration (symplectic)
+    else if (auto* boris = dynamic_cast<BorisStrategy*>(integrator_.get())) {
+        gpu_success = gpu_helper_->integrate_batch_boris(ions, dt, current_time_, field_provider);
+    }
+    else {
+        // Unknown integrator type - fallback to CPU
+        return false;
+    }
+    
+    // Check if GPU integration succeeded
+    if (!gpu_success) {
         return false;  // GPU failed, use CPU fallback
     }
     

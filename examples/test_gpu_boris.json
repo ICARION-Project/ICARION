@@ -1,0 +1,67 @@
+{
+  "_comment": "GPU Boris Integration Test - Magnetic field simulation",
+  "simulation": {
+    "total_time_s": 1e-5,
+    "dt_s": 1e-9,
+    "write_interval": 500,
+    "integrator": "Boris",
+    "enable_gpu": true,
+    "gpu_threshold": 1000,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "NoCollisions",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "../results/test_gpu_boris",
+    "trajectory_file": "gpu_boris_trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "_comment": "Large ion cloud (5000 ions) for GPU testing",
+        "id": "H3O+",
+        "count": 5001,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "test_chamber",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-5,
+        "gas_species": "He",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 10.0,
+          "axial_V": 0.0
+        },
+        "magnetic": {
+          "enabled": true,
+          "field_strength_T": [0.0, 0.0, 1.0]
+        }
+      }
+    }
+  ]
+}

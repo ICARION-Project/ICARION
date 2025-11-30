@@ -223,6 +223,11 @@ public:
     
     const StepStats& get_stats() const { return stats_; }
     void reset_stats() { stats_ = StepStats{}; }
+    
+    /**
+     * @brief Get adaptive configuration (for GPU integration)
+     */
+    const AdaptiveConfig& get_config() const { return config_; }
 
 private:
     AdaptiveConfig config_;

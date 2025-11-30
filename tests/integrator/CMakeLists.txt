@@ -82,4 +82,12 @@ if (USE_GPU_ACCEL)
     
     add_test(NAME test_gpu_boris COMMAND test_gpu_boris)
     set_tests_properties(test_gpu_boris PROPERTIES LABELS "gpu;boris;integration")
+    
+    # CPU/GPU parity test for RK45 and Boris
+    add_executable(test_rk45_boris_parity test_rk45_boris_parity.cpp)
+    target_link_libraries(test_rk45_boris_parity PRIVATE icarion_core Catch2::Catch2WithMain)
+    target_include_directories(test_rk45_boris_parity PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    
+    add_test(NAME test_rk45_boris_parity COMMAND test_rk45_boris_parity)
+    set_tests_properties(test_rk45_boris_parity PROPERTIES LABELS "gpu;parity;rk45;boris")
 endif()

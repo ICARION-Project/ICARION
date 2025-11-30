@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 /**
  * @file test_ims_drift.cpp
  * @brief IMS (Ion Mobility Spectrometry) drift tube physics validation

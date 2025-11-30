@@ -1,53 +1,6 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   ------------------------------------------------
- *   Modular framework for simulating ion trajectories in custom
- *   electric fields and background gas environments.
- *
- *   @file       RK45Strategy.h
- *   @brief      Adaptive 4/5 Runge-Kutta integration (Dormand-Prince)
- *
- *   @details
- *   Embedded Runge-Kutta method with automatic step size control.
- *   SSOT-compliant implementation using ForceRegistry.
- *
- *   **Algorithm (Dormand-Prince):**
- *   - 7 stages with shared evaluations
- *   - 4th-order solution for propagation
- *   - 5th-order solution for error estimation
- *   - Error = ||y5 - y4||
- *   - Step control: dt_new = dt * safety * (tol/error)^(1/5)
- *
- *   **Properties:**
- *   - Order: 4(5) embedded pair
- *   - Timestep: Adaptive (error-based)
- *   - Stability: Good for smooth, non-stiff systems
- *   - Cost: 6 force evaluations per step (FSAL property)
- *   - Overhead: ~50% more than RK4 for same accuracy
- *   - Advantage: Automatic error control, optimal efficiency
- *
- *   **When to Use:**
- *   - Variable dynamics (fast/slow phases)
- *   - Tight error tolerance requirements
- *   - Unknown optimal timestep a priori
- *   - Long simulations where efficiency matters
- *
- *   **When NOT to Use:**
- *   - Stiff systems (eigenvalue spread > 10^6)
- *   - Discontinuous forces (collisions, field boundaries)
- *   - Fixed timestep required (data output synchronization)
- *
- *   @date       2025-11-22
- *   @version    1.0.0
- *   @authors    ICARION Development Team
- *
- * =====================================================================
- */
 #pragma once
 
 #include "IIntegrationStrategy.h"

@@ -1,33 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   ICARION: A Modular Framework for Ion Collision and Reaction Integration
- * =====================================================================
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        mathUtils.h
- *   @brief       Utility functions for vector and matrix calculations in ICARION.
- *
- * @details
- * Provides:
- * - 3D vector (`Vec3`) arithmetic operations (addition, subtraction, scaling).
- * - Dot and cross products, norm, normalization.
- * - Multiplication of vectors by 3×3 matrices.
- * - Element-wise operations on `std::vector<double>` (add, subtract, scale).
- * - L2-norm calculation.
- * - Runge–Kutta intermediate state updates for ODE integration.
- *
- *   @date        2025-10-06
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 #include "core/types/Vec3.h"

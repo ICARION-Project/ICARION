@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // StochasticReactionHandler.h
 // Stochastic reaction handler for ion-molecule reactions
 //

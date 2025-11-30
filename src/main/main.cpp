@@ -1,35 +1,5 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        main.cpp
- *   @brief       Entry point and orchestration layer of ICARION.
- *
- *   @details
- *   ICARION serves as the main execution driver for an ion trajectory simulation.
- *   It performs setup, data import, and solver execution in a defined pipeline:
- *
- *   1. Parse command-line arguments and apply overrides.
- *   2. Load configuration from JSON file (SSOT: FullConfig).
- *   3. Initialize ions from configuration.
- *   4. Create SimulationEngine with FullConfig (dependency injection).
- *   5. Run simulation via SimulationEngine::run().
- *   6. Report results and completion status.
- *
- *   The output consists of time-resolved trajectories, arrival time distributions,
- *   and optionally reaction histories (HDF5 format).
- *
- *   @date        2025-11-23
- *   @version     1.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include <chrono>
 #include <exception>

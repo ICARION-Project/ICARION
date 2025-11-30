@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Quadrupole mass filter validation tests
 // Test mass-selective transmission using Mathieu stability parameters
 

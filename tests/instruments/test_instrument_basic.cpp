@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Fast sanity checks for basic instrument functionality
 // These tests verify that instruments can be instantiated and configured
 // without running full simulations. Target: <100ms total runtime.

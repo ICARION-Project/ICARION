@@ -1,29 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   ICARION: A Modular Framework for Ion Collision and Reaction Integration
- * =====================================================================
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        IonState.h
- *   @brief       Defines struct to store ion parameters.
- *
- *   @details
- *   Encapsulates an ion’s position, velocity, and physical attributes for
- *   use in simulation. Supports arithmetic operations for integration schemes
- *   and optional reaction metadata.
- *
- *   @date        2025-10-06
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 

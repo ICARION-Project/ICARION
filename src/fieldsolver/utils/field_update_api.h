@@ -1,29 +1,6 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        field_update_api.h
- *   @brief       Thread-safe field update API for live field computation
- *
- *   @details
- *   Provides a thread-safe interface for managing live updates of electric
- *   field configurations in a simulation environment. Supports geometry
- *   updates, grid reconfiguration, and on-demand field recomputation.
- *
- *   @date        2025-11-09
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
 // --------------------------------------------------------------------
 #pragma once
 

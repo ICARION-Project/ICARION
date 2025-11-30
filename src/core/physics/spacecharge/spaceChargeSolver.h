@@ -1,28 +1,6 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        spaceChargeSolver.h
- *   @brief       Fast Poisson-based solver for self-consistent space-charge fields.
- *
- *   @details
- *   Implements a SpaceChargeSolver class that uses a Poisson solver on a 3D grid to
- *  compute the electric field due to space charge from ion distributions. 
- *
- *   @date        <2025-10-18>
- *   @version     1.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
 #pragma once
 #include "core/types/Grid3D.h"
 #include "core/physics/spacecharge/poissonSolver.h"

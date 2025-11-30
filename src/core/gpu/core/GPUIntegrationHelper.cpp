@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #include "GPUIntegrationHelper.h"
 #include "core/gpu/integrators/integrate_rk4_batch.cuh"
 #include "core/gpu/integrators/integrate_rk45_batch.cuh"

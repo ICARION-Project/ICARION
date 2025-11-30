@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Debug test for SimulationEngine + Orbitrap bug
 
 #include <catch2/catch_test_macros.hpp>

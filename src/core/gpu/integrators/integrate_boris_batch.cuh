@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #ifndef ICARION_INTEGRATE_BORIS_BATCH_CUH
 #define ICARION_INTEGRATE_BORIS_BATCH_CUH
 

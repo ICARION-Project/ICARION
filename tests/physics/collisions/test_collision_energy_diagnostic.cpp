@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: Apache-2.0
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Diagnostic test to understand thermalization energy distribution
 
 #include "core/physics/collisions/HSSCollisionHandler.h"

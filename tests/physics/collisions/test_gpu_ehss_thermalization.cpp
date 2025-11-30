@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Test GPU EHSS thermalization with H3O+ geometry
 #include "core/gpu/core/GPUContext.h"
 #include "core/gpu/collisions/GPUCollisionHelper.h"

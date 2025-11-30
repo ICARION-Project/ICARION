@@ -1,23 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   ------------------------------------------------
- *   Modular framework for simulating ion trajectories in custom
- *   electric fields and background gas environments.
- *
- *   @file       RK4Strategy.cpp
- *   @brief      RK4 integration implementation
- *
- *   @date       2025-11-22
- *   @version    1.0.0
- *   @authors    ICARION Development Team
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "RK4Strategy.h"
 #include "core/physics/forces/ForceContext.h"

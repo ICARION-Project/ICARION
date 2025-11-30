@@ -1,22 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   Modern Structured Logging System
- *
- *   @file        Logger.h
- *   @brief       Category-based logging with spdlog backend
- *
- *   @date        2025-11-21
- *   @version     1.0.0
- *   @author      ICARION Development Team
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 

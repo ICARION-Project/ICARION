@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Test: Energy transfer with SAMPLED neutrals (realistic)
 
 #include "core/physics/collisions/core/CollisionKernels.h"

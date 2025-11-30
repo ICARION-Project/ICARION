@@ -1,19 +1,5 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   Numerical Safety Guards
- *
- *   @file        numericalSafetyGuards.h
- *   @brief       Provides NaN/Inf detection and handling for numerical stability
- *
- *   Implements comprehensive numerical safety checks to prevent
- *   simulation crashes due to extreme fields, damping, or numerical
- *   instabilities.
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 

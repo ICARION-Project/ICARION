@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Test: Load species and reaction databases
 
 #include "core/config/loader/SpeciesLoader.h"

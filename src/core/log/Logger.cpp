@@ -1,23 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   Modern Structured Logging System - Implementation
- *
- *   @file        Logger.cpp
- *   @brief       Category-based logging with spdlog backend
- *
- *   @date        2025-11-21
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     Apache-2.0
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "Logger.h"
 #include <spdlog/pattern_formatter.h>

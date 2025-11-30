@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Test GPU Boris pusher integration
 #include "core/gpu/core/GPUContext.h"
 #include "core/gpu/core/GPUIntegrationHelper.h"

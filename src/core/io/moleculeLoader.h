@@ -1,35 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        MoleculeLoader.h
- *   @brief       Molecular geometry loader with atomic detail
- *
- *   @details
- * Loads detailed molecular structures from JSON files including atomic
- * positions, partial charges, and Lennard-Jones parameters. Used for
- * advanced collision models and molecular dynamics simulations.
- *
- * Features:
- * - Atomic-level structure (positions, masses, charges)
- * - Lennard-Jones parameters for each atom
- * - Validation of charge neutrality and physical constraints
- * - Support for DFT-derived molecular geometries
- *
- *   @date        2025-11-09
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 

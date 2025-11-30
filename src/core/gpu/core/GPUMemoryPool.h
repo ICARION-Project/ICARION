@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #ifndef ICARION_GPU_MEMORY_POOL_H
 #define ICARION_GPU_MEMORY_POOL_H
 

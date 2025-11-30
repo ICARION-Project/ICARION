@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Quick test to verify HSS physics fix
 #ifdef ICARION_USE_GPU
 

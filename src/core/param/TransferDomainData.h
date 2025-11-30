@@ -1,28 +1,6 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   ICARION: A Modular Framework for Ion Collision and Reaction Integration
- * =====================================================================
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        TransferDomainData.h
- *   @brief       Transfers instrument domain and global parameters to GPU-compatible structs.
- *
- * @details
- * Provides functions to convert CPU-side parameter structures into GPU-compatible versions.
- *
- *
- *   @date        2025-10-17
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
 #pragma once
 #include "paramUtils.h"
 #include "GPUParams.h"

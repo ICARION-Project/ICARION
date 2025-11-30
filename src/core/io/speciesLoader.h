@@ -1,35 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        SpeciesLoader.h
- *   @brief       Species database loader with validation
- *
- *   @details
- * Loads species definitions from JSON files with comprehensive validation.
- * Each species includes physical properties (mass, charge, CCS) and an
- * optional link to a detailed molecular geometry file.
- *
- * Features:
- * - Automatic CCS/mobility calculation if one is missing
- * - Validation of physical constraints (positive mass, valid charge)
- * - Support for ions, neutrals, and molecular clusters
- * - Optional molecular geometry file references
- *
- *   @date        2025-11-09
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 

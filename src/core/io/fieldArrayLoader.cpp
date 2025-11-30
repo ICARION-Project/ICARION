@@ -1,27 +1,6 @@
-/**
- * =====================================================================
- *
- *   ICARION: A Modular Framework for Ion Collision and Reaction Integration
- * =====================================================================
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        fieldArrayLoader.cpp
- *   @brief       Loads electric field data from HDF5 files.
- *
- *   @details
- *   Provides functions to read 3D electric field arrays (Ex, Ey, Ez)
- *   defined on a regular grid from HDF5 files. Supports trilinear
- *   interpolation to evaluate fields at arbitrary ion positions.
- *
- *
- *   @date        2025-10-16
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #include "fieldArrayLoader.h"
 #include <iostream>
 #include <stdexcept>

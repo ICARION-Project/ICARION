@@ -1,27 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   @file       test_rk45_strategy.cpp
- *   @brief      Unit tests for RK45Strategy (Dormand-Prince)
- *
- *   @details
- *   Tests adaptive RK45 integration against analytical solutions:
- *   - Free fall (constant acceleration)
- *   - Harmonic oscillator (periodic motion, variable timestep)
- *   - Stiff exponential decay (error control validation)
- *   - Convergence tests (order verification)
- *
- *   Validates adaptive timestep control:
- *   - Error estimation accuracy
- *   - Step acceptance/rejection
- *   - Step size adjustment (PI controller)
- *   - FSAL property (First-Same-As-Last)
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>

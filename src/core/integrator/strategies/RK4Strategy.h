@@ -1,40 +1,6 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   ------------------------------------------------
- *   Modular framework for simulating ion trajectories in custom
- *   electric fields and background gas environments.
- *
- *   @file       RK4Strategy.h
- *   @brief      4th-order Runge-Kutta integration strategy
- *
- *   @details
- *   Classic RK4 method with fixed timestep.
- *   SSOT-compliant implementation using ForceRegistry.
- *
- *   **Algorithm:**
- *   - k1 = f(t, y)
- *   - k2 = f(t + dt/2, y + k1*dt/2)
- *   - k3 = f(t + dt/2, y + k2*dt/2)
- *   - k4 = f(t + dt, y + k3*dt)
- *   - y_new = y + (k1 + 2*k2 + 2*k3 + k4) * dt/6
- *
- *   **Properties:**
- *   - Order: 4
- *   - Timestep: Fixed
- *   - Stability: Moderate (dt ~ 1/ω for oscillatory systems)
- *   - Cost: 4 force evaluations per step
- *
- *   @date       2025-11-22
- *   @version    1.0.0
- *   @authors    ICARION Development Team
- *
- * =====================================================================
- */
 #pragma once
 
 #include "IIntegrationStrategy.h"

@@ -1,21 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   @file       test_boris_strategy.cpp
- *   @brief      Unit tests for BorisStrategy (Boris pusher)
- *
- *   @details
- *   Tests Boris integration for electromagnetic particle dynamics:
- *   - Pure magnetic field (cyclotron motion, energy conservation)
- *   - Pure electric field (should match RK2)
- *   - E×B drift motion
- *   - Symplectic properties (long-term energy stability)
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>

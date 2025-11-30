@@ -1,31 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   ICARION: GPU Field Interpolation
- * =====================================================================
- *   @file        FieldArrayGPU.h
- *   @brief       GPU-side field storage and interpolation
- *
- * @details
- * Provides GPU-accelerated field interpolation using CUDA texture memory
- * for fast trilinear interpolation of electric and magnetic fields.
- *
- * Features:
- * - Texture memory for hardware-accelerated interpolation
- * - Support for 1D, 2D, and 3D field arrays
- * - Trilinear interpolation on GPU
- * - Efficient field uploads from CPU
- *
- *   @date        2025-11-29
- *   @version     1.0
- *   @author      Christoph Schäfer
- *   @license     Apache-2.0
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #ifndef ICARION_FIELD_ARRAY_GPU_H
 #define ICARION_FIELD_ARRAY_GPU_H

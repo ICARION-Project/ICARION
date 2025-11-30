@@ -1,56 +1,6 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   ------------------------------------------------
- *   Modular framework for simulating ion trajectories in custom
- *   electric fields and background gas environments.
- *
- *   @file       BorisStrategy.h
- *   @brief      Boris pusher integration strategy for magnetic fields
- *
- *   @details
- *   Symplectic integration method optimized for charged particle motion
- *   in electromagnetic fields. Second-order accurate and preserves energy
- *   in pure magnetic fields.
- *
- *   **Algorithm (Velocity Verlet + Boris rotation):**
- *   1. Half-step velocity advance with electric field: v^- = v^n + (q/m)*E*dt/2
- *   2. Magnetic rotation: v^+ = v^- rotated by q*B*dt/m
- *   3. Half-step velocity advance: v^(n+1) = v^+ + (q/m)*E*dt/2
- *   4. Position update: x^(n+1) = x^n + v^(n+1)*dt
- *
- *   **Properties:**
- *   - Order: 2 (explicit symplectic)
- *   - Timestep: Fixed
- *   - Stability: Excellent for magnetic fields (phase error only, no amplitude growth)
- *   - Cost: 1 force evaluation per step
- *   - Energy: Conserved in pure B-field, bounded error in E+B fields
- *
- *   **When to Use:**
- *   - Strong magnetic fields (ωc*dt ~ 0.1-1.0)
- *   - ICR (Ion Cyclotron Resonance) simulations
- *   - Penning traps, Orbitraps
- *   - Long-term tracking (symplectic → no energy drift)
- *
- *   **When NOT to Use:**
- *   - No magnetic field (use RK4 instead)
- *   - Highly non-uniform E-fields (symplectic advantage lost)
- *   - Adaptive timestep needed (Boris is fixed-step)
- *
- *   **Reference:**
- *   - Boris, J.P. (1970): "Relativistic plasma simulation-optimization of a hybrid code"
- *   - Qin et al. (2013): "Why is Boris algorithm so good?" Physics of Plasmas 20, 084503
- *
- *   @date       2025-11-22
- *   @version    1.0.0
- *   @authors    ICARION Development Team
- *
- * =====================================================================
- */
 #pragma once
 
 #include "IIntegrationStrategy.h"

@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #pragma once
 #include <cmath>
 #include "core/physics/fields/physics_math_shared.h"

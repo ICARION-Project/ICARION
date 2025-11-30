@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #ifndef ICARION_NUMERICAL_SAFETY_LOGGER_H
 #define ICARION_NUMERICAL_SAFETY_LOGGER_H
 

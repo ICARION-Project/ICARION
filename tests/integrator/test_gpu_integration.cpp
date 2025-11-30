@@ -1,27 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   @file       test_gpu_integration.cpp
- *   @brief      Unit tests for GPU integration (GPUIntegrationHelper)
- *
- *   @details
- *   Tests GPU batch integration against analytical solutions:
- *   - Batch free fall (constant acceleration)
- *   - Batch uniform motion (zero forces)
- *   - Edge cases (empty batch, single ion, threshold boundary)
- *   - Error handling (invalid inputs)
- *
- *   Validates:
- *   - GPU kernel correctness
- *   - Memory management (buffer reuse)
- *   - Batch processing logic
- *   - Statistics reporting
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #ifdef ICARION_USE_GPU
 

@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 /**
  * @file hdf5Writer_v2.cpp
  * @brief Implementation of modern HDF5 writer using FullConfig

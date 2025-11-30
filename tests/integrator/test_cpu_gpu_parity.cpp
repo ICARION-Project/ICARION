@@ -1,34 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   @file       test_cpu_gpu_parity.cpp
- *   @brief      CPU/GPU parity tests for integration and physics
- *
- *   @details
- *   Validates that GPU and CPU implementations produce identical results
- *   for the same inputs. Tests:
- *   
- *   **Integration Parity:**
- *   - RK4 single step (CPU vs GPU batch)
- *   - Multi-step trajectories
- *   - Various timestep sizes
- *   - Different initial conditions
- *   
- *   **Physics Parity (Future):**
- *   - Lorentz force (E + v×B)
- *   - Collision kernels
- *   - Reaction rates
- *   
- *   **Acceptance Criteria:**
- *   - Position error: < 1e-6 m (μm precision)
- *   - Velocity error: < 1e-6 m/s
- *   - Time consistency: exact match
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #ifdef ICARION_USE_GPU
 

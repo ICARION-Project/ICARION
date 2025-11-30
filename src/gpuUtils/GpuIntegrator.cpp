@@ -1,28 +1,7 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   ------------------------------------------------
- *   Modular framework for simulating ion trajectories in custom
- *   electric fields and background gas environments.
- *
- *   @file       GpuIntegrator.cpp
- *   @brief      GPU-accelerated RK4 integrator implementation
- *
- *   @details
- *   Implements a GPU-accelerated RK4 integrator that mirrors the CPU integrator interface.
- *
- *   @date       2025-11-14
- *   @version    1.0.0
- *   @authors    ICARION Development Team
- *
- * =====================================================================
- */
- 
- #include "gpuUtils/GpuIntegrator.h"
+#include "gpuUtils/GpuIntegrator.h"
 
 #ifdef USE_GPU_ACCEL
 

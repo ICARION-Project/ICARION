@@ -1,20 +1,5 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   Core field sampling utilities - Implementation
- *
- *   @file        fieldSampling.cpp
- *   @brief       Field interpolation implementation
- *
- *   @date        2025-11-10
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "fieldSampling.h"
 #include <cmath>

@@ -1,35 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        ReactionLoader.h
- *   @brief       Chemical reaction database loader with validation
- *
- *   @details
- * Loads chemical reaction definitions from JSON files with comprehensive
- * validation against the species database. Supports various reaction types
- * including charge transfer, proton transfer, clustering, and dissociation.
- *
- * Features:
- * - Validation of species IDs against loaded species database
- * - Support for multi-step reactions with different neutrals
- * - Branching ratios for competing pathways
- * - Temperature-dependent rate constants (Arrhenius)
- *
- *   @date        2025-11-09
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 

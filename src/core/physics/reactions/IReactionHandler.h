@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // IReactionHandler.h
 // Interface for reaction handlers in ICARION particle simulation framework
 //

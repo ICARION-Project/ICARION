@@ -1,27 +1,6 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        depositCharge.h
- *   @brief       Utility functions for charge deposition onto a 3D grid in ICARION.
- *
- * @details
- * Provides:
- * - Function to deposit ion charges onto a 3D grid.
- * - Support for different deposition methods (NGP, CIC, TSC).
- * - Charge density computation from ion positions and charges.
- *
- *   @date        2025-10-18
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #include "core/physics/spacecharge/depositCharge.h"
 #include "core/utils/safety/numericalSafetyGuards.h"
 #include <cmath>

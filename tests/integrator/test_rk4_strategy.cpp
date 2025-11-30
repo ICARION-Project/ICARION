@@ -1,22 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   @file       test_rk4_strategy.cpp
- *   @brief      Unit tests for RK4Strategy
- *
- *   @details
- *   Tests RK4 integration against analytical solutions:
- *   - Free fall (constant acceleration)
- *   - Harmonic oscillator (periodic motion)
- *   - Exponential decay (damping)
- *
- *   Validates SSOT compliance (uses DomainConfig, ForceRegistry).
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>

@@ -1,25 +1,6 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        defineSpaceChargeField.cpp
- *   @brief       Calculates the electric fields due to space charge.
- *
- *   @details
- *   Provides the function to compute the Coulombic electric field due to space charge.
- *
- *
- *   @date        2025-10-17
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #include "defineSpaceChargeField.h"
 #include "utils/constants.h"
 #include <cmath>

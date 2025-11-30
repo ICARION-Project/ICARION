@@ -1,33 +1,6 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   ------------------------------------------------
- *   Modular framework for simulating ion trajectories in custom
- *   electric fields and background gas environments.
- *
- *   @file       IIntegrationStrategy.h
- *   @brief      Integration strategy interface (Phase 4A)
- *
- *   @details
- *   Modern replacement for legacy integrate_one_step().
- *   Uses ForceRegistry for force computation (SSOT-compliant).
- *
- *   **SSOT Principles:**
- *   - Uses const config::DomainConfig& (not GlobalParams)
- *   - Uses ForceRegistry (not compute_accelerations())
- *   - Zero-copy config references
- *   - No parameter duplication
- *
- *   @date       2025-11-22
- *   @version    1.0.0
- *   @authors    ICARION Development Team
- *
- * =====================================================================
- */
 #pragma once
 
 #include <string>

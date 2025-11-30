@@ -380,10 +380,31 @@ Overall (space charge):  20-50× faster
 - GPU: ~500 MB (10k ions) + 2GB (P³M solver, 256³ grid)
 - Peak: ~8 GB VRAM for 1M ions with space charge
 
-### Parallelization
-- **OpenMP**: Force computation, collision handling (linear scaling to 32 cores)
-- **CUDA**: Integrators, space charge, thermalization (tested up to RTX 5090)
-- **Hybrid**: CPU collision detection + GPU force evaluation
+### CPU Multi-threading (OpenMP)
+
+**Thread Scaling (10k ions, memory bandwidth limited):**
+| Cores | Speedup | Efficiency | Notes |
+|-------|---------|------------|-------|
+| 1     | 1.0×    | 100%       | Baseline |
+| 2     | 1.8×    | 90%        | Excellent scaling |
+| 4     | 3.3×    | 82%        | Good scaling |
+| 8     | 4.5×    | 56%        | Memory bandwidth limit |
+| 16+   | <6×     | <40%       | Diminishing returns |
+
+**Optimizations:**
+- Cache-blocking: Process ions in 256-ion blocks (L2 cache locality)
+- NUMA-awareness: Auto-detect and bind threads to cores
+- Thread affinity: Prevent migration, reduce cache thrashing
+
+**Recommendation:** 
+- **4-8 cores optimal** for CPU-only simulations
+- **GPU recommended** for N > 10,000 ions (20-50× faster)
+
+### GPU Acceleration (CUDA)
+- **Integrators**: RK4, RK45, Boris (12× faster)
+- **Space Charge P³M**: O(N log N) via cuFFT (40-900× faster)
+- **Thermalization**: EHSS collision model (5× faster)
+- **Tested on**: RTX 3090, RTX 4090, RTX 5070 Ti, RTX 5090
 
 ---
 

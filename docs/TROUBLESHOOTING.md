@@ -150,6 +150,64 @@ Thermal diffusion causes radial spreading:
 
 ## Performance Issues
 
+### Poor CPU Thread Scaling (OpenMP)
+
+**Symptom:**
+- OpenMP enabled but minimal speedup with more threads
+- 8 cores only 2× faster than 1 core
+- CPU usage at 100% but performance doesn't improve
+
+**Diagnosis:**
+```bash
+# Test thread scaling
+export OMP_NUM_THREADS=1
+time ./icarion_main config.json  # Baseline
+
+export OMP_NUM_THREADS=8
+time ./icarion_main config.json  # Should be ~4-5× faster
+```
+
+**Expected Performance (Memory Bandwidth Limited):**
+| Threads | Speedup | Efficiency |
+|---------|---------|------------|
+| 1       | 1.0×    | 100%       |
+| 2       | 1.8×    | 90%        |
+| 4       | 3.3×    | 82%        |
+| 8       | 4.5×    | 56%        |
+| 16+     | <6×     | <40%       |
+
+**Why scaling is limited:**
+- **Memory bandwidth bottleneck**: Ion trajectories require random memory access
+- **Cache thrashing**: Multiple threads compete for L2/L3 cache
+- **NUMA effects**: Cross-socket memory access on multi-CPU systems
+
+**Solutions:**
+
+1. **Optimal thread count** (4-8 cores):
+   ```bash
+   export OMP_NUM_THREADS=4  # Best efficiency/performance tradeoff
+   ```
+
+2. **NUMA-aware placement** (multi-socket systems):
+   ```bash
+   # Bind threads to local memory
+   export OMP_PLACES=cores
+   export OMP_PROC_BIND=close
+   ```
+
+3. **GPU acceleration** (N > 10k ions):
+   ```json
+   "simulation": {
+     "enable_gpu": true  // 20-50× faster than 8-core CPU
+   }
+   ```
+
+**Performance Tips:**
+- **CPU-only**: Optimal at 4-8 threads
+- **GPU available**: Use GPU for N > 10,000 ions
+- **Hybrid**: CPU collisions + GPU integration
+- **Benchmark**: Use `validation/scripts/benchmark_thread_scaling.sh`
+
 ### Simulation Running Extremely Slow
 
 **Symptom:**

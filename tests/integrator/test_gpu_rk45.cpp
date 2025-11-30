@@ -1,6 +1,6 @@
 // Test GPU RK45 integration
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUIntegrationHelper.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/core/GPUIntegrationHelper.h"
 #include "core/types/IonState.h"
 #include "utils/constants.h"
 #include <iostream>

@@ -28,8 +28,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUIntegrationHelper.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/core/GPUIntegrationHelper.h"
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
 

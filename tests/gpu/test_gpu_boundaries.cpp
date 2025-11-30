@@ -9,8 +9,8 @@
  */
 
 #include <catch2/catch_all.hpp>
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUIntegrationHelper.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/core/GPUIntegrationHelper.h"
 #include "core/types/IonState.h"
 #include <vector>
 #include <cmath>

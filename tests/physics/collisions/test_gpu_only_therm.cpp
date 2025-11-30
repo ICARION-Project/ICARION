@@ -1,5 +1,5 @@
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUCollisionHelper.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/collisions/GPUCollisionHelper.h"
 #include "core/types/IonState.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include <iostream>

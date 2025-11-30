@@ -11,8 +11,8 @@
 
 #ifdef ICARION_USE_GPU
 
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUCollisionHelper.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/collisions/GPUCollisionHelper.h"
 #include "core/physics/collisions/HSSCollisionHandler.h"
 #include "core/types/CollisionTypes.h"
 #include "core/config/types/EnvironmentConfig.h"

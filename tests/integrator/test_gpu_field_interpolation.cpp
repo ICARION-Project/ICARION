@@ -10,9 +10,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include "core/gpu/GPUIntegrationHelper.h"
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/FieldArrayGPU_conversion.h"
+#include "core/gpu/core/GPUIntegrationHelper.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/fields/FieldArrayGPU_conversion.h"
 #include "fieldsolver/utils/GridFieldProvider.h"
 #include "core/io/fieldArrayLoader.h"
 #include "core/types/IonState.h"

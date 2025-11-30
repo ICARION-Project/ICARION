@@ -1,6 +1,6 @@
 # ICARION
 
-**Ion Collision And Reaction Instrument mOdeler for mass spectrometry and ioN mobility**
+**Ion Collision And Reaction IntegratiON**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -36,14 +36,14 @@ ICARION is a modular simulation framework designed for quantitative modeling of 
 - **Method Development**: Collision cross-section (CCS) prediction, space charge optimization
 
 **Design Philosophy:**
-- ✅ **Physics-first**: Validated collision models, accurate field solvers
-- ✅ **Performance**: GPU acceleration (10-100× speedup), OpenMP parallelization
-- ✅ **Modularity**: Plugin architecture for forces, integrators, collision models
-- ✅ **Reproducibility**: JSON configuration, HDF5 output, deterministic RNG
+- **Physics-first**: Validated collision models, accurate field solvers
+- **Performance**: GPU acceleration (10-100× speedup), OpenMP parallelization
+- **Modularity**: Plugin architecture for forces, integrators, collision models
+- **Reproducibility**: JSON configuration, HDF5 output, deterministic RNG
 
 ---
 
-## ⚡ Key Features
+## Key Features
 
 ### Physics Models
 - **Collision Models**: 
@@ -67,7 +67,7 @@ ICARION is a modular simulation framework designed for quantitative modeling of 
 - **Space Charge**: FFT-based P³M algorithm (GPU), multigrid Poisson (CPU)
 - **Collision Sampling**: Event-driven, null-collision methods
 
-### GPU Acceleration (Phase 12/13) 🚀
+### GPU Acceleration 
 - **Integrators**: RK4, RK45, Boris (5-50× speedup)
 - **Space Charge**: P³M solver with cuFFT (10-40× speedup, 100k+ ions)
 - **Thermalization**: EHSS GPU kernels (4-6× speedup)
@@ -82,7 +82,7 @@ ICARION is a modular simulation framework designed for quantitative modeling of 
 
 ---
 
-## 📚 Scientific Background
+## Scientific Background
 
 ### Collision Cross-Sections (CCS)
 ICARION uses the **Trajectory Method** to compute CCS from first-principles MD simulations:
@@ -117,7 +117,7 @@ Time-dependent fields (Paul traps, TWIMS) handled via:
 
 ---
 
-## 📦 Requirements
+## Requirements
 
 ### Minimum Requirements
 - **OS**: Linux (Ubuntu 20.04+, Debian 11+), macOS 11+, Windows 10/11 (WSL2)
@@ -151,7 +151,7 @@ OS:   Ubuntu 22.04 LTS
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Ubuntu/Debian
 
@@ -273,7 +273,7 @@ docker run --gpus all -v $(pwd)/examples:/data \
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Basic Usage
 
@@ -335,7 +335,7 @@ See [`examples/`](examples/) for 15+ instrument configurations.
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
@@ -354,7 +354,7 @@ See [`examples/`](examples/) for 15+ instrument configurations.
 
 ---
 
-## ⚡ Performance
+## Performance
 
 ### Benchmarks (NVIDIA RTX 5070 Ti, 16GB VRAM)
 
@@ -470,11 +470,3 @@ See [LICENSE](LICENSE) for full text.
 - [Catch2](https://github.com/catchorg/Catch2) - Testing framework
 
 ---
-
-<div align="center">
-
-**Built with ❤️ for the analytical chemistry community**
-
-[⬆ Back to Top](#icarion)
-
-</div>

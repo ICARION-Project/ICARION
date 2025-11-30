@@ -1,6 +1,6 @@
 // Detailed diagnostics for GPU vs CPU collision physics
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUCollisionHelper.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/collisions/GPUCollisionHelper.h"
 #include "core/physics/collisions/HSSCollisionHandler.h"
 #include "core/types/IonState.h"
 #include "core/config/types/EnvironmentConfig.h"

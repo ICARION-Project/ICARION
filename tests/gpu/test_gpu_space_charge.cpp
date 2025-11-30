@@ -13,8 +13,8 @@
  */
 
 #include <catch2/catch_all.hpp>
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUSpaceChargeP3M.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/spacecharge/GPUSpaceChargeP3M.h"
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
 #include <vector>

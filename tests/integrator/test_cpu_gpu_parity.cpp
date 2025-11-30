@@ -35,8 +35,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "core/gpu/GPUContext.h"
-#include "core/gpu/GPUIntegrationHelper.h"
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/core/GPUIntegrationHelper.h"
 #include "core/integrator/strategies/RK4Strategy.h"
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/config/types/DomainConfig.h"

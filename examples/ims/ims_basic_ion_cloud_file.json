@@ -18,21 +18,7 @@
     "print_progress": true
   },
   "ions": {
-    "species": [
-      {
-        "id": "H3O+",
-        "count": 5000,
-        "position": {
-          "type": "gaussian",
-          "center": [0.0, 0.0, 0.0],
-          "std": [0.001, 0.001, 0.001]
-        },
-        "velocity": {
-          "type": "thermal",
-          "temperature_K": 300.0
-        }
-      }
-    ]
+    "from_file": "../../examples/ion_clouds/default_cloudjson"
   },
   "species_database": "../../../../data/species_database_v1.json",
   "domains": [

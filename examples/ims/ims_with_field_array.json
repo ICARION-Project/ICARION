@@ -51,11 +51,15 @@
         "gas_velocity_m_s": [0.0, 0.0, 0.0]
       },
       "fields": {
+        "DC": {
+          "axial_V": 400.0
+        },
         "field_array_terms": [
           {
+            "_comment": "Field array represents 200 V/cm uniform field, scaled by DC.axial_V",
             "file": "examples/field_arrays/ims_drift_200Vcm.h5",
-            "scale_type": "Constant",
-            "constant_V": 1.0
+            "scale_type": "DC_Axial",
+            "_scaling": "Effective field = 400 V/cm (2x the base array)"
           }
         ]
       }

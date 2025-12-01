@@ -294,8 +294,8 @@ TEMPLATES = {
                             "std": [0.002, 0.002, 0.005]
                         },
                         "velocity": {
-                            "type": "thermal",
-                            "temperature_K": 300.0
+                            "type": "energy_eV",
+                            "value": [0, 0, 100.0]
                         }
                     }
                 ]
@@ -350,8 +350,8 @@ TEMPLATES = {
                             "std": [0.0005, 0.0005, 0.0005]
                         },
                         "velocity": {
-                            "type": "thermal",
-                            "temperature_K": 300.0
+                            "type": "fixed",
+                            "value": [0, 0, 100.0]
                         }
                     }
                 ]
@@ -374,7 +374,7 @@ TEMPLATES = {
                         "radius_m": 0.005
                     },
                     "env": {
-                        "pressure_Pa": 0.001,
+                        "pressure_Pa": 1e-5,
                         "temperature_K": 300.0,
                         "gas_species": "He"
                     },

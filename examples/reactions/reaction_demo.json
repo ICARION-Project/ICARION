@@ -13,7 +13,7 @@
     "enable_reactions": true
   },
   "output": {
-    "folder": "./results/reaction_demo",
+    "folder": "results/reaction_demo",
     "trajectory_file": "reaction_demo_trajectory.h5",
     "print_progress": true
   },
@@ -49,12 +49,15 @@
         "gases": [
           {
             "species": "He",
-            "mole_fraction": 0.999
+            "mole_fraction": 0.999,
+            "participates_in_reactions": false,
+            "participates_in_collisions": true,
           },
           {
             "species": "Pentanal",
             "mole_fraction": 0.001,
-            "reactions_only": true
+            "participates_in_reactions": true,
+            "participates_in_collisions": false
           }
         ]
       },

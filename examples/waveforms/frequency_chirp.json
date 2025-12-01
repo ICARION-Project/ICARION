@@ -16,9 +16,26 @@
   },
   
   "output": {
-    "folder": "./results/waveform_frequency_chirp",
+    "folder": "./results/waveform_outputs",
     "trajectory_file": "trajectories.h5",
     "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
   },
   
   "domains": [

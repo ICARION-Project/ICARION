@@ -23,12 +23,13 @@ schema/
 ├── species.schema.json           # Species database
 ├── reactions.schema.json         # Reactions database
 ├── common-types.schema.json      # Reusable type definitions
+├── boundary.schema.json          # Boundary conditions
 └── validator.py                  # Python validation script
 ```
 
 ### Waveform System
 
-All voltage and frequency parameters now support:
+All voltage and frequency parameters support:
 
 1. **Static values** (backward compatible):
    ```json

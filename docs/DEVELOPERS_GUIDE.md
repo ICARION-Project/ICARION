@@ -638,7 +638,7 @@ Add to class docstring or separate documentation:
 ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
 
 **Completed GPU Features (v1.0):**
-- [DONE] RK4/RK45/Boris integrators (automatic dispatch with smart thresholds, >5000 ions)
+- [DONE] RK4/RK45/Boris integrators (automatic dispatch with smart thresholds)
 - [DONE] HSS/EHSS collision models (persistent GPU buffers, validated thermalization)
 - [DONE] Field array interpolation (texture memory)
 - [DONE] Boundary actions (absorption, reflection)
@@ -985,7 +985,7 @@ TEST(GPUPerformance, LargeScale) {
     auto gpu_time = elapsed(t0);
     
     double speedup = cpu_time / gpu_time;
-    EXPECT_GT(speedup, 10.0);  // At least 10× speedup
+    EXPECT_GT(speedup, 1.0);  // Verify GPU is faster
 }
 ```
 
@@ -1221,22 +1221,18 @@ for (int N : {1000, 2000, 3000, 5000, 10000}) {
 }
 ```
 
-**Expected results:**
-- N=1000: 0.5-1× (overhead dominates)
-- N=2000: 1-2× (break-even)
-- N=3000: 2-4× (GPU wins)
-- N=5000: 5-8× (optimal)
-- N=10000: 10-15× (compute-bound)
+**Note:** GPU performance varies significantly with hardware, kernel complexity, and data transfer patterns. Benchmark your specific use case.
 
 ### GPU Integrator Design Guidelines
 
 **Smart Threshold Selection:**
 ```cpp
 // Rule of thumb: threshold ∝ 1 / (force_evaluations_per_step)
-Boris:   1 eval  → threshold / 2    (2500 ions)
-Verlet:  2 evals → threshold / 2    (2500 ions)
-RK4:     4 evals → threshold        (5000 ions)
-RK45:    6 evals → threshold        (5000 ions)
+// Default base threshold: 5000 ions (configurable via gpu_threshold)
+Boris:   1 eval  → threshold / 2
+Verlet:  2 evals → threshold / 2
+RK4:     4 evals → threshold
+RK45:    6 evals → threshold
 ```
 
 **Reuse Shared Code:**
@@ -1289,19 +1285,13 @@ __device__ double kahan_add(double sum, double x, double& c) {
 
 **ICARION GPU Reference (v1.0):**
 - GPU integration available for RK4, RK45, Boris integrators
-- Automatic dispatch based on particle count (threshold: 2500-5000)
+- Automatic dispatch based on particle count (default threshold: 5000, Boris: 2500)
 - Implementation details in `src/core/integrator/` and integration strategy classes
 - Validation tests: `tests/integrator/test_rk45_boris_parity.cpp` (407 lines)
 - Space charge GPU: `src/core/physics/forces/SpaceChargeGPU.{h,cpp}`
 
-**GPU Integrator Performance (RTX 5070 Ti):**
-| Integrator | Force Evals | Threshold | 5k ions | 10k ions | 100k ions |
-|------------|-------------|-----------|---------|----------|-----------|
-| Boris      | 1           | 2500      | 1.6s    | 3.0s     | 25s       |
-| RK4        | 4           | 5000      | 8.0s    | 15s      | 120s      |
-| RK45       | 6-7         | 5000      | 13.9s   | 25s      | 200s      |
-
-**CPU Baseline (32-core AMD Ryzen 9, OpenMP):** ~2-3× slower than GPU for N>5000
+**GPU Performance:**
+GPU performance varies significantly with hardware, simulation complexity, and data transfer patterns. Benchmark your specific use case to determine optimal threshold values.
 
 ---
 
@@ -1565,12 +1555,11 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 3. **GPU Space Charge Acceleration** (Planned for future release):
    - CUDA kernels for space charge Poisson solver
    - Grid-based field evaluation on GPU
-   - Target: 10-100x speedup for N≥10,000
 
 4. **Field Caching**:
    - Pre-compute field on regular grid
    - Trilinear interpolation for fast evaluation
-   - Benefit: Approximately 10x speedup for analytical fields
+   - Benefit: Reduces repeated analytical field evaluations
 
 ### v1.0 Features
 

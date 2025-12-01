@@ -72,7 +72,7 @@ icarion --version
 Specify the configuration file (alternative to positional argument).
 
 ```bash
-icarion --config examples/ims_basic.json
+icarion --config examples/ims/ims_basic.json
 ```
 
 ### `--seed <N>`
@@ -268,8 +268,8 @@ Can be specified multiple times to override multiple values.
 - `output.print_progress` - Print progress updates (true/false)
 
 **Database paths:**
-- `species_database_path` - Path to species database
-- `reaction_database_path` - Path to reaction database
+- `species_database` (or `database.species`) - Path to species database
+- `reaction_database` (or `database.reactions`) - Path to reaction database
 
 **Examples:**
 ```bash
@@ -392,17 +392,17 @@ icarion --check-deps
 
 ```bash
 # Run with default settings
-icarion examples/ims_basic.json
+icarion examples/ims/ims_basic.json
 ```
 
 ### Validation Only
 
 ```bash
 # Check configuration without running
-icarion --dry-run examples/tof_basic.json
+icarion --dry-run examples/tof/tof_basic.json
 
 # Detailed validation with schema check
-icarion --validate-schema examples/orbitrap_basic.json
+icarion --validate-schema examples/orbitrap/orbitrap_basic.json
 ```
 
 ### Debugging
@@ -540,7 +540,7 @@ icarion --dump-build-info > build_info.txt
 ## See Also
 
 - [Configuration Guide](CONFIG_GUIDE.md)
-- [HDF5 Output Schema](OUTPUT_SCHEMA.md)
+- [HDF5 Output Structure](HDF5_OUTPUT_STRUCTURE.md)
 - [Developer's Guide](DEVELOPERS_GUIDE.md)
 - [Architecture Overview](ARCHITECTURE.md)
 

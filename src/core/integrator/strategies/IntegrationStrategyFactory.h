@@ -20,8 +20,8 @@ namespace integrator {
  * 
  * **Supported Strategies:**
  * - "RK4" (default): 4th-order Runge-Kutta (fixed timestep)
- * - "RK45" (Phase 4B): Dormand-Prince (adaptive timestep)
- * - "Boris" (Phase 4B): Boris pusher (magnetic fields)
+ * - "RK45": Dormand-Prince (adaptive timestep)
+ * - "Boris": Boris pusher (magnetic fields)
  * 
  * **Example Usage:**
  * ```cpp
@@ -46,9 +46,9 @@ public:
      * - No hardcoded defaults (caller must specify)
      * 
      * **Supported Values:**
-     * - "RK4": Classic 4th-order Runge-Kutta (Phase 4A)
-     * - "RK45": Adaptive Dormand-Prince (Phase 4B, not yet implemented)
-     * - "Boris": Boris pusher for magnetic fields (Phase 4B, not yet implemented)
+     * - "RK4": Classic 4th-order Runge-Kutta
+     * - "RK45": Adaptive Dormand-Prince
+     * - "Boris": Boris pusher for magnetic fields
      * 
      * **Thread Safety:**
      * - Stateless factory (thread-safe)
@@ -59,17 +59,17 @@ public:
             return std::make_unique<RK4Strategy>();
         }
         else if (strategy_name == "RK45") {
-            // Phase 4B: Adaptive Dormand-Prince with default config
+            // Adaptive Dormand-Prince with default config
             return std::make_unique<RK45Strategy>();
         }
         else if (strategy_name == "Boris") {
-            // Phase 4B: Boris pusher for magnetic fields
+            // Boris pusher for magnetic fields
             return std::make_unique<BorisStrategy>();
         }
         else {
             throw std::invalid_argument(
                 "IntegrationStrategyFactory: Unknown strategy '" + strategy_name + "'. "
-                "Supported: 'RK4', 'RK45' (Phase 4B), 'Boris' (Phase 4B)."
+                "Supported: 'RK4', 'RK45', 'Boris'."
             );
         }
     }
@@ -83,9 +83,9 @@ public:
      */
     static std::vector<std::string> supported_strategies() {
         return {
-            "RK4",     // Phase 4A (implemented)
-            "RK45",    // Phase 4B (implemented)
-            "Boris"    // Phase 4B (implemented)
+            "RK4",     // Classic 4th-order Runge-Kutta
+            "RK45",    // Adaptive Dormand-Prince
+            "Boris"    // Boris pusher
         };
     }
 };

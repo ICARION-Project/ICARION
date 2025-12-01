@@ -19,7 +19,7 @@ Results written to `results/`. GPU-accelerated when `enable_gpu: true` and N ≥
 - **orbitrap_basic.json**: Hyperlogarithmic field, f ∝ 1/√m, R > 100k
 
 ### Quadrupole Mass Filter - `quadrupole/`
-- **quadrupole_basic.json**: Mathieu stability, mass filtering via RF/DC scan
+- **quadrupole_basic.json**: RF-only mode (DC=0V), ion transmission without mass filtering
 
 ### Time-of-Flight - `tof/`
 - **tof_basic.json**: Linear TOF, 1m flight tube, t ∝ √m

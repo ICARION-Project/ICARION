@@ -55,7 +55,7 @@
       "geometry": {
         "origin_m": [0.0, 0.0, -0.01],
         "length_m": 0.06,
-        "radius_m": 0.5
+        "radius_m": 0.005
       },
       "env": {
         "temperature_K": 300.0,

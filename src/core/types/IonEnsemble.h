@@ -31,8 +31,6 @@ struct IonOutputData;
  * Memory layout:
  * - Hot data: 80 bytes/ion (fits in L2 cache)
  * - Total: ~120 bytes/ion (45% reduction vs AoS)
- * 
- * @see docs/SOA_REFACTORING_PLAN.md for full design rationale
  */
 class IonEnsemble {
 public:

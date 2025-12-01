@@ -43,19 +43,6 @@ python3 scripts/create_config.py \
     --output configs/my_config.json
 ```
 
-### Command-Line Options
-
-```
-positional arguments:
-## `compute_ccs_maps.py`
-
-Precompute collision cross-section (CCS) maps for temperature/pressure ranges.
-
-**Usage:**
-```bash
-python3 scripts/compute_ccs_maps.py --species H3O+ --temp-range 100 500 --pressure-range 100 1000
-```
-
 ## Related Documentation
 
 - `docs/CONFIG_GUIDE.md` - Configuration reference

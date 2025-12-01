@@ -4,7 +4,7 @@ Utility scripts for ICARION workflow automation.
 
 ---
 
-## 📄 `create_config.py`
+## `create_config.py`
 
 **Purpose:** Generate valid ICARION configuration files from templates or interactively.
 
@@ -156,30 +156,8 @@ TEMPLATES = {
 
 ---
 
-## 🔧 Future Scripts (Planned)
-
-- `convert_legacy_config.py` - Migrate old configs to v1.0
-- `compare_configs.py` - Diff two configuration files
-- `optimize_params.py` - Parameter sweeps for sensitivity analysis
-- `batch_simulate.py` - Run multiple configs in parallel
-
----
-
-## 📚 Related Documentation
+## Related Documentation
 
 - [CONFIG_GUIDE.md](../docs/CONFIG_GUIDE.md) - Full configuration reference
 - [Schema Documentation](../src/core/config/schema/README.md) - JSON Schema details
 - [Examples](../examples/) - Production-ready example configs
-
----
-
-## 🐛 Bug Reports
-
-Found a bug in the script? Report it with:
-```bash
-python3 scripts/create_config.py --version
-python3 --version
-uname -a
-```
-
-Include your command and error output in the issue.

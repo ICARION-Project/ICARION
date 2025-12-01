@@ -105,7 +105,7 @@ make -j8
 
 # Input Files
 
-ICARION uses a 4-file input hierarchy.
+ICARION uses a 4-file Single-Source-of-Truth (SSOT) input architecture:
 
 1. species.json (default: `data/species_database_v1.json`)  
    Species database with ion properties (mass, charge, mobility, CCS, etc.)

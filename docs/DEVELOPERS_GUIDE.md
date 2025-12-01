@@ -138,20 +138,19 @@ using Catch::Matchers::WithinAbs;
 TEST_CASE("YourForce - Basic functionality", "[forces][yourforce]") {
     // Create config (SSOT)
     DomainConfig domain;
-    domain.enable_some_feature = true;
-    domain.some_config_value = 1.0;
+    domain.name = "test_domain";
+    domain.instrument = InstrumentType::NoFixedInstrument;
     
     YourForce force(domain, 0.5);  // Pass by reference
     
     ForceContext ctx;
-    ctx.domain = domain;  // Same config in context
-    ctx.temperature_K = 300.0;
+    ctx.domain = &domain;  // Pointer to config
     
     IonState ion;
     ion.pos = Vec3{0, 0, 0};
     ion.vel = Vec3{100, 0, 0};
-    ion.ion_charge_C = 1.602e-19;
-    ion.mass_kg = 100 * 1.66e-27;
+    ion.ion_charge_C = 1.602e-19;  // Elementary charge
+    ion.mass_kg = 100.0 * 1.66e-27;  // 100 amu
     
     Vec3 F = force.compute(ion, 0.0, ctx);
     
@@ -385,8 +384,10 @@ TEST_CASE("YourCollisionHandler: Basic functionality", "[collision][yourmodel]")
     physics::YourCollisionHandler handler(1.0);
     
     IonState ion;
-    ion.mass_kg = 50.0 * 1.66e-27;
+    ion.pos = Vec3{0, 0, 0};
     ion.vel = Vec3{100, 0, 0};
+    ion.mass_kg = 50.0 * 1.66e-27;  // 50 amu
+    ion.ion_charge_C = 1.602e-19;
     
     config::EnvironmentConfig env;
     env.temperature_K = 300.0;
@@ -585,18 +586,23 @@ Vec3 ElectricFieldForce::compute_your_instrument_field(const IonState& ion, doub
 TEST_CASE("ElectricFieldForce - YourInstrument", "[forces][electric]") {
     config::DomainConfig domain;
     domain.instrument = InstrumentType::YourInstrument;
-    domain.fields.dc.voltage_V = 1000.0;
-    params.your_frequency_Hz = 1e6;
+    domain.fields.dc.axial_V.constant_value = 1000.0;
+    // Add your instrument-specific field parameters
     
-    ElectricFieldForce force(params);
+    ElectricFieldForce force(domain);
     
     // Test field at various positions
     IonState ion;
     ion.pos = Vec3{0.001, 0, 0};
     
-    Vec3 E = force.compute(ion, 0.0, ForceContext{});
+    ForceContext ctx;
+    ctx.domain = &domain;
+    Vec3 E = force.compute(ion, 0.0, ctx);
     
     // Verify field properties (symmetry, magnitude, direction)
+    REQUIRE(std::isfinite(E.x));
+    REQUIRE(std::isfinite(E.y));
+    REQUIRE(std::isfinite(E.z));
 }
 ```
 
@@ -740,10 +746,10 @@ void collision_batch(
     int blocks = std::min((N + threads - 1) / threads, 2048);
     
     collision_batch_kernel<<<blocks, threads, 0, stream>>>(
-        ions_in.x, ions_in.y, ions_in.z,
-        ions_in.vx, ions_in.vy, ions_in.vz,
-        ions_out.vx, ions_out.vy, ions_out.vz,
-        ions_in.mass, ions_in.charge,
+        ions_in.pos_x, ions_in.pos_y, ions_in.pos_z,
+        ions_in.vel_x, ions_in.vel_y, ions_in.vel_z,
+        ions_out.vel_x, ions_out.vel_y, ions_out.vel_z,
+        ions_in.mass_kg, ions_in.charge_C,
         ions_in.active, /* collision_flags */,
         dt, N, /* params */
     );
@@ -1062,8 +1068,8 @@ __global__ void integrate_verlet_batch_kernel(
         // Load ion state
         Vec3 pos = {ions_in.pos_x[i], ions_in.pos_y[i], ions_in.pos_z[i]};
         Vec3 vel = {ions_in.vel_x[i], ions_in.vel_y[i], ions_in.vel_z[i]};
-        double mass = ions_in.mass[i];
-        double charge = ions_in.charge[i];
+        double mass = ions_in.mass_kg[i];
+        double charge = ions_in.charge_C[i];
         
         // Velocity Verlet: x_new = x + v*dt + 0.5*a*dt^2
         Vec3 acc = compute_acceleration(pos, vel, mass, charge, E_field, B_field);
@@ -1281,13 +1287,12 @@ __device__ double kahan_add(double sum, double x, double& c) {
 **CUDA Best Practices:**
 - https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/
 
-**ICARION GPU Examples:**
-- `src/core/gpu/integrate_rk4_batch.cu` - Fixed-step 4th-order RK (350 lines)
-- `src/core/gpu/integrate_rk45_batch.cu` - Adaptive Dormand-Prince (350 lines)
-- `src/core/gpu/integrate_boris_batch.cu` - Symplectic pusher (235 lines)
-- `src/core/gpu/GPUIntegrationHelper.cpp` - Helper class pattern (430 lines)
-- `src/core/integrator/SimulationEngine.cpp` - Smart dispatch logic (100 lines)
-- `tests/integrator/test_rk45_boris_parity.cpp` - CPU/GPU validation (407 lines)
+**ICARION GPU Reference (v1.0):**
+- GPU integration available for RK4, RK45, Boris integrators
+- Automatic dispatch based on particle count (threshold: 2500-5000)
+- Implementation details in `src/core/integrator/` and integration strategy classes
+- Validation tests: `tests/integrator/test_rk45_boris_parity.cpp` (407 lines)
+- Space charge GPU: `src/core/physics/forces/SpaceChargeGPU.{h,cpp}`
 
 **GPU Integrator Performance (RTX 5070 Ti):**
 | Integrator | Force Evals | Threshold | 5k ions | 10k ions | 100k ions |

@@ -13,7 +13,7 @@ Results written to `results/`. GPU-accelerated when `enable_gpu: true` and N ≥
 ## Instrument Examples
 
 ### Linear Quadrupole Ion Trap (LQIT) - `lqit/`
-- **lqit_basic.json**: RF trapping at q=0.4, HSS collisions, N₂ buffer gas
+- **lqit_basic.json**: RF trapping at q=0.40 (620V @ 1MHz), N₂ buffer gas (3.75 mTorr), ReserpineH+
 
 ### Orbitrap - `orbitrap/`
 - **orbitrap_basic.json**: Hyperlogarithmic field, f ∝ 1/√m, R > 100k

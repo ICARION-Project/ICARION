@@ -21,7 +21,20 @@
     "species": [
       {
         "id": "H3O+",
-        "count": 5000,
+        "count": 500,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0],
+          "std": [0.001, 0.001, 0.001]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      },
+      {
+        "id": "PentanalH+",
+        "count": 500,
         "position": {
           "type": "gaussian",
           "center": [0.0, 0.0, 0.0],
@@ -46,7 +59,7 @@
       },
       "env": {
         "temperature_K": 300.0,
-        "pressure_Pa": 200.0,
+        "pressure_Pa": 500.0,
         "gas_species": "He",
         "gas_velocity_m_s": [0.0, 0.0, 0.0]
       },
@@ -61,7 +74,7 @@
       "instrument": "IMS",
       "geometry": {
         "origin_m": [0.0, 0.0, 0.05],
-        "length_m": 0.01,
+        "length_m": 0.001,
         "radius_m": 0.015
       },
       "env": {

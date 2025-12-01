@@ -19,12 +19,12 @@
   "ions": {
     "species": [
       {
-        "id": "H3O+",
+        "id": "ReserpineH+",
         "count": 100,
         "position": {
           "type": "gaussian",
           "center": [0.0, 0.0, 0.0],
-          "std": [0.0005, 0.0005, 0.0005]
+          "std": [0.0005, 0.0005, 0.001]
         },
         "velocity": {
           "type": "thermal",
@@ -44,17 +44,20 @@
       },
       "env": {
         "temperature_K": 300.0,
-        "pressure_Pa": 0.01,
-        "gas_species": "He"
+        "pressure_Pa": 0.5,
+        "gas_species": "N2",
+        "_comment": "N2 at 0.5 Pa (3.75 mTorr) - typical LQIT buffer gas pressure"
       },
       "fields": {
         "RF": {
-          "voltage_V": 50.0,
-          "frequency_Hz": 2e6,
-          "phase_rad": 0.0
+          "voltage_V": 620.0,
+          "frequency_Hz": 1e6,
+          "phase_rad": 0.0,
+          "_comment": "q = 4*e*V/(m*Ω²*r₀²) = 0.398 for ReserpineH+ (m/z 609) - stable trapping in first stability region"
         },
         "DC": {
-          "axial_V": 20.0
+          "axial_V": 10.0,
+          "_comment": "Weak DC for axial confinement, a = 8*e*U/(m*Ω²*r₀²) ≈ 0.016"
         }
       },
       "boundary": {

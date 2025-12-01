@@ -11,7 +11,7 @@
 4. [Design Patterns](#design-patterns)
 5. [Performance Architecture](#performance-architecture)
 6. [Testing Strategy](#testing-strategy)
-7. [Future Architecture](#future-architecture)
+7. [Implementation Details](#implementation-details)
 
 ## System Overview
 
@@ -240,30 +240,14 @@ tests/
 - `tests/gpu/test_gpu_*.cpp` - GPU functionality and parity
 - `tests/physics/test_*_physics.cpp` - Physics model validation
 
-## Future Architecture
-
-### Planned Extensions
-
-1. **Advanced GPU Features**: Space charge on GPU, field solver acceleration
-2. **Distributed Computing**: MPI support for large-scale simulations
-3. **Python Interface**: Python bindings for scripting and analysis
-4. **Real-time Visualization**: Live trajectory plotting during simulation
-5. **Machine Learning**: ML-assisted parameter optimization
-
-### Architectural Evolution
-
-- **Plugin System**: More runtime-discoverable plugins
-- **Microservice Architecture**: Separate field solver, reaction engine services
-- **Cloud Integration**: Kubernetes deployment, cloud storage backends
-
 ## Implementation Details
 
 For detailed implementation specifics, see:
 
-- **Force Implementation**: [Force System Documentation](src/core/physics/forces/README.md)
-- **GPU Kernels**: [GPU Implementation Guide](src/core/gpu/README.md) 
-- **Configuration Schema**: [Schema Documentation](schema/README.md)
-- **Testing Guide**: [Testing Documentation](tests/README.md)
+- **Force Implementation**: Source files in `src/core/physics/forces/`
+- **GPU Kernels**: [GPU Architecture Guide](GPU_ARCHITECTURE.md) and `src/core/gpu/`
+- **Configuration Schema**: Schema files in `schema/` directory
+- **Testing Guide**: Test files in `tests/` directory
 - **API Reference**: [Developer Guide](DEVELOPERS_GUIDE.md)
 
 ---

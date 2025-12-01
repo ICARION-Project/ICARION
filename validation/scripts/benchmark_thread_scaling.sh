@@ -4,7 +4,7 @@
 
 set -e
 
-CONFIG="configs/performance/cpu_scaling.json"
+CONFIG="configs/performance/thread_scaling_benchmark.json"
 RESULTS_DIR="./results/thread_scaling"
 
 echo "============================================"

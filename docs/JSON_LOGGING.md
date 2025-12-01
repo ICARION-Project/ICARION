@@ -15,31 +15,19 @@ Each log entry is a single-line JSON object with `time`, `level`, `cat` (categor
 ## Generate JSON Logs
 
 ```bash
-# Console output
-./icarion_main --log-format json examples/ims_basic.json
+# Console output (JSON format)
+./build/src/icarion_main --log-format json examples/ims/ims_basic.json
 
-# Save to file (workaround for flush issue)
-./icarion_main --log-format json examples/ims_basic.json 2>&1 | grep '^{' > simulation.log
+# Save to file
+./build/src/icarion_main --log-format json examples/ims/ims_basic.json 2>&1 > simulation.log
 
 # Traditional text format (default)
-./icarion_main --log-format text examples/ims_basic.json
+./build/src/icarion_main examples/ims/ims_basic.json
 ```
 
-## Analyze with Python
+## Analyze with Python (pandas)
 
-### Basic Analysis
-
-```bash
-python examples/analyze_logs.py simulation.log
-```
-
-### Advanced Analysis
-
-```bash
-python examples/analyze_logs_advanced.py simulation.log
-```
-
-## pandas Quick Snippets
+Create your own analysis scripts using pandas:
 
 ### Load Logs
 
@@ -84,53 +72,22 @@ issues = df[df['level'].isin(['warn', 'error'])]
 debug = df[df['level'] == 'debug']
 ```
 
-### Time Analysis
+### Time Analysis & Pattern Matching
 
 ```python
-# Sort by time
+# Sort and compute time between logs
 df = df.sort_values('time')
-
-# Compute time between logs
 df['delta_ms'] = df['time'].diff().dt.total_seconds() * 1000
 
 # Find slowest operations
 slowest = df.nlargest(10, 'delta_ms')[['cat', 'msg', 'delta_ms']]
-print(slowest)
-```
 
-### Pattern Matching
-
-```python
-# Find species mentions
+# Pattern search
 species_logs = df[df['msg'].str.contains('species', case=False)]
-
-# Find particle counts
-particle_logs = df[df['msg'].str.contains(r'\d+\s+particles?', case=False)]
-
-# Extract numeric values
 df['particles'] = df['msg'].str.extract(r'(\d+)\s+particles?')[0].astype(float)
-```
 
-### Export Results
-
-```python
-# CSV
+# Export
 df.to_csv('analysis.csv', index=False)
-
-# Excel with sheets
-with pd.ExcelWriter('analysis.xlsx') as writer:
-    df.to_excel(writer, sheet_name='All')
-    for cat in df['cat'].unique():
-        df[df['cat']==cat].to_excel(writer, sheet_name=cat)
-
-# JSON summary
-summary = {
-    'total': len(df),
-    'categories': df['cat'].value_counts().to_dict(),
-    'levels': df['level'].value_counts().to_dict()
-}
-with open('summary.json', 'w') as f:
-    json.dump(summary, f, indent=2)
 ```
 
 ## JSON Format
@@ -163,55 +120,37 @@ print("Species:", config[config['msg'].str.contains('species')]['msg'].values[0]
 print("Domains:", config[config['msg'].str.contains('domain')]['msg'].values[0])
 ```
 
-### Error Report
+### Error Analysis & Visualization
 
 ```python
+# Find errors
 errors = df[df['level'] == 'error']
-if len(errors) > 0:
-    print(f"Found {len(errors)} errors:")
-    for _, row in errors.iterrows():
-        print(f"  [{row['time']}] {row['cat']}: {row['msg']}")
-else:
-    print("✓ No errors")
-```
+print(f"Found {len(errors)} errors" if len(errors) > 0 else "✓ No errors")
 
-### Category Timeline
-
-```python
-import matplotlib.pyplot as plt
-
+# Plot timeline (optional: requires matplotlib)
 df['seconds'] = (df['time'] - df['time'].min()).dt.total_seconds()
-
 for cat in df['cat'].unique():
     cat_df = df[df['cat'] == cat]
-    plt.scatter(cat_df['seconds'], [cat]*len(cat_df), label=cat, alpha=0.6)
-
-plt.xlabel('Time (seconds)')
-plt.ylabel('Category')
-plt.legend()
-plt.tight_layout()
+    plt.scatter(cat_df['seconds'], [cat]*len(cat_df), alpha=0.6)
 plt.savefig('timeline.png')
 ```
 
 ## Requirements
 
 ```bash
-pip install pandas
-pip install openpyxl  # Optional: for Excel export
+pip install pandas  # Required
 pip install matplotlib  # Optional: for plotting
 ```
 
 ## Tips
 
-1. **Large logs:** Use `df.head()` and `df.tail()` to preview
-2. **Memory:** Process logs in chunks with `pd.read_json(chunksize=1000)`
-3. **Search:** Use `df[df['msg'].str.contains('pattern')]` for text search
-4. **Debugging:** Filter by category + time range for focused analysis
-5. **Performance:** Parse JSON once, cache DataFrame with `df.to_pickle()`
+- Use `df.head()` and `df.tail()` to preview large logs
+- Filter by category/level: `df[df['cat'] == 'perf']`
+- Search messages: `df[df['msg'].str.contains('pattern')]`
+- Cache parsed data: `df.to_pickle('logs.pkl')`
 
 ## See Also
 
-- `examples/analyze_logs.py` - Basic analysis script
-- `examples/analyze_logs_advanced.py` - Advanced examples
-- `docs/JSON_LOGGING_IMPLEMENTATION.md` - Full documentation
-- `examples/README.md` - Usage examples
+- [`CLI_USAGE.md`](CLI_USAGE.md) - Full command-line reference
+- [`../examples/README.md`](../examples/README.md) - Example configurations
+- [`CONFIG_GUIDE.md`](CONFIG_GUIDE.md) - Configuration file format

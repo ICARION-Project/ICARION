@@ -1,7 +1,7 @@
 # ICARION Command-Line Interface (CLI) Guide
 
 **Version:** 1.0  
-**Last Updated:** November 21, 2025
+**Last Updated:** December 1, 2025
 
 ---
 
@@ -181,6 +181,64 @@ icarion --output-dir ./results/experiment1 config.json
 
 ---
 
+## Performance Options
+
+### `--threads <N>`
+Set the number of OpenMP threads for CPU parallelization.  
+Overrides the `OMP_NUM_THREADS` environment variable.
+
+**Usage:**
+```bash
+# Use 8 CPU threads
+icarion --threads 8 config.json
+
+# Single-threaded execution
+icarion --threads 1 config.json
+
+# Optimal for most systems (4-8 threads)
+icarion --threads 4 config.json
+```
+
+**Performance Notes:**
+- For CPU-only simulations, 4-8 threads provide the best efficiency
+- Beyond 8 threads, memory bandwidth becomes the limiting factor
+- See README.md "Performance" section for detailed scaling benchmarks
+- Ignored if OpenMP is not enabled at compile time
+
+### `--benchmark`
+Print detailed timing statistics for each simulation phase.
+
+```bash
+icarion --benchmark config.json
+```
+
+**Output includes:**
+- Ion generation time
+- Physics module initialization
+- Per-step integration performance
+- Total simulation time
+- Memory allocation overhead
+
+### `--profile`
+Enable profiling instrumentation for detailed performance analysis.
+
+```bash
+icarion --profile config.json
+```
+
+### `--profile-output <FILE>`
+Write profiling data to a file (JSON or CSV format).
+
+```bash
+# JSON format (default)
+icarion --profile --profile-output profile.json config.json
+
+# CSV format for Excel/pandas
+icarion --profile --profile-output profile.csv config.json
+```
+
+---
+
 ## Advanced Configuration
 
 ### `--set <KEY=VALUE>`
@@ -226,26 +284,6 @@ icarion --set simulation.rng_seed=999 \
         --set physics.collision_model=EHSS \
         --set output.folder=./results \
         config.json
-```
-
-### Future Options (Planned for v1.1)
-
-#### `--benchmark` *(Coming Soon)*
-Print detailed timing statistics for each simulation phase.
-```bash
-icarion --benchmark config.json
-```
-
-#### `--profile` *(Coming Soon)*
-Enable profiling instrumentation (requires profiler build).
-```bash
-icarion --profile config.json
-```
-
-#### `--check-nan` *(Coming Soon)*
-Enable NaN/Inf checks in the integrator for debugging numerical issues.
-```bash
-icarion --check-nan config.json
 ```
 
 ---
@@ -387,6 +425,14 @@ for seed in {1..10}; do
             config.json
 done
 
+# CPU thread scaling benchmark
+for threads in 1 2 4 8 16; do
+    icarion --threads $threads \
+            --benchmark \
+            --output results_threads${threads}.h5 \
+            config.json
+done
+
 # Test different collision models
 for model in NoCollisions HSD Langevin EHSS; do
     icarion --set physics.collision_model=$model \
@@ -419,8 +465,10 @@ icarion --no-reactions \
 ### Combining Options
 
 ```bash
-# Full featured run
-icarion --verbose \
+# Full featured run with performance optimization
+icarion --threads 8 \
+        --benchmark \
+        --verbose \
         --log-file simulation.log \
         --seed 42 \
         --set simulation.dt_s=5e-11 \
@@ -508,6 +556,6 @@ icarion --dump-build-info > build_info.txt
 
 ---
 
-**Last Modified:** November 21, 2025  
+**Last Modified:** December 1, 2025  
 **ICARION Version:** 1.0.0
 

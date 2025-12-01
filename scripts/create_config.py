@@ -327,6 +327,129 @@ TEMPLATES = {
                 }
             ]
         }
+    },
+    
+    "quadrupole": {
+        "description": "Quadrupole mass filter",
+        "config": {
+            "simulation": {
+                "total_time_s": 5e-5,
+                "dt_s": 1e-9,
+                "integrator": "RK4",
+                "write_interval": 100,
+                "enable_gpu": True
+            },
+            "ions": {
+                "species": [
+                    {
+                        "id": "CaffeineH+",
+                        "count": 50,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.001],
+                            "std": [0.0005, 0.0005, 0.0005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
+            },
+            "physics": {
+                "collision_model": "NoCollisions"
+            },
+            "output": {
+                "folder": "./results/quadrupole",
+                "trajectory_file": "quadrupole_trajectories.h5",
+                "print_progress": True
+            },
+            "domains": [
+                {
+                    "name": "quad_filter",
+                    "instrument": "Quadrupole",
+                    "geometry": {
+                        "origin_m": [0.0, 0.0, 0.0],
+                        "length_m": 0.05,
+                        "radius_m": 0.005
+                    },
+                    "env": {
+                        "pressure_Pa": 0.001,
+                        "temperature_K": 300.0,
+                        "gas_species": "He"
+                    },
+                    "fields": {
+                        "RF": {
+                            "voltage_V": 100.0,
+                            "frequency_Hz": 1e6,
+                            "phase_rad": 0.0
+                        },
+                        "DC": {
+                            "quad_V": 10.0
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    
+    "fticr": {
+        "description": "FT-ICR mass spectrometer",
+        "config": {
+            "simulation": {
+                "total_time_s": 1e-3,
+                "dt_s": 1e-9,
+                "integrator": "Boris",
+                "write_interval": 1000,
+                "enable_gpu": True
+            },
+            "ions": {
+                "species": [
+                    {
+                        "id": "ReserpineH+",
+                        "count": 50,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.0],
+                            "std": [0.001, 0.001, 0.001]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
+            },
+            "physics": {
+                "collision_model": "NoCollisions"
+            },
+            "output": {
+                "folder": "./results/fticr",
+                "trajectory_file": "fticr_trajectories.h5",
+                "print_progress": True
+            },
+            "domains": [
+                {
+                    "name": "icr_cell",
+                    "instrument": "FT-ICR",
+                    "geometry": {
+                        "origin_m": [0.0, 0.0, 0.0],
+                        "length_m": 0.1,
+                        "radius_m": 0.02
+                    },
+                    "env": {
+                        "pressure_Pa": 1e-9,
+                        "temperature_K": 300.0,
+                        "gas_species": "He"
+                    },
+                    "fields": {
+                        "magnetic": {
+                            "B_field_T": [0.0, 0.0, 7.0]
+                        }
+                    }
+                }
+            ]
+        }
     }
 }
 

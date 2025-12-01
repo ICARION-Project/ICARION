@@ -20,7 +20,7 @@
 
 #include "core/config/types/FullConfig.h"
 #include "core/types/IonState.h"
-#include "core/types/IonEnsemble.h"  // For SoA support (Phase 5)
+#include "core/types/IonEnsemble.h"  
 #include "core/log/Logger.h"
 #include <string>
 #include <vector>

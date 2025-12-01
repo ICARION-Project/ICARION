@@ -420,8 +420,7 @@ v_mean ≈ √(8 k_B T / π m) ≈ 580 m/s  (for H3O+)
    - Specify ICARION version and platform
 
 **Reference Documentation:**
-- Configuration: `docs/INPUT_FORMAT_SPECIFICATION.md`
-- Physics models: `docs/VALIDATION_METHODS.md`
+- Configuration: `docs/CONFIG_GUIDE.md`
 - Developer info: `docs/DEVELOPERS_GUIDE.md`
 
 ---

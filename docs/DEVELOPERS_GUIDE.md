@@ -12,7 +12,7 @@ This guide provides practical instructions for extending ICARION with new featur
 1. [Adding New Force Types](#adding-new-force-types)
 2. [Adding New Collision Models](#adding-new-collision-models)
 3. [Adding New Instrument Types](#adding-new-instrument-types)
-4. [GPU Development Guide](#gpu-development-guide) **NEW in v1.1**
+4. [GPU Development Guide](#gpu-development-guide)
 5. [Testing Guidelines](#testing-guidelines)
 6. [Code Style and Conventions](#code-style-and-conventions)
 
@@ -636,18 +636,20 @@ Add to class docstring or separate documentation:
 
 ## GPU Development Guide
 
-**Added:** November 2025 (v1.1 development)
-**Status:** Phases 1-11 complete (Core, Integrators, Collision Models)
+**Added:** November 2025 (v1.0)
+**Status:** Core features implemented and validated
 
 ### Overview
 
 ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
 
-**Completed GPU Features (v1.1):**
-- ✅ RK4/RK45/Boris integrators (automatic dispatch with smart thresholds)
-- ✅ HSS/EHSS collision models (thermalization validated)
+**Completed GPU Features (v1.0):**
+- ✅ RK4/RK45/Boris integrators (automatic dispatch with smart thresholds, >5000 ions)
+- ✅ HSS/EHSS collision models (persistent GPU buffers, validated thermalization)
 - ✅ Field array interpolation (texture memory)
 - ✅ Boundary actions (absorption, reflection)
+
+**Note:** GPU features require CUDA toolkit and `enable_gpu: true` in config. Automatic CPU fallback for small simulations.
 - ✅ CPU/GPU parity validation (37,956 assertions passed)
 
 ### Prerequisites

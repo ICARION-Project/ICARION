@@ -499,30 +499,6 @@ end
 
 ---
 
-## Format Versioning
-
-**Current Version:** 1.0
-
-### Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2024-10 | Initial format (legacy GlobalParams) |
-| 2.0 | 2025-11 | FullConfig-based, added metadata groups |
-
-### Version Detection
-
-```python
-with h5py.File('simulation.h5', 'r') as f:
-    if '/metadata/config/format_version' in f:
-        version = f['/metadata/config/format_version'][()].decode()
-        print(f"HDF5 format version: {version}")
-    else:
-        print("Legacy format (v1.0)")
-```
-
----
-
 ## Best Practices
 
 ### For Users
@@ -545,10 +521,6 @@ with h5py.File('simulation.h5', 'r') as f:
 
 - HDF5 Documentation: https://portal.hdfgroup.org/
 - h5py User Guide: https://docs.h5py.org/
-- ICARION Config Schema: [`docs/INPUT_SCHEMA.md`](docs/INPUT_SCHEMA.md )
-- Example Scripts: `examples/analyze_trajectory.py`
+- ICARION Config Schema: [`CONFIG_GUIDE.md`](CONFIG_GUIDE.md)
 
 ---
-
-**Questions or Issues?**  
-https://github.com/ICARION-Project/ICARION/issues

@@ -18,7 +18,7 @@ This document describes the high-level architecture of ICARION, focusing on modu
 7. [Domain Management](#domain-management-phase-5a)
 8. [SimulationEngine Architecture](#simulationengine-architecture-phase-5a)
 9. [OutputManager Architecture](#outputmanager-architecture-phase-5a)
-10. [GPU Acceleration Architecture](#gpu-acceleration-architecture) **NEW in v1.1**
+10. [GPU Acceleration Architecture](#gpu-acceleration-architecture)
 11. [Data Flow](#data-flow)
 12. [Design Patterns](#design-patterns)
 
@@ -267,11 +267,11 @@ private:
 
 **In Progress:**
 
-1. **Integrator System** (Phase 1, Steps 5-8, approximately 3.5h remaining):
+1. **Integrator System** (Phase 1, Steps 5-8):
    - compute_accelerations(): Replace GlobalParams with DomainConfig
    - integrate_one_step(): Use FullConfig directly
    - integrate_trajectory(): Remove parameter conversions
-   - See: tmp/REMAINING_SSOT_MIGRATION_WORK.md
+   - Status: ✅ Completed for v1.0
 
 **Known Minor Issue:**
 
@@ -1919,15 +1919,15 @@ manager.finalize(t_end, ions);
 
 ## GPU Acceleration Architecture
 
-**Added:** November 2025 (v1.1 development)
-**Status:** Phases 1-7 complete (GPU Core, Field Arrays with Superposition), Phase 10 complete (Boundary Actions)
+**Added:** November 2025 (v1.0)
+**Status:** Core features implemented (Integration, Collisions)
 
 ### Overview
 
-ICARION's GPU acceleration uses a **hybrid CPU/GPU architecture** with automatic dispatch based on ion count. The design prioritizes:
+ICARION's GPU acceleration uses a **hybrid CPU/GPU architecture** with automatic dispatch based on ion count (threshold: 5000 active ions). The design prioritizes:
 
-1. **Transparency**: GPU acceleration is optional (`-DUSE_GPU_ACCEL=ON`)
-2. **Safety**: Automatic fallback to CPU on GPU errors
+1. **Transparency**: GPU acceleration is optional (`enable_gpu: true` in config, requires CUDA)
+2. **Safety**: Automatic fallback to CPU on GPU errors or for small simulations
 3. **Performance**: 10-50× speedup for N > 5000 ions
 4. **Maintainability**: Single codebase, not parallel CPU/GPU implementations
 
@@ -3552,8 +3552,8 @@ void integrate_one_step(...) {
 
 **Related Documentation:**
 
-- `REACTION_SYSTEM_REFACTORING_PLAN.md` — Detailed Phase 3 plan
-- `tmp/PHASE_3_COMPLETION_PLAN.md` — Phase 3C completion strategy
-- `docs/CONFIG_LOGGING.md` — configuration guide
+- [`CONFIG_GUIDE.md`](CONFIG_GUIDE.md) — Configuration reference
+- [`DEVELOPERS_GUIDE.md`](DEVELOPERS_GUIDE.md) — Implementation guide
+- Test suite: `tests/physics/reactions/test_stochastic_reaction_handler.cpp`
 
 ---

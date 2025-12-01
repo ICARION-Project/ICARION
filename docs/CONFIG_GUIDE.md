@@ -2484,10 +2484,10 @@ Use the global `simulation.integrator` as default, but override for specific dom
 
 ## See Also
 
-- **Schema Documentation**: `src/core/config/schema/README.md`
-- **API Documentation**: `docs/PUBLIC_CPP_API_v1.0.md` #todo
-- **CLI Flags**: `docs/CLI_INTERFACE_v1.0.md`#todo
-- **Example Configs**: `examples/*.json`
+- **Schema Documentation**: [`../schema/README.md`](../schema/README.md)
+- **CLI Reference**: [`CLI_USAGE.md`](CLI_USAGE.md)
+- **Architecture**: [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- **Example Configs**: [`../examples/`](../examples/)
 - **Python Helper**: `scripts/create_config.py --help`
 
 ---

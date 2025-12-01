@@ -291,7 +291,7 @@ public:
     Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
         // Read config on-demand
         const auto& dc = domain_.fields.dc;
-        double axial_V = dc.axial_V;  // No duplication
+        double axial_V = dc.axial_V.get_value(t);  // Evaluates waveform at time t
         // ...
     }
     
@@ -496,7 +496,7 @@ ElectricFieldForce(std::shared_ptr<IFieldProvider> provider);
 
 ```cpp
 // Reads directly from stored domain reference
-double voltage = domain_->fields.dc.axial_V;
+double voltage = domain_->fields.dc.axial_V.get_value(t);  // Time-varying waveforms
 double radius = domain_->geometry.radius_m;
 Instrument instrument = domain_->instrument;
 ```
@@ -749,7 +749,7 @@ public:
 - `src/fieldsolver/utils/CompositeFieldProvider.h` 
 - `src/fieldsolver/utils/IFieldProvider.h` (extended with time parameter)
 - `src/core/physics/forces/ElectricFieldForce.cpp` (calls `get_E(pos, t)`)
-- `examples/test_rf_superposition.json` (validation config)
+- Field array examples in `examples/field_arrays/`
 
 #### Field Array Loading
 
@@ -819,7 +819,7 @@ with h5py.File('dc_axial_unit.h5', 'w') as f:
 - `examples/field_arrays/dc_axial_unit.h5` - Uniform axial field (1V normalized)
 - `examples/field_arrays/uniform_field.h5` - Constant field
 - `examples/field_arrays/linear_gradient.h5` - Linear gradient pattern
-- `examples/create_example_field_array.py` - Python script for generating test fields
+- `examples/field_arrays/create_example_field_array.py` - Python script for generating test fields
 
 ### Space Charge Solver
 
@@ -2284,7 +2284,7 @@ __global__ void integrate_boris_batch_kernel(
         
         if (!ions_in.active[i]) continue;
         
-        double qm = ions_in.charge[i] / ions_in.mass[i];
+        double qm = ions_in.charge_C[i] / ions_in.mass_kg[i];
         
         // 1. Electric half-step: v^- = v^n + (q/m)*E*(dt/2)
         Vec3 v_minus = v + E * (qm * dt * 0.5);

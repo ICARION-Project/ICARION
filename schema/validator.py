@@ -138,8 +138,8 @@ Examples:
     parser.add_argument(
         "--schema-dir",
         type=Path,
-        default=Path(__file__).parent / "v1.0",
-        help="Directory containing schema files (default: v1.0/)"
+        default=Path(__file__).parent,
+        help="Directory containing schema files (default: schema/)"
     )
     
     parser.add_argument(

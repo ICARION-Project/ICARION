@@ -1,52 +1,31 @@
 # ICARION Scripts
 
-Utility scripts for ICARION workflow automation.
-
----
+Utility scripts for configuration generation and analysis.
 
 ## `create_config.py`
 
-**Purpose:** Generate valid ICARION configuration files from templates or interactively.
+Generate valid ICARION JSON configuration files from templates.
 
-### Quick Start
-
+**Quick start:**
 ```bash
-# List available templates
+# List templates
 python3 scripts/create_config.py --list-templates
 
-# Create config from template
+# Generate config
 python3 scripts/create_config.py --template ims --output my_config.json
 
-# Validate generated config
-python3 src/core/config/schema/validator.py my_config.json
-./build/src/icarion_main --validate-config my_config.json
+# Run simulation
+./build/src/icarion_main my_config.json
 ```
 
-### Available Templates
+**Available templates:**
+- `minimal` - H₃O⁺, 100 ions, NoCollisions
+- `ims` - H₃O⁺, 1000 ions, HSS collisions
+- `tof` - ReserpineH⁺, 100 ions, vacuum
+- `lqit` - CaffeineH⁺, 500 ions, HSS collisions
+- `orbitrap` - ReserpineH⁺, 100 ions, vacuum
 
-| Template | Description | Use Case |
-|----------|-------------|----------|
-| `minimal` | Bare minimum configuration | Quick testing, learning |
-| `ims` | Ion Mobility Spectrometry | Drift tube IMS experiments |
-| `tof` | Time-of-Flight | TOF mass spectrometry |
-| `lqit` | Linear Quadrupole Ion Trap | Paul trap simulations |
-| `orbitrap` | Orbitrap Mass Analyzer | High-resolution MS |
-
-### Usage Examples
-
-#### 1. Generate IMS Configuration
-
-```bash
-python3 scripts/create_config.py --template ims --output configs/my_ims_run.json
-```
-
-#### 2. Interactive Mode (Advanced)
-
-```bash
-python3 scripts/create_config.py --interactive --output configs/custom.json
-```
-
-Follow the prompts to customize:
+All templates are v1.0 schema compliant and tested.
 
 - Simulation time and timestep
 - Collision model
@@ -68,96 +47,16 @@ python3 scripts/create_config.py \
 
 ```
 positional arguments:
-  output                Output JSON file path
+## `compute_ccs_maps.py`
 
-optional arguments:
-  -h, --help            Show help message
-  --template {minimal,ims,tof,lqit,orbitrap}
-                        Use predefined template
-  --list-templates      List all available templates
-  --interactive         Interactive configuration builder
-  --validate            Validate generated config automatically
-  
-Template customization:
-  --total-time FLOAT    Simulation time [s]
-  --timestep FLOAT      Integration timestep [s]
-  --integrator {RK4,RK45,Boris}
-                        Integrator choice
-  --collision-model {NoCollisions,HSD,HSS,EHSS,SDS}
-                        Collision model
-  --enable-gpu          Enable GPU acceleration
-  --output-folder PATH  Output directory
-```
+Precompute collision cross-section (CCS) maps for temperature/pressure ranges.
 
-### Generated Config Features
-
-All generated configs include:
-
-- Valid JSON Schema v1.0 format
-- Reasonable default parameters
-- Inline comments (via `"_comment"` fields)
-- Ready for validation and simulation
-- Documented field descriptions
-
-### Workflow Integration
-
-**Recommended workflow:**
-
+**Usage:**
 ```bash
-# 1. Create config from template
-python3 scripts/create_config.py --template ims --output my_sim.json
-
-# 2. Edit manually (optional)
-nano my_sim.json
-
-# 3. Validate
-python3 src/core/config/schema/validator.py my_sim.json
-./build/src/icarion_main --validate-config my_sim.json
-
-# 4. Run simulation
-./build/src/icarion_main my_sim.json
+python3 scripts/compute_ccs_maps.py --species H3O+ --temp-range 100 500 --pressure-range 100 1000
 ```
-
-### Validation Features
-
-The script automatically checks:
-
-- Required fields present
-- Valid enum values
-- Positive values for physical quantities
-- Consistent domain indices
-- Field configuration logic
-
-### Error Handling
-
-Common issues and solutions:
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `ValueError: invalid literal` | Wrong value type | Check input types match schema |
-| `ValidationError: missing required` | Incomplete config | Use `--validate` to check |
-| `FileNotFoundError` | Invalid path | Check file paths are accessible |
-
-### Advanced: Custom Templates
-
-Add your own templates in `create_config.py`:
-
-```python
-TEMPLATES = {
-    'my_custom': {
-        'simulation': {
-            'total_time_s': 1e-3,
-            'dt_s': 1e-9,
-            # ... your parameters
-        }
-    }
-}
-```
-
----
 
 ## Related Documentation
 
-- [CONFIG_GUIDE.md](../docs/CONFIG_GUIDE.md) - Full configuration reference
-- [Schema Documentation](../src/core/config/schema/README.md) - JSON Schema details
-- [Examples](../examples/) - Production-ready example configs
+- `docs/CONFIG_GUIDE.md` - Configuration reference
+- `examples/` - Ready-to-run examples

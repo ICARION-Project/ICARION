@@ -29,6 +29,23 @@ TEMPLATES = {
                 "integrator": "RK4",
                 "write_interval": 100
             },
+            "ions": {
+                "species": [
+                    {
+                        "id": "H3O+",
+                        "count": 100,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.001],
+                            "std": [0.001, 0.001, 0.0005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
+            },
             "physics": {
                 "collision_model": "NoCollisions"
             },
@@ -67,6 +84,23 @@ TEMPLATES = {
                 "write_interval": 1000,
                 "enable_gpu": True,
                 "rng_seed": 42
+            },
+            "ions": {
+                "species": [
+                    {
+                        "id": "H3O+",
+                        "count": 1000,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.001],
+                            "std": [0.001, 0.001, 0.0005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
             },
             "physics": {
                 "collision_model": "HSS"
@@ -111,6 +145,23 @@ TEMPLATES = {
                 "integrator": "RK4",
                 "write_interval": 100,
                 "enable_gpu": True
+            },
+            "ions": {
+                "species": [
+                    {
+                        "id": "ReserpineH+",
+                        "count": 100,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.001],
+                            "std": [0.0005, 0.0005, 0.0005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
             },
             "physics": {
                 "collision_model": "NoCollisions"
@@ -168,6 +219,23 @@ TEMPLATES = {
                 "write_interval": 100,
                 "enable_gpu": True
             },
+            "ions": {
+                "species": [
+                    {
+                        "id": "CaffeineH+",
+                        "count": 500,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.0],
+                            "std": [0.001, 0.001, 0.005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
+            },
             "physics": {
                 "collision_model": "HSS"
             },
@@ -215,6 +283,23 @@ TEMPLATES = {
                 "write_interval": 1000,
                 "enable_gpu": True
             },
+            "ions": {
+                "species": [
+                    {
+                        "id": "ReserpineH+",
+                        "count": 100,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.0],
+                            "std": [0.002, 0.002, 0.005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
+            },
             "physics": {
                 "collision_model": "NoCollisions"
             },
@@ -230,7 +315,9 @@ TEMPLATES = {
                     "geometry": {
                         "origin_m": [0.0, 0.0, 0.0],
                         "length_m": 0.05,
-                        "radius_m": 0.015
+                        "radius_in_m": 0.006,
+                        "radius_out_m": 0.015,
+                        "radius_char_m": 0.022
                     },
                     "env": {
                         "pressure_Pa": 1e-8,

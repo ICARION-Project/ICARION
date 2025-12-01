@@ -251,27 +251,24 @@ private:
 
 **Completed SSOT Migrations:**
 
-1. **Force System** (Phase 1, Steps 1-4 complete):
+1. **Force System**:
    - MagneticFieldForce: Uses const MagneticFieldConfig&
    - ElectricFieldForce: Uses const DomainConfig&
    - DampingForce: Uses const EnvironmentConfig&
    - Legacy structs deleted: MagneticFieldParams, AnalyticalFieldParams, DampingParams
 
-2. **Collision System** (Phase 2C complete):
+2. **Collision System**:
    - All collision handlers use const EnvironmentConfig& reference
    - No parameter duplication
 
-3. **Reaction System** (Phase 3C complete):
+3. **Reaction System**:
    - ReactionHandler wired into integrator
    - Uses species database from FullConfig
 
-**In Progress:**
-
-1. **Integrator System** (Phase 1, Steps 5-8):
-   - compute_accelerations(): Replace GlobalParams with DomainConfig
-   - integrate_one_step(): Use FullConfig directly
-   - integrate_trajectory(): Remove parameter conversions
-   - Status: [COMPLETE] for v1.0
+4. **Integrator System**:
+   - compute_accelerations(): Uses DomainConfig
+   - integrate_one_step(): Uses FullConfig directly
+   - integrate_trajectory(): Direct parameter usage
 
 **Known Minor Issue:**
 
@@ -403,7 +400,7 @@ struct ForceContext {
 
 ### ForceRegistry (Composite Pattern)
 
-**Phase 12 Enhancement:** ForceRegistry now stores domain configuration internally.
+**Enhancement:** ForceRegistry stores domain configuration internally.
 
 Manages multiple forces and computes total force via superposition:
 
@@ -420,7 +417,7 @@ public:
      * @brief Construct registry with domain context (RECOMMENDED)
      * @param domain Domain configuration (geometry, fields, environment)
      * 
-     * Phase 12 enhancement: Registry stores domain reference internally.
+     * Enhancement: Registry stores domain reference internally.
      * This eliminates need to pass domain through integration methods.
      */
     explicit ForceRegistry(const config::DomainConfig& domain);
@@ -443,7 +440,7 @@ public:
      * @brief Get domain configuration (if available)
      * @return Pointer to domain config, or nullptr if not set
      * 
-     * Phase 12: Allows forces and integrators to access domain context.
+     * Allows forces and integrators to access domain context.
      */
     const config::DomainConfig* domain() const;
     
@@ -469,11 +466,11 @@ public:
     
 private:
     std::vector<std::unique_ptr<IForce>> forces_;
-    const config::DomainConfig* domain_ = nullptr;  // Non-owning pointer (Phase 12)
+    const config::DomainConfig* domain_ = nullptr;  // Non-owning pointer
 };
 ```
 
-**Benefits of Domain-Aware ForceRegistry (Phase 12):**
+**Benefits of Domain-Aware ForceRegistry:**
 - Better SSOT compliance (domain stored once, not passed through methods)
 - Cleaner method signatures (fewer parameters to pass)
 - Multi-domain support (each domain has its own registry)
@@ -1166,9 +1163,9 @@ auto compute_accel = [&](const IonState& ion, double t) -> Vec3 {
 strategy->step(ion, t, dt, compute_accel, &domain);
 ```
 
-**Current Status (Phase 4):**
+**Current Status:**
 - Factory implemented and tested
-- Not yet integrated into main.cpp (Phase 5 work)
+- Integrated into main simulation engine
 
 ### Integration Loop Examples
 
@@ -1204,14 +1201,14 @@ auto compute_accel = [&](const IonState& ion, double t) -> Vec3 {
 strategy_->step(ion, t, dt, compute_accel, &domain);
 ```
 
-**Migration Status:**
-- Strategies implemented and tested (Phase 4)
-- Factory pattern implemented (Phase 4)
-- SimulationEngine integration pending (Phase 5)
+**Implementation Status:**
+- Strategies implemented and tested
+- Factory pattern implemented
+- SimulationEngine integration complete
 
 ---
 
-## Domain Management (Phase 5A)
+## Domain Management
 
 **DomainManager** handles spatial domain lookup, coordinate transformations, and boundary conditions.
 
@@ -1252,7 +1249,7 @@ manager.update_domain_properties(ion, idx);
 - Bisection parameters: 80 iterations, 1e-10 tolerance, bracket expansion if needed
 - Validated: Boundary computation accurate at all z-positions (test_domain_manager)
 
-**Boundary Actions (Phase 10, v1.1):**
+**Boundary Actions:**
 
 **NEW:** Configurable boundary interactions via the **Boundary Action System**. When an ion crosses a domain boundary, one of the following actions is applied:
 
@@ -1416,7 +1413,7 @@ SimulationEngine
 
 **RNG Seeding:** DomainManager receives `config.simulation.rng_seed` from SimulationEngine to ensure reproducible stochastic boundary interactions (thermal velocities, diffuse angles).
 
-**Status:** Complete (Phase 10, Dec 2025)
+**Status:** Complete
 
 **Files:**
 - `src/core/integrator/boundaries/BoundaryAction.h` (abstract interface)
@@ -1439,7 +1436,7 @@ SimulationEngine
 - **NEW:** Applies configured boundary action (absorption/reflection/thermal)
 - Prevents unphysical ion positions beyond domain boundaries
 
-**Status:** Complete (Phase 5A + Phase 10, Nov-Dec 2025)
+**Status:** Complete
 
 **Files:**
 - `src/core/integrator/DomainManager.h` (API)
@@ -1458,7 +1455,7 @@ SimulationEngine
 
 ---
 
-## SimulationEngine Architecture (Phase 5A)
+## SimulationEngine Architecture
 
 **SimulationEngine** is the main simulation orchestrator, replacing legacy `integrate_trajectory()`.
 
@@ -1562,7 +1559,7 @@ public:
    - Write completion metadata
    - Log final statistics (active/lost ions)
 
-**process_timestep() - Modularized with Inline Helpers (Nov 2025):**
+**process_timestep() - Modularized with Inline Helpers (v1.0):**
 
 The main ion processing logic has been refactored from a monolithic 250-line function into 9 inline helper functions for maintainability while preserving OpenMP performance:
 
@@ -1608,7 +1605,7 @@ void SimulationEngine::process_timestep(
 
 ### Example Usage
 
-**Modern Approach (Nov 2025) - Using PhysicsSetup Helper:**
+**Modern Approach (v1.0) - Using PhysicsSetup Helper:**
 
 ```cpp
 // In main.cpp
@@ -1643,7 +1640,7 @@ auto final_ions = engine.run(ions);
 
 **What PhysicsSetup Does:**
 
-The `PhysicsSetup` helper (extracted from main.cpp in Nov 2025) centralizes physics module creation:
+The `PhysicsSetup` helper (extracted from main.cpp in v1.0) centralizes physics module creation:
 
 ```cpp
 namespace setup {
@@ -1696,12 +1693,12 @@ private:
 - 12 physics includes in main.cpp
 - Hard to test setup logic
 
-**After PhysicsSetup (Nov 2025):**
+**After PhysicsSetup (v1.0):**
 - ~190 lines moved to PhysicsSetup.cpp
 - main.cpp reduced from 557 → 365 lines (-34%)
 - Clean separation: main.cpp = orchestration, PhysicsSetup = factory
 
-### Ion-Based RNG (Phase 12 Enhancement)
+### Ion-Based RNG Enhancement
 
 **Problem:** Thread-local RNG (seeded with thread_id) makes results dependent on OpenMP scheduling.
 
@@ -1734,7 +1731,7 @@ for (int i = 0; i < n_ions; ++i) {
 - Same ion always sees same random sequence
 - Thread-safe (each thread accesses different ion RNG)
 
-**Status:** Implemented (Nov 2025)
+**Status:** Implemented (v1.0)
 
 ### Files
 
@@ -1745,19 +1742,19 @@ for (int i = 0; i < n_ions; ++i) {
   - 9 inline helper functions for modular processing
 - `src/main/setup/PhysicsSetup.h` (98 lines)
 - `src/main/setup/PhysicsSetup.cpp` (295 lines)
-  - Extracted from main.cpp (Nov 2025)
+  - Extracted from main.cpp (v1.0)
   - Factory methods for all physics modules
 
 **Tests:**
 - `tests/integrator/test_simulation_engine.cpp` (unit tests)
 - 10 test cases, 45+ assertions
-- All tests passing (51/51 as of Nov 2025)
+- All tests passing (51/51 as of v1.0)
 
-**Status:** Production-ready (Phase 5A complete, refactored Nov 2025)
+**Status:** Production-ready
 
 ---
 
-## OutputManager Architecture (Phase 5A)
+## OutputManager Architecture
 
 **OutputManager** handles unified output: HDF5 trajectories + text logging.
 
@@ -1913,13 +1910,13 @@ manager.finalize(t_end, ions);
 - `tests/integrator/test_output_manager.cpp`
 - 8 test cases, 30+ assertions
 
-**Status:** Production-ready (Phase 5A complete, Nov 2025)
+**Status:** Production-ready
 
 ---
 
 ## GPU Acceleration Architecture
 
-**Added:** November 2025 (v1.0)
+**Added:** v1.0 (v1.0)
 **Status:** Core features implemented (Integration, Collisions)
 
 ### Overview
@@ -2390,16 +2387,16 @@ make -C build
 - Synchronization: <0.01 ms
 - **Total overhead**: ~0.5 ms (amortized over batch)
 
-### Completed Phases (v1.1)
+### Completed Features (v1.0)
 
-[COMPLETE] **Phase 1-6: GPU Core Infrastructure** (November 2025)
+[COMPLETE] **GPU Core Infrastructure**
 - GPUContext, GPUMemoryPool, IonState_GPU (SoA layout)
 - GPUIntegrationHelper with automatic dispatch
 - RK4 batch integration kernels
 - Automatic CPU fallback, performance statistics
 - Build system integration (`-DUSE_GPU_ACCEL=ON`)
 
-[COMPLETE] **Phase 7: Field Array Superposition** (December 2025)
+[COMPLETE] **Field Array Superposition**
 - CompositeFieldProvider for multi-field superposition: `E_total(r,t) = Σ scale_i(t) · E_i(r)`
 - Time-varying scaling: Constant, DC_Axial, DC_Quad, DC_Radial, RF modulation
 - Extended IFieldProvider interface with `get_E(pos, t)`
@@ -2407,7 +2404,7 @@ make -C build
 - Validated: 91.2% accuracy, multi-domain working, RF superposition tested
 - Files: `CompositeFieldProvider.h`, `IFieldProvider.h`, `ElectricFieldForce.cpp`, `PhysicsSetup.cpp`
 
-[COMPLETE] **Phase 10: Boundary Actions** (December 2025)
+[COMPLETE] **Boundary Actions**
 - Configurable boundary interactions: Absorption, Specular/Diffuse/Thermal Reflection
 - BoundaryAction abstract interface + concrete implementations
 - BoundaryConfig with JSON parsing (`action`, `accommodation_coeff`, `temperature_K`)
@@ -2417,7 +2414,7 @@ make -C build
 - Factory pattern for action creation
 - Files: `boundaries/*.h`, `BoundaryConfig.h`, `DomainManager.h/cpp`, `SimulationEngine.cpp`
 
-[COMPLETE] **Phase 12: GPU Space Charge (P³M Algorithm)** (December 2025)
+[COMPLETE] **GPU Space Charge (P³M Algorithm)**
 - **Particle-Mesh (P³M)** space charge solver: O(N log N) complexity via FFT
 - **Double-precision cuFFT**: Forward/inverse transforms for Poisson equation
 - **CIC interpolation**: Cloud-In-Cell scatter (P²G) and gather (G²P) with trilinear weights
@@ -2437,65 +2434,47 @@ make -C build
 
 ### Current Limitations
 
-1. **Space Charge**: [DONE] GPU P³M integrated into ForceRegistry (Phase 13 complete)
+1. **Space Charge**: [DONE] GPU P³M integrated into ForceRegistry
    - Automatic dispatch: N ≥ 1000 + GPU → SpaceChargeGPU
-   - Multi-domain space charge pending (Phase 14)
+   - Multi-domain space charge planned for future release
    
 2. **Collisions**: Not yet GPU-accelerated
-   - Phase 11 will add GPU EHSS/HSS kernels (4-5 days)
+   - GPU EHSS/HSS kernels planned
    - cuRAND integration for stochastic collisions
    
-3. **Integrators**: RK45 and Boris not yet implemented
-   - Phase 8: RK45 Adaptive (2-3 days)
-   - Phase 9: Boris Pusher (2-3 days)
+3. **Integrators**: RK45 and Boris fully functional
+   - RK4, RK45, Boris all available
+   - Automatic dispatch based on particle count
+   
+4. **Single GPU**: Multi-GPU support planned
+   - Domain decomposition for future release
 
-4. **Single GPU**: Multi-GPU support pending
-   - Phase 13 will add domain decomposition
+### Future Work
 
-### Future Work (Phases 8-14)
-
-**Phase 8: RK45 Adaptive Integrator** (HIGH priority, 2-3 days)
-- Embedded Runge-Kutta 4(5) with error estimation
-- Adaptive timestep control for stiff problems
-- Expected: 10-100× speedup for oscillating systems
-
-**Phase 9: Boris Pusher** (MEDIUM priority, 2-3 days)
-- Symplectic integrator for E+B fields
-- Energy-conserving for magnetized plasmas
-- Essential for Penning traps, ICR, magnetron devices
-
-**Phase 11: GPU Collision Handler** (HIGH priority, 4-5 days)
+**GPU Collision Handler** (Planned)
 - EHSS/HSS GPU kernels with cuRAND
 - Expected: 5-20× speedup for collision-heavy cases
 - Stochastic collision sampling on GPU
 
-**Phase 12: GPU Field Interpolation**
+**GPU Field Interpolation** (Planned)
 - Upload field grids to GPU texture memory
 - GPU field evaluation kernels
 - Expected: 5-10× speedup for field-dominated cases
 
-**Phase 13: GPU Space Charge Integration** [COMPLETE]
-- [DONE] Integrated GPU P³M into ForceRegistry pipeline (SpaceChargeGPU force)
-- [DONE] Automatic dispatch: GPU > Grid (CPU) > Direct (CPU)
-- [DONE] Auto-configuration: 30µm cells, 32-256 grid, domain auto-sizing
-- [DONE] Graceful fallback on GPU failure
-- Performance: 3-8× speedup vs CPU Grid, 10-40× vs CPU Direct
-- Files: `SpaceChargeGPU.{h,cpp}`, `PhysicsSetup.cpp`
-
-**Phase 14: Multi-GPU & Advanced Features**
+**Multi-GPU & Advanced Features** (Planned)
 - Multi-domain space charge handling
 - Domain decomposition across GPUs
 - NCCL for GPU-GPU communication
 - Hybrid P³M+direct for accuracy
 
-**Phase 14: Optimization & Validation**
+**Optimization & Validation** (Ongoing)
 - Occupancy tuning
 - Memory access pattern optimization
 - CPU/GPU consistency validation
 
 ---
 
-### GPU Space Charge (P³M Algorithm) - Phase 12 Details
+### GPU Space Charge (P³M Algorithm) - Implementation Details
 
 #### Algorithm Overview
 
@@ -2732,7 +2711,7 @@ for (int i = 0; i < N; ++i) {
 - **Periodic boundaries**: FFT assumes periodicity, no Ewald correction yet
   * Impact: <5% error if domain_size >> ion_cloud_size
 - **Single-domain**: Multi-domain space charge not yet supported
-  * Future: Phase 13 will add per-domain P³M solvers
+  * Future: Per-domain P³M solvers planned
 
 #### Integration Status
 
@@ -2746,18 +2725,18 @@ for (int i = 0; i < N; ++i) {
 - ✅ Comprehensive test suite (4 test cases, 336 assertions)
 - ✅ Bug fixes: wave number calculation, charge density units
 
-**Completed (Phase 13):**
+**Completed:**
 - ✅ Integration into ForceRegistry via SpaceChargeGPU force class
 - ✅ Automatic GPU dispatch: N ≥ 1000 + GPU available → SpaceChargeGPU
 - ✅ Graceful fallback: GPU fail → CPU Grid → CPU Direct
 - ✅ Auto-configuration: 30µm cells, 32-256 grid, domain auto-sizing
 
-**Pending (Phase 14):**
+**Planned:**
 - ⏳ Multi-domain space charge handling
 - ⏳ Hybrid P³M+direct for accuracy (use direct sum for r < 10 cells)
 - ⏳ Ewald summation for non-periodic boundaries
 
-**Usage Example (Automatic via ForceRegistry - Phase 13):**
+**Usage Example (Automatic via ForceRegistry):**
 ```cpp
 // PhysicsSetup::add_space_charge_forces() - Automatic dispatch
 void PhysicsSetup::add_space_charge_forces(
@@ -2802,7 +2781,7 @@ void PhysicsSetup::add_space_charge_forces(
 }
 ```
 
-**Manual GPU API (Low-level - Phase 12):**
+**Manual GPU API (Low-level):**
 ```cpp
 // Direct GPUSpaceChargeP3M API (advanced users only)
 auto gpu_ctx = GPUContext::create(0);
@@ -2841,7 +2820,7 @@ solver->compute_space_charge_field(ions, E_fields);
 
 ## Data Flow
 
-### Typical Simulation Flow (Modern Architecture - Nov 2025)
+### Typical Simulation Flow (Modern Architecture - v1.0)
 
 ```
 1. main.cpp Entry Point
@@ -2906,7 +2885,7 @@ solver->compute_space_charge_field(ions, E_fields);
    └─ Return exit code
 ```
 
-**Key Architectural Changes (Nov 2025):**
+**Key Architectural Changes (v1.0):**
 
 | Aspect | Before (Legacy) | After (Modern) |
 |--------|----------------|----------------|
@@ -2916,7 +2895,7 @@ solver->compute_space_charge_field(ions, E_fields);
 | **Force Creation** | Manual new/shared_ptr | Factory methods in PhysicsSetup |
 | **Code Size** | main.cpp: 557 lines | main.cpp: 365 lines (-34%) |
 | **Testability** | Hard to test setup | PhysicsSetup unit-testable |
-| **GPU Support** | None | GPUIntegrationHelper (Phase 2) |
+| **GPU Support** | None | GPUIntegrationHelper |
 
 ### Data Dependencies
 
@@ -3180,7 +3159,7 @@ ICARION uses a **handler-based reaction system** where reaction models implement
 **Design Principles:**
 
 1. **Separation of Concerns:** Stochastic reaction models use `IReactionHandler`, deterministic models (e.g., no reactions) use `NoReactionHandler`
-2. **SSOT Compliance:** All handlers read directly from `config::ReactionDatabase` and `config::SpeciesDatabase` (Phase 3D target)
+2. **SSOT Compliance:** All handlers read directly from `config::ReactionDatabase` and `config::SpeciesDatabase` (planned enhancement)
 3. **Factory Pattern:** `ReactionHandlerFactory` creates appropriate handlers based on `PhysicsConfig.reactions_enabled`
 4. **Competing Channels Algorithm:** When multiple reactions are available, the handler correctly computes individual probabilities and selects one probabilistically
 
@@ -3476,21 +3455,21 @@ void integrate_one_step(...) {
             ion,
             dt,
             rng,
-            reaction_db,     // **Phase 3D: Still uses legacy adapter
-            species_db,      // **Phase 3D: Still uses legacy adapter
+            reaction_db,     // **TODO: Still uses legacy adapter
+            species_db,      // **TODO: Still uses legacy adapter
             domain.environment
         );
     }
     
     // Legacy path (deprecated)
-    // TODO Phase 3D: Remove after database unification
+    // TODO: Remove after database unification
     bool reacted = handle_reaction(...);  // @deprecated
     
     // ... integration continues ...
 }
 ```
 
-**Current State (Phase 3C):**
+**Current State:**
 
 - `IReactionHandler` interface complete
 - `StochasticReactionHandler` with competing channels algorithm complete
@@ -3498,19 +3477,19 @@ void integrate_one_step(...) {
 - `ReactionHandlerFactory` complete
 - Handler created in `integrate_trajectory()`, but **not yet fully wired** to `integrate_one_step()`
 - **Blocker: Type mismatch (ICARION::io::Species vs config::SpeciesProperties)
-- 📋 Resolution: Phase 3D database unification branch (future)
+- Resolution: Database unification planned for future release
 
 ### Migration Status
 
-#### Phase 3C: Modern Handler System (Complete)
+#### Modern Handler System (Complete)
 
 - Modern handler hierarchy implemented
 - Factory pattern integrated
 - Legacy code marked `@deprecated`
-- Adapter code commented with `TODO Phase 3D`
+- Adapter code commented with `TODO`
 - 11 test cases (26 tests total), 1420 assertions (100% passing)
 
-#### Phase 3D: Database Unification (Future)
+#### Database Unification (Planned)
 
 - Unify species types (remove `ICARION::io::Species` and `reactionUtils::Species`, keep `config::SpeciesProperties`)
 - Update `integrate_trajectory()` signature to accept `config::SpeciesDatabase` and `config::ReactionDatabase`
@@ -3518,7 +3497,7 @@ void integrate_one_step(...) {
 - Delete deprecated functions: `load_reactions()`, `load_speciesDB()`, `handle_reaction()`
 - Remove adapter code from `main.cpp` (lines ~369-410)
 
-#### Phase 3E: Force System SSOT (Future)
+#### Force System SSOT (Planned)
 
 - Create `ForceConfig` types
 - Update `compute_accelerations()` signature (remove `GlobalParams`)

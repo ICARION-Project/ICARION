@@ -1,0 +1,81 @@
+{
+  "_comment": "Basic FTICR (Fourier Transform Ion Cyclotron Resonance) mass spectrometer with quadrupolar trapping",
+  "simulation": {
+    "total_time_s": 5e-4,
+    "dt_s": 1e-9,
+    "write_interval": 1000,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "NoCollisions",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "results/fticr",
+    "trajectory_file": "fticr_trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "_comment": "Reserpine [M+H]+ at m/z 609, cyclotron motion in 7T field",
+        "id": "ReserpineH+",
+        "mass_Da": 609.28,
+        "charge": 1,
+        "count": 10,
+        "position": {
+          "type": "point",
+          "center": [0.0, 0.0, 0.0]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 1.0
+        }
+      },
+      {
+        "_comment": "Caffeine [M+H]+ at m/z 195",
+        "id": "CaffeineH+",
+        "mass_Da": 195.09,
+        "charge": 1,
+        "count": 10,
+        "position": {
+          "type": "point",
+          "center": [0.0, 0.0, 0.0]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 1.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "_comment": "FTICR cell: Cylindrical Penning trap with quadrupolar electric field and strong B-field (7 Tesla)",
+      "name": "fticr_cell",
+      "instrument": "FTICR",
+      "geometry": {
+        "origin_m": [0.0, 0.0, -0.025],
+        "length_m": 0.05,
+        "radius_m": 0.015,
+        "B_field_T": [0.0, 0.0, 7.0]
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-9,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "radial_V": 20.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    }
+  ]
+}

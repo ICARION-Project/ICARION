@@ -1,0 +1,197 @@
+{
+  "_comment": "TOF with reflectron (ion mirror) for improved mass resolution",
+  "simulation": {
+    "total_time_s": 2.5e-4,
+    "dt_s": 5e-10,
+    "write_interval": 200,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "NoCollisions",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "results/tof",
+    "trajectory_file": "tof_reflectron_trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "_comment": "Reserpine [M+H]+ at m/z 609",
+        "id": "ReserpineH+",
+        "mass_Da": 609.28,
+        "charge": 1,
+        "count": 10,
+        "position": {
+          "type": "point",
+          "center": [0.0, 0.0, 0.01]
+        },
+        "velocity": {
+          "type": "kinetic",
+          "energy_eV": 2000.0,
+          "direction": [0.1, 0.0, 1.0]
+        }
+      },
+      {
+        "_comment": "Caffeine [M+H]+ at m/z 195",
+        "id": "CaffeineH+",
+        "mass_Da": 195.09,
+        "charge": 1,
+        "count": 10,
+        "position": {
+          "type": "point",
+          "center": [0.0, 0.0, 0.01]
+        },
+        "velocity": {
+          "type": "kinetic",
+          "energy_eV": 2000.0,
+          "direction": [0.1, 0.0, 1.0]
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "_comment": "Main drift region: field-free flight tube",
+      "name": "tof_drift_main",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.6,
+        "radius_m": 0.05
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-7,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    },
+    {
+      "_comment": "Reflectron drift: radially offset (x=0.08m) for orthogonal geometry",
+      "name": "tof_drift_reflectron",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "origin_m": [0.08, 0.0, 0.4],
+        "length_m": 0.3,
+        "radius_m": 0.03
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-7,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    },
+    {
+      "_comment": "Reflectron mirror: Retarding field at end of offset arm",
+      "name": "tof_reflectron",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "origin_m": [0.08, 0.0, 0.7],
+        "length_m": 0.15,
+        "radius_m": 0.03
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-7,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": -2200.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    },
+    {
+      "_comment": "Return drift: back to detector",
+      "name": "tof_drift_return",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "origin_m": [0.08, 0.0, -0.1],
+        "length_m": 0.5,
+        "radius_m": 0.03
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-7,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    },
+    {
+      "_comment": "Detector at radial offset position",
+      "name": "tof_detector",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "origin_m": [0.08, 0.0, -0.11],
+        "length_m": 0.01,
+        "radius_m": 0.03
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-7,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    },
+    {
+      "_comment": "Deflector region: steers ions from main drift into reflectron arm",
+      "name": "tof_deflector",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "origin_m": [0.04, 0.0, 0.35],
+        "length_m": 0.1,
+        "radius_m": 0.05
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-7,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    }
+  ]
+}

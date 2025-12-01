@@ -186,24 +186,30 @@ bool GPUIntegrationHelper::integrate_batch(std::vector<IonState>& ions, double d
 }
 ```
 
-### Performance Benchmarks
+### Performance Characteristics
 
-**Integration Performance (RTX 4090):**
-```
-N = 1,000:    0.8× GPU speedup (overhead dominates)
-N = 5,000:    2.1× GPU speedup (break-even point)
-N = 10,000:   5.3× GPU speedup
-N = 50,000:   18.7× GPU speedup
-N = 100,000:  28.4× GPU speedup
-```
+**GPU Benefits:**
+- Parallel processing of thousands of ions simultaneously
+- Coalesced memory access patterns reduce bandwidth requirements
+- Texture memory acceleration for field array interpolation
 
-**Memory Transfer Overhead:**
-```
-Host→Device: ~1.2 GB/s (PCIe bottleneck)
-Device→Host: ~1.1 GB/s 
-IonState size: 40 bytes/ion
-Transfer cost: N_ions × 40 × 2 / bandwidth
-```
+**When GPU Helps:**
+- Large ion populations (threshold-based dispatch)
+- Compute-bound simulations (complex force calculations)
+- Long simulation times where setup overhead amortizes
+
+**When GPU May Not Help:**
+- Small ion populations (overhead dominates)
+- Memory-bound simulations (frequent data transfer)
+- Simple analytical fields (CPU already fast)
+
+**Performance varies significantly with:**
+- GPU hardware (compute capability, memory bandwidth)
+- Simulation complexity (force models, field types)
+- Problem size (ion count, integration steps)
+- System configuration (PCIe bandwidth, CPU performance)
+
+Benchmark your specific use case to determine optimal settings.
 
 ### GPU Memory Layout
 

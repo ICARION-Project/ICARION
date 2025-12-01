@@ -4,12 +4,12 @@
 
 message(STATUS "Loading Dependencies.cmake")
 
-# JSON (jsoncpp)
-find_package(jsoncpp CONFIG REQUIRED)
+# JSON (jsoncpp) - minimum version 1.9.0
+find_package(jsoncpp 1.9.0 CONFIG REQUIRED)
 set(ICARION_CORE_DEPS jsoncpp_lib)
 
-# HDF5
-find_package(HDF5 COMPONENTS C CXX REQUIRED)
+# HDF5 - minimum version 1.10.0
+find_package(HDF5 1.10.0 COMPONENTS C CXX REQUIRED)
 list(APPEND ICARION_CORE_DEPS HDF5::HDF5)
 
 # Threads
@@ -54,13 +54,12 @@ list(APPEND ICARION_CORE_DEPS spdlog::spdlog)
 find_package(OpenSSL REQUIRED)
 list(APPEND ICARION_CORE_DEPS OpenSSL::Crypto)
 
-# OpenMP (optional but highly recommended for performance)
-find_package(OpenMP)
+# OpenMP (optional but highly recommended for performance) - minimum version 4.5
+find_package(OpenMP 4.5)
 if(OpenMP_CXX_FOUND)
-    message(STATUS "OpenMP found: ${OpenMP_CXX_VERSION}")
     list(APPEND ICARION_CORE_DEPS OpenMP::OpenMP_CXX)
     add_compile_definitions(HAVE_OPENMP)
 else()
-    message(WARNING "OpenMP not found - simulations will be single-threaded")
+    message(WARNING "OpenMP 4.5+ not found - simulations will be single-threaded")
 endif()
 

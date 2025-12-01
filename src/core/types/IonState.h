@@ -43,6 +43,7 @@ struct alignas(64) IonState {
     double      ion_charge_C;             ///< Ion charge [C] (typically ±1.602e-19 C)
     double      CCS_m2;                   ///< Collision cross-section [m²]
     double      birth_time_s;             ///< Time when ion was created [s] (0 for initial ions)
+    double      death_time_s = -1.0;      ///< Time when ion was deactivated [s] (-1 = still alive)
     int         history_index = -1;       ///< Index in trajectory history buffer
     bool active = true;                   ///< false if ion was lost (boundary/detector)
     bool born = false;                    ///< true if created by reaction during simulation

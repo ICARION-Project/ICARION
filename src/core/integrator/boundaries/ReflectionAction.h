@@ -56,7 +56,8 @@ public:
         IonState& ion,
         const Vec3& normal,
         const Vec3& boundary_pos,
-        double temperature_K
+        double temperature_K,
+        double current_time
     ) override {
         // Set position to boundary
         ion.pos = boundary_pos;
@@ -73,6 +74,9 @@ public:
                 apply_thermal(ion, normal, temperature_K);
                 break;
         }
+        
+        // Note: Ion remains active after reflection, death_time_s not set
+        (void)current_time;  // Unused for reflections
     }
     
     std::string name() const override {

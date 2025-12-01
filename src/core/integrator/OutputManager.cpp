@@ -236,7 +236,15 @@ void OutputManager::finalize(double t_final, const std::vector<IonState>& final_
         flush();
     }
     
-    // 3. Finalize HDF5 file (writes completion metadata)
+    // 3. Update death_time_s in HDF5 file
+    try {
+        io::HDF5Writer::update_death_times(hdf5_filename_, final_ions);
+    } catch (const std::exception& e) {
+        std::cerr << "Warning: Failed to update death times in HDF5 file: " 
+                  << e.what() << std::endl;
+    }
+    
+    // 4. Finalize HDF5 file (writes completion metadata)
     try {
         size_t active_count = std::count_if(
             final_ions.begin(), final_ions.end(),

@@ -596,6 +596,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             // ================================================================
             int domain_idx = find_ion_domain(ion);
             if (domain_idx < 0) {
+                ion.death_time_s = ion.t;
                 ion.active = false;
                 continue;
             }
@@ -1100,6 +1101,7 @@ inline bool SimulationEngine::check_ion_boundaries(
         
         bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
         if (is_last_domain) {
+            ion.death_time_s = ion.t;  // Will be overwritten by terminate_ion_at_boundary
             ion.active = false;
             domain_manager_->terminate_ion_at_boundary(ion, domain_idx, pos_before, pos_after);
             return false;
@@ -1160,6 +1162,7 @@ inline void SimulationEngine::verify_ion_safety(
     
     if (!position_valid || !velocity_valid) {
         log_safety_violation(ion, ion_index, domain_idx, position_valid, velocity_valid);
+        ion.death_time_s = ion.t;
         ion.active = false;
         return;
     }
@@ -1251,6 +1254,7 @@ inline void SimulationEngine::check_bounds_violations(
                                " at t=" + std::to_string(ion.t));
     }
     
+    ion.death_time_s = ion.t;
     ion.active = false;
 }
 

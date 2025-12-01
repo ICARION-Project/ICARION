@@ -38,6 +38,7 @@ simulation.h5
 │   ├── initial_pos_x/y/z          # Initial position [N]
 │   ├── initial_vel_x/y/z          # Initial velocity [N]
 │   ├── birth_time_s               # Birth time [N]
+│   ├── death_time_s               # Death time [N] (-1 if still alive)
 │   └── charge_C                   # Charge [N]
 └── domains/
     ├── domain_0/
@@ -280,7 +281,8 @@ Per-ion metadata (initial conditions and properties).
 | `initial_vel_x` | double | [N] | Initial x velocity | m/s |
 | `initial_vel_y` | double | [N] | Initial y velocity | m/s |
 | `initial_vel_z` | double | [N] | Initial z velocity | m/s |
-| `birth_time_s` | double | [N] | Birth time | s |
+| `birth_time_s` | double | [N] | Birth time (0 for initial ions) | s |
+| `death_time_s` | double | [N] | Death time (-1 if ion still alive at end) | s |
 | `charge_C` | double | [N] | Particle charge | C |
 
 **N** = Number of ions

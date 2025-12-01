@@ -470,6 +470,36 @@ void HDF5Writer::append_trajectory_batch(
     }
 }
 
+void HDF5Writer::update_death_times(
+    const std::string& filename,
+    const std::vector<IonState>& final_ions
+) {
+    try {
+        H5::H5File file(filename, H5F_ACC_RDWR);
+        H5::Group ion_group = file.openGroup("/ions");
+        
+        // Extract death times from final ion states
+        std::vector<double> death_times;
+        death_times.reserve(final_ions.size());
+        for (const auto& ion : final_ions) {
+            death_times.push_back(ion.death_time_s);
+        }
+        
+        // Overwrite death_time_s dataset
+        hsize_t dims[1] = {death_times.size()};
+        H5::DataSpace space(1, dims);
+        H5::DataSet dataset = ion_group.openDataSet("death_time_s");
+        dataset.write(death_times.data(), H5::PredType::NATIVE_DOUBLE);
+        
+        file.close();
+        log::Logger::hdf5()->debug("Updated death_time_s for {} ions", final_ions.size());
+        
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to update death times: {}", e.getCDetailMsg());
+        throw;
+    }
+}
+
 void HDF5Writer::finalize(
     const std::string& filename,
     bool success,
@@ -982,6 +1012,9 @@ void HDF5Writer::write_ion_metadata(
     birth_times.reserve(n);
     charges.reserve(n);
     
+    std::vector<double> death_times;
+    death_times.reserve(n);
+    
     for (const auto& ion : ions) {
         species_ids.push_back(ion.species_id);
         initial_pos_x.push_back(ion.pos.x);
@@ -991,6 +1024,7 @@ void HDF5Writer::write_ion_metadata(
         initial_vel_y.push_back(ion.vel.y);
         initial_vel_z.push_back(ion.vel.z);
         birth_times.push_back(ion.birth_time_s);
+        death_times.push_back(ion.death_time_s);
         charges.push_back(ion.ion_charge_C);
     }
     
@@ -1017,6 +1051,7 @@ void HDF5Writer::write_ion_metadata(
     
     // Other
     write_array(ion_group, "birth_time_s", birth_times);
+    write_array(ion_group, "death_time_s", death_times);
     write_array(ion_group, "charge_C", charges);
     
     log::Logger::hdf5()->debug("Wrote metadata for {} ions", n);

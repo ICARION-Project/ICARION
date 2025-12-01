@@ -87,6 +87,21 @@ public:
     );
     
     /**
+     * @brief Update death_time_s dataset with final ion states
+     * 
+     * @param filename HDF5 file to update
+     * @param final_ions Final ion states at end of simulation
+     * 
+     * Called before finalize() to ensure death_time_s reflects
+     * boundary absorption times. Initial write in write_ion_metadata()
+     * sets all to -1 (alive). This updates with actual death times.
+     */
+    static void update_death_times(
+        const std::string& filename,
+        const std::vector<IonState>& final_ions
+    );
+    
+    /**
      * @brief Write simulation completion metadata
      * 
      * @param filename HDF5 file

@@ -274,6 +274,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
         
         ion.pos = local_to_global_pos(intersection, domain_idx);
         ion.vel = {0.0, 0.0, 0.0};
+        ion.death_time_s = ion.t;
         ion.active = false;
         return;
     }
@@ -285,6 +286,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
     if (dir_len < NUMERICAL_ZERO) {
         ion.pos = local_to_global_pos(pos_before_local, domain_idx);
         ion.vel = {0.0, 0.0, 0.0};
+        ion.death_time_s = ion.t;
         ion.active = false;
         return;
     }
@@ -358,7 +360,8 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
         ion,
         normal,
         local_to_global_pos(intersection, domain_idx),
-        dom.environment.temperature_K
+        dom.environment.temperature_K,
+        ion.t  // Current simulation time
     );
 }
 

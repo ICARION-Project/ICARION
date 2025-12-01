@@ -37,13 +37,17 @@ public:
         IonState& ion,
         const Vec3& normal,
         const Vec3& boundary_pos,
-        double temperature_K
+        double temperature_K,
+        double current_time
     ) override {
         // Set position to boundary intersection (for accurate trajectory output)
         ion.pos = boundary_pos;
         
         // Stop ion (absorbed)
         ion.vel = Vec3{0.0, 0.0, 0.0};
+        
+        // Record death time
+        ion.death_time_s = current_time;
         
         // Deactivate (remove from simulation)
         ion.active = false;

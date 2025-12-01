@@ -41,17 +41,20 @@ public:
      * @param normal Surface normal vector (unit length, pointing inward)
      * @param boundary_pos Position where ion hit boundary [m]
      * @param temperature_K Wall temperature [K] (for thermal actions)
+     * @param current_time Current simulation time [s] (for death_time_s tracking)
      * 
      * Implementation modifies:
      * - ion.vel (reflection, thermal re-emission)
      * - ion.pos (set to boundary_pos for accuracy)
      * - ion.active (false for absorption)
+     * - ion.death_time_s (set to current_time when ion deactivated)
      */
     virtual void apply(
         IonState& ion,
         const Vec3& normal,
         const Vec3& boundary_pos,
-        double temperature_K
+        double temperature_K,
+        double current_time
     ) = 0;
     
     /**

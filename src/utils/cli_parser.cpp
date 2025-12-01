@@ -414,7 +414,8 @@ Hierarchical Structure:
   initial_vel_x         float64[N]      Initial x velocity [m/s]
   initial_vel_y         float64[N]      Initial y velocity [m/s]
   initial_vel_z         float64[N]      Initial z velocity [m/s]
-  birth_time_s          float64[N]      Ion birth time [s]
+  birth_time_s          float64[N]      Ion birth time [s] (0 for initial ions)
+  death_time_s          float64[N]      Ion death time [s] (-1 if still alive)
   charge_C              float64[N]      Ion charge [C]
 
 /domains/                           # Per-domain configuration hierarchy

@@ -21,7 +21,7 @@
     "species": [
       {
         "id": "H3O+",
-        "count": 100,
+        "count": 200,
         "position": {
           "type": "gaussian",
           "center": [0.0, 0.0, 0.001],

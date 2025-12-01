@@ -97,7 +97,7 @@ ICARION uses a hierarchical JSON configuration with four main sections:
   - `data/species_database_v1.json` (global species database)
   - `data/reactions_database_v1.json` (global reactions database)
 - The fallback search starts from the config file's directory and searches up to 5 levels
-- A log message `ℹ No [species/reaction] database specified, using global fallback: ...` indicates fallback usage
+- A log message `[INFO] No [species/reaction] database specified, using global fallback: ...` indicates fallback usage
 - If no database is found (neither specified nor fallback), databases remain empty (which is valid for simulations without reactions)
 
 ### Gas-specific CCS maps (HSS/EHSS)
@@ -270,7 +270,7 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
 
 ---
 
-### ✅ Supported Reaction Cases & Validation Rules
+### Supported Reaction Cases & Validation Rules
 
 ICARION supports the following reaction types with **strict validation**:
 
@@ -282,7 +282,7 @@ ICARION supports the following reaction types with **strict validation**:
 | **4. Termolecular (3-body)** | `"species": "H2O"` <br> `"exponent": 2` | Quadratic concentration dependence | H₃O⁺ + 2 H₂O → H₃O⁺·(H₂O)₂ <br> (k in [m⁶/s]) |
 | **5. Autocatalytic** | `"species": "H3O+"` <br> `"exponent": 1` | Product species appears in order term | Ion → Ion collision chains <br> (mathematical only, rare) |
 
-**⚠️ IMPORTANT: Order-Dependent Units**
+**IMPORTANT: Order-Dependent Units**
 
 The `rate_constant` field has **dimensions that depend on reaction order**:
 - **Order 0** (spontaneous decay, no order terms): k has units [s⁻¹]
@@ -293,17 +293,17 @@ The `rate_constant` field has **dimensions that depend on reaction order**:
 
 ---
 
-### 🔒 Validation Rules (Enforced at Load Time)
+### Validation Rules (Enforced at Load Time)
 
 ICARION **strictly validates** all order terms:
 
 | **Rule** | **Check** | **Error Example** |
 |----------|-----------|-------------------|
-| **#1: Exponent range** | `exponent ∈ {0, 1, 2}` | ❌ `"exponent": 3` → "exponent must be 0, 1, or 2" |
-| **#2: Concentration range** | `concentration_m3 ≥ -1.0` | ❌ `"concentration_m3": -5.0` → "must be ≥ -1.0" |
-| **#3: Species exists** | `species ∈ species_db` (if not `"neutral"`) | ❌ `"species": "XYZ"` → "species 'XYZ' not found" |
-| **#4: No duplicate species** | Each `species` appears once | ❌ Two terms with `"species": "O2"` → "duplicate order term for 'O2'. Use exponent=2 instead." |
-| **#5: Max one buffer gas** | At most one term with `concentration_m3 = -1` | ❌ Two terms with `-1` → "only one term can use buffer gas fallback" |
+| **#1: Exponent range** | `exponent ∈ {0, 1, 2}` | ERROR: `"exponent": 3` → "exponent must be 0, 1, or 2" |
+| **#2: Concentration range** | `concentration_m3 ≥ -1.0` | ERROR: `"concentration_m3": -5.0` → "must be ≥ -1.0" |
+| **#3: Species exists** | `species ∈ species_db` (if not `"neutral"`) | ERROR: `"species": "XYZ"` → "species 'XYZ' not found" |
+| **#4: No duplicate species** | Each `species` appears once | ERROR: Two terms with `"species": "O2"` → "duplicate order term for 'O2'. Use exponent=2 instead." |
+| **#5: Max one buffer gas** | At most one term with `concentration_m3 = -1` | ERROR: Two terms with `-1` → "only one term can use buffer gas fallback" |
 
 **Dimensional Consistency Warnings:**
 
@@ -395,14 +395,14 @@ See [Reaction Database Schema](#reaction-database-schema) for details on configu
 **Schema validation:** Use provided JSON schemas to validate databases:
 
 ```bash
-python3 schema/validate_schema.py schema/species.schema.json data/species_database_v1.json
-python3 schema/validate_schema.py schema/reactions.schema.json data/reactions_database_v1.json
+python3 schema/validator.py schema/species.schema.json data/species_database_v1.json
+python3 schema/validator.py schema/reactions.schema.json data/reactions_database_v1.json
 ```
 
 **Example configs:**
 
-- `examples/ims_with_species_db.json` - IMS with species database
-- `examples/reaction_demo.json` - Ion-molecule reactions
+- `examples/ims/` - IMS examples
+- `examples/reactions/reaction_demo.json` - Ion-molecule reactions
 
 ---
 
@@ -665,7 +665,7 @@ Validation errors are collected in `ValidationResult` (not thrown as exceptions)
 
 **Example configs:**
 
-- `examples/ion_clouds/multi_species_example.json` - Multi-species with different boundaries
+- `examples/ion_clouds/default_cloud.json` - Ion cloud file format example
 
 ---
 
@@ -700,15 +700,15 @@ When `enable_reactions` is set in the `physics` section, you must provide a `rea
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | string | ✅ | Unique identifier for the reaction |
-| `reactant` | string | ✅ | Species ID of the reactant (must exist in species database) |
-| `product` | string | ✅ | Species ID of the product (must exist in species database) |
-| `rate_model` | enum | ✅ | Temperature model: `"Constant"`, `"Arrhenius"`, `"ModifiedArrhenius"` |
-| `rate_constant` | number | ✅ | Base rate constant (units depend on reaction order, see below) |
+| `id` | string | YES | Unique identifier for the reaction |
+| `reactant` | string | YES | Species ID of the reactant (must exist in species database) |
+| `product` | string | YES | Species ID of the product (must exist in species database) |
+| `rate_model` | enum | YES | Temperature model: `"Constant"`, `"Arrhenius"`, `"ModifiedArrhenius"` |
+| `rate_constant` | number | YES | Base rate constant (units depend on reaction order, see below) |
 | `activation_energy_eV` | number | Conditional | Required if `rate_model` is `"Arrhenius"` or `"ModifiedArrhenius"` |
 | `temperature_exponent` | number | Conditional | Required if `rate_model` is `"ModifiedArrhenius"` |
 | `reference_temperature_K` | number | Conditional | Required if `rate_model` is `"ModifiedArrhenius"` |
-| `order` | array | ❌ | Concentration terms (if omitted, 1st-order reaction) |
+| `order` | array | NO | Concentration terms (if omitted, 1st-order reaction) |
 
 ### Order Term Structure
 
@@ -735,7 +735,7 @@ Each entry in the `order` array defines a concentration dependence:
 
 ### Rate Constant Units (Order-Dependent)
 
-⚠️ **Important:** The `rate_constant` field has **order-dependent units**:
+**Important:** The `rate_constant` field has **order-dependent units**:
 
 | Reaction Order | Rate Constant Unit | Effective Rate Unit | Example |
 |----------------|-------------------|---------------------|---------|
@@ -850,7 +850,7 @@ Where:
 Validate your reaction database with:
 
 ```bash
-python schema/validate_config.py --reaction-db my_reactions.json
+python3 schema/validator.py schema/reactions.schema.json my_reactions.json
 ```
 
 
@@ -1084,9 +1084,9 @@ ICARION supports multiple boundary action types to model ion-wall interactions r
 #### GPU Acceleration Compatibility (Phase 11)
 
 **GPU Support:**
-- ✅ `Absorption`: Fully supported on GPU (cylindrical domains only)
-- ❌ Reflections (`Specular`, `Diffuse`, `Thermal`): CPU fallback required
-- ❌ Orbitrap geometry: CPU fallback required (hyperlogarithmic surface)
+- `Absorption`: Fully supported on GPU (cylindrical domains only)
+- Reflections (`Specular`, `Diffuse`, `Thermal`): CPU fallback required
+- Orbitrap geometry: CPU fallback required (hyperlogarithmic surface)
 
 **Automatic Dispatch:**
 ICARION automatically selects GPU or CPU boundary checking based on configuration:
@@ -1117,9 +1117,9 @@ For complex geometries where analytical field solutions are unavailable, ICARION
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `file` | string | ✅ | Path to HDF5 field array file (relative or absolute) |
-| `scale_kind` | enum | ✅ | Voltage scaling mode (see below) |
-| `scale_factor` | number | ❌ | Additional constant multiplier (default: 1.0) |
+| `file` | string | YES | Path to HDF5 field array file (relative or absolute) |
+| `scale_kind` | enum | YES | Voltage scaling mode (see below) |
+| `scale_factor` | number | NO | Additional constant multiplier (default: 1.0) |
 
 #### Scaling Modes (`scale_kind`)
 
@@ -1190,7 +1190,7 @@ with h5py.File('my_field.h5', 'w') as f:
     f.create_dataset('phi', data=phi)  # Optional
 ```
 
-**Example Generator:** `examples/create_example_field_array.py`
+**Example Generator:** `examples/field_arrays/create_example_field_array.py`
 
 #### Field Interpolation
 
@@ -1273,12 +1273,12 @@ with h5py.File('my_field.h5', 'r') as f:
 "
 
 # Run E2E tests
-cd build && ./tests/config/test_field_array_e2e
+cd build && ctest -R field_array
 ```
 
 **Test Files:**
-- `tests/config/test_field_array_e2e.cpp` - End-to-end validation (5 tests, 6023 assertions)
-- `tests/config/test_field_array_terms_loader.cpp` - JSON loading tests (10/10 passing)
+- `tests/config/test_field_array_e2e.cpp` - End-to-end validation (source only, not built)
+- `tests/config/test_field_array_terms_loader.cpp` - JSON loading tests (executable: `build/tests/config/test_field_array_terms_loader`)
 
 **Recommendation:** Use 1-2mm grid spacing for typical ion optics geometries.
 
@@ -1703,7 +1703,7 @@ Validate waveform configs:
 
 ```bash
 # Validate JSON schema
-python3 schema/validate_config.py my_config.json
+python3 schema/validator.py schema/icarion-config.schema.json my_config.json
 
 # Test waveform evaluation
 cd build && ctest -R Waveform
@@ -1726,7 +1726,7 @@ cd build && ctest -R Waveform
 
 ### JSON Schema Files
 
-All configuration schemas are located in `src/core/config/schema/v1.0/`:
+All configuration schemas are located in `schema/`:
 
 - **`icarion-config.schema.json`** - Master schema (top-level)
 - **`simulation.schema.json`** - Simulation parameters
@@ -1736,6 +1736,11 @@ All configuration schemas are located in `src/core/config/schema/v1.0/`:
 - **`geometry.schema.json`** - Geometry specification
 - **`environment.schema.json`** - Gas environment
 - **`fields.schema.json`** - Electric/magnetic fields
+- **`boundary.schema.json`** - Boundary conditions
+- **`ions.schema.json`** - Ion initialization
+- **`waveform.schema.json`** - Waveform definitions
+- **`reactions.schema.json`** - Reaction database
+- **`species.schema.json`** - Species database
 - **`common-types.schema.json`** - Reusable type definitions
 
 ### Validating Your Config
@@ -1744,10 +1749,10 @@ All configuration schemas are located in `src/core/config/schema/v1.0/`:
 
 ```bash
 # Validate a config file
-python3 src/core/config/schema/validator.py my_config.json
+python3 schema/validator.py schema/icarion-config.schema.json my_config.json
 
 # Validate multiple files
-python3 src/core/config/schema/validator.py examples/*.json
+for f in examples/*/*.json; do python3 schema/validator.py schema/icarion-config.schema.json "$f"; done
 ```
 
 #### Using ICARION CLI
@@ -2119,13 +2124,13 @@ ICARION automatically normalizes gas names to prevent mismatches:
 
 ```bash
 # Validate JSON schema
-python3 schema/validate_config.py examples/multi_gas_air.json
+python3 schema/validator.py schema/icarion-config.schema.json examples/ims/ims_multi_gas_air.json
 
 # Run unit tests
 cd build && ctest -R MultiGas
 
 # Check collision statistics
-./icarion_cli examples/multi_gas_air.json --stats
+./build/src/icarion_main examples/ims/ims_multi_gas_air.json
 ```
 
 **Expected test results:**
@@ -2141,7 +2146,7 @@ Total collisions: 8523
   - Ar: 87 (1.0%)
 ```
 
-**Matches expected mole fractions!** ✅
+**Matches expected mole fractions!**
 
 ### Migration from Single-Gas Configs
 
@@ -2496,4 +2501,4 @@ Use the global `simulation.integrator` as default, but override for specific dom
 
 This guide corresponds to ICARION v1.0 configuration schema.
 
-For schema version history, see `src/core/config/schema/CHANGELOG.md`.
+For schema version history, see the git log for the `schema/` directory.

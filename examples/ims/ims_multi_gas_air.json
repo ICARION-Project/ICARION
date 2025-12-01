@@ -13,8 +13,8 @@
     "enable_reactions": true
   },
   
-  "species_database": "../data/species_database_v1.json",
-  "reaction_database": "../data/reactions_database_v1.json",
+  "species_database": "../../data/species_database_v1.json",
+  "reaction_database": "../../data/reactions_database_v1.json",
   
   "domains": [
     {

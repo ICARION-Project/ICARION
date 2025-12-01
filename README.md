@@ -4,7 +4,10 @@ A modular C++/CUDA framework for multi-domain ion dynamics simulation.
 
 ---
 
-<p align="center"> <img src="https://img.shields.io/badge/C++17-HPC-blue?style=flat-square"> <img src="https://img.shields.io/badge/CUDA-optional-green?style=flat-square"> <img src="https://img.shields.io/badge/HDF5-output-important?style=flat-square"> <img src="https://img.shields.io/badge/License-Apache--2.0-orange?style=flat-square"> </p>
+<p align="center">
+  <img src="https://img.shields.io/badge/C%2B%2B-17-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" />
+</p>
 
 ---
 
@@ -17,7 +20,7 @@ A modular C++/CUDA framework for multi-domain ion dynamics simulation.
 - Orbitraps
 - TOF analyzers
 - linear quadrupole ion traps (LQIT)
-- multi-domain instruments (IMS → Quadrupole → TOF, …)
+- multi-domain instruments (IMS → Quadrupole → TOF)
 
 It supports:
 

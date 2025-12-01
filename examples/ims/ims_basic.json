@@ -47,7 +47,7 @@
       }
     ]
   },
-  "species_database": "../../../../data/species_database_v1.json",
+  "species_database": "../../data/species_database_v1.json",
   "domains": [
     {
       "name": "drift_region",

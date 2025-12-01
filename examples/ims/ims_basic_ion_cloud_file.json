@@ -20,7 +20,7 @@
   "ions": {
     "from_file": "../../examples/ion_clouds/default_cloudjson"
   },
-  "species_database": "../../../../data/species_database_v1.json",
+  "species_database": "../../data/species_database_v1.json",
   "domains": [
     {
       "name": "drift_region",

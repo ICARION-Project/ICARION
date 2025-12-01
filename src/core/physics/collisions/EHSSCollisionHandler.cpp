@@ -17,11 +17,11 @@ namespace {
 namespace ICARION::physics {
 
 EHSSCollisionHandler::EHSSCollisionHandler(
-    const GeometryMap& geometry_map,
+    GeometryMap geometry_map,
     bool enable_logging,
     const config::SpeciesDatabase* species_db
 )
-    : geometry_map_(geometry_map)  // Store reference (no copy!)
+    : geometry_map_(std::move(geometry_map))  // Store copy (move to avoid unnecessary copying)
     , enable_logging_(enable_logging)
     , species_db_(species_db)
 {

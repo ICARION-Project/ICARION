@@ -36,7 +36,7 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
             }
             
             return std::make_unique<EHSSCollisionHandler>(
-                *geometry_map,
+                std::move(*geometry_map),
                 enable_logging,
                 species_db
             );

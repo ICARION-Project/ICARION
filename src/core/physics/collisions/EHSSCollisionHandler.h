@@ -88,15 +88,13 @@ public:
     /**
      * @brief Construct EHSS handler
      * 
-     * @param geometry_map Map of species → (atom_centers, atom_radii) [REFERENCE stored, not copied!]
+     * @param geometry_map Map of species → (atom_centers, atom_radii) [COPIED to handler]
      * @param enable_logging Enable debug logging (writes CSV file with collision details)
-     * 
-     * ⚠️ **IMPORTANT:** `geometry_map` must outlive this handler instance (stores reference!)
      * 
      * @throws std::invalid_argument if geometry_map is empty
      */
     explicit EHSSCollisionHandler(
-        const GeometryMap& geometry_map,
+        GeometryMap geometry_map,
         bool enable_logging = false,
         const config::SpeciesDatabase* species_db = nullptr
     );
@@ -140,7 +138,7 @@ public:
     void reset_stats() override { stats_ = {}; }
     
 private:
-    const GeometryMap& geometry_map_;  ///< Reference to geometry map (no copy!)
+    const GeometryMap geometry_map_;  ///< Copy of geometry map (owned by handler)
     bool enable_logging_;
     const config::SpeciesDatabase* species_db_ = nullptr;
     mutable CollisionStats stats_;

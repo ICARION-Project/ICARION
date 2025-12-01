@@ -41,6 +41,7 @@
 #include "core/gpu/core/GPUContext.h"
 #include "core/gpu/core/GPUIntegrationHelper.h"
 #include "core/gpu/spacecharge/GPUSpaceChargeP3M.h"
+#include "core/gpu/collisions/GPUCollisionHelper.h"
 #endif
 
 namespace ICARION {
@@ -184,8 +185,10 @@ private:
     // GPU acceleration (optional)
     std::unique_ptr<icarion::gpu::GPUContext> gpu_context_;
     std::unique_ptr<icarion::gpu::GPUIntegrationHelper> gpu_helper_;
+    std::unique_ptr<icarion::gpu::GPUCollisionHelper> gpu_collision_helper_;
     std::unique_ptr<icarion::gpu::GPUSpaceChargeP3M> gpu_space_charge_;  ///< P³M space charge solver
     size_t gpu_threshold_ = 5000;  ///< Minimum ions for GPU dispatch
+    size_t gpu_collision_threshold_ = 5000;  ///< Minimum ions for GPU collision dispatch
     size_t gpu_space_charge_threshold_ = 1000;  ///< Minimum ions for GPU space charge
     
     // GPU dispatch cache (avoid repeated dynamic_cast)
@@ -235,6 +238,16 @@ private:
      * Automatically falls back to CPU if GPU unavailable or N < threshold.
      */
     bool try_gpu_integration(std::vector<IonState>& ions, double dt);
+    
+    /**
+     * @brief Try GPU batch collision processing (if enabled and above threshold)
+     * @param ions Ion ensemble
+     * @param dt Timestep [s]
+     * @return true if GPU collision processing succeeded, false if CPU fallback needed
+     * 
+     * Automatically falls back to CPU if GPU unavailable or N < threshold.
+     */
+    bool try_gpu_collisions(std::vector<IonState>& ions, double dt);
     
     /**
      * @brief Try GPU space charge field computation (P³M algorithm)

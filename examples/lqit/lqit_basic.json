@@ -1,8 +1,8 @@
 {
   "simulation": {
-    "total_time_s": 2e-5,
+    "total_time_s": 2e-3,
     "dt_s": 1e-8,
-    "write_interval": 100,
+    "write_interval": 1000,
     "integrator": "RK4",
     "rng_seed": 42
   },
@@ -12,7 +12,7 @@
     "enable_reactions": false
   },
   "output": {
-    "folder": "results/lqit_example",
+    "folder": "results/lqit",
     "trajectory_file": "lqit_trajectories.h5",
     "print_progress": true
   },
@@ -24,7 +24,7 @@
         "position": {
           "type": "gaussian",
           "center": [0.0, 0.0, 0.0],
-          "std": [0.0005, 0.0005, 0.001]
+          "std": [0.0005, 0.0005, 0.0005]
         },
         "velocity": {
           "type": "thermal",
@@ -38,7 +38,7 @@
       "name": "LQIT_stable",
       "instrument": "LQIT",
       "geometry": {
-        "origin_m": [0.0, 0.0, 0.0],
+        "origin_m": [0.0, 0.0, -0.005],
         "length_m": 0.01,
         "radius_m": 0.005
       },
@@ -54,7 +54,7 @@
           "phase_rad": 0.0
         },
         "DC": {
-          "axial_V": 10.0
+          "axial_V": 20.0
         }
       },
       "boundary": {

@@ -1,9 +1,9 @@
 {
   "_comment": "Basic Orbitrap mass analyzer with hyperlogarithmic electrode geometry (Kharchenko et al. 2021, DOI: 10.1007/s13361-011-0325-3)",
   "simulation": {
-    "total_time_s": 1e-4,
+    "total_time_s": 1e-3,
     "dt_s": 1e-9,
-    "write_interval": 100,
+    "write_interval": 1000,
     "integrator": "RK45",
     "enable_gpu": false,
     "enable_openmp": true,
@@ -14,7 +14,7 @@
     "enable_space_charge": false
   },
   "output": {
-    "folder": "../results/orbitrap",
+    "folder": "results/orbitrap",
     "trajectory_file": "orbitrap_trajectories.h5",
     "print_progress": true
   },
@@ -22,13 +22,13 @@
     "species": [
       {
         "_comment": "Reserpine [M+H]+ at m/z 609",
-        "id": "Reserpine_H+",
+        "id": "ReserpineH+",
         "mass_Da": 609.28,
         "charge": 1,
         "count": 1,
         "position": {
-          "type": "fixed",
-          "value": [0.009, 0.0, 0.006]
+          "type": "point",
+          "center": [0.009, 0.0, 0.006]
         },
         "velocity": {
           "type": "kinetic",
@@ -38,13 +38,13 @@
       },
       {
         "_comment": "Caffeine [M+H]+ at m/z 195",
-        "id": "Caffeine_H+",
+        "id": "CaffeineH+",
         "mass_Da": 195.09,
         "charge": 1,
         "count": 1,
         "position": {
-          "type": "fixed",
-          "value": [0.009, 0.0, 0.006]
+          "type": "point",
+          "center": [0.009, 0.0, 0.006]
         },
         "velocity": {
           "type": "kinetic",

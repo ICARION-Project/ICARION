@@ -1,16 +1,16 @@
 {
   "simulation": {
-    "total_time_s": 5e-4,
+    "total_time_s": 1e-3,
     "dt_s": 1e-9,
     "write_interval": 1000,
     "integrator": "RK4",
-    "enable_gpu": false,
+    "enable_gpu": true,
     "enable_openmp": true,
     "rng_seed": 123
   },
   "physics": {
     "collision_model": "HSS",
-    "enable_space_charge": true
+    "enable_space_charge": false
   },
   "output": {
     "folder": "results/ims",
@@ -21,7 +21,7 @@
     "species": [
       {
         "id": "H3O+",
-        "count": 200,
+        "count": 5001,
         "position": {
           "type": "gaussian",
           "center": [0.0, 0.0, 0.001],
@@ -52,8 +52,7 @@
       },
       "fields": {
         "DC": {
-          "EN_Td": 10.0,
-          "axial_V": 0.0
+          "EN_Td": 10.0
         }
       }
     },
@@ -72,7 +71,7 @@
       },
       "fields": {
         "DC": {
-          "EN_Td": 10.0
+          "axial_V": 1000.0
         }
       }
     }

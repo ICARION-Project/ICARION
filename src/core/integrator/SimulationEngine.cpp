@@ -198,6 +198,46 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         threshold_msg << "GPU: Integration enabled for N >= " << gpu_threshold_ << " ions";
         output_manager_->log_progress(threshold_msg.str());
         
+        // Create GPU collision helper (if collision handler exists)
+        if (collision_handler_) {
+            // Determine collision model from config
+            auto collision_model_enum = config_.physics.collision_model;
+            std::string collision_model_str;
+            
+            // Only create GPU helper for supported models (HSS, EHSS)
+            bool gpu_supported = false;
+            if (collision_model_enum == config::CollisionModel::HSS) {
+                collision_model_str = "HSS";
+                gpu_supported = true;
+            } else if (collision_model_enum == config::CollisionModel::EHSS) {
+                collision_model_str = "EHSS";
+                gpu_supported = true;
+            }
+            
+            if (gpu_supported) {
+                gpu_collision_helper_ = icarion::gpu::GPUCollisionHelper::create(
+                    *gpu_context_, 
+                    gpu_collision_threshold_,
+                    collision_model_str,
+                    config_.simulation.rng_seed
+                );
+                
+                if (gpu_collision_helper_) {
+                    std::ostringstream collision_msg;
+                    collision_msg << "GPU: Collision processing enabled for N >= " 
+                                 << gpu_collision_threshold_ << " ions (" << collision_model_str << ")";
+                    output_manager_->log_progress(collision_msg.str());
+                    
+                    // For EHSS, upload geometry data
+                    if (collision_model_enum == config::CollisionModel::EHSS) {
+                        // TODO: Extract geometry from species database and upload to GPU
+                        // This requires access to species_db molecular geometries
+                        output_manager_->log_progress("GPU: EHSS geometry upload deferred (using HSS fallback for now)");
+                    }
+                }
+            }
+        }
+        
         // NOTE: GPU Space Charge (P³M) initialization deferred to first use
         // via lazy initialization in try_gpu_space_charge().
         // This avoids coupling to SpaceChargeConfig which may not exist yet.
@@ -206,6 +246,7 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
     catch (const std::exception& e) {
         output_manager_->log_progress(std::string("GPU: Initialization failed: ") + e.what());
         gpu_space_charge_.reset();
+        gpu_collision_helper_.reset();
         gpu_helper_.reset();
         gpu_context_.reset();
     }
@@ -326,6 +367,44 @@ bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double d
     }
     
     return true;  // GPU path complete
+}
+
+bool SimulationEngine::try_gpu_collisions(std::vector<IonState>& ions, double dt) {
+    PROFILE_SCOPE_IF_ENABLED("GPU Collision Processing");
+    
+    // Early exit: GPU collision helper not available
+    if (!gpu_collision_helper_) {
+        return false;
+    }
+    
+    // Count active ions for threshold check
+    int n_active = 0;
+    for (const auto& ion : ions) {
+        if (ion.active) n_active++;
+    }
+    
+    // Early exit: Below threshold (use active ion count, not total)
+    if (n_active < static_cast<int>(gpu_collision_threshold_)) {
+        return false;
+    }
+    
+    // Need to get environment config from current domain
+    // For simplicity, use domain 0's environment (assumes single-domain or uniform env)
+    // TODO: Support multi-domain with different environments
+    if (config_.domains.empty()) {
+        return false;
+    }
+    
+    const auto& env = config_.domains[0].environment;
+    
+    // Dispatch to GPU
+    bool gpu_success = gpu_collision_helper_->process_collisions_batch(ions, dt, env);
+    
+    if (!gpu_success) {
+        return false;  // GPU failed, fallback to CPU
+    }
+    
+    return true;  // GPU collision processing complete
 }
 
 bool SimulationEngine::try_gpu_boundary_check(core::IonEnsemble& ensemble, int domain_idx) {
@@ -561,10 +640,25 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
     }
     
 #ifdef ICARION_USE_GPU
-    // Try GPU acceleration (auto-fallback to CPU if unavailable)
-    if (try_gpu_integration(ions, dt)) {
-        return;  // GPU succeeded
+    // Try GPU acceleration - integration and collisions can succeed independently
+    bool gpu_integration_done = try_gpu_integration(ions, dt);
+    bool gpu_collisions_done = false;
+    
+    // Try GPU collisions even if integration failed (they are independent operations)
+    if (collision_handler_) {
+        gpu_collisions_done = try_gpu_collisions(ions, dt);
     }
+    
+    // If both GPU operations succeeded, we're done
+    if (gpu_integration_done && (!collision_handler_ || gpu_collisions_done)) {
+        return;  // Fully processed on GPU
+    }
+    
+    // Partial GPU: Some work done on GPU, rest needs CPU
+    // This is fine - the CPU loop below will skip already-completed work
+#else
+    bool gpu_integration_done = false;
+    bool gpu_collisions_done = false;
 #endif
     
     // ====================================================================
@@ -614,10 +708,16 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
             
             // ================================================================
             // 4. Physics processing (collisions, reactions, integration)
+            // Skip parts already done on GPU
             // ================================================================
-            process_ion_collisions(ion, ctx, dt, ion_rng, domain_idx);
+            if (!gpu_collisions_done) {
+                process_ion_collisions(ion, ctx, dt, ion_rng, domain_idx);
+            }
             process_ion_reactions(ion, ctx, dt, ion_rng, domain_idx);
-            integrate_ion_trajectory(ion, ctx, dt, domain_idx, ions);
+            
+            if (!gpu_integration_done) {
+                integrate_ion_trajectory(ion, ctx, dt, domain_idx, ions);
+            }
             
             // ================================================================
             // 5. Boundary checks (aperture, walls)

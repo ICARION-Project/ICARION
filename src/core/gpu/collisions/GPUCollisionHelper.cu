@@ -32,6 +32,15 @@ GPUCollisionHelper::~GPUCollisionHelper() {
         cudaFree(d_curand_states_);
     }
     
+    // Free persistent buffers
+    if (d_vx_) cudaFree(d_vx_);
+    if (d_vy_) cudaFree(d_vy_);
+    if (d_vz_) cudaFree(d_vz_);
+    if (d_mass_) cudaFree(d_mass_);
+    if (d_ccs_) cudaFree(d_ccs_);
+    if (d_active_) cudaFree(d_active_);
+    if (d_species_indices_) cudaFree(d_species_indices_);
+    
     // Free geometry GPU memory
     if (geometry_gpu_) {
         if (geometry_uploaded_) {
@@ -227,25 +236,38 @@ bool GPUCollisionHelper::process_collisions_batch(
         initialize_curand_states(n_states);
     }
     
-    // Note: No try/catch in CUDA code - nvcc has issues with C++ exception handling
-    // ====== UPLOAD PHASE ======
+    // ====== ALLOCATE/RESIZE PERSISTENT BUFFERS ======
+    // Only allocate once, reuse across timesteps
+    if (buffer_capacity_ < n_ions) {
+        // Need larger buffers - reallocate with 1.5x growth factor
+        size_t new_capacity = n_ions + n_ions / 2;
         
-        // Allocate device memory (could use GPUMemoryPool here)
-        double *d_vx, *d_vy, *d_vz;
-        double *d_mass, *d_ccs;
-        uint8_t *d_active;
-        int *d_species_indices = nullptr;
+        // Free old buffers
+        if (d_vx_) cudaFree(d_vx_);
+        if (d_vy_) cudaFree(d_vy_);
+        if (d_vz_) cudaFree(d_vz_);
+        if (d_mass_) cudaFree(d_mass_);
+        if (d_ccs_) cudaFree(d_ccs_);
+        if (d_active_) cudaFree(d_active_);
+        if (d_species_indices_) cudaFree(d_species_indices_);
         
-        cudaMalloc(&d_vx, n_ions * sizeof(double));
-        cudaMalloc(&d_vy, n_ions * sizeof(double));
-        cudaMalloc(&d_vz, n_ions * sizeof(double));
-        cudaMalloc(&d_mass, n_ions * sizeof(double));
-        cudaMalloc(&d_ccs, n_ions * sizeof(double));
-        cudaMalloc(&d_active, n_ions * sizeof(uint8_t));
+        // Allocate new buffers
+        cudaMalloc(&d_vx_, new_capacity * sizeof(double));
+        cudaMalloc(&d_vy_, new_capacity * sizeof(double));
+        cudaMalloc(&d_vz_, new_capacity * sizeof(double));
+        cudaMalloc(&d_mass_, new_capacity * sizeof(double));
+        cudaMalloc(&d_ccs_, new_capacity * sizeof(double));
+        cudaMalloc(&d_active_, new_capacity * sizeof(uint8_t));
         
         if (collision_model_ == "EHSS") {
-            cudaMalloc(&d_species_indices, n_ions * sizeof(int));
+            cudaMalloc(&d_species_indices_, new_capacity * sizeof(int));
         }
+        
+        buffer_capacity_ = new_capacity;
+    }
+    
+    // Note: No try/catch in CUDA code - nvcc has issues with C++ exception handling
+    // ====== UPLOAD PHASE ======
         
         // Flatten ion data (CPU -> GPU)
         std::vector<double> vx_host(n_ions), vy_host(n_ions), vz_host(n_ions);
@@ -268,22 +290,22 @@ bool GPUCollisionHelper::process_collisions_batch(
         
         cudaStream_t stream = (cudaStream_t)cuda_stream_;
         
-        // Upload
-        cudaMemcpyAsync(d_vx, vx_host.data(), n_ions * sizeof(double), 
+        // Upload to persistent buffers
+        cudaMemcpyAsync(d_vx_, vx_host.data(), n_ions * sizeof(double), 
                         cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(d_vy, vy_host.data(), n_ions * sizeof(double), 
+        cudaMemcpyAsync(d_vy_, vy_host.data(), n_ions * sizeof(double), 
                         cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(d_vz, vz_host.data(), n_ions * sizeof(double), 
+        cudaMemcpyAsync(d_vz_, vz_host.data(), n_ions * sizeof(double), 
                         cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(d_mass, mass_host.data(), n_ions * sizeof(double), 
+        cudaMemcpyAsync(d_mass_, mass_host.data(), n_ions * sizeof(double), 
                         cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(d_ccs, ccs_host.data(), n_ions * sizeof(double), 
+        cudaMemcpyAsync(d_ccs_, ccs_host.data(), n_ions * sizeof(double), 
                         cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(d_active, active_host.data(), n_ions * sizeof(uint8_t), 
+        cudaMemcpyAsync(d_active_, active_host.data(), n_ions * sizeof(uint8_t), 
                         cudaMemcpyHostToDevice, stream);
         
         if (collision_model_ == "EHSS") {
-            cudaMemcpyAsync(d_species_indices, species_indices_host.data(), 
+            cudaMemcpyAsync(d_species_indices_, species_indices_host.data(), 
                             n_ions * sizeof(int), 
                             cudaMemcpyHostToDevice, stream);
         }
@@ -294,8 +316,8 @@ bool GPUCollisionHelper::process_collisions_batch(
         
         if (collision_model_ == "HSS") {
             launch_hss_collision_batch(
-                d_vx, d_vy, d_vz,
-                d_mass, d_ccs, d_active,
+                d_vx_, d_vy_, d_vz_,
+                d_mass_, d_ccs_, d_active_,
                 d_curand_states_,
                 env_gpu, dt, n_ions,
                 stream
@@ -304,16 +326,16 @@ bool GPUCollisionHelper::process_collisions_batch(
             if (!geometry_uploaded_) {
                 // Fallback to HSS if geometry not uploaded
                 launch_hss_collision_batch(
-                    d_vx, d_vy, d_vz,
-                    d_mass, d_ccs, d_active,
+                    d_vx_, d_vy_, d_vz_,
+                    d_mass_, d_ccs_, d_active_,
                     d_curand_states_,
                     env_gpu, dt, n_ions,
                     stream
                 );
             } else {
                 launch_ehss_collision_batch(
-                    d_vx, d_vy, d_vz,
-                    d_mass, d_ccs, d_species_indices, d_active,
+                    d_vx_, d_vy_, d_vz_,
+                    d_mass_, d_ccs_, d_species_indices_, d_active_,
                     d_curand_states_,
                     env_gpu, *geometry_gpu_, dt, n_ions,
                     stream
@@ -323,12 +345,12 @@ bool GPUCollisionHelper::process_collisions_batch(
         
         // ====== DOWNLOAD PHASE ======
         
-        // Download modified velocities
-        cudaMemcpyAsync(vx_host.data(), d_vx, n_ions * sizeof(double), 
+        // Download modified velocities from persistent buffers
+        cudaMemcpyAsync(vx_host.data(), d_vx_, n_ions * sizeof(double), 
                         cudaMemcpyDeviceToHost, stream);
-        cudaMemcpyAsync(vy_host.data(), d_vy, n_ions * sizeof(double), 
+        cudaMemcpyAsync(vy_host.data(), d_vy_, n_ions * sizeof(double), 
                         cudaMemcpyDeviceToHost, stream);
-        cudaMemcpyAsync(vz_host.data(), d_vz, n_ions * sizeof(double), 
+        cudaMemcpyAsync(vz_host.data(), d_vz_, n_ions * sizeof(double), 
                         cudaMemcpyDeviceToHost, stream);
         
         cudaStreamSynchronize(stream);
@@ -340,14 +362,7 @@ bool GPUCollisionHelper::process_collisions_batch(
             ions[i].vel.z = vz_host[i];
         }
         
-        // Cleanup device memory
-        cudaFree(d_vx);
-        cudaFree(d_vy);
-        cudaFree(d_vz);
-        cudaFree(d_mass);
-        cudaFree(d_ccs);
-        cudaFree(d_active);
-        if (d_species_indices) cudaFree(d_species_indices);
+        // No cleanup needed - buffers are persistent!
         
         // Update statistics
         stats_.total_batches++;

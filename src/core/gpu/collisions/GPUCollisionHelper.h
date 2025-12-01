@@ -202,6 +202,16 @@ private:
     size_t n_curand_states_ = 0;
     bool curand_initialized_ = false;
     
+    // Persistent GPU buffers (reused across timesteps to avoid malloc/free overhead)
+    double *d_vx_ = nullptr;
+    double *d_vy_ = nullptr;
+    double *d_vz_ = nullptr;
+    double *d_mass_ = nullptr;
+    double *d_ccs_ = nullptr;
+    uint8_t *d_active_ = nullptr;
+    int *d_species_indices_ = nullptr;
+    size_t buffer_capacity_ = 0;  // Current buffer size in # of ions
+    
     // Geometry data (for EHSS)
     GeometryData_GPU* geometry_gpu_ = nullptr;
     bool geometry_uploaded_ = false;

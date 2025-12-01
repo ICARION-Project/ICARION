@@ -856,869 +856,150 @@ python3 schema/validator.py schema/reactions.schema.json my_reactions.json
 
 ---
 
-## Required Fields
+## Configuration Reference
+
+This section provides a quick reference for all configuration sections. For complete field specifications and validation rules, see the JSON schema files in `schema/`.
+
+### Top-Level Structure
+
+```json
+{
+  "simulation": { /* timing, integrator, GPU settings */ },
+  "physics": { /* collision model, reactions, space charge */ },
+  "output": { /* HDF5 output settings */ },
+  "ions": [ /* initial ion distributions */ ],
+  "domains": [ /* simulation regions with fields and boundaries */ ]
+}
+```
+
+**Schema Files:**
+- Complete specification: `schema/icarion-config.schema.json`
+- Individual sections: `schema/simulation.schema.json`, `schema/physics.schema.json`, etc.
+- Validation: `python3 schema/validator.py schema/icarion-config.schema.json your_config.json`
 
 ### Simulation Section
 
+**Required:** `total_time_s`, `dt_s`
+
 ```json
 "simulation": {
-  "total_time_s": 1e-3,      // REQUIRED: Total simulation time [seconds]
-  "dt_s": 1e-9,              // REQUIRED: Time step [seconds]
-  "integrator": "RK4",       // Default integrator (can be overridden per-domain)
-  "write_interval": 100,     // Steps between trajectory snapshots
-  "enable_gpu": false,       // Enable GPU acceleration
-  "enable_openmp": false,    // Enable OpenMP threading
-  "rng_seed": 42             // Random number generator seed
+  "total_time_s": 1e-3,
+  "dt_s": 1e-9,
+  "integrator": "RK4",           // RK4, RK45, Boris
+  "write_interval": 100,
+  "enable_gpu": false,
+  "rng_seed": 42
 }
 ```
 
-**Available Integrators:**
-
-- `"RK4"` - 4th order Runge-Kutta (default, stable)
-- `"RK45"` - Runge-Kutta-Fehlberg (adaptive step size)
-- `"Boris"` - Boris integrator (for strong magnetic fields)
+See `schema/simulation.schema.json` for all options.
 
 ### Physics Section
 
+**Required:** `collision_model`
+
 ```json
 "physics": {
-  "collision_model": "HSS",            // Collision model (required)
-  "enable_reactions": false,           // Enable chemical reactions
-  "enable_space_charge": false,        // Enable Coulomb forces between ions
-  "enable_ou_thermalization": false,   // Enable Ornstein-Uhlenbeck thermalization
-  "force_ou_for_stochastic": false     // Force OU for stochastic models
+  "collision_model": "HSS",      // NoCollisions, HSD, HSS, EHSS, Langevin, Friction
+  "enable_reactions": false,
+  "enable_space_charge": false
 }
 ```
 
-**Available Collision Models:**
+**Collision Models:** See [COLLISION_MODELS.md](COLLISION_MODELS.md) for detailed physics and use cases.
 
-- `"NoCollisions"` - Free flight (no collisions)
-
-- `"HSD"` - Hard Sphere Deterministic (collision frequency does not depend on velocity)
-- `"Friction"` - Frictional-drag model (depending on mobility)
-- `"Langevin"` - Langevin dynamics (long-range and velocity-dependent collision frequency)
-
-- `"HSS"` - Hard Sphere Stochastic  
-- `"EHSS"` - Exact Hard Sphere Scattering (recommended for low pressures)
-
-**Feature Flags:**
-
-- **`enable_reactions`**: Enable stochastic chemical reactions (requires `reaction_database`)
-- **`enable_space_charge`**: Enable Coulomb (space charge) forces between ions
-  - **N < 1000**: Direct N-body summation (exact, O(N²))
-  - **N ≥ 1000**: Grid-based Poisson solver (fast, O(N log N))
-  - Auto-selects method based on ion count
-- **`enable_ou_thermalization`**: Apply Ornstein-Uhlenbeck velocity kicks for thermalization
-- **`force_ou_for_stochastic`**: Force OU thermalization even for stochastic collision models
+See `schema/physics.schema.json` for all options.
 
 ### Output Section
 
 ```json
 "output": {
-  "folder": "./results",              // Output directory (relative or absolute)
-  "trajectory_file": "trajectories.h5", // HDF5 trajectory file name
-  "print_progress": true              // Print progress to console
+  "directory": "results/my_sim",
+  "basename": "output",
+  "trajectory_interval": 100
 }
 ```
 
+**Output Format:** See [HDF5_OUTPUT_STRUCTURE.md](HDF5_OUTPUT_STRUCTURE.md) for file structure.
+
+See `schema/output.schema.json` for all options.
+
 ### Domains Section
 
-Each domain represents a physical region with specific instrument geometry and conditions:
+**Required:** `name`, `instrument`, `geometry`, `environment`
 
 ```json
 "domains": [
   {
-    "name": "drift_region",           // REQUIRED: Domain identifier
-    "instrument": "IMS",              // REQUIRED: Instrument type
-    "integrator": "RK4",              // OPTIONAL: Override global integrator
-    
-    "geometry": {                     // REQUIRED
-      "origin_m": [0.0, 0.0, 0.0],    // Starting position [x, y, z] in meters
-      "length_m": 0.05,               // Domain length along z-axis
-      "radius_m": 0.01,               // Cylindrical radius (for IMS, TOF, LQIT, etc.)
-      
-      // Orbitrap-specific parameters (hyperlogarithmic electrodes):
-      "radius_in_m": 0.006,           // Inner electrode radius at z=0 [m]
-      "radius_out_m": 0.015,          // Outer electrode radius at z=0 [m]
-      "radius_char_m": 0.022          // Characteristic radius R_m [m], must be > radius_out_m
+    "name": "drift_tube",
+    "instrument": "IMS",           // IMS, TOF, LQIT, Orbitrap, Quadrupole, FTICR
+    "geometry": {
+      "shape": "Cylinder",
+      "radius_m": 0.05,
+      "length_m": 0.2,
+      "origin": [0, 0, 0]
     },
-    
-    "env": {                          // REQUIRED
-      "pressure_Pa": 101325.0,        // Gas pressure [Pascal]
-      "temperature_K": 300.0,         // Gas temperature [Kelvin]
-      "gas_species": "He",            // Gas species (He, N2, Ar, etc.) fallback if no mixture
-      "gas_mixture": [                // OPTIONAL mixture; overrides gas_species when non-empty
-        { "species": "N2", "mole_fraction": 0.78, "cross_section_m2": 4.0e-19 },
-        { "species": "O2", "mole_fraction": 0.21 },
-        { "species": "H2O", "mole_fraction": 0.01 }
-      ],
-      "gas_velocity_m_s": [0, 0, 0]   // Gas flow velocity [m/s]
+    "environment": {
+      "pressure_Pa": 101325,
+      "temperature_K": 300,
+      "gas_species": "N2"
     },
-    
-    "fields": {                       // OPTIONAL
-      "DC": {
-        "axial_V": 250.0,             // Axial DC voltage [V]
-        "EN_Td": 10.0                 // Reduced field strength [Townsend]
-      },
-      "RF": {
-        "voltage_V": 0.0,             // RF amplitude [V]
-        "frequency_Hz": 1e6,          // RF frequency [Hz]
-        "phase_rad": 0.0              // RF phase [radians]
-      },
-      "field_array_terms": [          // OPTIONAL: Load fields from HDF5
-        {
-          "file": "field_arrays/my_geometry.h5",  // HDF5 file path
-          "scale_kind": "DC_Axial",    // Scaling mode (see below)
-          "scale_factor": 1.0          // Additional multiplier (default: 1.0)
-        }
-      ]
-    },
-    
-    "boundary": {                     // OPTIONAL: Ion-boundary interaction
-      "type": "Absorption",           // Action type (see below)
-      "accommodation_coeff": 1.0,     // Accommodation coefficient [0-1] (for reflections)
-      "temperature_K": 300.0          // Wall temperature [K] (for thermal reflections)
-    }
+    "fields": { /* DC, RF, or field arrays */ },
+    "boundary": { "type": "Absorption" }
   }
 ]
 ```
 
-**Available Instrument Types:**
+See `schema/domain.schema.json`, `schema/geometry.schema.json`, `schema/environment.schema.json` for details.
 
-- `"IMS"` - Ion Mobility Spectrometry
-- `"TOF"` - Time-of-Flight
-- `"LQIT"` - Linear Quadrupole Ion Trap
-- `"Orbitrap"` - Orbitrap mass analyzer
-- `"Quadrupole"` - Quadrupole mass filter
-- `"FTICR"` - Fourier Transform Ion Cyclotron Resonance
-- `"NoFixedInstrument"` - Generic region
+### Boundary Types
 
-### Boundary Configuration (Ion-Wall Interactions)
+| Type | Description | Use Case |
+|------|-------------|----------|
+| `Absorption` | Ion deactivated at boundary | Detectors, open boundaries |
+| `SpecularReflection` | Mirror-like reflection | Ideal metallic surfaces |
+| `DiffuseReflection` | Cosine-distributed reflection | Rough surfaces |
+| `ThermalReflection` | Thermalization to wall temperature | Gas-surface collisions |
 
-**Status:** Production-ready (v1.0)
+See `schema/boundary.schema.json` for parameters.
 
-ICARION supports multiple boundary action types to model ion-wall interactions realistically.
-
-#### Configuration
-
-```json
-"boundary": {
-  "type": "Absorption",              // REQUIRED: Boundary action type
-  "accommodation_coeff": 1.0,        // OPTIONAL: Accommodation coefficient [0-1]
-  "temperature_K": 300.0             // OPTIONAL: Wall temperature [K]
-}
-```
-
-**Default Behavior:** If `boundary` is omitted, the domain defaults to `Absorption`.
-
-#### Available Boundary Types
-
-| Type | Description | Physics | Required Fields |
-|------|-------------|---------|-----------------|
-| `"Absorption"` | Ion is deactivated upon boundary collision | Perfectly absorbing wall (no reflection) | `type` only |
-| `"SpecularReflection"` | Perfect elastic reflection with angle of incidence = angle of reflection | Mirror-like surface, momentum conserved | `type` only |
-| `"DiffuseReflection"` | Random reflection direction (cosine distribution) | Rough surface, no memory of incidence angle | `type`, optionally `accommodation_coeff` |
-| `"ThermalReflection"` | Ion thermalized to wall temperature upon reflection | Energy exchange with wall | `type`, `accommodation_coeff`, `temperature_K` |
-
-#### Physics Details
-
-**Absorption:**
-- Ion is marked as inactive (lost) when crossing boundary
-- No velocity or position update
-- Use case: Detectors, absorbing electrodes, open boundaries
-
-**Specular Reflection:**
-- Velocity component normal to surface is reversed: v⊥ → -v⊥
-- Tangential components preserved: v∥ → v∥
-- Total kinetic energy conserved
-- Use case: Ideal metallic electrodes, mirror traps
-
-**Diffuse Reflection:**
-- Reflection direction sampled from cosine distribution (Lambert's law)
-- Accommodation coefficient α controls energy retention:
-  - α = 0: Fully elastic (like specular)
-  - α = 1: Full thermalization (like thermal)
-  - 0 < α < 1: Partial energy exchange
-- Use case: Rough surfaces, partial thermalization
-
-**Thermal Reflection:**
-- Ion velocity resampled from Maxwell-Boltzmann distribution at wall temperature
-- Full thermalization: K.E. = (3/2) k_B T_wall
-- Accommodation coefficient α blends thermal and elastic components
-- Use case: Gas-surface collisions, thermal accommodation experiments
-
-#### Example Configurations
-
-**1. Absorbing Detector:**
-```json
-"boundary": {
-  "type": "Absorption"
-}
-```
-
-**2. Ideal Metallic Electrodes:**
-```json
-"boundary": {
-  "type": "SpecularReflection"
-}
-```
-
-**3. Rough Surface (Partial Thermalization):**
-```json
-"boundary": {
-  "type": "DiffuseReflection",
-  "accommodation_coeff": 0.7,     // 70% energy accommodation
-  "temperature_K": 300.0
-}
-```
-
-**4. Gas-Surface Collision (Full Thermalization):**
-```json
-"boundary": {
-  "type": "ThermalReflection",
-  "accommodation_coeff": 1.0,     // Full thermalization
-  "temperature_K": 300.0          // Wall at room temperature
-}
-```
-
-#### GPU Acceleration Compatibility (Phase 11)
-
-**GPU Support:**
-- `Absorption`: Fully supported on GPU (cylindrical domains only)
-- Reflections (`Specular`, `Diffuse`, `Thermal`): CPU fallback required
-- Orbitrap geometry: CPU fallback required (hyperlogarithmic surface)
-
-**Automatic Dispatch:**
-ICARION automatically selects GPU or CPU boundary checking based on configuration:
-- If `boundary.type == "Absorption"` AND `instrument != "Orbitrap"` → GPU used (if enabled)
-- Otherwise → CPU fallback (supports all features)
-
-**Performance Note:** Reflection boundary checks have minimal performance impact (<1% of total runtime) compared to integration and collision handling. GPU acceleration is primarily beneficial for integration (Phase 11 complete).
-
-### Field Arrays (HDF5-based Electric Fields)
-
-**Status:** Production-ready
-
-For complex geometries where analytical field solutions are unavailable, ICARION supports loading pre-computed electric field arrays from HDF5 files.
-
-#### Field Array Configuration
-
-```json
-"fields": {
-  "field_array_terms": [
-    {
-      "file": "field_arrays/electrode_geometry.h5",
-      "scale_kind": "DC_Axial",
-      "scale_factor": 1.0
-    }
-  ]
-}
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `file` | string | YES | Path to HDF5 field array file (relative or absolute) |
-| `scale_kind` | enum | YES | Voltage scaling mode (see below) |
-| `scale_factor` | number | NO | Additional constant multiplier (default: 1.0) |
-
-#### Scaling Modes (`scale_kind`)
-
-Field arrays are stored **normalized to 1 Volt**. At runtime, fields are scaled by applied voltages:
-
-| `scale_kind` | Formula | Use Case | Example |
-|--------------|---------|----------|--------|
-| `"Constant"` | E = E_array × `scale_factor` | Static scaling | Test fields, uniform fields |
-| `"DC_Axial"` | E = E_array × DC_voltage | Drift tubes, TOF | IMS drift field, TOF acceleration |
-| `"DC_Quad"` | E = E_array × DC_voltage | Quadrupole fields | Quadrupole mass filter, ion guides |
-| `"DC_Radial"` | E = E_array × DC_voltage | Cylindrical electrodes | Cylindrical lenses, apertures |
-| `"RF"` | E = E_array × V_rf × cos(2πft+φ) | Time-dependent RF | RF traps, Orbitraps, quadrupoles |
-
-**Example:** For a 50mm drift tube with 100V applied:
-- Field array stores: Ez = 20 V/m (= 1V / 0.05m)
-- At runtime with `DC_Axial`: E_scaled = 20 V/m × 100 V = 2000 V/m ✓
-
-#### HDF5 File Format
-
-Field arrays must follow this structure:
-
-```
-field_array.h5
-├── x [1D array]        # x-coordinates [m], size nx
-├── y [1D array]        # y-coordinates [m], size ny
-├── z [1D array]        # z-coordinates [m], size nz
-├── Ex [3D array]       # E-field x-component [V/m], shape (nx, ny, nz)
-├── Ey [3D array]       # E-field y-component [V/m], shape (nx, ny, nz)
-├── Ez [3D array]       # E-field z-component [V/m], shape (nx, ny, nz)
-└── phi [3D array]      # Potential [V] (optional), shape (nx, ny, nz)
-```
-
-**Requirements:**
-- Coordinate arrays (x, y, z) must be 1D and uniformly spaced
-- Field arrays (Ex, Ey, Ez) must be 3D with shape matching (nx, ny, nz)
-- Potential (phi) is optional
-- All coordinates in meters [m], fields in volts per meter [V/m]
-
-#### Creating Field Arrays with Python
-
-Generate HDF5 field arrays using `h5py`:
-
-```python
-import h5py
-import numpy as np
-
-# Define 3D grid
-x = np.linspace(-5e-3, 5e-3, 10)   # ±5mm, 10 points
-y = np.linspace(-5e-3, 5e-3, 10)   # ±5mm, 10 points
-z = np.linspace(0, 50e-3, 20)      # 0-50mm, 20 points
-X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
-
-# Compute fields (normalized to 1V reference)
-# Example: Uniform axial field, 1V over 50mm
-Ex = np.zeros_like(X)
-Ey = np.zeros_like(Y)
-Ez = np.ones_like(Z) * 20.0  # 1V / 0.05m = 20 V/m
-phi = -Ez * Z                # Potential φ(z) = -∫E·dz
-
-# Save to HDF5
-with h5py.File('my_field.h5', 'w') as f:
-    f.create_dataset('x', data=x)
-    f.create_dataset('y', data=y)
-    f.create_dataset('z', data=z)
-    f.create_dataset('Ex', data=Ex)
-    f.create_dataset('Ey', data=Ey)
-    f.create_dataset('Ez', data=Ez)
-    f.create_dataset('phi', data=phi)  # Optional
-```
-
-**Example Generator:** `examples/field_arrays/create_example_field_array.py`
-
-#### Field Interpolation
-
-At runtime, ICARION uses **trilinear interpolation** to evaluate fields at arbitrary positions:
-
-- **Method:** 8-corner weighted average
-- **Accuracy:** O(h²) convergence with grid spacing h
-- **Boundary handling:** Returns zero field outside grid
-
-#### Complete Example
-
-```json
-{
-  "simulation": {
-    "total_time_s": 1e-3,
-    "dt_s": 1e-9,
-    "integrator": "RK4"
-  },
-  "physics": {
-    "collision_model": "NoCollisions"
-  },
-  "output": {
-    "folder": "./results",
-    "trajectory_file": "trajectories.h5"
-  },
-  "domains": [
-    {
-      "name": "custom_geometry",
-      "instrument": "NoFixedInstrument",
-      "geometry": {
-        "origin_m": [0.0, 0.0, 0.0],
-        "length_m": 0.05,
-        "radius_m": 0.01
-      },
-      "env": {
-        "pressure_Pa": 1e-6,
-        "temperature_K": 300.0,
-        "gas_species": "He"
-      },
-      "fields": {
-        "field_array_terms": [
-          {
-            "file": "field_arrays/electrode_set_1.h5",
-            "scale_kind": "DC_Axial",
-            "scale_factor": 1.0
-          },
-          {
-            "file": "field_arrays/electrode_set_2.h5",
-            "scale_kind": "Constant",
-            "scale_factor": 50.0
-          }
-        ],
-        "DC": {
-          "axial_V": 100.0
-        }
-      }
-    }
-  ]
-}
-```
-
-**Note:** Multiple field array terms are summed:
-```
-E_total = Σᵢ (E_array_i × scale_i) + E_analytical
-```
-
-#### Validation
-
-Validate field arrays before running simulations:
-
-```bash
-# Test HDF5 file structure
-python3 -c "import h5py; f=h5py.File('my_field.h5','r'); print(list(f.keys()))"
-
-# Verify dimensions
-python3 -c "
-import h5py
-with h5py.File('my_field.h5', 'r') as f:
-    print(f'x: {f[\"x\"].shape}, Ex: {f[\"Ex\"].shape}')
-"
-
-# Run E2E tests
-cd build && ctest -R field_array
-```
-
-**Test Files:**
-- `tests/config/test_field_array_e2e.cpp` - End-to-end validation (source only, not built)
-- `tests/config/test_field_array_terms_loader.cpp` - JSON loading tests (executable: `build/tests/config/test_field_array_terms_loader`)
-
-**Recommendation:** Use 1-2mm grid spacing for typical ion optics geometries.
-
----
-
-### Waveforms (Time-Varying Parameters)
-
-**Status:** Production-ready (v1.0)
-
-ICARION supports time-varying field parameters through a flexible waveform system. Any voltage or frequency parameter can be static OR time-dependent.
-
-#### Quick Examples
-
-**Static Value:**
-```json
-"fields": {
-  "AC": {
-    "voltage_V": 100.0,
-    "frequency_Hz": 1000000.0
-  }
-}
-```
-
-**Linear Voltage Ramp:**
-```json
-"fields": {
-  "AC": {
-    "voltage_V": {
-      "type": "linear",
-      "start": 0.0,
-      "end": 500.0,
-      "start_time_s": 0.0,
-      "end_time_s": 0.001,
-      "clamp": true
-    },
-    "frequency_Hz": 1000000.0
-  }
-}
-```
-
-**Named Waveforms (Reusable):**
-```json
-{
-  "domains": [
-    {
-      "name": "domain_1",
-      "fields": {
-        "waveforms": {
-          "ac_voltage_ramp": {
-            "type": "linear",
-            "start": 0,
-            "end": 500,
-            "end_time_s": 0.001
-          },
-          "rf_chirp": {
-            "type": "linear",
-            "start": 1000000,
-            "end": 2000000,
-            "end_time_s": 0.01
-          }
-        },
-        "AC": {
-          "voltage_V": "@ac_voltage_ramp",
-          "frequency_Hz": 1000000
-        },
-        "RF": {
-          "frequency_Hz": "@rf_chirp"
-        }
-      }
-    }
-  ]
-}
-```
-
-#### Waveform Types
-
-ICARION supports 6 waveform types:
-
-| Type | Use Case | Parameters |
-|------|----------|------------|
-| `constant` | Static value | `value` |
-| `linear` | Voltage/frequency sweep | `start`, `end`, `end_time_s`, `start_time_s` (opt), `clamp` (opt) |
-| `quadratic` | Acceleration profile | `a`, `b`, `c`, `start_time_s` (opt), `end_time_s` (opt) |
-| `sinusoidal` | Amplitude modulation | `offset` (opt), `amplitude`, `frequency_Hz`, `phase_rad` (opt) |
-| `pulsed` | Single pulse | `low`, `high`, `pulse_start_s`, `pulse_width_s` |
-| `arbitrary` | Custom curve | `times[]`, `values[]`, `interpolation` (opt) |
-
-#### Waveform Type Details
-
-##### 1. Constant Waveform
-
-```json
-{
-  "type": "constant",
-  "value": 123.45
-}
-```
-
-**Shorthand:** Just use a number: `"voltage_V": 123.45`
-
-##### 2. Linear Waveform
-
-Linearly interpolates from `start` to `end` between `start_time_s` and `end_time_s`:
-
-```json
-{
-  "type": "linear",
-  "start": 0.0,          // Starting value
-  "end": 500.0,          // Ending value
-  "start_time_s": 0.0,   // Ramp start time [s] (default: 0)
-  "end_time_s": 0.001,   // Ramp end time [s] (required)
-  "clamp": true          // Hold end value after end_time_s (default: true)
-}
-```
-
-**Behavior:**
-- `t < start_time_s`: Returns `start`
-- `start_time_s ≤ t ≤ end_time_s`: Linear interpolation
-- `t > end_time_s`:
-  - If `clamp=true`: Returns `end` (hold final value)
-  - If `clamp=false`: Returns `start` (reset to initial)
-
-**Example Use Cases:**
-- IMS voltage ramp: 0V → 500V over 1ms
-- TOF acceleration sweep
-- Frequency chirp (linear frequency increase)
-
-##### 3. Quadratic Waveform
-
-Quadratic function: **y(t) = a + b×t + c×t²**
-
-```json
-{
-  "type": "quadratic",
-  "a": 10.0,             // Constant term
-  "b": 5.0,              // Linear coefficient
-  "c": 2.0,              // Quadratic coefficient
-  "start_time_s": 0.0,   // Active from this time (default: 0)
-  "end_time_s": 1.0      // Active until this time (default: 1e9)
-}
-```
-
-**Behavior:**
-- `t < start_time_s` or `t > end_time_s`: Returns `a` (constant term)
-- `start_time_s ≤ t ≤ end_time_s`: Evaluates quadratic
-
-**Example Use Cases:**
-- Acceleration profiles (constant acceleration = quadratic position)
-- Nonlinear voltage ramps
-
-##### 4. Sinusoidal Waveform
-
-Sinusoidal modulation: **y(t) = offset + amplitude × sin(2πft + φ)**
-
-```json
-{
-  "type": "sinusoidal",
-  "offset": 250.0,       // DC offset (default: 0)
-  "amplitude": 50.0,     // Oscillation amplitude
-  "frequency_Hz": 100.0, // Modulation frequency [Hz]
-  "phase_rad": 0.0       // Phase offset [radians] (default: 0)
-}
-```
-
-**Example Use Cases:**
-- Amplitude modulation of RF voltages
-- Oscillating DC bias
-- Phase-locked excitation
-
-##### 5. Pulsed Waveform
-
-Single rectangular pulse:
-
-```json
-{
-  "type": "pulsed",
-  "low": 10.0,           // Baseline value
-  "high": 100.0,         // Pulse value
-  "pulse_start_s": 1.0,  // Pulse start time [s]
-  "pulse_width_s": 0.5   // Pulse duration [s]
-}
-```
-
-**Behavior:**
-- `t < pulse_start_s`: Returns `low`
-- `pulse_start_s ≤ t < pulse_start_s + pulse_width_s`: Returns `high`
-- `t ≥ pulse_start_s + pulse_width_s`: Returns `low`
-
-**Example Use Cases:**
-- Pulsed ion injection
-- Gating voltages
-- Resonant excitation pulses
-
-##### 6. Arbitrary Waveform
-
-Custom waveform defined by time-value pairs with interpolation:
-
-```json
-{
-  "type": "arbitrary",
-  "times": [0.0, 0.001, 0.002, 0.003, 0.004],
-  "values": [0, 100, 50, 200, 0],
-  "interpolation": "linear"   // "linear" (default), "step", or "cubic"
-}
-```
-
-**Requirements:**
-- `times` and `values` must have same length (≥2 points)
-- `times` must be strictly increasing
-
-**Interpolation Modes:**
-- `"linear"`: Linear interpolation between points (default)
-- `"step"`: Step function (hold previous value)
-- `"cubic"`: Cubic Hermite spline (smooth)
-
-**Behavior:**
-- `t < times[0]`: Returns `values[0]`
-- `times[0] ≤ t ≤ times[n]`: Interpolates
-- `t > times[n]`: Returns `values[n]`
-
-**Example Use Cases:**
-- Complex voltage profiles from experiments
-- Imported waveforms from external tools
-- Multi-stage ramps
-
-#### Waveform Library (Named Waveforms)
-
-Define waveforms once and reference them multiple times. Waveforms can be defined at **two levels**:
-
-1. **Global level (top-level `"waveforms"`):** Shared across all domains
-2. **Domain level (`"fields.waveforms"`):** Domain-specific overrides
-
-```json
-{
-  "waveforms": {
-    "voltage_ramp": {
-      "type": "linear",
-      "start": 0,
-      "end": 500,
-      "start_time_s": 0.0,
-      "end_time_s": 0.005,
-      "clamp": true
-    },
-    "freq_chirp": {
-      "type": "linear",
-      "start": 1000000,
-      "end": 2000000,
-      "start_time_s": 0.0,
-      "end_time_s": 0.01,
-      "clamp": true
-    }
-  },
-  "domains": [
-    {
-      "name": "ims_region_1",
-      "fields": {
-        "DC": {
-          "axial_V": "@voltage_ramp"
-        },
-        "AC": {
-          "voltage_V": 200,
-          "frequency_Hz": "@freq_chirp"
-        }
-      }
-    },
-    {
-      "name": "ims_region_2",
-      "fields": {
-        "DC": {
-          "axial_V": "@voltage_ramp"
-        },
-        "RF": {
-          "voltage_V": 100,
-          "frequency_Hz": "@freq_chirp"
-        }
-      }
-    }
-  ]
-}
-```
-
-**Resolution Order:**
-1. Check domain-local `fields.waveforms` library first (if exists)
-2. Check global top-level `waveforms` library second
-3. Error if not found in either
-
-**Benefits:**
-- ✅ **SSOT compliance:** Define shared waveforms once at top level
-- ✅ **No duplication:** Same waveform used in multiple domains → single definition
-- ✅ **Self-documenting:** Named waveforms clarify intent
-- ✅ **Override capability:** Domains can override global waveforms locally
-- ✅ **Consistency:** Change global waveform → updates all domains that reference it
-
-**Syntax:**
-- Waveform reference: `"@waveform_id"`
-- Must start with `@` symbol
-- ID must exist in global `waveforms` or domain-local `fields.waveforms` library
-
-**Example Use Cases:**
-- **Global waveforms:** Voltage ramps, frequency chirps used across multiple domains
-- **Domain-local overrides:** Same waveform name but domain-specific parameters
-- **Mixed usage:** Some waveforms global (reusable), others local (domain-specific)
-
-#### ValueOrWaveform Pattern
-
-Every field parameter in ICARION can be:
-
-1. **Static value** (number): `"voltage_V": 100.0`
-2. **Inline waveform** (object): `"voltage_V": {"type": "linear", ...}`
-3. **Waveform reference** (string): `"voltage_V": "@my_waveform"`
-
-**Exactly one** option must be specified.
-
-#### Applicable Fields
-
-Waveforms can be used for:
+### Field Configuration
 
 **DC Fields:**
-- `axial_V` - Axial DC voltage
-- `quad_V` - Quadrupole DC voltage
-- `radial_V` - Radial DC voltage
-
-**RF Fields:**
-- `voltage_V` - RF voltage amplitude
-- `frequency_Hz` - RF frequency
-
-**AC Fields:**
-- `voltage_V` - AC voltage amplitude  
-- `frequency_Hz` - AC frequency
-
-#### Static and Dynamic Values
-
-Fields can be specified as either static values or waveforms:
-
 ```json
-// Static value (simple)
-"AC": {
-  "voltage_V": 100,
-  "frequency_Hz": 1000000
-}
-
-// Same as waveform constant:
-"AC": {
-  "voltage_V": {"constant_value": 100},
-  "frequency_Hz": {"constant_value": 1000000}
+"fields": {
+  "dc": {
+    "axial_V": 100.0,              // Can be constant or waveform
+    "EN_Td": 50.0
+  }
 }
 ```
 
-**Migration:** Use linear waveforms instead (see Migration Script below).
-
-#### Complete Example
-
+**Field Arrays (HDF5):**
 ```json
-{
-  "simulation": {
-    "total_time_s": 0.01,
-    "dt_s": 1e-9,
-    "integrator": "RK4"
-  },
-  "physics": {
-    "collision_model": "HSS"
-  },
-  "output": {
-    "folder": "./results",
-    "trajectory_file": "waveform_test.h5"
-  },
-  "domains": [
-    {
-      "name": "ims_region",
-      "instrument": "IMS",
-      "geometry": {
-        "origin_m": [0, 0, 0],
-        "length_m": 0.05,
-        "radius_m": 0.01
-      },
-      "env": {
-        "pressure_Pa": 101325,
-        "temperature_K": 300,
-        "gas_species": "N2"
-      },
-      "fields": {
-        "waveforms": {
-          "voltage_ramp": {
-            "type": "linear",
-            "start": 0,
-            "end": 500,
-            "end_time_s": 0.005
-          },
-          "freq_chirp": {
-            "type": "linear",
-            "start": 1000000,
-            "end": 2000000,
-            "end_time_s": 0.01
-          },
-          "modulation": {
-            "type": "sinusoidal",
-            "offset": 250,
-            "amplitude": 50,
-            "frequency_Hz": 100
-          }
-        },
-        "DC": {
-          "axial_V": 100.0
-        },
-        "AC": {
-          "voltage_V": "@voltage_ramp",
-          "frequency_Hz": "@freq_chirp"
-        },
-        "RF": {
-          "voltage_V": "@modulation",
-          "frequency_Hz": 1000000
-        }
-      }
-    }
-  ]
+"field_array_terms": [
+  {
+    "file": "field_arrays/my_field.h5",
+    "scale_kind": "DC_Axial",     // DC_Axial, RF_Voltage, Constant
+    "scale_factor": 1.0
+  }
+]
+```
+
+**Waveforms:**
+```json
+"axial_V": {
+  "waveform_type": "sine",
+  "amplitude": 100.0,
+  "frequency_Hz": 1e6,
+  "offset": 0.0,
+  "phase_rad": 0.0
 }
 ```
 
-#### Validation
+**Supported waveform types:** `constant`, `sine`, `square`, `triangle`, `sawtooth`, `pulse`, `exponential_decay`, `gaussian_pulse`, `chirp`
 
-Validate waveform configs:
-
-```bash
-# Validate JSON schema
-python3 schema/validator.py schema/icarion-config.schema.json my_config.json
-
-# Test waveform evaluation
-cd build && ctest -R Waveform
-```
-
-**Tests:**
-- `test_waveform_types` - 26 tests for waveform evaluation
-- `test_waveform_loader` - 22 tests for JSON parsing
-
-#### Performance Notes
-
-- **Waveform evaluation:** Expected to be negligible (simple arithmetic + std::variant dispatch)
-- **Memory:** ~128 bytes per ValueOrWaveform field (sizeof estimate)
-- **Recommended:** Use waveform library for frequently referenced waveforms
-- **Note:** Formal benchmarking pending (see validation/performance/ roadmap)
+See `schema/waveform.schema.json` and `schema/fields.schema.json` for complete specifications.
 
 ---
 
@@ -1769,427 +1050,55 @@ for f in examples/*/*.json; do python3 schema/validator.py schema/icarion-config
 
 ## Multi-Gas Configurations
 
-**Status:** Production-ready (v1.1)
+**Status:** Production-ready (v1.0)
 
-ICARION supports multi-component gas mixtures for realistic collision and reaction simulations. This enables modeling of air mixtures, doped gases, and trace contaminants.
+ICARION supports multi-component gas mixtures for realistic collision and reaction simulations.
 
-### Gas Mixture Basics
+### Basic Usage
 
-Gas mixtures are defined in the domain `env` section using the `gas_mixture` array:
-
-```json
-{
-  "domains": [{
-    "env": {
-      "temperature_K": 300.0,
-      "pressure_Pa": 101325.0,
-      "gas_mixture": [
-        {
-          "species": "N2",
-          "mole_fraction": 0.78,
-          "participates_in_collisions": true,
-          "participates_in_reactions": true
-        },
-        {
-          "species": "O2",
-          "mole_fraction": 0.21,
-          "participates_in_collisions": true,
-          "participates_in_reactions": true
-        },
-        {
-          "species": "Ar",
-          "mole_fraction": 0.01,
-          "participates_in_collisions": true,
-          "participates_in_reactions": false
-        }
-      ]
-    }
-  }]
-}
-```
-
-**Key Features:**
-
-- **Mole fractions** must sum to 1.0 (validated at load time)
-- **Per-gas flags** control whether each gas participates in collisions/reactions
-- **Partial densities** computed automatically: `n_i = x_i × n_total`
-- **Backward compatible:** Single-gas configs still work (uses `gas_species` field)
-
-### Per-Gas Participation Flags
-
-Use flags to exclude trace species from physics calculations:
+Define gas mixtures in the domain `environment` section:
 
 ```json
-{
+"environment": {
+  "temperature_K": 300.0,
+  "pressure_Pa": 101325.0,
   "gas_mixture": [
-    {
-      "species": "N2",
-      "mole_fraction": 0.999,
-      "participates_in_collisions": true,
-      "participates_in_reactions": true
-    },
-    {
-      "species": "VOC_trace",
-      "mole_fraction": 0.001,
-      "participates_in_collisions": false,  // ✅ Ignore in mobility
-      "participates_in_reactions": true     // ✅ But allow reactions
-    }
+    { "species": "N2", "mole_fraction": 0.78 },
+    { "species": "O2", "mole_fraction": 0.21 },
+    { "species": "Ar", "mole_fraction": 0.01 }
   ]
 }
 ```
 
-**Use cases:**
+**Requirements:**
+- Mole fractions must sum to 1.0 (validated at load time)
+- All species must exist in species database or have `cross_section_m2` specified
 
-- **VOC detection:** Trace species (ppm-level) participate in reactions but don't affect ion mobility
-- **Dopant gases:** Small amounts of dopant (e.g., 0.1% acetone) for charge transfer without collision effects
-- **Inert carriers:** Ar/He carrier gas participates in collisions but not reactions
+### Collision Cross Sections
 
-### Multi-Gas Collision Physics
-
-ICARION computes collision rates per gas component and selects the colliding gas stochastically:
-
-**Algorithm:**
-
-1. Compute collision rate for each gas: `k_i = n_i × σ_i × v_eff`
-2. Total collision rate: `k_total = Σ k_i`
-3. Collision probability: `P = 1 - exp(-k_total × dt)`
-4. Select gas with probability: `P(gas_i) = k_i / k_total`
-5. Execute collision with selected gas
-
-**Example:**
-
-For 78% N₂ / 21% O₂ / 1% Ar mixture:
-
-- If σ_N2 = 100 Ų, σ_O2 = 120 Ų, σ_Ar = 80 Ų
-- Then P(N₂) ≈ 0.75, P(O₂) ≈ 0.24, P(Ar) ≈ 0.01
-
-**Statistically correct:** Collision frequencies match experimental drift tube measurements.
-
-### Cross-Section Data Requirements
-
-Multi-gas collisions require gas-specific cross-sections (CCS). ICARION provides **automatic fallback** with multiple tiers:
-
-#### Option 1: Precomputed CCS Maps (RECOMMENDED)
-
-Use the `ccs_precompute` tool to generate gas-specific CCS for all common gases:
-
-```bash
-./ccs_precompute \
-    --input data/species_database_v1.json \
-    --output data/species_database_enriched.json \
-    --species H3O+ \
-    --ref-gas He \
-    --ref-ccs-A2 110.0 \
-    --model HSS \
-    --override
+**Option 1: Use species database (recommended)**
+```json
+{ "species": "N2", "mole_fraction": 0.78 }
+// CCS loaded from species_database.json
 ```
 
-**Output:** Adds CCS maps for He, N₂, O₂, Ar, CO₂, Ne, H₂O to the species entry:
-
+**Option 2: Explicit cross section**
 ```json
-{
-  "H3O+": {
-    "mass_u": 19.0,
-    "charge": 1,
-    "CCS_m2": 110e-20,
-    "ccs_reference_gas": "He",
-    "CCS_HSS": {
-      "He": 110e-20,
-      "N2": 127e-20,
-      "O2": 131e-20,
-      "Ar": 141e-20,
-      "CO2": 155e-20,
-      "Ne": 118e-20,
-      "H2O": 134e-20
-    },
-    "CCS_EHSS": {
-      "He": 108e-20,
-      "N2": 125e-20,
-      "O2": 129e-20,
-      "Ar": 138e-20,
-      "CO2": 152e-20,
-      "Ne": 116e-20,
-      "H2O": 131e-20
-    }
-  }
+{ "species": "N2", "mole_fraction": 0.78, "cross_section_m2": 4.0e-19 }
+```
+
+### Backward Compatibility
+
+Single-gas configs still work:
+```json
+"environment": {
+  "gas_species": "He",  // Old format
+  "pressure_Pa": 101325.0,
+  "temperature_K": 300.0
 }
 ```
 
-**Accuracy:** ±5% for spherical ions, ±10% for complex ions (validated against experimental data)
-
-#### Option 2: Automatic CCS Derivation (FALLBACK)
-
-If CCS maps are missing, ICARION automatically derives them using the Hard-Sphere Scattering (HSS) model:
-
-**Formula:**
-```
-σ_target = π (r_ion + r_target)²
-r_ion = sqrt(σ_ref / π) - r_ref
-```
-
-**Example:**
-
-If you provide:
-- Reference CCS in He: `CCS_m2 = 110e-20`
-- Reference gas: `ccs_reference_gas = "He"`
-
-ICARION automatically computes CCS for N₂, O₂, Ar, etc.
-
-**Log output:**
-```
-[EHSS] Derived CCS for H3O+:N2 = 127.34 Å² (from He reference).
-       For better accuracy: ccs_precompute --species H3O+ --ref-gas He --ref-ccs-A2 110.0
-```
-
-**Accuracy:** ±10-15% (acceptable for initial simulations, improved with precomputed data)
-
-**Benefits:**
-- ✅ No user action required (automatic fallback)
-- ✅ Clear warnings guide optimization
-- ✅ Maintains SSOT principle (reference CCS is source of truth)
-
-#### Option 3: Reference CCS (NOT RECOMMENDED)
-
-If no reference gas is specified, ICARION falls back to the single reference CCS for all gases:
-
-**Warning:**
-```
-[EHSS] Using reference CCS (110.0 Å²) for gas O2 - may be inaccurate (17% error)!
-       Run: ccs_precompute --species H3O+ --ref-gas He --ref-ccs-A2 110.0
-```
-
-**Error:** ~17% error for O₂ collisions (He CCS used incorrectly)
-
-#### CCS Lookup Priority
-
-ICARION uses this 4-tier hierarchy:
-
-1. ✅ **Precomputed CCS map** (`CCS_HSS[gas]` or `CCS_EHSS[gas]`) - BEST
-2. ✅ **Runtime geometry** (EHSS only: OAPA projection from atom coordinates) - ACCURATE but slow
-3. ✅ **Automatic derivation** (HSS formula from reference CCS) - ACCEPTABLE (~10% error)
-4. ⚠️ **Reference CCS fallback** (same CCS for all gases) - INACCURATE (~17% error)
-5. ❌ **Error** (no CCS data available)
-
-**Recommendation:** Always run `ccs_precompute` for production simulations.
-
-### Multi-Gas Reaction Rates
-
-Reaction rates are computed per gas component using partial densities:
-
-**Example reaction:**
-```json
-{
-  "reactions": [
-    {
-      "id": "rxn_with_N2",
-      "reactant": "A+",
-      "product": "B+",
-      "rate_constant": 1e-10,
-      "order": [
-        {
-          "species": "N2",
-          "exponent": 1,
-          "concentration_m3": -1.0  // ✅ Auto-lookup from gas_mixture
-        }
-      ]
-    },
-    {
-      "id": "rxn_with_O2",
-      "reactant": "A+",
-      "product": "C+",
-      "rate_constant": 5e-10,
-      "order": [
-        {
-          "species": "O2",
-          "exponent": 1,
-          "concentration_m3": -1.0  // ✅ Auto-lookup from gas_mixture
-        }
-      ]
-    }
-  ]
-}
-```
-
-**Competing channels:**
-
-For 78% N₂ / 21% O₂ mixture at 300 K, 1 atm:
-
-- `n_N2 = 0.78 × 2.45e25 m⁻³ = 1.91e25 m⁻³`
-- `n_O2 = 0.21 × 2.45e25 m⁻³ = 5.15e24 m⁻³`
-
-Reaction rates:
-- `k₁ = 1e-10 m³/s × 1.91e25 m⁻³ = 1.91e15 s⁻¹` (N₂ channel)
-- `k₂ = 5e-10 m³/s × 5.15e24 m⁻³ = 2.58e15 s⁻¹` (O₂ channel)
-
-Product branching ratio:
-- `P(B+) / P(C+) = k₁ / k₂ = 0.74` → **42% B+, 58% C+**
-
-**Gas name normalization:**
-
-ICARION automatically normalizes gas names to prevent mismatches:
-
-- `"N_2"`, `"N2"`, `"n2"` → all normalized to `"n2"` ✅
-- `"O_2"`, `"O2"`, `"o2"` → all normalized to `"o2"` ✅
-
-**This prevents reaction lookup failures due to inconsistent naming!**
-
-### Complete Multi-Gas Example
-
-```json
-{
-  "title": "Air Mixture Collision and Reaction Test",
-  
-  "simulation": {
-    "total_time_s": 0.001,
-    "dt_s": 1e-9,
-    "integrator": "RK4"
-  },
-  
-  "physics": {
-    "collision_model": "HSS",
-    "enable_reactions": true
-  },
-  
-  "species_database": "data/species_database_enriched.json",
-  "reaction_database": "data/reactions_database_v1.json",
-  
-  "domains": [{
-    "name": "air_region",
-    "instrument": "IMS",
-    
-    "geometry": {
-      "origin_m": [0, 0, 0],
-      "length_m": 0.05,
-      "radius_m": 0.01
-    },
-    
-    "env": {
-      "temperature_K": 300.0,
-      "pressure_Pa": 101325.0,
-      "gas_mixture": [
-        {
-          "species": "N2",
-          "mole_fraction": 0.78,
-          "participates_in_collisions": true,
-          "participates_in_reactions": true
-        },
-        {
-          "species": "O2",
-          "mole_fraction": 0.21,
-          "participates_in_collisions": true,
-          "participates_in_reactions": true
-        },
-        {
-          "species": "Ar",
-          "mole_fraction": 0.01,
-          "participates_in_collisions": true,
-          "participates_in_reactions": false
-        }
-      ]
-    },
-    
-    "fields": {
-      "DC": {
-        "EN_Td": 10.0
-      }
-    }
-  }],
-  
-  "ions": {
-    "species": [
-      {
-        "id": "H3O+",
-        "count": 100,
-        "position": {
-          "type": "point",
-          "value": [0, 0, 0.001]
-        }
-      }
-    ]
-  },
-  
-  "output": {
-    "folder": "./results/multi_gas",
-    "trajectory_file": "trajectories.h5",
-    "sampling": {
-      "interval_steps": 100
-    }
-  }
-}
-```
-
-### Validation and Testing
-
-**Test multi-gas configurations:**
-
-```bash
-# Validate JSON schema
-python3 schema/validator.py schema/icarion-config.schema.json examples/ims/ims_multi_gas_air.json
-
-# Run unit tests
-cd build && ctest -R MultiGas
-
-# Check collision statistics
-./build/src/icarion_main examples/ims/ims_multi_gas_air.json
-```
-
-**Expected test results:**
-- `MultiGasCollision` - 6 tests for gas-specific CCS lookup and weighted selection
-- `MultiGasReaction` - 1 test for competing reaction channels
-
-**Collision statistics output:**
-```
-=== Collision Statistics ===
-Total collisions: 8523
-  - N2: 6641 (77.9%)
-  - O2: 1795 (21.1%)
-  - Ar: 87 (1.0%)
-```
-
-**Matches expected mole fractions!**
-
-### Migration from Single-Gas Configs
-
-**Old config (single gas):**
-```json
-{
-  "env": {
-    "pressure_Pa": 101325.0,
-    "temperature_K": 300.0,
-    "gas_species": "N2"
-  }
-}
-```
-
-**New config (equivalent multi-gas):**
-```json
-{
-  "env": {
-    "pressure_Pa": 101325.0,
-    "temperature_K": 300.0,
-    "gas_mixture": [
-      {
-        "species": "N2",
-        "mole_fraction": 1.0
-      }
-    ]
-  }
-}
-```
-
-**No breaking changes:** Old configs with `gas_species` still work (automatic single-gas fallback).
-
-### Performance Notes
-
-**Multi-gas overhead:**
-- CPU: ~5-10% overhead for 3-component mixtures (negligible)
-- GPU: Same (gas selection done on GPU)
-- Memory: +8 bytes per gas component per timestep (negligible)
-
-**Recommendation:** Use multi-gas freely - performance impact is minimal.
-
----
-
+See `examples/ims/` for complete multi-gas examples.
 ## Helper Tools
 
 ### Config Creation Script
@@ -2263,39 +1172,60 @@ Ions outside these boundaries are deactivated (electrode collision).
 
 ## Examples
 
-### Ion Mobility Spectrometry (IMS)
+Complete configuration examples for all supported instruments are available in `examples/`:
+
+- **IMS**: `examples/ims/ims_basic.json` - Ion mobility spectrometry
+- **TOF**: `examples/tof/tof_linear.json` - Time-of-flight mass spectrometry
+- **LQIT**: `examples/lqit/lqit_basic.json` - Linear quadrupole ion trap
+- **Orbitrap**: `examples/orbitrap/orbitrap_basic.json` - Orbitrap mass analyzer
+- **Quadrupole**: `examples/quadrupole/quad_basic.json` - Quadrupole mass filter
+- **Field Arrays**: `examples/field_arrays/` - HDF5 field array examples
+- **Reactions**: `examples/reactions/` - Chemical reaction simulations
+
+### Quick Example: IMS Drift Tube
 
 ```json
 {
   "simulation": {
     "total_time_s": 5e-4,
     "dt_s": 1e-8,
-    "integrator": "RK4",
-    "enable_gpu": true
+    "integrator": "RK4"
   },
   "physics": {
     "collision_model": "HSS"
   },
   "output": {
-    "folder": "./results/ims",
-    "trajectory_file": "ims_trajectories.h5"
+    "directory": "results/ims",
+    "basename": "ims_output"
   },
+  "ions": [
+    {
+      "species": "H3O+",
+      "count": 1000,
+      "position": {
+        "type": "Gaussian",
+        "mean": [0, 0, 0.001],
+        "std_dev": [0.001, 0.001, 0.0005]
+      }
+    }
+  ],
   "domains": [
     {
       "name": "drift_region",
       "instrument": "IMS",
       "geometry": {
-        "origin_m": [0.0, 0.0, 0.0],
+        "shape": "Cylinder",
+        "origin": [0, 0, 0],
         "length_m": 0.05,
         "radius_m": 0.015
       },
-      "env": {
+      "environment": {
         "pressure_Pa": 200.0,
         "temperature_K": 300.0,
         "gas_species": "He"
       },
       "fields": {
-        "DC": {
+        "dc": {
           "EN_Td": 10.0
         }
       }
@@ -2304,96 +1234,7 @@ Ions outside these boundaries are deactivated (electrode collision).
 }
 ```
 
-### Time-of-Flight (TOF)
-
-```json
-{
-  "simulation": {
-    "total_time_s": 1e-4,
-    "dt_s": 1e-10,
-    "integrator": "RK4"
-  },
-  "physics": {
-    "collision_model": "NoCollisions"
-  },
-  "output": {
-    "folder": "./results/tof",
-    "trajectory_file": "tof_trajectories.h5"
-  },
-  "domains": [
-    {
-      "name": "acceleration_region",
-      "instrument": "TOF",
-      "geometry": {
-        "origin_m": [0.0, 0.0, 0.0],
-        "length_m": 0.02,
-        "radius_m": 0.01
-      },
-      "env": {
-        "pressure_Pa": 1e-6,
-        "temperature_K": 300.0,
-        "gas_species": "He"
-      },
-      "fields": {
-        "DC": {
-          "axial_V": 5000.0
-        }
-      }
-    },
-    {
-      "name": "drift_region",
-      "instrument": "TOF",
-      "geometry": {
-        "origin_m": [0.0, 0.0, 0.02],
-        "length_m": 0.5,
-        "radius_m": 0.01
-      },
-      "env": {
-        "pressure_Pa": 1e-6,
-        "temperature_K": 300.0,
-        "gas_species": "He"
-      }
-    }
-  ]
-}
-```
-
-### Multi-Domain Setup
-
-```json
-{
-  "simulation": {
-    "total_time_s": 1e-3,
-    "dt_s": 1e-9,
-    "integrator": "RK4"
-  },
-  "physics": {
-    "collision_model": "HSS"
-  },
-  "output": {
-    "folder": "./results/hybrid",
-    "trajectory_file": "trajectories.h5"
-  },
-  "domains": [
-    {
-      "name": "ims_drift",
-      "instrument": "IMS",
-      "integrator": "RK4",
-      "geometry": { "origin_m": [0, 0, 0], "length_m": 0.05, "radius_m": 0.015 },
-      "env": { "pressure_Pa": 200.0, "temperature_K": 300.0, "gas_species": "He" },
-      "fields": { "DC": { "EN_Td": 10.0 } }
-    },
-    {
-      "name": "tof_region",
-      "instrument": "TOF",
-      "integrator": "RK45",
-      "geometry": { "origin_m": [0, 0, 0.05], "length_m": 0.5, "radius_m": 0.02 },
-      "env": { "pressure_Pa": 1e-6, "temperature_K": 300.0, "gas_species": "He" },
-      "fields": { "DC": { "axial_V": 5000.0 } }
-    }
-  ]
-}
-```
+See `examples/README.md` for detailed documentation of all example configurations.
 
 ---
 

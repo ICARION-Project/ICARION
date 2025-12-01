@@ -101,7 +101,9 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         ("benchmark", "Print detailed timing statistics for simulation phases")
         ("profile", "Enable profiling instrumentation (for performance analysis)")
         ("profile-output", "Write profiling data to FILE (json or csv) [default: profile.json]",
-         cxxopts::value<std::string>(), "FILE");
+         cxxopts::value<std::string>(), "FILE")
+        ("threads", "Number of OpenMP threads for CPU parallelization (overrides OMP_NUM_THREADS)",
+         cxxopts::value<int>(), "N");
     
     // Parse
     cxxopts::ParseResult result;
@@ -120,6 +122,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         std::cout << "\nExamples:\n";
         std::cout << "  icarion config.json\n";
         std::cout << "  icarion --verbose config.json\n";
+        std::cout << "  icarion --threads 8 config.json  # Use 8 CPU threads\n";
         std::cout << "  icarion --log-level DEBUG --log-file debug.log config.json\n";
         std::cout << "  icarion --output custom.h5 config.json\n";
         std::cout << "  icarion --set simulation.dt_s=1e-10 config.json\n";
@@ -243,6 +246,15 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     } else if (opts.profile || opts.benchmark) {
         // Default output file if profiling is enabled
         opts.profile_output = "profile.json";
+    }
+    
+    if (result.count("threads")) {
+        int num_threads = result["threads"].as<int>();
+        if (num_threads <= 0) {
+            std::cerr << "Error: Invalid thread count " << num_threads << " (must be > 0)\n";
+            std::exit(1);
+        }
+        opts.num_threads = num_threads;
     }
     
     return opts;

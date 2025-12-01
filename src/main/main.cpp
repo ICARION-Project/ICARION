@@ -57,6 +57,13 @@ int main(int argc, char* argv[]) {
             profiling::Profiler::getInstance().enable(true);
         }
         
+        // Set OpenMP thread count if specified (before logger init)
+        if (opts.num_threads.has_value()) {
+#ifdef _OPENMP
+            omp_set_num_threads(opts.num_threads.value());
+#endif
+        }
+        
         // === 2. Initialize logging ===
         {
             PROFILE_SCOPE("Logging Initialization");
@@ -64,6 +71,15 @@ int main(int argc, char* argv[]) {
                 opts.log_level,
                 opts.log_file.value_or(""),
                 opts.log_format);
+        }
+        
+        // Log thread count after logger is initialized
+        if (opts.num_threads.has_value()) {
+#ifdef _OPENMP
+            log::Logger::main()->info("OpenMP threads set to: {}", opts.num_threads.value());
+#else
+            log::Logger::main()->warn("--threads specified but OpenMP is not enabled");
+#endif
         }
         
         // Print startup banner (text format only)

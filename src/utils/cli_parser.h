@@ -52,6 +52,7 @@ struct CLIOptions {
     bool benchmark{false};                      ///< Enable detailed timing statistics (--benchmark)
     bool profile{false};                        ///< Enable profiling instrumentation (--profile)
     std::optional<std::string> profile_output;  ///< Profile output file (--profile-output)
+    std::optional<int> num_threads;             ///< Number of OpenMP threads (--threads)
 };
 
 /**

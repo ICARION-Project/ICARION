@@ -634,7 +634,7 @@ public:
 
 ### Field Arrays (HDF5-based Field Loading)
 
-**Status:** Production-ready with superposition support (Phase 7, v1.1)
+**Status:** Production-ready with superposition support 
 
 ICARION supports loading pre-computed electric field arrays from HDF5 files for complex geometries where analytical solutions are unavailable. **New in v1.1:** Multiple field arrays can be superposed with independent time-varying scaling factors.
 
@@ -660,9 +660,9 @@ field_array.h5
 E_scaled = E_array × DC_voltage = 20 V/m × 100 V = 2000 V/m
 ```
 
-#### Field Array Superposition (Phase 7)
+#### Field Array Superposition 
 
-**NEW in v1.1:** The `CompositeFieldProvider` enables superposition of multiple field arrays with independent time-varying scaling:
+The `CompositeFieldProvider` enables superposition of multiple field arrays with independent time-varying scaling:
 
 **Mathematical Formulation:**
 ```
@@ -744,12 +744,12 @@ public:
 4. **Time-resolved experiments**: Pulsed fields with waveform control
 
 **Validation:**
-- Single array: 91.2% accuracy (ballistic drift, Phase 7)
+- Single array: 91.2% accuracy (ballistic drift time) vs analytical
 - Multi-domain: 1.89:1 intensity ratio matches expectation
 - RF superposition: Verified with 2-term configuration (DC + RF @ 1 MHz)
 
 **Files:**
-- `src/fieldsolver/utils/CompositeFieldProvider.h` (Phase 7)
+- `src/fieldsolver/utils/CompositeFieldProvider.h` 
 - `src/fieldsolver/utils/IFieldProvider.h` (extended with time parameter)
 - `src/core/physics/forces/ElectricFieldForce.cpp` (calls `get_E(pos, t)`)
 - `examples/test_rf_superposition.json` (validation config)
@@ -905,7 +905,7 @@ dv/dt = F(x, v, t) / m
 dx/dt = v
 ```
 
-### Integration Strategy Interface (Phase 4)
+### Integration Strategy Interface  
 
 ```cpp
 namespace ICARION::integrator {
@@ -962,7 +962,7 @@ public:
 } // namespace ICARION::integrator
 ```
 
-### Implemented Strategies (Phase 4A/4B)
+### Implemented Strategies  
 
 #### 1. RK4Strategy
 - **Order:** 4th-order accurate

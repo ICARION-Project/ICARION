@@ -1,7 +1,7 @@
 # HDF5 Output Structure
 
-**Version:** 1.0 (FullConfig-based)  
-**Last Updated:** 2025-11-21  
+**Version:** 1.0  
+**Last Updated:** December 1, 2025  
 **Status:** Implemented
 
 ---
@@ -48,7 +48,7 @@ simulation.h5
     │   ├── geometry/              # Geometric parameters
     │   ├── environment/           # Gas conditions
     │   ├── fields/                # Electric fields
-    │   │   ├── waveforms/         # Waveform library (v1.1, if present)
+    │   │   ├── waveforms/         # Waveform library (if present)
     │   │   ├── dc/                # DC field values (t=0 if waveform)
     │   │   ├── rf/                # RF field values (t=0 if waveform)
     │   │   └── ac/                # AC field values (t=0 if waveform)
@@ -192,9 +192,14 @@ Reaction database in tabular format.
 **Note:** Only reactions involving species present in the simulation are written (reactants must be in initial ions). This reduces file size for large reaction networks (e.g., 1000+ reactions).
 
 **Reaction Types:**
-- `0` = Three-body
-- `1` = Charge transfer
-- `2` = Proton transfer
+- `0` = ChargeTransfer
+- `1` = ProtonTransfer
+- `2` = Association (two-body)
+- `3` = Dissociation
+- `4` = Switching
+- `5` = Unknown
+
+**Note:** Current implementation writes type `2` (Association) for all reactions. Full reaction type support is planned for future versions.
 
 ### `/metadata/completion/`
 
@@ -338,7 +343,7 @@ Configuration for each instrument domain.
 
 Contains subgroups for DC, RF, and AC fields with voltage, frequency, and phase parameters. 
 
-**v1.1 Extension:** If time-varying waveforms are used, a `/fields/waveforms/` subgroup is created with one group per named waveform containing its type and parameters. DC/RF/AC fields store the t=0 evaluation for backward compatibility.
+**Waveform Support:** If time-varying waveforms are used, a `/fields/waveforms/` subgroup is created with one group per named waveform containing its type and parameters. DC/RF/AC fields store the t=0 evaluation for backward compatibility.
 
 ---
 
@@ -447,15 +452,18 @@ Typical file sizes for various simulations:
 | LQIT | 10,000 | 10,000 | 2.4 GB | 600 MB |
 | TOF large | 100,000 | 50,000 | 120 GB | 30 GB |
 
-**Storage formula:**
+**Storage formula (trajectory data only):**
 ```
-size_bytes ≈ (N_ions × N_timesteps × 7 × 8) / compression_ratio
+size_bytes ≈ (N_ions × N_timesteps × 6 × 8 + N_timesteps × 8) / compression_ratio
 ```
 
 where:
-- 7 datasets per timestep (time, pos[3], vel[3])
-- 8 bytes per double
+- 6 values per ion per timestep: pos[3], vel[3] (doubles)
+- 1 time value per timestep (double)
+- Additional: species_ids (strings), domain_indices (ints)
+- 8 bytes per double, 4 bytes per int
 - Typical compression ratio: 3-5x
+- **Note:** Metadata (config, species, reactions, domains) adds ~1-2 MB overhead
 
 ---
 

@@ -13,7 +13,7 @@
     "enable_space_charge": false,
     "enable_reactions": false
   },
-  "species_database": "data/species_database_v1.json",
+  "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
   "output": {
     "folder": "results/v1.0_test/physics/thermalization",
     "trajectory_file": "therm_ehss_26DTBPHp_1000K_2000.0Pa.h5",

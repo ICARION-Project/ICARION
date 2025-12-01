@@ -92,25 +92,9 @@ This is especially problematic at **low pressure** where:
 | > 10 kPa | ≥ 0.5-1 cm | Short mean free path, thermal diffusion small |
 
 **Additional Tips:**
-- Use **wide radius** (≥ 5× length) to prevent radial losses from diffusion
-- For very low pressure (< 10 Pa): consider even larger buffers or higher pressure
-- Check `tests/instruments/test_ims_drift.cpp` for working example
-
-**Physical Intuition:**
-
-Think of it like a river entering a lake:
-- **Without buffer**: Ions start right at the shore → any backward motion = out of bounds
-- **With buffer**: Ions start 2m into the lake → backward fluctuations stay within bounds
-- Buffer size should match the "diffusion length" of your ions
-
-**Future Development (v1.1+):**
-
-Alternative boundary conditions planned:
-- **Reflecting boundaries**: Elastic collisions at walls (no ion loss)
-- **Emitting boundaries**: Continuous ion injection at entrance
-- **Periodic boundaries**: Wraparound for bulk gas simulations
-
-Currently (v1.0), only **absorbing boundaries** are implemented.
+- Use wide radius (≥ 5× length) to prevent radial losses
+- For low pressure (< 10 Pa): consider larger buffers or higher pressure
+- v1.0 uses absorbing boundaries only (reflecting/periodic boundaries planned for v1.1)
 
 ---
 
@@ -137,14 +121,8 @@ Thermal diffusion causes radial spreading:
    }
    ```
 
-2. **Reduce drift time:**
-   - Increase pressure (more collisions = slower drift BUT less diffusion per collision)
-   - Shorten drift length
-   - Increase electric field (faster transit)
-
-3. **Add radial confinement:**
-   - Use RF radial confinement (ion guides)
-   - Add magnetic field (cyclotron confinement)
+2. **Reduce drift time:** Increase pressure, shorten drift length, or increase electric field
+3. **Add radial confinement:** RF ion guides or magnetic field (cyclotron confinement)
 
 ---
 
@@ -195,12 +173,14 @@ time ./icarion_main config.json  # Should be ~4-5× faster
    export OMP_PROC_BIND=close
    ```
 
-3. **GPU acceleration** (N > 10k ions):
+3. **GPU acceleration** (N > 5k ions recommended):
    ```json
    "simulation": {
-     "enable_gpu": true  // 20-50× faster than 8-core CPU
+     "enable_gpu": true  // Automatic dispatch at 5000 ions threshold
    }
    ```
+   - Boris integrator: GPU beneficial at ~2500 ions
+   - RK4/RK45: GPU beneficial at ~5000 ions
 
 **Performance Tips:**
 - **CPU-only**: Optimal at 4-8 threads
@@ -250,22 +230,19 @@ time ./icarion_main config.json  # Should be ~4-5× faster
 **Check:**
 ```json
 "physics": {
-  "space_charge": {
-    "enabled": true,
-    "method": "direct"      ← O(N²) scaling!
-  }
-}
+  "enable_space_charge": true    ← O(N²) scaling!
+},
 "ions": {
   "species": [{
-    "count": 10000          ← 10k ions → 100M interactions per step!
+    "count": 10000                 ← 10k ions → 100M interactions per step!
   }]
 }
 ```
 
 **Solution:**
-- Use grid-based space charge: `"method": "grid"`
 - Reduce ion count for testing
-- Disable space charge if not critical: `"enabled": false`
+- Disable space charge if not critical: `"enable_space_charge": false`
+- Note: v1.0 uses direct summation only (grid-based planned for v1.1)
 
 ---
 
@@ -319,9 +296,9 @@ Timestep too large for:
 
 **Cause:**
 
-**Fixed in v1.0** (commit 92d29c1):
+**Fixed in v1.0** (commit 6ec653f - "Fix GPU collision physics bugs"):
 
-Older versions calculated collision probability with bulk gas velocity, but applied collision with different sampled neutral velocity. This velocity inconsistency created systematic bias.
+Older versions had velocity sampling inconsistencies in collision calculations, creating systematic bias in thermalization.
 
 **Solution:**
 
@@ -395,34 +372,11 @@ v_mean ≈ √(8 k_B T / π m) ≈ 580 m/s  (for H3O+)
    - Browse `examples/` for similar configurations
    - Run example configs to verify installation
 
-2. **Enable debug output:**
-   ```json
-   "simulation": {
-     "write_interval": 10,    ← Write every 10 steps for diagnosis
-     "verbose": true
-   }
-   ```
+2. **Enable debug:** Set `"write_interval": 10` in config for detailed output
+3. **Minimal reproducer:** Simplify to single ion, short time, simple geometry
+4. **Run validation:** `cd build && ctest -R validation`
+5. **GitHub issue:** Include config JSON, error messages, ICARION version
 
-3. **Minimal reproducer:**
-   - Simplify config to smallest failing case
-   - Single ion, short time, simple geometry
-   - Check if problem is in physics or config
-
-4. **Validation tests:**
-   ```bash
-   cd build
-   ctest -R validation  # Run validation suite
-   ```
-
-5. **GitHub Issues:**
-   - Provide minimal config JSON
-   - Include error messages and output
-   - Specify ICARION version and platform
-
-**Reference Documentation:**
-- Configuration: `docs/CONFIG_GUIDE.md`
-- Developer info: `docs/DEVELOPERS_GUIDE.md`
+**Reference:** [`CONFIG_GUIDE.md`](CONFIG_GUIDE.md), [`DEVELOPERS_GUIDE.md`](DEVELOPERS_GUIDE.md)
 
 ---
-
-**Document Status:** Living document, updated as new issues are identified and resolved.

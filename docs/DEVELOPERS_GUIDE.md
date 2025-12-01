@@ -24,15 +24,13 @@ This guide provides practical instructions for extending ICARION with new featur
 
 ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement `IForce::compute()` and are managed by `ForceRegistry`.
 
-**Version History:**
-- **Pre-v1.0**: Forces used parameter structs (MagneticFieldParams, AnalyticalFieldParams, etc.) - DEPRECATED
-- **v1.0+**: Forces use **const config references** (SSOT pattern)
+**Version:** 1.0 uses **const config references** (Single Source of Truth pattern)
 
 ### Design Principle: Single Source of Truth (SSOT)
 
-****IMPORTANT (v1.0)**: Forces now use **const config references**, not parameter structs.
+**IMPORTANT**: Forces use **const config references**, not parameter structs.
 
-**MODERN (v1.0)**: Forces receive **const references** to config objects
+**Pattern**: Forces receive **const references** to config objects
 
 **Why SSOT?**
 
@@ -538,7 +536,7 @@ Instrument-specific electric field calculations are in `ElectricFieldForce`. Eac
 
 ### Step-by-Step Guide
 
-#### 1. Add Instrument to Enum (`src/instrument/InstrumentTypes.h`)
+#### 1. Add Instrument to Enum (`src/core/config/types/InstrumentTypes.h`)
 
 ```cpp
 enum class InstrumentType {
@@ -548,26 +546,16 @@ enum class InstrumentType {
     QuadrupoleRF = 3,
     TOF = 4,
     FTICR = 5,
+    NoFixedInstrument = 6,
+    UnknownInstrument = 7,
     YourInstrument = 8,  // Add here
     // ...
 };
 ```
 
-****Note:** This file violates SSOT and will be moved to `core/config/types/` in the future.
+#### 2. Add Field Parameters to DomainConfig
 
-#### 2. Add Parameters to AnalyticalFieldParams
-
-```cpp
-struct AnalyticalFieldParams {
-    InstrumentType instrument_type = InstrumentType::UnknownInstrument;
-    
-    // ... existing parameters ...
-    
-    // YourInstrument-specific
-    double your_voltage_V = 0.0;
-    double your_frequency_Hz = 0.0;
-};
-```
+Add instrument-specific field parameters to the appropriate config structures in `src/core/config/types/`.
 
 #### 3. Implement Field Calculation in ElectricFieldForce
 
@@ -595,9 +583,9 @@ Vec3 ElectricFieldForce::compute_your_instrument_field(const IonState& ion, doub
 
 ```cpp
 TEST_CASE("ElectricFieldForce - YourInstrument", "[forces][electric]") {
-    AnalyticalFieldParams params;
-    params.instrument_type = InstrumentType::YourInstrument;
-    params.your_voltage_V = 1000.0;
+    config::DomainConfig domain;
+    domain.instrument = InstrumentType::YourInstrument;
+    domain.fields.dc.voltage_V = 1000.0;
     params.your_frequency_Hz = 1e6;
     
     ElectricFieldForce force(params);
@@ -1510,9 +1498,9 @@ Rationale:
 - No Duplication: Zero-copy, references only
 - Maintainability: One place to change parameters
 
-Migration Note: All legacy parameter structs (MagneticFieldParams, AnalyticalFieldParams, DampingParams) were deleted in ICARION v1.0. New code must use direct config references.
+**Note:** ICARION uses direct config references (const DomainConfig&) instead of parameter structs. This ensures Single Source of Truth (SSOT) compliance.
 
-See: src/core/physics/forces/ElectricFieldForce.h (reference implementation)
+See: `src/core/physics/forces/ElectricFieldForce.h` (reference implementation)
 
 ### Error Handling
 
@@ -1537,18 +1525,16 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 
 ### In Progress
 
-1. **Reaction System Database Unification** (Phase 3D, approximately 4-6h):
-   - Unify species types (remove ICARION::io::Species, reactionUtils::Species)
+1. **Reaction System Database Unification**:
+   - Unify species types across modules
    - Wire reaction_handler directly into integrator
    - Delete legacy reaction loading code
-   - Blocker: Type mismatch between species databases
 
-2. **SimulationEngine Integration** (Phase 5A, approximately 12h):
+2. **SimulationEngine Integration**:
    - Main simulation loop using integration strategies
    - Orchestration of ForceRegistry + CollisionHandler + ReactionHandler
    - Boundary condition handling
    - Output management (HDF5Writer v2)
-   - Status: Ready to start (Phase 4 complete)
 
 ### Planned
 
@@ -1560,57 +1546,52 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
    - Separate random kicks from deterministic forces
    - New IStochasticForce interface (similar to collision handlers)
 
-3. **Space Charge** [COMPLETE - November 2025]:
+2. **Space Charge** [AVAILABLE]:
    - Automatic method selection: N<1000→Direct (O(N²)), N≥1000→Grid (O(N log N))
    - CIC charge deposition with O(h²) convergence
    - Poisson solver with 5 methods (Gauss-Seidel, SOR, CG, Multigrid, FFT)
    - Files: `src/core/physics/spacecharge/*`, `src/core/physics/forces/SpaceCharge{Direct,Grid}.{h,cpp}`
-   - Tests: 17 unit tests, 3 integration tests (all passing)
    - **When to use Direct:** N<1000, exact results needed
    - **When to use Grid:** N≥1000, fast approximation
    - **Configuration:** Set `physics.enable_space_charge = true` in config
    - **Performance tuning:** Adjust grid size (default 64³), update frequency
-   - **Limitations:** CPU-only (GPU planned for v1.1), Dirichlet BC causes errors near boundaries
+   - **Limitations:** CPU-only (GPU planned for future release), Dirichlet BC causes errors near boundaries
 
-4. **GPU Acceleration** (Planned for v1.1):
+3. **GPU Space Charge Acceleration** (Planned for future release):
    - CUDA kernels for space charge Poisson solver
    - Grid-based field evaluation on GPU
    - Target: 10-100x speedup for N≥10,000
 
-5. **Field Caching** (Optimization phase):
+4. **Field Caching**:
    - Pre-compute field on regular grid
    - Trilinear interpolation for fast evaluation
    - Benefit: Approximately 10x speedup for analytical fields
 
-### Completed
+### v1.0 Features
 
-- **Force System SSOT** (Phase 1, Steps 1-4 complete)
+- **Force System SSOT**:
   - IForce interface with ForceRegistry
   - ElectricFieldForce, MagneticFieldForce, DampingForce, SpaceChargeForce
-  - Full unit test coverage (27/27 tests passing)
+  - Full unit test coverage
 
-- **Collision System SSOT** (Phase 2C complete)
+- **Collision System SSOT**:
   - ICollisionHandler interface with factory
   - EHSS, HSS, OU collision handlers
   - Energy conservation validation
 
-- **Reaction System Handlers** (Phase 3C complete)
+- **Reaction System Handlers**:
   - IReactionHandler interface with factory
   - StochasticReactionHandler implementation
   - Database-driven reaction loading
 
-- **Integration Strategies** (Phase 4A/4B complete, November 2025)
+- **Integration Strategies**:
   - IIntegrationStrategy interface
   - RK4Strategy (4th-order Runge-Kutta, fixed-step)
   - RK45Strategy (Dormand-Prince 5(4), adaptive timestep with FSAL)
   - BorisStrategy (symplectic pusher for electromagnetic fields)
   - IntegrationStrategyFactory for runtime selection
-  - Comprehensive test suites (27/27 tests passing, 100%)
   - SSOT-compliant (uses DomainConfig pointer, callback-based acceleration)
-  - **Strategies tested standalone, NOT yet integrated into main.cpp**
   - Files: `src/core/integrator/strategies/*`
-
-**Next Step:** Phase 5 (SimulationEngine) will integrate strategies into main simulation loop
 
 ---
 

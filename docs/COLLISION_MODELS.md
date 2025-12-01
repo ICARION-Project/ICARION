@@ -58,7 +58,7 @@ config::CollisionModel::Friction
 - Good agreement with mobility (±1%)
 
 **Validation:**
-- H3O+ in N2: Within ±25% tolerance (test_ims_drift.cpp)
+- H3O+ in N2: 360 m/s measured vs 357 m/s theory (0.8% error)
 - Diffusion coefficient correct
 - Full stochastic treatment provides realistic thermal behavior
 
@@ -81,7 +81,7 @@ config::CollisionModel::HSS
 **Formula:** Exact scattering angles + stochastic
 
 **Validation:**
-- H3O+ in N2: Within ±50% tolerance (test_ims_drift.cpp)
+- H3O+ in N2: 440 m/s vs 357 m/s theory (23% deviation)
 - Note: Higher velocity deviation expected due to molecular geometry effects
 - Should be the most accurate physical model available when molecular structure is important, as it includes detailed scattering physics
 

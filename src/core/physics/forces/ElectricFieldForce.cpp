@@ -350,13 +350,48 @@ Vec3 ElectricFieldForce::compute_orbitrap_field(const IonState& ion) const {
 }
 
 // ----------------------------------------------------------------------------
-// QuadrupoleRF: Generic Quadrupole RF 
+// Quadrupole / QuadrupoleRF: Quadrupole Mass Filter
 // ----------------------------------------------------------------------------
-// Same as LQIT but may have different typical parameters.
+// RF quadrupole field for mass filtering (radial)
+// DC axial field for ion transmission (like IMS, not harmonic trap!)
+// E_z = U_axial / L (uniform field, not restoring force)
 // ----------------------------------------------------------------------------
 Vec3 ElectricFieldForce::compute_quadrupole_rf_field(const IonState& ion, double t) const {
-    // Identical to LQIT for now
-    return compute_lqit_field(ion, t);
+    Vec3 E_total{0.0, 0.0, 0.0};
+    
+    // SSOT: Read from config
+    const auto& rf = domain_->fields.rf;
+    const auto& dc = domain_->fields.dc;
+    const auto& geom = domain_->geometry;
+    const auto& lib = domain_->fields.waveform_library;
+    
+    // v1.0: Evaluate voltages/frequencies at current time
+    const double rf_voltage = (rf.voltage_V.constant_value.has_value() || rf.voltage_V.waveform_ref.has_value()) 
+                             ? eval_value(rf.voltage_V, t, lib) : 0.0;
+    const double rf_freq = (rf.frequency_Hz.constant_value.has_value() || rf.frequency_Hz.waveform_ref.has_value()) 
+                          ? eval_value(rf.frequency_Hz, t, lib) : 0.0;
+    const double dc_quad = (dc.quad_V.constant_value.has_value() || dc.quad_V.waveform_ref.has_value()) 
+                          ? eval_value(dc.quad_V, t, lib) : 0.0;
+    const double dc_axial = (dc.axial_V.constant_value.has_value() || dc.axial_V.waveform_ref.has_value()) 
+                           ? eval_value(dc.axial_V, t, lib) : 0.0;
+    
+    // (1) RF + DC quadrupole field (radial mass filtering)
+    if (std::fabs(rf_voltage) > MIN_VOLTAGE_THRESHOLD) {
+        const double r0_sq = geom.radius_m * geom.radius_m;
+        const double omega = 2.0 * M_PI * rf_freq;
+        const double U_eff = dc_quad + rf_voltage * std::cos(omega * t);
+        
+        E_total.x =  2.0 * ion.pos.x * U_eff / r0_sq;
+        E_total.y = -2.0 * ion.pos.y * U_eff / r0_sq;
+    }
+    
+    // (2) DC axial field for ion transmission (uniform field like IMS)
+    // E_z = U_axial / L - pushes ions through the quadrupole
+    if (std::fabs(dc_axial) > MIN_VOLTAGE_THRESHOLD) {
+        E_total.z = dc_axial / geom.length_m;
+    }
+    
+    return E_total;
 }
 
 } // namespace physics

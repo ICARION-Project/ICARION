@@ -19,7 +19,7 @@
   "ions": {
     "species": [
       {
-        "species_id": "H3O+",
+        "id": "H3O+",
         "count": 100,
         "position": {
           "type": "gaussian",
@@ -38,22 +38,23 @@
       "name": "LQIT_stable",
       "instrument": "LQIT",
       "geometry": {
-        "type": "Cylinder",
         "origin_m": [0.0, 0.0, 0.0],
         "length_m": 0.01,
         "radius_m": 0.005
       },
       "env": {
         "temperature_K": 300.0,
-        "pressure_Pa": 0.1,
+        "pressure_Pa": 0.01,
         "gas_species": "He"
       },
       "fields": {
-        "rf": {
-          "type": "Quadrupole",
-          "q_mathieu": 0.4,
-          "a_mathieu": 0.0,
-          "omega_rf_rad_s": 628318.5307179587
+        "RF": {
+          "voltage_V": 50.0,
+          "frequency_Hz": 2e6,
+          "phase_rad": 0.0
+        },
+        "DC": {
+          "axial_V": 10.0
         }
       },
       "boundary": {

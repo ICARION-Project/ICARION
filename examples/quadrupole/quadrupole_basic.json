@@ -19,7 +19,7 @@
   "ions": {
     "species": [
       {
-        "species_id": "CaffeineH+",
+        "id": "CaffeineH+",
         "count": 50,
         "position": {
           "type": "gaussian",
@@ -36,9 +36,8 @@
   "domains": [
     {
       "name": "Quadrupole_MassFilter",
-      "instrument": "LQIT",
+      "instrument": "Quadrupole",
       "geometry": {
-        "type": "Cylinder",
         "origin_m": [0.0, 0.0, -0.025],
         "length_m": 0.05,
         "radius_m": 0.005
@@ -49,11 +48,14 @@
         "gas_species": "N2"
       },
       "fields": {
-        "rf": {
-          "type": "Quadrupole",
-          "q_mathieu": 0.85,
-          "a_mathieu": -0.15,
-          "omega_rf_rad_s": 628318.5307179587
+        "RF": {
+          "voltage_V": 200.0,
+          "frequency_Hz": 1e6,
+          "phase_rad": 0.0
+        },
+        "DC": {
+          "quad_V": -30.0,
+          "axial_V": 5.0
         }
       },
       "boundary": {

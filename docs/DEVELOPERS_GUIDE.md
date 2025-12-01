@@ -644,13 +644,15 @@ Add to class docstring or separate documentation:
 ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
 
 **Completed GPU Features (v1.0):**
-- ✅ RK4/RK45/Boris integrators (automatic dispatch with smart thresholds, >5000 ions)
-- ✅ HSS/EHSS collision models (persistent GPU buffers, validated thermalization)
-- ✅ Field array interpolation (texture memory)
-- ✅ Boundary actions (absorption, reflection)
+- [DONE] RK4/RK45/Boris integrators (automatic dispatch with smart thresholds, >5000 ions)
+- [DONE] HSS/EHSS collision models (persistent GPU buffers, validated thermalization)
+- [DONE] Field array interpolation (texture memory)
+- [DONE] Boundary actions (absorption, reflection)
 
 **Note:** GPU features require CUDA toolkit and `enable_gpu: true` in config. Automatic CPU fallback for small simulations.
-- ✅ CPU/GPU parity validation (37,956 assertions passed)
+
+**Validation:**
+- [PASS] CPU/GPU parity validation (37,956 assertions passed)
 
 ### Prerequisites
 
@@ -837,7 +839,7 @@ public:
 
 #### 1. Memory Access Patterns
 
-**✅ GOOD: Coalesced Access (SoA)**
+**GOOD: Coalesced Access (SoA)**
 ```cuda
 // Threads access consecutive memory locations
 for (int i = threadIdx.x; i < N; i += blockDim.x) {
@@ -845,7 +847,7 @@ for (int i = threadIdx.x; i < N; i += blockDim.x) {
 }
 ```
 
-**❌ BAD: Strided Access (AoS)**
+**BAD: Strided Access (AoS)**
 ```cuda
 // Threads access non-consecutive memory
 struct Ion { double x, y, z, vx, vy, vz; };
@@ -995,7 +997,7 @@ TEST(GPUPerformance, LargeScale) {
 
 ### Common Pitfalls
 
-#### ❌ Don't: Mix Host and Device Pointers
+#### Don't: Mix Host and Device Pointers
 ```cpp
 double* host_ptr = new double[N];
 double* device_ptr;
@@ -1008,21 +1010,21 @@ double x = device_ptr[0];  // Segfault!
 my_kernel<<<...>>>(host_ptr, N);  // Invalid memory access!
 ```
 
-#### ✅ Do: Use Explicit Transfer
+#### Do: Use Explicit Transfer
 ```cpp
 cudaMemcpy(device_ptr, host_ptr, N * sizeof(double), cudaMemcpyHostToDevice);
 my_kernel<<<...>>>(device_ptr, N);
 cudaMemcpy(host_ptr, device_ptr, N * sizeof(double), cudaMemcpyDeviceToHost);
 ```
 
-#### ❌ Don't: Forget to Synchronize
+#### Don't: Forget to Synchronize
 ```cpp
 my_kernel<<<...>>>(data, N);
 // Kernel is async! Results not ready yet!
 use_results(data);  // Race condition!
 ```
 
-#### ✅ Do: Synchronize Before Using Results
+#### Do: Synchronize Before Using Results
 ```cpp
 my_kernel<<<...>>>(data, N);
 cudaStreamSynchronize(stream);  // Wait for kernel
@@ -1558,7 +1560,7 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
    - Separate random kicks from deterministic forces
    - New IStochasticForce interface (similar to collision handlers)
 
-3. **Space Charge** ✅ (COMPLETE - November 2025):
+3. **Space Charge** [COMPLETE - November 2025]:
    - Automatic method selection: N<1000→Direct (O(N²)), N≥1000→Grid (O(N log N))
    - CIC charge deposition with O(h²) convergence
    - Poisson solver with 5 methods (Gauss-Seidel, SOR, CG, Multigrid, FFT)

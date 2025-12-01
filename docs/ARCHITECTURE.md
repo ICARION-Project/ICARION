@@ -271,7 +271,7 @@ private:
    - compute_accelerations(): Replace GlobalParams with DomainConfig
    - integrate_one_step(): Use FullConfig directly
    - integrate_trajectory(): Remove parameter conversions
-   - Status: ✅ Completed for v1.0
+   - Status: [COMPLETE] for v1.0
 
 **Known Minor Issue:**
 
@@ -474,10 +474,10 @@ private:
 ```
 
 **Benefits of Domain-Aware ForceRegistry (Phase 12):**
-- ✅ Better SSOT compliance (domain stored once, not passed through methods)
-- ✅ Cleaner method signatures (fewer parameters to pass)
-- ✅ Multi-domain support (each domain has its own registry)
-- ✅ Forces can access domain context without parameter pollution
+- Better SSOT compliance (domain stored once, not passed through methods)
+- Cleaner method signatures (fewer parameters to pass)
+- Multi-domain support (each domain has its own registry)
+- Forces can access domain context without parameter pollution
 
 ### Implemented Force Types
 
@@ -2392,14 +2392,14 @@ make -C build
 
 ### Completed Phases (v1.1)
 
-✅ **Phase 1-6: GPU Core Infrastructure** (November 2025)
+[COMPLETE] **Phase 1-6: GPU Core Infrastructure** (November 2025)
 - GPUContext, GPUMemoryPool, IonState_GPU (SoA layout)
 - GPUIntegrationHelper with automatic dispatch
 - RK4 batch integration kernels
 - Automatic CPU fallback, performance statistics
 - Build system integration (`-DUSE_GPU_ACCEL=ON`)
 
-✅ **Phase 7: Field Array Superposition** (December 2025)
+[COMPLETE] **Phase 7: Field Array Superposition** (December 2025)
 - CompositeFieldProvider for multi-field superposition: `E_total(r,t) = Σ scale_i(t) · E_i(r)`
 - Time-varying scaling: Constant, DC_Axial, DC_Quad, DC_Radial, RF modulation
 - Extended IFieldProvider interface with `get_E(pos, t)`
@@ -2407,7 +2407,7 @@ make -C build
 - Validated: 91.2% accuracy, multi-domain working, RF superposition tested
 - Files: `CompositeFieldProvider.h`, `IFieldProvider.h`, `ElectricFieldForce.cpp`, `PhysicsSetup.cpp`
 
-✅ **Phase 10: Boundary Actions** (December 2025)
+[COMPLETE] **Phase 10: Boundary Actions** (December 2025)
 - Configurable boundary interactions: Absorption, Specular/Diffuse/Thermal Reflection
 - BoundaryAction abstract interface + concrete implementations
 - BoundaryConfig with JSON parsing (`action`, `accommodation_coeff`, `temperature_K`)
@@ -2417,7 +2417,7 @@ make -C build
 - Factory pattern for action creation
 - Files: `boundaries/*.h`, `BoundaryConfig.h`, `DomainManager.h/cpp`, `SimulationEngine.cpp`
 
-✅ **Phase 12: GPU Space Charge (P³M Algorithm)** (December 2025)
+[COMPLETE] **Phase 12: GPU Space Charge (P³M Algorithm)** (December 2025)
 - **Particle-Mesh (P³M)** space charge solver: O(N log N) complexity via FFT
 - **Double-precision cuFFT**: Forward/inverse transforms for Poisson equation
 - **CIC interpolation**: Cloud-In-Cell scatter (P²G) and gather (G²P) with trilinear weights
@@ -2437,7 +2437,7 @@ make -C build
 
 ### Current Limitations
 
-1. **Space Charge**: ✅ GPU P³M integrated into ForceRegistry (Phase 13 complete)
+1. **Space Charge**: [DONE] GPU P³M integrated into ForceRegistry (Phase 13 complete)
    - Automatic dispatch: N ≥ 1000 + GPU → SpaceChargeGPU
    - Multi-domain space charge pending (Phase 14)
    
@@ -2474,11 +2474,11 @@ make -C build
 - GPU field evaluation kernels
 - Expected: 5-10× speedup for field-dominated cases
 
-**Phase 13: GPU Space Charge Integration** ✅ **COMPLETE**
-- ✅ Integrated GPU P³M into ForceRegistry pipeline (SpaceChargeGPU force)
-- ✅ Automatic dispatch: GPU > Grid (CPU) > Direct (CPU)
-- ✅ Auto-configuration: 30µm cells, 32-256 grid, domain auto-sizing
-- ✅ Graceful fallback on GPU failure
+**Phase 13: GPU Space Charge Integration** [COMPLETE]
+- [DONE] Integrated GPU P³M into ForceRegistry pipeline (SpaceChargeGPU force)
+- [DONE] Automatic dispatch: GPU > Grid (CPU) > Direct (CPU)
+- [DONE] Auto-configuration: 30µm cells, 32-256 grid, domain auto-sizing
+- [DONE] Graceful fallback on GPU failure
 - Performance: 3-8× speedup vs CPU Grid, 10-40× vs CPU Direct
 - Files: `SpaceChargeGPU.{h,cpp}`, `PhysicsSetup.cpp`
 
@@ -2737,11 +2737,11 @@ for (int i = 0; i < N; ++i) {
 #### Integration Status
 
 **Implemented:**
-- ✅ GPUSpaceChargeP3M class with full P³M pipeline
-- ✅ CIC scatter/gather kernels (p2g_cic_kernel, g2p_cic_kernel)
-- ✅ Spectral Poisson solver (poisson_solve_fourier_kernel)
-- ✅ E-field gradient kernel (compute_E_field_kernel)
-- ✅ cuFFT integration (D2Z forward, Z2D inverse)
+- [DONE] GPUSpaceChargeP3M class with full P³M pipeline
+- [DONE] CIC scatter/gather kernels (p2g_cic_kernel, g2p_cic_kernel)
+- [DONE] Spectral Poisson solver (poisson_solve_fourier_kernel)
+- [DONE] E-field gradient kernel (compute_E_field_kernel)
+- [DONE] cuFFT integration (D2Z forward, Z2D inverse)
 - ✅ SimulationEngine::try_gpu_space_charge() with auto-dispatch
 - ✅ Comprehensive test suite (4 test cases, 336 assertions)
 - ✅ Bug fixes: wave number calculation, charge density units

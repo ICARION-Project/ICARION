@@ -133,10 +133,6 @@ int main(int argc, char* argv[]) {
             return 0;
         }
     
-    // === Apply logging options (Phase 1) ===
-    // Note: Logger system handles file output via spdlog, no freopen needed
-    // Old file redirection code removed (replaced by Logger::init with --log-file)
-
         // === Handle --validate-config ===
         if (opts.validate_config) {
             log::Logger::main()->info("=== ICARION Configuration Validation ===");

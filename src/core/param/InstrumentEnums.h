@@ -7,10 +7,10 @@
  * 
  * @details
  * Defines InstrumentGPU enum for GPU kernels. This is synchronized with
- * the canonical CPU-side InstrumentType enum from instrument/InstrumentTypes.h
+ * the canonical CPU-side InstrumentType enum from core/config/types/InstrumentTypes.h
  * 
  * SSOT: Single source of truth is InstrumentType in InstrumentTypes.h
- * This file provides GPU-compatible plain enum with compile-time validation.
+ * This header lives in param/ for CUDA-friendly plain enums; kept in sync via static_assert.
  * 
  * @version 2.0 - SSOT Migration (2025-11-23)
  * @author ICARION Development Team
@@ -63,4 +63,3 @@ static_assert(static_cast<int>(InstrumentType::NoFixedInstrument) == static_cast
     "SSOT violation: InstrumentGPU::NoFixedInstrument must match InstrumentType::NoFixedInstrument");
 static_assert(static_cast<int>(InstrumentType::UnknownInstrument) == static_cast<int>(InstrumentGPU::UnknownInstrument), 
     "SSOT violation: InstrumentGPU::UnknownInstrument must match InstrumentType::UnknownInstrument");
-

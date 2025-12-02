@@ -19,7 +19,7 @@ namespace ICARION::config {
  * @brief DC field configuration
  * 
  * Supports both voltage specification and field strength (Townsend).
- * v1.0: Voltages now support time-varying waveforms.
+ * Voltages support time-varying waveforms.
  */
 struct DCFieldConfig {
     // === Direct voltage specification (v1.0: static or waveform) ===
@@ -45,7 +45,7 @@ struct DCFieldConfig {
 /**
  * @brief RF field configuration
  * 
- * v1.0: Voltage and frequency support time-varying waveforms (chirps, modulation).
+ * Voltage and frequency support time-varying waveforms (chirps, modulation).
  */
 struct RFFieldConfig {
     ValueOrWaveform voltage_V;          ///< RF amplitude [V] (0-to-peak, static or waveform)
@@ -92,7 +92,7 @@ struct RFFieldConfig {
 /**
  * @brief AC excitation field configuration (primarily for LQIT)
  * 
- * v1.0: Voltage and frequency support time-varying waveforms.
+ * Voltage and frequency support time-varying waveforms.
  */
 struct ACFieldConfig {
     ValueOrWaveform voltage_V;          ///< AC amplitude [V] (static or waveform)

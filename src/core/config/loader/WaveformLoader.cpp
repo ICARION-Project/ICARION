@@ -7,7 +7,7 @@
 
 namespace ICARION::config {
 
-// Helper to get required field
+    // Helper to get required field
 template<typename T>
 T WaveformLoader::get_required(const Json::Value& json, const std::string& field, const std::string& type_name) {
     if (!json.isMember(field)) {

@@ -40,7 +40,6 @@ struct DomainConfig {
     BoundaryConfig boundary;                            ///< Boundary action configuration
     
     // === Solver ===
-    // FUTURE: Allow per-domain solver selection via SolverModule
     SolverType solver = SolverType::RK4;                ///< Integrator for this domain
     
     // === Coordinate transforms (for multi-domain) ===

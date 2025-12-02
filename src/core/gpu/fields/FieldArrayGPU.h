@@ -11,18 +11,19 @@ namespace icarion {
 namespace gpu {
 
 /**
- * @brief GPU-side field array with texture memory
+ * @brief GPU-side field array with texture memory (single precision)
  * 
- * Stores electric and magnetic field components in CUDA texture memory
- * for fast hardware-accelerated trilinear interpolation.
+ * Stores electric and magnetic field components in CUDA texture memory for
+ * hardware trilinear interpolation. Converts host doubles to float; intended
+ * for the experimental GPUIntegrationHelper path only.
  * 
  * Memory layout:
  * - 3D texture objects for each field component (Ex, Ey, Ez, Bx, By, Bz)
  * - Grid metadata (origin, spacing, dimensions)
  * - CUDA arrays backing the texture objects
  * 
- * @note This structure is designed to be copied to device constant memory
- *       or passed as kernel parameter for fast access.
+ * @note Uses single-precision textures; precision-sensitive setups should
+ *       prefer CPU interpolation. Not wired into SimulationEngine by default.
  */
 struct FieldArrayGPU {
     // Texture objects for electric field components

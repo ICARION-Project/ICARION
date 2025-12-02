@@ -91,9 +91,8 @@ void upload_field_array_to_gpu(
         gpu_field
     );
     
-    // Note: Magnetic field not uploaded (FieldArray doesn't store Bx, By, Bz)
-    // If magnetic field support is added to FieldArray in the future,
-    // add upload_B_field() call here
+    // Note: Magnetic field not uploaded (FieldArray doesn't store Bx, By, Bz).
+    // Only the E-field path is exercised by the experimental GPUIntegrationHelper.
 }
 
 } // namespace gpu

@@ -3,7 +3,9 @@
 
 /**
  * @file FieldArrayGPU.cu
- * @brief Implementation of GPU field interpolation
+ * @brief Implementation of GPU field interpolation (single-precision textures)
+ * @details Converts host double grids to float textures; experimental path
+ *          used only by GPUIntegrationHelper.
  */
 
 #include "FieldArrayGPU.h"

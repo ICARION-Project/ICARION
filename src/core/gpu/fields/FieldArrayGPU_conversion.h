@@ -6,7 +6,9 @@
  * @brief Conversion between CPU FieldArray and GPU FieldArrayGPU
  * 
  * Provides bridge between ICARION's CPU field representation (FieldArray)
- * and GPU texture-based field storage (FieldArrayGPU).
+ * and GPU texture-based field storage (FieldArrayGPU). Only electric field
+ * components are uploaded; this path is experimental and used only by the
+ * GPUIntegrationHelper prototype.
  */
 
 #ifndef ICARION_FIELD_ARRAY_GPU_CONVERSION_H
@@ -38,8 +40,8 @@ namespace gpu {
  * free_field_array_gpu(gpu_field);
  * @endcode
  * 
- * @note Only electric field (Ex, Ey, Ez) is uploaded. Magnetic field
- *       support can be added if FieldArray is extended to include Bx, By, Bz.
+ * @note Only electric field (Ex, Ey, Ez) is uploaded and converted to float
+ *       textures. Magnetic field upload is not implemented.
  */
 void upload_field_array_to_gpu(
     const FieldArray& cpu_field,

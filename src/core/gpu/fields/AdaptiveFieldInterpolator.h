@@ -11,43 +11,12 @@ namespace icarion {
 namespace gpu {
 
 /**
- * @brief Adaptive field interpolation with gradient-based LOD selection
+ * @brief Adaptive field interpolation with gradient-based LOD selection (CPU-only)
  * 
- * **Purpose:** Improve field interpolation accuracy by adaptively selecting
- * interpolation order based on local field gradient magnitude.
- * 
- * **Algorithm:**
- * - **High gradient** (|∇E| > threshold): Use cubic/quintic interpolation
- * - **Low gradient** (|∇E| ≤ threshold): Use linear/trilinear interpolation
- * 
- * **Benefits:**
- * - Better accuracy near electrodes (steep gradients)
- * - Lower cost in field-free regions (smooth gradients)
- * - Reduces particle loss due to poor interpolation
- * 
- * **Typical Use Case:**
- * Ion traps with sharp potential wells where linear interpolation causes
- * artificial heating and particle loss.
- * 
- * **Example:**
- * @code
- * AdaptiveFieldInterpolator interp(field_grid, gradient_threshold);
- * 
- * for (auto& ion : ions) {
- *     Vec3 E = interp.interpolate(ion.pos);  // Automatic LOD selection
- *     // interp uses cubic near electrodes, linear far away
- * }
- * @endcode
- * 
- * **Performance:**
- * - Gradient computation: O(1) per query (cached gradients)
- * - Interpolation: 2-10× slower than linear, but only where needed
- * - Overall: ~20% overhead for typical ion trap simulations
- * 
- * **Limitations:**
- * - Requires precomputed gradient field (extra memory: 3× field size)
- * - Not beneficial for smooth fields (e.g., uniform drift tubes)
- * - CPU-only for now (GPU version in Phase 13)
+ * Prototype for selecting interpolation order based on local field gradients.
+ * CPU-only; not wired into SimulationEngine and only covered by unit tests.
+ * Gradient thresholds and performance characteristics are not tuned for production.
+ * A GPU version is not implemented despite earlier phase notes.
  */
 class AdaptiveFieldInterpolator {
 public:

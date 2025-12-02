@@ -15,7 +15,7 @@
 - GPU space-charge P³M helper exists but is not yet dispatched from the main loop (CPU direct summation only)
 - GPU boundary helper (absorption/cylindrical) not wired into timestep loop
 - EHSS mobility overestimates drift speed (~23% in simple H3O+/N2 test); thermalization is correct
-- Full JSON config not embedded in HDF5 (only selected fields)
+- Full JSON config is written as a snapshot file next to output; HDF5 still stores selected fields only
 
 **Breaking/Behavior Notes**
 - Domain configs use `environment`, `geometry.origin_m`, and lowercase field keys (`dc`, `rf`, `ac`)

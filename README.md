@@ -72,7 +72,7 @@ SSOT architecture:
 - Open-source HDF5 format with hierarchical structure
 - Chunked, extendable datasets
 - Species metadata only once (reduces file size)
-- Selected config/system metadata stored for reproducibility (full JSON not embedded in v1.0)
+- Selected config/system metadata stored for reproducibility (full JSON not embedded in v1.0; full config snapshot now written alongside output as `<basename>.config.json`)
 
 ---
 

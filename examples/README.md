@@ -8,7 +8,7 @@ Example configurations demonstrating mass spectrometry instruments and simulatio
 ./build/src/icarion_main examples/<folder>/<config>.json
 ```
 
-Results written to `results/`. GPU-accelerated when `enable_gpu: true` and N ≥ 5000 ions.
+Results written to `results/`. GPU-accelerated when `enable_gpu: true` and N ≥ 5000 ions (Boris threshold ~2500).
 
 ## Instrument Examples
 
@@ -68,8 +68,8 @@ Basic structure (see `schema/` for full specification):
       "name": "drift",
       "instrument": "IMS",
       "geometry": {"origin_m": [0,0,0], "length_m": 0.05, "radius_m": 0.01},
-      "env": {"temperature_K": 300, "pressure_Pa": 200, "gas_species": "He"},
-      "fields": {"DC": {"EN_Td": 10.0}}
+      "environment": {"temperature_K": 300, "pressure_Pa": 200, "gas_species": "He"},
+      "fields": {"dc": {"EN_Td": 10.0}}
     }
   ]
 }
@@ -78,7 +78,7 @@ Basic structure (see `schema/` for full specification):
 ## Output
 
 - **HDF5**: `results/<name>/<name>_trajectories.h5` (positions, velocities, species, timestamps)
-- **Log**: `results/<name>/simulation.log` (detailed runtime information)
+- **Log**: `results/<name>/simulation.log` (if enabled via config)
 
 ## Documentation
 

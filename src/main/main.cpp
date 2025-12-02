@@ -5,6 +5,9 @@
 #include <exception>
 #include <iostream>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <cctype>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -19,6 +22,7 @@
 #include "core/utils/Profiler.h"
 #include "utils/cli_parser.h"
 #include "main/setup/PhysicsSetup.h"
+#include <nlohmann/json.hpp>
 
 /**
  * @file main.cpp
@@ -38,6 +42,118 @@
  * @see config::ConfigLoader
  * @see integrator::SimulationEngine
  */
+
+// ------------------------------------------------------------------------
+// Helpers
+// ------------------------------------------------------------------------
+static bool parse_bool_cli(const std::string& value) {
+    std::string lower = value;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    return (lower == "true" || lower == "1" || lower == "yes" || lower == "on");
+}
+
+static void apply_override_to_json(nlohmann::json& j, const std::string& key, const std::string& value) {
+    try {
+        if (key == "simulation.dt_s" || key == "simulation.timestep") {
+            j["simulation"]["dt_s"] = std::stod(value);
+        } else if (key == "simulation.total_time_s" || key == "simulation.total_time") {
+            j["simulation"]["total_time_s"] = std::stod(value);
+        } else if (key == "simulation.write_interval") {
+            j["simulation"]["write_interval"] = std::stoi(value);
+        } else if (key == "simulation.rng_seed" || key == "simulation.seed") {
+            j["simulation"]["rng_seed"] = std::stoul(value);
+        } else if (key == "simulation.integrator") {
+            j["simulation"]["integrator"] = value;
+        } else if (key == "simulation.enable_gpu") {
+            j["simulation"]["enable_gpu"] = parse_bool_cli(value);
+        } else if (key == "simulation.enable_openmp") {
+            j["simulation"]["enable_openmp"] = parse_bool_cli(value);
+        }
+        else if (key == "physics.collision_model") {
+            j["physics"]["collision_model"] = value;
+        } else if (key == "physics.enable_reactions") {
+            j["physics"]["enable_reactions"] = parse_bool_cli(value);
+        } else if (key == "physics.enable_space_charge") {
+            j["physics"]["enable_space_charge"] = parse_bool_cli(value);
+        } else if (key == "physics.enable_ou_thermalization") {
+            j["physics"]["enable_ou_thermalization"] = parse_bool_cli(value);
+        }
+        else if (key == "output.folder") {
+            j["output"]["folder"] = value;
+        } else if (key == "output.trajectory_file" || key == "output.file") {
+            j["output"]["trajectory_file"] = value;
+        } else if (key == "output.print_progress") {
+            j["output"]["print_progress"] = parse_bool_cli(value);
+        }
+        else if (key == "species_database" || key == "database.species") {
+            j["species_database"] = value;
+        } else if (key == "reaction_database" || key == "database.reactions") {
+            j["reaction_database"] = value;
+        } else {
+            // Unknown override key -> ignore for snapshot
+        }
+    } catch (const std::exception& e) {
+        log::Logger::main()->warn("Config snapshot override skipped for {}: {}", key, e.what());
+    }
+}
+
+static void write_config_snapshot(
+    const std::string& config_path,
+    const config::FullConfig& config,
+    const cli::CLIOptions& opts
+) {
+    // Read original JSON
+    nlohmann::json j;
+    try {
+        std::ifstream in(config_path);
+        if (!in) {
+            log::Logger::main()->warn("Config snapshot skipped: cannot read {}", config_path);
+            return;
+        }
+        in >> j;
+    } catch (const std::exception& e) {
+        log::Logger::main()->warn("Config snapshot skipped: failed to parse {} ({})", config_path, e.what());
+        return;
+    }
+    
+    // Apply CLI overrides (same keys as ConfigOverride)
+    for (const auto& [key, value] : opts.overrides) {
+        apply_override_to_json(j, key, value);
+    }
+    
+    // Apply direct CLI flags (not in overrides map)
+    if (opts.output_file.has_value()) {
+        j["output"]["trajectory_file"] = opts.output_file.value();
+    }
+    if (opts.output_dir.has_value()) {
+        j["output"]["folder"] = opts.output_dir.value();
+    }
+    if (opts.seed.has_value()) {
+        j["simulation"]["rng_seed"] = opts.seed.value();
+    }
+    if (opts.no_reactions) {
+        j["physics"]["enable_reactions"] = false;
+    }
+    
+    // Snapshot path: same folder as output, base of trajectory file + ".config.json"
+    std::filesystem::path out_dir = config.output.folder;
+    std::filesystem::path traj_file = config.output.trajectory_file;
+    std::string base = traj_file.stem().string();
+    if (base.empty()) {
+        base = "config_snapshot";
+    }
+    std::filesystem::create_directories(out_dir);
+    std::filesystem::path snapshot_path = out_dir / (base + ".config.json");
+    
+    try {
+        std::ofstream out(snapshot_path);
+        out << j.dump(2);
+        out.close();
+        log::Logger::main()->info("Wrote config snapshot: {}", snapshot_path.string());
+    } catch (const std::exception& e) {
+        log::Logger::main()->warn("Failed to write config snapshot to {} ({})", snapshot_path.string(), e.what());
+    }
+}
 
 int main(int argc, char* argv[]) {
     using namespace ICARION;
@@ -249,6 +365,9 @@ int main(int argc, char* argv[]) {
             log::Logger::main()->info("Dry-run mode: Configuration valid. Exiting.");
             return 0;
         }
+        
+        // === Persist effective config snapshot (after overrides) ===
+        write_config_snapshot(opts.config_file, config, opts);
         
         // === 4. Initialize ions ===
         size_t total_ion_count = 0;

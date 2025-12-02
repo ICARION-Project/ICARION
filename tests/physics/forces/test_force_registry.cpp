@@ -13,6 +13,25 @@ using namespace ICARION::config;
 using Catch::Approx;
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * @brief Create minimal DomainConfig for testing
+ */
+static DomainConfig create_test_domain() {
+    DomainConfig domain;
+    domain.instrument = Instrument::IMS;
+    domain.geometry.length_m = 0.1;
+    domain.geometry.radius_m = 0.01;
+    domain.environment.temperature_K = 300.0;
+    domain.environment.pressure_Pa = 101325.0;
+    domain.environment.gas_species = "N2";
+    domain.environment.compute_derived_properties();
+    return domain;
+}
+
+// ============================================================================
 // Mock Forces for Testing
 // ============================================================================
 
@@ -87,7 +106,7 @@ private:
 // ============================================================================
 
 TEST_CASE("ForceRegistry - Empty registry", "[forces][registry]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     
     SECTION("Empty registry returns zero force") {
         IonState ion;
@@ -109,7 +128,7 @@ TEST_CASE("ForceRegistry - Empty registry", "[forces][registry]") {
 }
 
 TEST_CASE("ForceRegistry - Single force", "[forces][registry]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     
     // Add constant force: F = (1, 2, 3) N
     registry.add_force(std::make_unique<ConstantForce>(Vec3{1.0, 2.0, 3.0}));
@@ -151,7 +170,7 @@ TEST_CASE("ForceRegistry - Single force", "[forces][registry]") {
 }
 
 TEST_CASE("ForceRegistry - Multiple forces", "[forces][registry]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     
     // Add three forces
     registry.add_force(std::make_unique<ConstantForce>(Vec3{1.0, 0.0, 0.0}));
@@ -176,7 +195,7 @@ TEST_CASE("ForceRegistry - Multiple forces", "[forces][registry]") {
 }
 
 TEST_CASE("ForceRegistry - Conditional force", "[forces][registry]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     
     // Add conditional force (only applies to charge = 1.602e-19 C)
     double target_charge = 1.602e-19;
@@ -211,7 +230,7 @@ TEST_CASE("ForceRegistry - Conditional force", "[forces][registry]") {
 }
 
 TEST_CASE("ForceRegistry - Realistic physics (gravity)", "[forces][registry]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     
     // Earth gravity: g = 9.81 m/s^2
     registry.add_force(std::make_unique<GravityForce>(9.81));
@@ -244,7 +263,7 @@ TEST_CASE("ForceRegistry - Realistic physics (gravity)", "[forces][registry]") {
 }
 
 TEST_CASE("ForceRegistry - Clear functionality", "[forces][registry]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     
     // Add forces
     registry.add_force(std::make_unique<ConstantForce>(Vec3{1.0, 2.0, 3.0}));
@@ -274,7 +293,7 @@ TEST_CASE("ForceRegistry - Clear functionality", "[forces][registry]") {
 }
 
 TEST_CASE("ForceRegistry - Null force handling", "[forces][registry]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     
     // Try to add null force (should be ignored)
     registry.add_force(nullptr);
@@ -303,7 +322,7 @@ TEST_CASE("ForceRegistry - Force context (SSOT)", "[forces][registry]") {
         std::string name() const override { return "ContextAware"; }
     };
     
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     registry.add_force(std::make_unique<ContextAwareForce>());
     
     IonState ion;

@@ -90,7 +90,7 @@ static double benchmark_soa_threads(size_t n_ions, int n_threads) {
     auto ensemble = IonEnsemble::from_legacy(ions);
     
     // Minimal setup like in working test
-    auto force_registry = std::make_shared<physics::ForceRegistry>();
+    auto force_registry = std::make_shared<physics::ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries = {force_registry};
     auto integrator = std::make_shared<integrator::RK4Strategy>();
     
@@ -112,7 +112,7 @@ static double benchmark_aos_threads(size_t n_ions, int n_threads) {
     auto ions = create_test_ions(n_ions);
     
     // Minimal setup like in working test
-    auto force_registry = std::make_shared<physics::ForceRegistry>();
+    auto force_registry = std::make_shared<physics::ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries = {force_registry};
     auto integrator = std::make_shared<integrator::RK4Strategy>();
     

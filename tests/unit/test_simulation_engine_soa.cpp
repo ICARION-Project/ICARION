@@ -87,7 +87,7 @@ TEST_CASE("SimulationEngine SoA - Basic construction and run", "[soa][integratio
     auto config = create_test_config();
     
     // Create force registry (minimal - no forces)
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<ForceRegistry>> force_registries = {force_registry};
     
     // Create integrator

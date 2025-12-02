@@ -78,7 +78,7 @@ std::vector<IonState> create_benchmark_ions(size_t count) {
 
 TEST_CASE("SoA Performance Benchmark - 100 ions", "[.benchmark][soa]") {
     auto config = create_benchmark_config();
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<ForceRegistry>> registries = {force_registry};
     auto integrator = std::make_shared<RK4Strategy>();
     
@@ -102,7 +102,7 @@ TEST_CASE("SoA Performance Benchmark - 100 ions", "[.benchmark][soa]") {
 
 TEST_CASE("SoA Performance Benchmark - 1000 ions", "[.benchmark][soa]") {
     auto config = create_benchmark_config();
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<ForceRegistry>> registries = {force_registry};
     auto integrator = std::make_shared<RK4Strategy>();
     
@@ -128,7 +128,7 @@ TEST_CASE("Manual Performance Test", "[soa][performance]") {
     std::cout << "\n=== Manual SoA Performance Test ===" << std::endl;
     
     auto config = create_benchmark_config();
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<ForceRegistry>> registries = {force_registry};
     auto integrator = std::make_shared<RK4Strategy>();
     

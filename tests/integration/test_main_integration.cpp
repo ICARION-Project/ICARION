@@ -84,7 +84,7 @@ TEST_CASE("Main integration: Complete simulation pipeline", "[integration][main]
     SECTION("Create physics modules from config") {
         FullConfig config = ConfigLoader::load(config_path);
         
-        auto force_registry = std::make_shared<ForceRegistry>();
+        auto force_registry = std::make_shared<ForceRegistry>(config.domains[0]);
         REQUIRE(force_registry != nullptr);
         
         std::shared_ptr<ICollisionHandler> collision_handler = 

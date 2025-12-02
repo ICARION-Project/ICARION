@@ -34,11 +34,30 @@ using namespace ICARION::instrument;
 using Catch::Matchers::WithinAbs;
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * @brief Create minimal DomainConfig for testing
+ */
+static config::DomainConfig create_test_domain() {
+    config::DomainConfig domain;
+    domain.instrument = config::Instrument::IMS;
+    domain.geometry.length_m = 0.1;
+    domain.geometry.radius_m = 0.01;
+    domain.environment.temperature_K = 300.0;
+    domain.environment.pressure_Pa = 101325.0;
+    domain.environment.gas_species = "N2";
+    domain.environment.compute_derived_properties();
+    return domain;
+}
+
+// ============================================================================
 // Integration Test 1: Electric + Magnetic Forces
 // ============================================================================
 
 TEST_CASE("Integration: Electric + Magnetic forces combine", "[integration]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     std::vector<IonState> ions;
     
     // Setup electric field (IMS) - SSOT config
@@ -82,7 +101,7 @@ TEST_CASE("Integration: Electric + Magnetic forces combine", "[integration]") {
 // ============================================================================
 
 TEST_CASE("Integration: All forces (Electric + Magnetic + Damping + SpaceCharge)", "[integration]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     std::vector<IonState> ions;
     
     // Add all force types - SSOT configs
@@ -191,7 +210,7 @@ TEST_CASE("Integration: Force superposition principle", "[integration]") {
     );
     
     // Compute via registry - SSOT configs
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     registry.add_force(std::make_unique<ElectricFieldForce>(domain));
     registry.add_force(std::make_unique<MagneticFieldForce>(mag_config));
     registry.add_force(std::make_unique<DampingForce>(env, DampingModel::Friction));
@@ -209,7 +228,7 @@ TEST_CASE("Integration: Force superposition principle", "[integration]") {
 // ============================================================================
 
 TEST_CASE("Integration: Performance with 100 ions", "[integration][performance]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     std::vector<IonState> ions;
     
     // Add space charge (O(N²) complexity)

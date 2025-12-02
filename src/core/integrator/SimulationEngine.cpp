@@ -241,7 +241,7 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         // NOTE: GPU Space Charge (P³M) initialization deferred to first use
         // via lazy initialization in try_gpu_space_charge().
         // This avoids coupling to SpaceChargeConfig which may not exist yet.
-        // Full integration with DomainConfig.space_charge pending Phase 13.
+        // Full integration with DomainConfig.space_charge pending.
     }
     catch (const std::exception& e) {
         output_manager_->log_progress(std::string("GPU: Initialization failed: ") + e.what());
@@ -413,6 +413,9 @@ bool SimulationEngine::try_gpu_boundary_check(core::IonEnsemble& ensemble, int d
         return false;
     }
     
+    // NOTE: This GPU path is currently unused by the main timestep loop.
+    // Keep logic in sync if/when batch boundary checks are dispatched.
+    
     const auto& domain_config = config_.domains[domain_idx];
     
     // =========================================================================
@@ -493,6 +496,9 @@ bool SimulationEngine::try_gpu_space_charge(const std::vector<IonState>& ions, s
     if (!gpu_context_) {
         return false;
     }
+    
+    // NOTE: This helper is not yet invoked from the main integration loop.
+    // When wired in, caller must supply E_fields and handle CPU fallback.
     
     // =========================================================================
     // Threshold check: P³M only beneficial above ~1000 ions
@@ -665,13 +671,12 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
     // CPU Path (fallback or small N)
     // ====================================================================
     // Cache-blocking optimization:
-    // - Process ions in blocks that fit in L2 cache (~256 KB typical)
-    // - Typical IonState size: ~200 bytes → ~1000 ions per cache block
-    // - Smaller block size = better cache locality, less memory bandwidth contention
+    // - Process ions in fixed blocks (256) tuned for L2/cache friendliness
+    // - Smaller block size reduces memory bandwidth contention
     // 
     // Thread scaling notes:
     // - Memory bandwidth saturates at ~4-8 threads (typical system)
-    // - Block size tuned for cache locality (not false sharing - ions are independent)
+    // - Block size chosen for cache locality (ions are independent → no false sharing)
     // - Static scheduling with blocks reduces task queue overhead
     constexpr int CACHE_BLOCK_SIZE = 256;  // Tuned for L2 cache locality
     
@@ -848,11 +853,10 @@ std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
 }
 
 // ============================================================================
-// SoA (Structure of Arrays) Implementation - Phase 2
+// SoA (Structure of Arrays) Implementation 
 // ============================================================================
 
 std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
-    // Phase 3: Direct SoA simulation loop (no upfront conversion)
     
     // Convert to legacy format for initialization only
     std::vector<IonState> ions_legacy = ensemble.to_legacy();
@@ -888,7 +892,6 @@ std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
         // Log trajectory snapshot (write every write_interval steps)
         if (current_step_ % config_.simulation.write_interval == 0) {
             PROFILE_SCOPE_IF_ENABLED("Output Writing");
-            // Phase 5: Direct SoA→HDF5 writing (no conversion overhead)
             output_manager_->log_step_soa(current_time_, ensemble);
         }
         
@@ -918,7 +921,7 @@ std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
     msg << "Final state: " << active_count << "/" << ensemble.size() << " ions active";
     output_manager_->log_progress(msg.str());
     
-    // Phase 5: Direct SoA finalization (no conversion overhead)
+    // Direct SoA finalization (no conversion overhead)
     output_manager_->finalize_soa(current_time_, ensemble);
     
     // Safety report
@@ -942,7 +945,7 @@ std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
 }
 
 void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double dt) {
-    // Phase 3: Direct SoA processing (no conversions!)
+    // Direct SoA processing (no conversions!)
     const int n_ions = static_cast<int>(ensemble.size());
     
     // Initialize per-ion RNGs on first call
@@ -1014,7 +1017,7 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
                     domain_config.environment);
             }
             
-            // 6-7. Integration (Phase 3B: Direct SoA!)
+            // 6-7. Integration 
             {
                 PROFILE_SCOPE_IF_ENABLED("Integration");
                 

@@ -25,14 +25,15 @@
  * @brief Entry point for the ICARION simulation.
  *
  * Initializes and executes a complete ICARION run using SimulationEngine.
+ * Also supports info/validation modes that exit before running a simulation.
  *
  * @param[in] argc Number of command-line arguments.
  * @param[in] argv Command-line arguments (expects JSON configuration path).
- * @return 0 on success, 1 on any runtime error.
+ * @return 0 on success (including info/validation-only modes), non-zero on
+ *         validation failures or runtime errors.
  *
- * @throws std::runtime_error If configuration loading or simulation fails.
- *
- * @note The JSON file must define a complete FullConfig structure.
+ * @note The JSON file must define a complete FullConfig structure; CLI overrides
+ *       are applied on top of it before validation.
  *
  * @see config::ConfigLoader
  * @see integrator::SimulationEngine

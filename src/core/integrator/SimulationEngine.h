@@ -136,10 +136,11 @@ public:
      * @param ensemble Initial ion ensemble (SoA)
      * @return Final ion states (converted back to AoS for compatibility)
      * 
-     * **Performance Benefits:**
-     * - 2-3x faster single-core (cache-friendly memory access)
-     * - Enables efficient OpenMP parallelization (no false sharing)
-     * - 45% reduced memory footprint (120 vs 220 bytes/ion)
+     * **Performance Notes:**
+     * - SoA loop is used internally for per-timestep work.
+     * - Current entry/exit still convert to AoS for initialization/output; end-to-end
+     *   speedup depends on overriding step_soa() without AoS copies.
+     * - OpenMP friendliness remains (no false sharing in the hot arrays).
      * 
      * **Note:** Uses process_timestep_soa() internally for bulk operations
      */
@@ -209,7 +210,7 @@ private:
      * @brief Initialize OpenMP thread settings and NUMA awareness
      * 
      * Configures:
-     * - Thread count (from config or auto-detect)
+     * - Thread count (uses omp_get_max_threads; honors OMP_NUM_THREADS)
      * - NUMA-aware thread placement (OMP_PLACES=cores, OMP_PROC_BIND=close)
      * - Thread affinity to prevent migration
      * 
@@ -258,7 +259,8 @@ private:
      * **Dispatch Logic:**
      * - Requires N >= gpu_space_charge_threshold_ (default: 1000 ions)
      * - Uses P³M algorithm (O(N log N) via FFT)
-     * - Expected speedup: 333× for N=10k, 10,000× for N=100k
+     * - Expected speedup applies once the caller dispatches; SimulationEngine
+     *   does not yet invoke this helper in the main loop (pending integration).
      * 
      * **Automatically falls back to CPU if:**
      * - GPU not available
@@ -295,6 +297,7 @@ private:
      * - Geometry: Cylindrical only (no Orbitrap hyperlogarithmic surface)
      * - Action: Absorption only (no reflection, no thermal accommodation)
      * - Future: Phase 12 will add reflection + Orbitrap support
+     * - Note: Helper is defined but not wired into the timestep loop yet.
      */
     bool try_gpu_boundary_check(core::IonEnsemble& ensemble, int domain_idx);
     
@@ -326,7 +329,8 @@ private:
      * - Reduced cache misses (hot data packed together)
      * - Compatibility layer: converts to IonState for collision/reaction handlers
      * 
-     * **Expected Speedup:** 2-3x vs AoS (60% vs 22% cache hit rate)
+     * **Expected Speedup:** Realized when integrators override step_soa() and
+     * avoid AoS conversions; default wrappers may limit gains.
      */
     void process_timestep_soa(core::IonEnsemble& ensemble, double dt);
     

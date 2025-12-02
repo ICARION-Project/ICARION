@@ -113,12 +113,11 @@ public:
      * @param dt Timestep size [s]
      * @param force_registry Force computation engine
      * 
-     * **Performance Benefits:**
-     * - Direct array access (no IonState construction)
-     * - Better cache locality
-     * - Reduced memory allocations
-     * 
-     * @note Override for optimal SoA performance. Default wrapper provided.
+     * **Performance Notes:**
+     * - Override for true SoA speedups; default wrapper converts the entire
+     *   ensemble to AoS and back and is intended as a correctness fallback.
+     * - Direct array access can reduce cache misses when implemented by a
+     *   strategy that keeps computation in SoA form.
      */
     virtual void step_soa(
         core::IonEnsemble& ensemble,

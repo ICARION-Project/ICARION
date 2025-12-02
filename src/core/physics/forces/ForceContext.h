@@ -93,12 +93,12 @@ struct ForceContext {
      * 
      * **SSOT Pattern:**
      * ```cpp
-     * // ✅ CORRECT: Read from domain
+     * // CORRECT: Read from domain
      * double T = ctx.domain->environment.temperature_K;
      * double P = ctx.domain->environment.pressure_Pa;
      * double n = ctx.domain->environment.particle_density_m_3;
      * 
-     * // ❌ WRONG: Don't duplicate data in ForceContext!
+     * // WRONG: Don't duplicate data in ForceContext!
      * // double temperature_K;  // SSOT violation!
      * ```
      * 

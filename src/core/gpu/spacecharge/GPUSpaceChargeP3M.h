@@ -5,25 +5,17 @@
  * @file GPUSpaceChargeP3M.h
  * @brief GPU-accelerated space charge field calculation using P³M algorithm
  * 
- * Phase 12: GPU Acceleration - Space Charge Module
- * 
- * Implements Particle-Particle-Particle-Mesh (P³M) algorithm for fast
- * space charge field computation on GPU. Reduces O(N²) direct summation
- * to O(N log N) via FFT-based Poisson solver.
+ * Experimental prototype for GPU P³M. Not wired into SimulationEngine; not
+ * validated against CPU results; geometry handling and boundary conditions are
+ * incomplete. Avoid using for production until integration and validation are
+ * completed.
  * 
  * **Algorithm:**
  * 1. Particle-to-Grid (P2G): Scatter ion charges to 3D grid (CIC or NGP)
  * 2. Poisson Solver: Compute potential via FFT (cuFFT)
  * 3. Grid-to-Particle (G2P): Interpolate E-field to ion positions
  * 
- * **Performance:**
- * - N = 10,000:    ~15 ms/timestep (GPU) vs ~5000 ms (CPU direct) → **333× speedup**
- * - N = 100,000:   ~50 ms/timestep (GPU) vs ~500s (CPU direct) → **10,000× speedup**
- * - N = 1,000,000: ~200 ms/timestep (GPU) vs ~13 hours (CPU direct) → **250,000× speedup**
- * 
- * **Total simulation speedup** (with space charge enabled):
- * - N = 10,000:  **5-10× faster** (40% time in space charge → 10× faster → 1.7× total)
- * - N = 100,000: **20-50× faster** (90% time in space charge → 10,000× faster → 10× total)
+ * Previous speed claims were speculative; no validated benchmarks exist.
  */
 
 #pragma once
@@ -43,15 +35,14 @@ namespace gpu {
 /**
  * @brief GPU-accelerated P³M space charge solver
  * 
- * **When to use:**
- * - N > 5,000 ions (below this, CPU direct summation is competitive)
- * - Space charge effects significant (ion density > 10⁸ ions/m³)
- * - Multiple timesteps (amortizes FFT plan creation overhead)
+ * **Status:** Experimental helper only; not used anywhere by default.
+ * **When to use:** Prefer CPU direct until this path is validated.
  * 
  * **Limitations:**
- * - Rectangular domain only (no cylindrical grids yet)
- * - Periodic or zero boundary conditions
- * - Fixed grid resolution (no adaptive mesh refinement)
+ * - Rectangular domain only; no cylindrical/Orbitrap geometry support.
+ * - Boundary conditions and masking incomplete; periodic/Dirichlet not verified.
+ * - P2G/G2P mapping and charge assignment not tested against CPU.
+ * - Fixed grid resolution (no adaptive mesh refinement).
  * 
  * **Future extensions:**
  * - FMM algorithm for non-uniform ion distributions

@@ -8,7 +8,7 @@
 #include "core/gpu/core/GPUMemoryPool.h"
 #include "core/gpu/fields/FieldArrayGPU.h"
 #include "core/types/IonState.h"
-#include "utils/IonState_GPU.h"
+#include "core/types/gpu/IonState_GPU.h"
 #include <vector>
 #include <memory>
 

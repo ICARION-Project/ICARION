@@ -5,7 +5,7 @@
 #define ICARION_INTEGRATE_BORIS_BATCH_CUH
 
 #include "core/types/Vec3.h"
-#include "utils/IonState_GPU.h"
+#include "core/types/gpu/IonState_GPU.h"
 #include <cuda_runtime.h>
 
 namespace icarion {

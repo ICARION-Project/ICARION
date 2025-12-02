@@ -5,7 +5,6 @@
  * @file PhysicsSetup.h
  * @brief Physics module initialization helper for main.cpp
  * 
- * Extracts physics module setup logic (~190 lines) from monolithic main.cpp.
  * Creates force registries, integration strategy, collision/reaction handlers.
  */
 

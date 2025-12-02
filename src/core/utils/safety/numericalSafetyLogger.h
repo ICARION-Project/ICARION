@@ -4,18 +4,6 @@
 #ifndef ICARION_NUMERICAL_SAFETY_LOGGER_H
 #define ICARION_NUMERICAL_SAFETY_LOGGER_H
 
-/**
- * @file numericalSafetyLogger.h
- * @brief Logging system for numerical safety violations and rejected steps (optional)
- * 
- * Provides detailed logging for NaN/Inf detection, bounds violations, and rejected
- * steps. Intended for debugging; avoid enabling in hot paths due to I/O and
- * synchronization overhead. Primarily CPU-oriented; GPU paths are not integrated.\n*** End Patch
- * 
- * @author ICARION Core Development Team
- * @version 1.0++
- * @date 2024
- */
 
 #include <fstream>
 #include <string>

@@ -3,10 +3,9 @@
 
 /**
  * @file startupBanner.h
- * @brief Professional startup banner and system information display
+ * @brief Startup banner with basic system information (optional)
  * 
- * Provides scientific HPC-style startup banner with comprehensive
- * system information, build details, and configuration summary.
+ * Prints an ASCII banner plus build/config/system info. Purely cosmetic; callers\n+ * should skip in batch/CI runs where stdout noise matters.\n*** End Patch
  */
 
 #pragma once
@@ -40,19 +39,9 @@ inline void print_startup_banner(
     const std::string& log_file = ""
 ) {
     std::cout << "\n";
-    std::cout << "╔════════════════════════════════════════════════════════════════════════════╗\n";
-    std::cout << "║                                                                            ║\n";
-    std::cout << "║             ██╗ ██████╗ █████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗              ║\n";
-    std::cout << "║             ██║██╔════╝██╔══██╗██╔══██╗██║██╔═══██╗████╗  ██║              ║\n";
-    std::cout << "║             ██║██║     ███████║██████╔╝██║██║   ██║██╔██╗ ██║              ║\n";
-    std::cout << "║             ██║██║     ██╔══██║██╔══██╗██║██║   ██║██║╚██╗██║              ║\n";
-    std::cout << "║             ██║╚██████╗██║  ██║██║  ██║██║╚██████╔╝██║ ╚████║              ║\n";
-    std::cout << "║             ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝              ║\n";
-    std::cout << "║                                                                            ║\n";
-    std::cout << "║                  Ion Collision And Reaction IntegratiON                    ║\n";
-    std::cout << "║                   High-Performance Trajectory Simulator                    ║\n";
-    std::cout << "║                                                                            ║\n";
-    std::cout << "╚════════════════════════════════════════════════════════════════════════════╝\n";
+    // Lightweight banner; callers may disable in non-interactive contexts
+    std::cout << "ICARION - Ion Collision And Reaction IntegratiON\n";
+    std::cout << "High-Performance Trajectory Simulator\n";
     std::cout << "\n";
     
     // Version and build info

@@ -114,9 +114,7 @@ void Profiler::printSummary(std::ostream& os) const {
     }
     
     os << "\n";
-    os << "╔══════════════════════════════════════════════════════════════════════════════════════════════════════════╗\n";
-    os << "║                                    ICARION Performance Profile                                           ║\n";
-    os << "╚══════════════════════════════════════════════════════════════════════════════════════════════════════════╝\n\n";
+    os << "ICARION Performance Profile (profiling must be enabled explicitly)\n\n";
     
     os << std::fixed << std::setprecision(3);
     os << std::left;
@@ -130,7 +128,7 @@ void Profiler::printSummary(std::ostream& os) const {
        << std::setw(14) << "Min (ms)"
        << std::setw(14) << "Max (ms)"
        << std::setw(10) << "%\n";
-    os << std::string(118, '-') << "\n";
+    os << std::string(82, '-') << "\n";
     
     os << std::left;
     
@@ -149,7 +147,7 @@ void Profiler::printSummary(std::ostream& os) const {
         os << std::left;
     }
     
-    os << std::string(118, '-') << "\n";
+    os << std::string(82, '-') << "\n";
     os << std::setw(40) << "TOTAL"
        << std::right
        << std::setw(14) << std::setprecision(3) << total_ms << "\n\n";

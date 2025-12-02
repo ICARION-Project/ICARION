@@ -8,16 +8,14 @@
 #include <vector>
 
 /**
- * @brief Deposit ion charges onto 3D grid for space-charge calculations
+ * @brief Deposit ion charges onto 3D grid for space-charge calculations (box grid)
  * 
  * @param ions Vector of ion states with positions and charges
  * @param grid 3D grid specification (dimensions, spacing, origin)
  * 
  * @return Charge density [C/m³] at each grid point (size = Nx×Ny×Nz)
  * 
- * @note **Current implementation: CIC (Cloud-In-Cell) - Production Quality**
- *       Distributes charge over 8 surrounding grid nodes using trilinear weighting.
- *       This is the standard method for publication-quality PIC simulations.
+ * @note Current implementation uses CIC on a box grid. No geometry masking or boundary\n+ *       conditions are applied beyond the grid extents.\n*** End Patch
  * 
  * Maps discrete ion positions to continuous charge density field using
  * particle-in-cell (PIC) methods with second-order accuracy.

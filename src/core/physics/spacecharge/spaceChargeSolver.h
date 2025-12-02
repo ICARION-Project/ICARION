@@ -11,11 +11,11 @@
 
 /**
  * @class SpaceChargeSolver
- * @brief Fast Poisson-based solver for self-consistent space-charge fields
+ * @brief Poisson-based solver for self-consistent space-charge fields (CPU)
  *
- * Computes electric field from ion space-charge distribution during trajectory
- * integration. Optimized for speed over accuracy - suitable for real-time
- * simulations with moderate ion counts (<10,000 ions).
+ * CPU-only grid solver for box-shaped domains. Suitable for rough estimates; not
+ * geometry-aware for cylindrical/Orbitrap setups and not validated for accuracy
+ * beyond simple boxes. Falls back to zero outside the grid.
  * 
  * Workflow:
  * 1. Deposit ion charges onto 3D grid (cloud-in-cell or NGP)
@@ -28,7 +28,7 @@
 class SpaceChargeSolver {
 public:
     /**
-     * @brief Construct space-charge solver with specified grid resolution
+     * @brief Construct space-charge solver with specified grid resolution (box domain)
      * @param Nx Number of grid points in x direction
      * @param Ny Number of grid points in y direction
      * @param Nz Number of grid points in z direction
@@ -50,6 +50,8 @@ public:
      * 2. Deposit ion charges (CIC or NGP)
      * 3. Solve Poisson equation
      * 4. Compute field from potential
+     *
+     * Box-grid only; geometry boundaries are not imposed beyond the grid extents.
      */
     void update(const std::vector<IonState>& ions);
 

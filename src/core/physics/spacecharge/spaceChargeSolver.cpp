@@ -53,7 +53,7 @@ SpaceChargeSolver::SpaceChargeSolver(int Nx, int Ny, int Nz,
                                ", dy=" + std::to_string(dy) + ", dz=" + std::to_string(dz));
     }
     
-    // Warning for very coarse grids
+    // Warning for very coarse grids (accuracy may be limited)
     if (Nx < 16 || Ny < 16 || Nz < 16) {
         ICARION::log::debug_log(std::string("[SpaceChargeSolver] WARNING: Low resolution grid (") + 
                                std::to_string(Nx) + "x" + std::to_string(Ny) + "x" + std::to_string(Nz) + 
@@ -119,7 +119,7 @@ void SpaceChargeSolver::update(const std::vector<IonState>& ions)
         return; // Use cached field from previous update
     }
     
-    // 1. Charge deposition
+    // 1. Charge deposition (box grid; no geometry masking)
     auto rho = deposit_charge(ions, m_grid);
     m_solver.setSourceTerm(rho);
 

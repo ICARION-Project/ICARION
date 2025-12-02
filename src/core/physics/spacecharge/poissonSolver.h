@@ -16,9 +16,7 @@
  *     ∇²φ = -ρ/ε₀       (Poisson)
  *     ∇²φ = 0            (Laplace)
  *
- * Supports Dirichlet and Neumann boundary conditions.
- * Used both for static field computations (ICARION_FieldSolver)
- * and dynamic space-charge updates (ICARION_Simulator).
+ * Supports Dirichlet and Neumann boundary conditions; periodic/FFT path is stubbed.\n+ * Used by the CPU space-charge solver; geometry awareness is limited to the box grid.\n*** End Patch
  */
 class PoissonSolver {
 public:

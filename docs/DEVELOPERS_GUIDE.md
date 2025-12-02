@@ -1,7 +1,7 @@
 # ICARION Developer's Guide
 
 **Version:** 1.0 
-**Last Updated:** November 21, 2025
+**Last Updated:** December 2025
 
 This guide provides practical instructions for extending ICARION with new features.
 
@@ -631,22 +631,20 @@ Add to class docstring or separate documentation:
 ## GPU Development Guide
 
 **Added:** November 2025 (v1.0)
-**Status:** Core features implemented and validated
+**Status:** Core features implemented; some helpers not yet wired into main loop
 
 ### Overview
 
 ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
 
-**Completed GPU Features (v1.0):**
-- [DONE] RK4/RK45/Boris integrators (automatic dispatch with smart thresholds)
-- [DONE] HSS/EHSS collision models (persistent GPU buffers, validated thermalization)
-- [DONE] Field array interpolation (texture memory)
-- [DONE] Boundary actions (absorption, reflection)
+**Current GPU Features (v1.0):**
+- RK4/RK45/Boris batch integrators (automatic dispatch; Boris threshold ~half of default 5000)
+- HSS/EHSS collision helper (active-ion threshold default 5000; EHSS geometry upload TODO)
+- Field-provider upload for integration when ElectricFieldForce is present
+- Space charge P³M helper exists but is not invoked from the main loop yet
+- Boundary check helper supports absorption/cylindrical only and is not wired into the main loop
 
-**Note:** GPU features require CUDA toolkit and `enable_gpu: true` in config. Automatic CPU fallback for small simulations.
-
-**Validation:**
-- [PASS] CPU/GPU parity validation (37,956 assertions passed)
+**Note:** GPU features require CUDA toolkit and `enable_gpu: true` in config. Automatic CPU fallback on errors or below-threshold counts.
 
 ### Prerequisites
 

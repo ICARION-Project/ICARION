@@ -22,15 +22,9 @@ struct IonOutputData;
 /**
  * @brief Structure-of-Arrays container for ion ensemble
  * 
- * Design philosophy: "Only load what you need"
- * - Hot data (pos, vel, mass, charge) separate from cold data
- * - Cache-line aligned for optimal performance
- * - Zero false-sharing between OpenMP threads
- * - SIMD-friendly contiguous layout
- * 
- * Memory layout:
- * - Hot data: 80 bytes/ion (fits in L2 cache)
- * - Total: ~120 bytes/ion (45% reduction vs AoS)
+ * Design philosophy: "only load what you need" by separating hot data (pos/vel/mass/charge)
+ * from colder fields. SIMD-friendly contiguous layout; alignment/footprint depends on STL
+ * implementations and is not guaranteed. Used by CPU integrators; GPU code uses IonStateGPU.
  */
 class IonEnsemble {
 public:
@@ -47,7 +41,7 @@ public:
     /**
      * @brief Convert back to legacy AoS format (for compatibility)
      * @return Vector of IonState structs
-     * @note Used for output and testing. Will be removed in Phase 6.
+     * @note Used for output and testing; no scheduled removal.
      */
     std::vector<IonState> to_legacy() const;
     
@@ -111,7 +105,7 @@ public:
         hot_.vel_z[i] = vel.z;
     }
     
-    // === View access (zero-copy, Phase 2+) ===
+    // === View access (zero-copy helpers) ===
     
     IonKinematics kinematics(size_t i);
     IonCollisionData collision_data(size_t i);
@@ -173,7 +167,7 @@ public:
     size_t memory_footprint() const;
     
     /**
-     * @brief Print cache efficiency statistics
+     * @brief Print memory layout summary (approximate)
      */
     void print_memory_layout() const;
     

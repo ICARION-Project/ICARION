@@ -36,7 +36,7 @@ namespace core {
  * @struct Vec3
  * @brief Simple 3D vector with basic arithmetic operations.
  *
- * This version is header-only so that CUDA (NVCC) can inline all functions.
+ * Header-only for inlining; CUDA annotations are gated via `HD` when available.
  */
 struct Vec3 {
     double x, y, z;

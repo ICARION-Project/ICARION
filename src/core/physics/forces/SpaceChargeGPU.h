@@ -17,7 +17,9 @@ namespace ICARION::physics {
 /**
  * @brief GPU space charge force wrapper (experimental P³M)
  * 
- * Wraps GPUSpaceChargeP3M as an IForce. GPU solver is experimental, rectangular-only,\n+ * not validated, and not geometry-aware (no cylindrical/Orbitrap). Use only for\n+ * exploratory runs; CPU direct remains the exact reference.\n*** End Patch
+ * Wraps GPUSpaceChargeP3M as an IForce. GPU solver is experimental, rectangular-only,
+ * not validated, and not geometry-aware (no cylindrical/Orbitrap). Use only for
+ * exploratory runs; CPU direct remains the exact reference.
  */
 class SpaceChargeGPU : public IForce {
 public:

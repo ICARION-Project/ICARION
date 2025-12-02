@@ -5,7 +5,8 @@
  * @file Profiler.h
  * @brief Performance profiling (optional; off by default)
  * 
- * Lightweight timing helper to identify hotspots. Disabled unless enabled\n+ * programmatically; adds mutex overhead when in use.\n*** End Patch
+ * Lightweight timing helper to identify hotspots. Disabled unless enabled
+ * programmatically; adds mutex overhead when in use.
  */
 
 #pragma once

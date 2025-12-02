@@ -16,7 +16,8 @@
  *     ∇²φ = -ρ/ε₀       (Poisson)
  *     ∇²φ = 0            (Laplace)
  *
- * Supports Dirichlet and Neumann boundary conditions; periodic/FFT path is stubbed.\n+ * Used by the CPU space-charge solver; geometry awareness is limited to the box grid.\n*** End Patch
+ * Supports Dirichlet and Neumann boundary conditions; periodic/FFT path is stubbed.
+ * Used by the CPU space-charge solver; geometry awareness is limited to the box grid.
  */
 class PoissonSolver {
 public:

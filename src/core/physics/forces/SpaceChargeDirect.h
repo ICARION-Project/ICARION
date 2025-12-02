@@ -14,7 +14,9 @@ namespace ICARION::physics {
  * @brief Space charge force via direct N-body Coulomb interactions (CPU)
  * 
  * Computes electrostatic interactions in O(N²) over the ensemble with optional
- * softening to avoid singularities. No geometry masking or cutoffs are applied.\n+ * Intended for small N or verification; use with caution for cylindrical/Orbitrap\n+ * setups where this point-charge model does not respect boundaries.\n*** End Patch
+ * softening to avoid singularities. No geometry masking or cutoffs are applied.
+ * Intended for small N or verification; use with caution for cylindrical/Orbitrap
+ * setups where this point-charge model does not respect boundaries.
  */
 class SpaceChargeDirect : public IForce {
 public:

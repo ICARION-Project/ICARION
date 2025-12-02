@@ -5,7 +5,8 @@
  * @file CollisionKernels.h
  * @brief Low-level collision physics kernels
  * 
- * Stateless collision routines (no I/O/config). Inputs are pre-collision\n+ * velocities/parameters; outputs are post-collision velocities. SI units.\n*** End Patch
+ * Stateless collision routines (no I/O/config). Inputs are pre-collision
+ * velocities/parameters; outputs are post-collision velocities. SI units.
  */
 
 #pragma once

@@ -68,7 +68,8 @@ namespace ICARION::physics {
  * handler.handle_collision(ion, dt, rng, env);  // SSOT!
  * ```
  * 
- * Gamma coefficient should match the damping coefficient used in DampingForce;\n+ * otherwise equilibrium temperature will be off.\n*** End Patch
+ * Gamma coefficient should match the damping coefficient used in DampingForce;
+ * otherwise equilibrium temperature will be off.
  * 
  * @see DampingForce for deterministic damping models
  * @see apply_ou_velocity_kick() for underlying implementation

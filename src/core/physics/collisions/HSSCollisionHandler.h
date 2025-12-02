@@ -37,7 +37,7 @@ namespace ICARION::physics {
  * Implements simple isotropic hard-sphere scattering model.
  * Uses effective collision cross-section without molecular geometry.
  * 
- * Recommended when geometry is unavailable; geometry-resolved scattering requires EHSS.\n*** End Patch
+ * Recommended when geometry is unavailable; geometry-resolved scattering requires EHSS.
  * 
  * **SSOT Pattern:**
  * ```cpp

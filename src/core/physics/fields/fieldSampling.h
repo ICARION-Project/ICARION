@@ -49,7 +49,9 @@ struct FieldSnapshot {
  * @param pos Position to sample at (in meters)
  * @return Interpolated field E(pos) in V/m
  * 
- * Uses trilinear interpolation between the 8 nearest grid points. Clamps to grid\n+ * bounds if position is outside. Intended for simple host-side sampling of stored\n+ * snapshots; not wired into the main simulation loop.\n*** End Patch
+ * Uses trilinear interpolation between the 8 nearest grid points. Clamps to grid
+ * bounds if position is outside. Intended for simple host-side sampling of stored
+ * snapshots; not wired into the main simulation loop.
  */
 Vec3d sample_field(const FieldSnapshot& snapshot, const Vec3d& pos);
 

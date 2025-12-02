@@ -5,7 +5,8 @@
  * @file startupBanner.h
  * @brief Startup banner with basic system information (optional)
  * 
- * Prints an ASCII banner plus build/config/system info. Purely cosmetic; callers\n+ * should skip in batch/CI runs where stdout noise matters.\n*** End Patch
+ * Prints an ASCII banner plus build/config/system info. Purely cosmetic; callers
+ * should skip in batch/CI runs where stdout noise matters.
  */
 
 #pragma once

@@ -6,7 +6,8 @@
  * @brief Magnetic field force (Lorentz force) implementation
  * 
  * Computes Lorentz magnetic force F = q·(v × B) for ions in magnetic fields.
- * Supports uniform/gradient fields from config or a field provider. Field providers\n+ * must supply B via the shared interface (see note below).\n*** End Patch
+ * Supports uniform/gradient fields from config or a field provider. Field providers
+ * must supply B via the shared interface (see note below).
  */
 
 #pragma once

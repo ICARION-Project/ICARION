@@ -15,7 +15,8 @@
  * 
  * @return Charge density [C/m³] at each grid point (size = Nx×Ny×Nz)
  * 
- * @note Current implementation uses CIC on a box grid. No geometry masking or boundary\n+ *       conditions are applied beyond the grid extents.\n*** End Patch
+ * @note Current implementation uses CIC on a box grid. No geometry masking or boundary
+ *       conditions are applied beyond the grid extents.
  * 
  * Maps discrete ion positions to continuous charge density field using
  * particle-in-cell (PIC) methods with second-order accuracy.

@@ -18,7 +18,9 @@ struct FieldArrayGPU;
  * @brief Batch Boris pusher integration on GPU with constant fields (experimental)
  * 
  * Integrates all ions from t to t+dt using symplectic Boris algorithm.
- * Experimental path (tested in isolation), not wired into SimulationEngine.\n+ * Optimal for magnetic field-dominated systems (ICR, Orbitrap, Penning).\n+ * CPU parity not established.\n*** End Patch
+ * Experimental path (tested in isolation), not wired into SimulationEngine.
+ * Optimal for magnetic field-dominated systems (ICR, Orbitrap, Penning).
+ * CPU parity not established.
  * 
  * Algorithm:
  *   1. Half-step electric kick: v^- = v^n + (q/m)*E*dt/2
@@ -49,7 +51,8 @@ void integrate_boris_batch(
  * @brief Batch Boris pusher integration on GPU with field interpolation
  * 
  * Integrates all ions from t to t+dt using Boris algorithm with
- * position-dependent field evaluation from texture memory. Experimental; uses\n+ * single-precision field textures and has not been validated against CPU Boris.\n*** End Patch
+ * position-dependent field evaluation from texture memory. Experimental; uses
+ * single-precision field textures and has not been validated against CPU Boris.
  * 
  * Fields are evaluated at:
  *   - E(x^n) for both electric kicks

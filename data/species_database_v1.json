@@ -22,7 +22,7 @@
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/PentanalH+.json"
     },
-    "2,6-DTBPH+": {
+    "26DTBPH+": {
       "mass_amu": 192.0,
       "charge": 1,
       "mobility_cm2Vs": 6.25,

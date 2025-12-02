@@ -31,7 +31,7 @@ struct Species {
     std::optional<std::string> geometry_file;  ///< Path to molecular geometry JSON
     
     // Derived quantities
-    double reduced_mass_kg;              ///< Reduced mass with background gas [kg]
+    double reduced_mass_kg;              ///< Reduced mass with background gas [kg] (computed)
     
     /**
      * @brief Calculate mobility from CCS using Mason-Schamp equation
@@ -148,9 +148,9 @@ private:
  * 
  * Required fields: id, mass_u, charge_e
  * Optional fields: name, CCS_m2, mobility_m2Vs, geometry_file
- * 
+ *
  * If both CCS and mobility are missing, throws error.
- * If only one is provided, the other is calculated.
+ * If only one is provided, the other is calculated using Mason-Schamp.
  */
 SpeciesDatabase load_species(const std::string& filepath);
 

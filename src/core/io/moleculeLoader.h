@@ -43,7 +43,7 @@ struct Atom {
  * @brief Complete molecular structure
  * 
  * Contains all atoms with their positions, charges, and LJ parameters.
- * Also includes molecular-level properties like total CCS.
+ * Also includes molecular-level properties like total CCS (if provided).
  */
 struct Molecule {
     std::string name;             ///< Molecule identifier
@@ -137,7 +137,7 @@ struct Molecule {
  * 
  * Optional fields:
  * - molecule.diameter_m (calculated if missing)
- * - molecule.CCS_m2 (must be provided or calculated externally)
+ * - molecule.CCS_m2 (must be provided or calculated externally; not derived here)
  * - atom.LJ_sigma_m, atom.LJ_epsilon_eV (default to 0)
  */
 Molecule load_molecule(const std::string& filepath);

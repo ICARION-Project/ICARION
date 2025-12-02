@@ -23,7 +23,7 @@ namespace log {
  * - Automatic category-based loggers (config, integrator, hdf5, etc.)
  * - Console + File output (configurable)
  * - JSON format option for automated analysis
- * - Zero overhead when disabled (compile-time checks)
+ * - Low overhead when disabled (compile-time checks on LOG_TIMER/LOG_DEBUG_IF)
  * - Thread-safe
  * - Rotating log files (prevents disk filling)
  * 
@@ -161,7 +161,7 @@ private:
 /**
  * @brief Macro for zero-overhead performance timing
  * 
- * In Release builds (NDEBUG defined), this is a complete no-op.
+ * In Release builds (NDEBUG defined), this is a no-op.
  * In Debug builds, creates a Timer that auto-logs on scope exit.
  * 
  * @code

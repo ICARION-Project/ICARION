@@ -69,7 +69,7 @@ FieldArray load_field_array(const std::string& path);
  * @return Interpolated electric field vector [V/m]
  * 
  * Uses trilinear interpolation on the 3D grid. For positions outside the grid,
- * returns zero field (or nearest boundary value, depending on implementation).
+ * returns zero field (no extrapolation).
  * 
  * Interpolation weights are computed from fractional grid indices, then applied
  * to the 8 surrounding grid points (corners of interpolation cube).

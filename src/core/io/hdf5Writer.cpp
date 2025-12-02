@@ -2,13 +2,13 @@
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
- * @file hdf5Writer_v2.cpp
+ * @file hdf5Writer.cpp
  * @brief Implementation of modern HDF5 writer using FullConfig
  * 
  * **v1.0 Improvements (Nov 2025):**
  * - Consistent metadata hierarchy: All under /metadata/ (no root attributes)
  * - Smart filtering: Only write species/reactions actually used in simulation
- *   - Reduces file size for large databases (e.g., 1000+ reaction networks)
+ *   - Reduces file size for large databases
  *   - Filters based on ion.species_id references
  *   - Reactions filtered by reactant species presence
  */

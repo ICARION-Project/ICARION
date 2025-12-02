@@ -106,7 +106,7 @@ Vec3 interpolate_field(const FieldArray& fld, const Vec3& pos) {
     }
 
     // Locate the surrounding grid points: i0 ≤ pos.x ≤ i1, etc.
-    // FFor simple implementation: linear search + clipping — you can optimize (bin search) later.
+    // Simple implementation: linear search + clipping — can be optimized (bin search) if needed.
 
     auto locate = [](const std::vector<double>& arr, double v, size_t &i0, size_t &i1, double &alpha) {
         // arr monoton increasing

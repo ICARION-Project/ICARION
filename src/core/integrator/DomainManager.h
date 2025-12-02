@@ -13,7 +13,8 @@
  * - Check aperture crossings (domain transitions)
  * - Update ion properties when transitioning domains
  * 
- * Extracts domain management logic from legacy integrate_trajectory()
+ * Extracts domain management logic from legacy integrate_trajectory().
+ * Supports cylindrical and Orbitrap domains; other geometries are not handled.
  */
 
 #pragma once

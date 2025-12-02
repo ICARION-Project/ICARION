@@ -93,26 +93,27 @@ static void apply_override_to_json(nlohmann::json& j, const std::string& key, co
             // Unknown override key -> ignore for snapshot
         }
     } catch (const std::exception& e) {
-        log::Logger::main()->warn("Config snapshot override skipped for {}: {}", key, e.what());
+        ICARION::log::Logger::main()->warn("Config snapshot override skipped for {}: {}", key, e.what());
     }
 }
 
 static void write_config_snapshot(
     const std::string& config_path,
-    const config::FullConfig& config,
-    const cli::CLIOptions& opts
+    const ICARION::config::FullConfig& config,
+    const ICARION::cli::CLIOptions& opts
 ) {
+    // Snapshot is based on the original JSON plus CLI overrides (no derived/finalized fields).
     // Read original JSON
     nlohmann::json j;
     try {
         std::ifstream in(config_path);
         if (!in) {
-            log::Logger::main()->warn("Config snapshot skipped: cannot read {}", config_path);
+            ICARION::log::Logger::main()->warn("Config snapshot skipped: cannot read {}", config_path);
             return;
         }
         in >> j;
     } catch (const std::exception& e) {
-        log::Logger::main()->warn("Config snapshot skipped: failed to parse {} ({})", config_path, e.what());
+        ICARION::log::Logger::main()->warn("Config snapshot skipped: failed to parse {} ({})", config_path, e.what());
         return;
     }
     
@@ -149,9 +150,9 @@ static void write_config_snapshot(
         std::ofstream out(snapshot_path);
         out << j.dump(2);
         out.close();
-        log::Logger::main()->info("Wrote config snapshot: {}", snapshot_path.string());
+        ICARION::log::Logger::main()->info("Wrote config snapshot: {}", snapshot_path.string());
     } catch (const std::exception& e) {
-        log::Logger::main()->warn("Failed to write config snapshot to {} ({})", snapshot_path.string(), e.what());
+        ICARION::log::Logger::main()->warn("Failed to write config snapshot to {} ({})", snapshot_path.string(), e.what());
     }
 }
 

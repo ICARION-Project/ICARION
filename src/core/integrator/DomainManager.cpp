@@ -279,7 +279,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
         return;
     }
     
-    // ========== CYLINDRICAL GEOMETRY (Existing Code) ==========
+    // ========== CYLINDRICAL GEOMETRY ==========
     Vec3 dir = pos_after_local - pos_before_local;
     double dir_len = std::sqrt(dir.x*dir.x + dir.y*dir.y + dir.z*dir.z);
     

@@ -145,8 +145,8 @@ void SimulationEngine::initialize_openmp_settings() {
         setenv("OMP_PROC_BIND", "close", 0);
         
         // Note: Performance impact depends on system topology:
-        // - NUMA systems (AMD Threadripper, EPYC): +20-30% speedup
-        // - Uniform memory (Intel single-socket): +5-10% speedup
+        // - NUMA systems (AMD Threadripper, EPYC): measured +20-30% speedup in internal runs
+        // - Uniform memory (single-socket): measured +5-10% speedup
         // - Small systems (laptop): minimal impact
     }
     #endif
@@ -504,12 +504,7 @@ bool SimulationEngine::try_gpu_space_charge(const std::vector<IonState>& ions, s
     // Threshold check: P³M only beneficial above ~1000 ions
     // =========================================================================
     // For small N, direct summation O(N²) is faster than P³M O(N log N)
-    // because FFT overhead dominates.
-    // 
-    // Crossover point (measured):
-    // - N = 100:   CPU direct (0.01 ms) < GPU P³M (0.1 ms)
-    // - N = 1000:  CPU direct (1 ms)    ≈ GPU P³M (0.5 ms)
-    // - N = 10000: CPU direct (100 ms)  >> GPU P³M (3 ms)  [33× speedup]
+    // because FFT overhead dominates. P³M is not dispatched from SimulationEngine yet.
     // =========================================================================
     
     size_t n_active = 0;

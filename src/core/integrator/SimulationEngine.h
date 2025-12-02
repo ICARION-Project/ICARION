@@ -259,8 +259,7 @@ private:
      * **Dispatch Logic:**
      * - Requires N >= gpu_space_charge_threshold_ (default: 1000 ions)
      * - Uses P³M algorithm (O(N log N) via FFT)
-     * - Expected speedup applies once the caller dispatches; SimulationEngine
-     *   does not yet invoke this helper in the main loop (pending integration).
+     * - SimulationEngine does not dispatch this helper yet; caller must invoke manually.
      * 
      * **Automatically falls back to CPU if:**
      * - GPU not available
@@ -329,7 +328,7 @@ private:
      * - Reduced cache misses (hot data packed together)
      * - Compatibility layer: converts to IonState for collision/reaction handlers
      * 
-     * **Expected Speedup:** Realized when integrators override step_soa() and
+     * **Performance:** Gains materialize when integrators override step_soa() and
      * avoid AoS conversions; default wrappers may limit gains.
      */
     void process_timestep_soa(core::IonEnsemble& ensemble, double dt);

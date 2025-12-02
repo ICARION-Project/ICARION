@@ -12,8 +12,9 @@
  * - Periodic HDF5 writes (time-based or size-based)
  * - Metadata export (species, parameters, git hash, version)
  * - Text logging (progress, statistics, completion summary)
+ * - Config snapshot written separately by main.cpp (not handled here)
  * 
- * Wraps both HDF5Writer v2 and RunLogger for unified output API.
+ * Wraps both HDF5Writer and RunLogger for unified output API.
  */
 
 #pragma once
@@ -48,12 +49,6 @@ namespace integrator {
  * **Memory Usage Warning:**
  * Current implementation stores full IonState vectors in RAM.
  * For large ensembles (>100k ions), this can consume significant memory.
- * 
- * TODO(v1.1): Implement memory-efficient output modes:
- * - positions_only mode (skip velocity, skip inactive ions)
- * - reduced_precision mode (float instead of double)
- * - sparse_logging mode (log every N-th ion)
- * - streaming mode (extendible datasets, no buffering)
  * 
  * **Text Logging (optional):**
  * - Progress messages ("50% completed")

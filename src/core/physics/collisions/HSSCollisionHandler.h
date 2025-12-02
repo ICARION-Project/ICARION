@@ -7,7 +7,7 @@
  * 
  * Implements isotropic hard-sphere scattering with random deflection angle.
  * Uses effective collision cross-section (single sphere approximation).
- * Faster than EHSS but less physically accurate for non-spherical molecules.
+ * Faster than EHSS but less accurate for non-spherical molecules.
  * 
  * **Physics:**
  * - Isotropic scattering (random deflection angle in COM frame)
@@ -37,15 +37,7 @@ namespace ICARION::physics {
  * Implements simple isotropic hard-sphere scattering model.
  * Uses effective collision cross-section without molecular geometry.
  * 
- * **Use cases:**
- * - Fast simulations with many ions
- * - Spherical or near-spherical molecules
- * - When geometry data is unavailable
- * 
- * **Performance:**
- * - Much faster than EHSS (no geometry sampling)
- * - O(1) collision detection
- * - Recommended for large ensembles (> 10k ions)
+ * Recommended when geometry is unavailable; geometry-resolved scattering requires EHSS.\n*** End Patch
  * 
  * **SSOT Pattern:**
  * ```cpp

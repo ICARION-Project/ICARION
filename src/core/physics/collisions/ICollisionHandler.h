@@ -5,16 +5,9 @@
  * @file ICollisionHandler.h
  * @brief Interface for stochastic collision models
  * 
- * Defines the abstract interface for handling discrete collision events in ion trajectory simulations.
- * This interface supports EHSS (structure-resolved), HSS (isotropic), and OU (thermal kicks) models.
- * 
- * **Design Philosophy (SSOT):**
- * - Handlers read environment parameters directly from `EnvironmentConfig` (no parameter copies)
- * - No intermediate structs or conversions (single source of truth)
- * - Clean separation: stochastic collisions (ICollisionHandler) vs deterministic damping (DampingForce)
- * 
- * @date 2025-11-21
- * @version 1.0
+ * Discrete collision handlers (EHSS, HSS, OU) update ion velocity stochastically
+ * using environment parameters supplied at call time. Deterministic damping lives in
+ * DampingForce.
  */
 
 #pragma once
@@ -66,10 +59,6 @@ public:
      * @brief Handle collision for single timestep
      * 
      * Determines if collision occurs (probabilistic) and updates ion velocity accordingly.
-     * 
-     * **SSOT Pattern:**
-     * Environment parameters (temperature, pressure, density, etc.) are read directly
-     * from `env` parameter. No parameter copies or intermediate structs.
      * 
      * @param[in,out] ion Ion state (velocity modified in-place if collision occurs)
      * @param[in] dt Timestep [s]

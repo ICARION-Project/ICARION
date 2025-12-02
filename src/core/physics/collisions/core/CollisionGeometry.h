@@ -5,16 +5,8 @@
  * @file CollisionGeometry.h
  * @brief Low-level geometric operations for collision calculations
  * 
- * Pure geometric utilities for collision physics. All functions are stateless
- * and operate on vectors and rotation matrices.
- * 
- * **Physics Invariants:**
- * - Orthonormal bases preserve vector norms
- * - Random rotations are uniformly distributed on SO(3)
- * - All operations are numerically stable (no division by zero)
- * 
- * @note This module contains PHYSICS CORE code. Changes must be validated
- *       against reference implementations and regression tests.
+ * Stateless geometric helpers used by collision kernels. Random rotations are
+ * sampled uniformly on SO(3) via the quaternion method.
  */
 
 #pragma once

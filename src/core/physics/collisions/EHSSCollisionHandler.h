@@ -6,7 +6,8 @@
  * @brief Explicit Hard-Sphere Scattering (EHSS) collision handler
  * 
  * Implements structure-resolved hard-sphere scattering using atom-centered spheres.
- * Uses molecular geometry (atom positions and radii) for accurate collision cross-sections.
+ * Uses molecular geometry (atom positions and radii) for collision detection; falls back
+ * to CCS if geometry is missing.
  * 
  * **Physics:**
  * - Samples impact parameter and molecular orientation randomly
@@ -57,15 +58,7 @@ using GeometryMap = std::unordered_map<std::string, GeometryData>;
  * Implements structure-resolved collision model using atom-centered hard spheres.
  * Provides accurate collision cross-sections for complex molecular geometries.
  * 
- * **Use cases:**
- * - Polyatomic ions with non-spherical geometries
- * - Accurate mobility calculations
- * - Cross-section validation studies
- * 
- * **Performance:**
- * - Slower than HSS (isotropic) due to geometry sampling
- * - O(N_atoms) collision detection per event
- * - Recommended for N_atoms < 50
+ * Recommended when geometry is available and accurate scattering is needed; slower than\n+ * HSS due to per-atom checks.
  * 
  * **SSOT Pattern:**
  * ```cpp

@@ -15,10 +15,10 @@
  * - Handlers maintain SSOT principle by taking EnvironmentConfig references
  * 
  * **Collision Model Routing:**
- * - **Stochastic (ICollisionHandler):** EHSS, HSS
- * - **Deterministic (DampingForce):** Friction, Langevin, HSD
- * - **Special:** NoCollisions → nullptr (no collision handling)
- * - **OU Thermalization:** Handled separately via enable_ou_thermalization flag
+ * - Stochastic (ICollisionHandler): EHSS, HSS
+ * - Deterministic (DampingForce): Friction, Langevin, HSD
+ * - NoCollisions → nullptr (no collision handling)
+ * - OU thermalization handled separately via enable_ou_thermalization flag
  * 
  * **Usage:**
  * ```cpp

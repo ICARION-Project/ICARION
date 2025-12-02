@@ -5,26 +5,7 @@
  * @file CollisionKernels.h
  * @brief Low-level collision physics kernels
  * 
- * Pure collision algorithms (NO state, NO I/O, NO configuration).
- * These are the PHYSICS CORE - DO NOT change algorithms without validation!
- * 
- * **Design:**
- * - Stateless static methods (pure functions)
- * - Input: pre-collision velocities + collision parameters
- * - Output: post-collision ion velocity
- * - All quantities in SI units (m/s, kg, K)
- * 
- * **Physics Invariants:**
- * - Momentum conservation in center-of-mass frame
- * - Energy conservation (elastic collisions)
- * - Isotropic scattering distributions (HSS)
- * - Geometry-resolved scattering (EHSS)
- * - Thermalization via Langevin dynamics (OU)
- * 
- * @note This module contains CRITICAL PHYSICS CODE. Any changes must be:
- *       1. Validated against reference data (regression tests)
- *       2. Checked for energy/momentum conservation
- *       3. Verified against thermalization benchmarks
+ * Stateless collision routines (no I/O/config). Inputs are pre-collision\n+ * velocities/parameters; outputs are post-collision velocities. SI units.\n*** End Patch
  */
 
 #pragma once

@@ -3,7 +3,9 @@
 
 /**
  * @file collision_kernels_gpu.cu
- * @brief GPU collision kernel implementations
+ * @brief GPU collision kernel implementations (experimental GPU HSS/EHSS)
+ * @details Currently used via GPUCollisionHelper; geometry mapping is
+ *          rudimentary and results are not validated against the CPU path.
  */
 
 #include "collision_kernels_gpu.cuh"

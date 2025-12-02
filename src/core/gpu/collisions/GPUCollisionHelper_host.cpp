@@ -9,6 +9,9 @@
  * nvcc cannot handle forward declarations properly, so we split:
  * - This file (.cpp): Factory, constructor, destructor (uses GPUContext)
  * - .cu file: Kernel launches and GPU-specific code
+ *
+ * The helper is experimental: EHSS assumes caller-provided geometry and
+ * species indices; there is no validation parity with the CPU path yet.
  */
 
 #include "core/gpu/core/GPUContext.h"

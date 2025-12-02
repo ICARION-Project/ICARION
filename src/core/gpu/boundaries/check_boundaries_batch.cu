@@ -5,7 +5,8 @@
  * @file check_boundaries_batch.cu
  * @brief GPU batch boundary checking implementation
  * 
- * Phase 11: GPU Acceleration - Boundary Handling Module
+ * Only supports cylindrical geometry; Orbitrap bounds are currently handled
+ * on the CPU path.
  */
 
 #include "check_boundaries_batch.cuh"

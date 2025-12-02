@@ -6,16 +6,17 @@
  * @brief GPU batch collision processing
  * 
  * High-level interface for GPU collision handling.
- * Manages memory transfers, cuRAND states, and kernel launches.
+ * Manages memory transfers, cuRAND states, and kernel launches. Experimental
+ * and currently only lightly exercised; EHSS geometry mapping assumes a single
+ * species index unless the caller populates `set_geometry` appropriately.
  * 
  * **Design:**
  * - Automatic dispatch: GPU if N >= threshold, else return false
  * - Async pipeline: upload -> compute -> download
- * - Buffer management via GPUMemoryPool
- * - cuRAND state persistence across timesteps
- * - Performance statistics tracking
+ * - Persistent buffers and cuRAND states reused across timesteps
+ * - Minimal statistics tracking (batch/ion counters, timing placeholders)
  * 
- * **Integration with SimulationEngine:**
+ * **Integration with SimulationEngine (not wired by default):**
  * ```cpp
  * if (gpu_collision_helper_ && ions.size() >= threshold) {
  *     if (gpu_collision_helper_->process_collisions_batch(ions, dt, env)) {
@@ -89,7 +90,8 @@ struct CollisionStats_GPU {
  * @brief GPU collision batch processor
  * 
  * Manages GPU resources for batch collision processing.
- * Supports both HSS (isotropic) and EHSS (geometry-resolved) models.
+ * Supports both HSS (isotropic) and EHSS (geometry-resolved) models; EHSS
+ * requires geometry upload and species-index mapping by the caller.
  */
 class GPUCollisionHelper {
 public:
@@ -144,7 +146,9 @@ public:
     /**
      * @brief Set molecular geometry for EHSS model
      * 
-     * Must be called before processing if using EHSS model.
+     * Must be called before processing if using EHSS model. Geometry order
+     * defines species indices expected in `IonState` entries supplied by the
+     * caller; helper does not resolve IDs to indices.
      * 
      * @param geometry_map Species -> (atom_centers, atom_radii)
      */

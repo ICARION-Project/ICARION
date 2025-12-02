@@ -5,27 +5,25 @@
  * @file collision_kernels_gpu.cuh
  * @brief GPU collision kernels (EHSS/HSS)
  * 
- * CUDA kernels for batch collision processing.
- * Implements EHSS and HSS collision models on GPU with cuRAND for stochastic sampling.
- * 
+ * CUDA kernels for batch collision processing. Implements experimental GPU
+ * variants of the HSS (isotropic) and EHSS (geometry-resolved) models using
+ * cuRAND for stochastic sampling. These kernels are currently only exercised
+ * via `GPUCollisionHelper`; species-to-geometry mapping is still rudimentary
+ * (single-species assumption) and results have not been validated against the
+ * CPU path.
+ *
  * **Design:**
- * - Batch processing: one thread per ion
- * - Grid-stride loop for arbitrary ion counts
- * - cuRAND states pre-initialized, one per thread
- * - Collision probability evaluated per ion
- * - Only colliding ions perform full collision calculation
- * 
- * **Performance:**
- * - Expected 5-20× speedup vs CPU for N > 5000 ions
- * - Memory bandwidth: ~50 GB/s (ion state + geometry data)
- * - Compute: dominated by RNG and transcendental functions
- * 
- * **Phase 11 Implementation Plan:**
- * 1. HSS kernel (simpler, no geometry)
- * 2. EHSS kernel (geometry-resolved)
- * 3. cuRAND integration
- * 4. Batch collision handler class
- * 5. SimulationEngine integration
+ * - Batch processing: one thread per ion, grid-stride loop for arbitrary N
+ * - cuRAND states must be pre-initialized (one per launched thread)
+ * - Collision probability evaluated per ion; non-colliding ions do minimal work
+ *
+ * **Caveats:**
+ * - Environment fields `mean_free_path_m` and `thermal_velocity_m_s` are
+ *   unused by the kernels (kept for parity with host structs).
+ * - EHSS uses a simple specular reflection with neutral radius as ion radius
+ *   and falls back to isotropic scattering if no geometry hit is found.
+ * - Geometry upload and species index mapping must be handled by the caller;
+ *   invalid indices fall back to HSS behaviour.
  */
 
 #pragma once
@@ -97,7 +95,7 @@ __global__ void init_curand_states(
  * Isotropic hard-sphere scattering without geometry.
  * 
  * **Algorithm:**
- * 1. Compute collision probability: P = 1 - exp(-v_rel * σ * n * dt / 4)
+ * 1. Compute collision probability: P = 1 - exp(-v_rel * σ * n * dt)
  * 2. Sample uniform random: if (u < P) → collision occurs
  * 3. Sample neutral velocity from Maxwell-Boltzmann distribution
  * 4. Transform to COM frame
@@ -112,7 +110,7 @@ __global__ void init_curand_states(
  * @param ccs Ion collision cross-sections [m²]
  * @param active Ion active flags (skip inactive ions)
  * @param curand_states cuRAND states (one per thread)
- * @param env Environment parameters (constant memory)
+ * @param env Environment parameters (passed by value)
  * @param dt Timestep [s]
  * @param n_ions Total number of ions
  */
@@ -141,9 +139,9 @@ __global__ void hss_collision_kernel(
  * 4. Randomly rotate molecule (3 Euler angles)
  * 5. Sample impact parameter in plane perpendicular to v_rel
  * 6. Ray-trace through rotated atoms, find first contact
- * 7. Compute collision normal from contact point
- * 8. Perform specular reflection in COM frame
- * 9. Transform back to lab frame
+ * 7. Compute collision normal from contact point (approximate)
+ * 8. Perform specular reflection in COM frame (uses neutral radius as ion radius)
+ * 9. Transform back to lab frame; if no geometry hit, fall back to isotropic scattering
  * 10. Update ion velocity
  * 
  * @param vx_inout Ion x-velocity [m/s] (modified in-place)
@@ -154,7 +152,7 @@ __global__ void hss_collision_kernel(
  * @param species_indices Ion species indices (for geometry lookup)
  * @param active Ion active flags
  * @param curand_states cuRAND states (one per thread)
- * @param env Environment parameters (constant memory)
+ * @param env Environment parameters (passed by value)
  * @param geometry Geometry data (global memory)
  * @param dt Timestep [s]
  * @param n_ions Total number of ions

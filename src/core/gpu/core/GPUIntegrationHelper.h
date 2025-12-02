@@ -22,9 +22,9 @@ namespace gpu {
 /**
  * @brief GPU batch integration helper for SimulationEngine
  * 
- * Provides high-performance batch RK4 integration on GPU when ion count
- * exceeds threshold. Designed to be called from SimulationEngine's parallel
- * ion loop as an optimization path.
+ * Provides batch RK4/RK45/Boris integration on GPU when ion count exceeds
+ * threshold. Experimental and not wired into SimulationEngine by default;
+ * callers must handle GPU/CPU selection and field upload.
  * 
  * Usage in SimulationEngine:
  *   if (gpu_helper && ions.size() >= GPU_THRESHOLD) {
@@ -53,7 +53,8 @@ public:
      * @brief Batch RK4 integration on GPU
      * 
      * Integrates all ions from t to t+dt using GPU acceleration.
-     * Falls back to returning false if GPU error occurs.
+     * Falls back to returning false if GPU error occurs. Not validated against
+     * the CPU path and not enabled in production by default.
      * 
      * @param ions Ion states (modified in-place)
      * @param dt Timestep [s]
@@ -77,6 +78,7 @@ public:
      * 
      * Adaptive 4th/5th order Runge-Kutta with automatic step size control.
      * Each ion adapts its substep size independently based on local error.
+     * Experimental; expect to fall back to CPU if instability is observed.
      * 
      * @param ions Ion states (modified in-place)
      * @param dt Maximum timestep [s]
@@ -99,7 +101,7 @@ public:
      * @brief Batch Boris pusher integration on GPU
      * 
      * Symplectic method optimal for magnetic field-dominated systems.
-     * Second-order accurate and conserves energy in pure B-field.
+     * Experimental and not connected to the main integration flow.
      * 
      * @param ions Ion states (modified in-place)
      * @param dt Timestep [s]

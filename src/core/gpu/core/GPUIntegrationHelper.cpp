@@ -111,7 +111,7 @@ bool GPUIntegrationHelper::integrate_batch_rk4(
         ions_gpu_in_.count = N;
         ions_gpu_out_.count = N;
         
-        // Try to extract field array from provider
+        // Try to extract field array from provider (only grid providers supported)
         const FieldArray* field_array = try_extract_field_array(field_provider);
         
         // Upload fields to GPU if available

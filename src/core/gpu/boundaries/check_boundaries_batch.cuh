@@ -5,16 +5,14 @@
  * @file check_boundaries_batch.cuh
  * @brief GPU batch boundary checking for cylindrical geometry
  * 
- * Phase 11: GPU Acceleration - Boundary Handling Module
- * 
- * Validates ion positions against domain geometry boundaries:
+ * Validates ion positions against cylindrical domain boundaries:
  * - Axial bounds: -ε ≤ z < length_m
  * - Radial bound: r ≤ radius_m + ε
- * 
- * Parallelizes boundary checks across all active ions in batch.
- * 
- * @note Orbitrap hyperlogarithmic boundaries handled on CPU (rare geometry)
- * @note Multi-domain transitions handled on CPU (requires domain lookup)
+ *
+ * Parallelizes boundary checks across all active ions in batch. Only
+ * cylindrical geometry is supported on GPU; Orbitrap boundaries are currently
+ * evaluated on the CPU path. Domain transitions are handled by the caller via
+ * the `is_last_domain` flag.
  */
 
 #pragma once
@@ -42,7 +40,7 @@ struct CylindricalGeometry {
  * @param pos_y Y positions [m] (device array, length N)
  * @param pos_z Z positions [m] (device array, length N)
  * @param active Active flags (device array, length N, modified in-place)
- * @param geom Geometry parameters (device constant memory)
+ * @param geom Geometry parameters (copied into registers for each launch)
  * @param N Number of ions in batch
  * 
  * For each ion i:

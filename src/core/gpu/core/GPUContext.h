@@ -34,7 +34,8 @@ struct DeviceProperties {
  * @brief RAII wrapper for CUDA device context and stream management
  * 
  * Manages CUDA device initialization, stream creation, and error handling.
- * Provides automatic cleanup on destruction.
+ * Provides automatic cleanup on destruction. Used by GPU helpers; not all
+ * helpers are fully integrated or validated.
  * 
  * Usage:
  *   auto context = GPUContext::create(0);  // Device 0

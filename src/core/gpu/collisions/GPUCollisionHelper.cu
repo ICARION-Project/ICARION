@@ -3,15 +3,17 @@
 
 /**
  * @file GPUCollisionHelper.cu
- * @brief GPU collision helper implementation
+ * @brief GPU collision helper implementation (experimental)
  */
 
 /**
  * @file GPUCollisionHelper.cu
  * @brief CUDA implementation (kernel launches and device code only)
  * 
- * Factory/constructor/destructor moved to _host.cpp to avoid nvcc issues with GPUContext.
- * This file contains only GPU kernel launches and device memory management.
+ * Factory/constructor/destructor moved to _host.cpp to avoid nvcc issues with
+ * GPUContext. This file contains only GPU kernel launches and device memory
+ * management. Species-index mapping for EHSS is minimal (single-species unless
+ * caller fills indices) and results are not yet validated against CPU.
  */
 
 #include "GPUCollisionHelper.h"
@@ -283,8 +285,11 @@ bool GPUCollisionHelper::process_collisions_batch(
             ccs_host[i] = ions[i].CCS_m2;
             active_host[i] = ions[i].active ? 1 : 0;
             if (collision_model_ == "EHSS") {
-                // TODO: Map species_id to species_index using a species database lookup
-                species_indices_host[i] = 0;  // For now, assume single species
+                // WARNING: species_index mapping is stubbed (assumes single species).
+                // Caller must populate IonState species_id -> geometry index mapping
+                // before relying on EHSS results.
+                // TODO: hook up species DB lookup here.
+                species_indices_host[i] = 0;
             }
         }
         

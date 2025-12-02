@@ -21,17 +21,17 @@
  * particle-in-cell (PIC) methods with second-order accuracy.
  * 
  * **Implemented deposition schemes:**
- * - ✅ **CIC (Cloud-In-Cell)**: Trilinear interpolation over 8 surrounding nodes
+ * - **CIC (Cloud-In-Cell)**: Trilinear interpolation over 8 surrounding nodes
  *   O(h²) convergence, smooth fields, standard for publication-quality results.
  *   Charge conserving, parallel-safe with OpenMP atomics.
  *   Recommended for all production simulations.
  * 
  * **Legacy methods (deprecated):**
- * - ⚠️ **NGP (Nearest Grid Point)**: Only used in ultra-high performance mode (N>1M ions)
+ * - **NGP (Nearest Grid Point)**: Only used in ultra-high performance mode (N>1M ions)
  *   O(h) convergence, causes grid noise, not recommended for publication.
  * 
  * **Future enhancement (v1.1+):**
- * - ⏳ TSC (Triangular Shaped Cloud): Higher-order interpolation (27 nodes)
+ * - TSC (Triangular Shaped Cloud): Higher-order interpolation (27 nodes)
  *   O(h³) convergence, best smoothness but 3x slower than CIC
  * 
  * **Grid Resolution Requirements:**

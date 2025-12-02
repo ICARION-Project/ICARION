@@ -8,7 +8,7 @@
 - SoA (`IonEnsemble`) path and integrator `step_soa` hooks
 - HDF5 output with selected config/system metadata, species/reaction subsets, waveform library (v1.1 addition)
 - Comprehensive CLI (`icarion_main`): validation, schema dumps, profiling/benchmark flags
-- Validated collision models: Friction, HSS (thermal diffusion), EHSS (structure-aware, mobility bias noted)
+- Validated collision models: Friction (deterministic friction force), HSS (isotropic collisions), EHSS (structure-aware, mobility bias noted)
 - Numerical safety logging/reporting, OpenMP-aware threading defaults
 
 **Known Limitations**
@@ -18,7 +18,7 @@
 - Full JSON config not embedded in HDF5 (only selected fields)
 
 **Breaking/Behavior Notes**
-- Domain configs use `environment` (not `env`), `geometry.origin_m`, and lowercase field keys (`dc`, `rf`, `ac`)
+- Domain configs use `environment`, `geometry.origin_m`, and lowercase field keys (`dc`, `rf`, `ac`)
 - GPU dispatch thresholds: integrators 5000 ions (Boris ~2500), collisions 5000 active ions by default
 
 **Upgrade Tips**

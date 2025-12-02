@@ -1,14 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-// ReactionHandlerFactory.h
-// Factory for creating reaction handlers
-//
-// SSOT Design: Factory reads enable_reactions directly from PhysicsConfig.
-// No intermediate conversion or parameter copies.
-//
-// Created: 2025-11-22 (Phase 3 Refactor)
-
 #pragma once
 
 #include "IReactionHandler.h"
@@ -56,16 +48,9 @@ public:
      * 
      * **SSOT:** Reads `config.enable_reactions` directly (no conversion!).
      * 
-     * **Behavior:**
-     * - If `enable_reactions == false`: Returns nullptr
-     * - If `enable_reactions == true`: Returns StochasticReactionHandler
-     * 
-     * **Future Extension:**
-     * Could add more reaction models:
-     * - temperature-dependent rates
-     * - ChemicalNetworkHandler (multi-step reactions)
-     * 
-     * For now: Simple enable/disable flag (YAGNI principle).
+ * **Behavior:**
+ * - If `enable_reactions == false`: returns nullptr
+ * - If `enable_reactions == true`: returns StochasticReactionHandler
      */
     static std::unique_ptr<IReactionHandler> create(
         const config::PhysicsConfig& config,

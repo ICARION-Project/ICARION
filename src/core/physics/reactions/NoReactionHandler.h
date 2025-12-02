@@ -1,11 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-// NoReactionHandler.h
-// Null object pattern for disabled reactions
-//
-// Created: 2025-11-22 (Phase 3 Refactor)
-
 #pragma once
 
 #include "IReactionHandler.h"

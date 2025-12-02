@@ -1,11 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-// ReactionHandlerFactory.cpp
-// Implementation of reaction handler factory
-//
-// Created: 2025-11-22 (Phase 3 Refactor)
-
 #include "ReactionHandlerFactory.h"
 #include "StochasticReactionHandler.h"
 #include "NoReactionHandler.h"

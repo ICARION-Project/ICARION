@@ -1,14 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-// StochasticReactionHandler.cpp
-// Implementation of stochastic reaction handler
-//
-// SSOT Design: Reads all parameters directly from databases and EnvironmentConfig.
-// No parameter duplication!
-//
-// Created: 2025-11-22 (Phase 3 Refactor)
-
 #include "StochasticReactionHandler.h"
 #include "core/log/Logger.h"
 #include "utils/constants.h"

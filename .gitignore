@@ -34,3 +34,6 @@ compile_commands.json
 # Testing
 Testing/
 CTestTestfile.cmake
+
+# Validation suite configs
+validation/**/*.json

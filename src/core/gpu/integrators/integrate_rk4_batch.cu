@@ -11,7 +11,7 @@ namespace icarion {
 namespace gpu {
 
 /**
- * @brief Compute acceleration for a single ion on GPU
+ * @brief Compute acceleration for a single ion on GPU (internal helper)
  * 
  * Uses field interpolation if field array is provided, otherwise uses constant fields.
  * 

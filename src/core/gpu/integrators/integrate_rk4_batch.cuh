@@ -15,10 +15,10 @@ namespace gpu {
 struct FieldArrayGPU;
 
 /**
- * @brief Batch RK4 integration on GPU with constant fields
+ * @brief Batch RK4 integration on GPU with constant fields (experimental)
  * 
- * Integrates all ions from t to t+dt using 4th-order Runge-Kutta.
- * Uses grid-stride loop pattern for optimal performance across all N.
+ * Integrates all ions from t to t+dt using 4th-order Runge-Kutta. Used only
+ * by GPUIntegrationHelper tests; not wired into SimulationEngine.
  * 
  * @param ions_in Input ion states at time t
  * @param ions_out Output ion states at time t+dt (must be pre-allocated)
@@ -39,10 +39,11 @@ void integrate_rk4_batch(
 );
 
 /**
- * @brief Batch RK4 integration on GPU with field interpolation
+ * @brief Batch RK4 integration on GPU with field interpolation (experimental)
  * 
  * Integrates all ions from t to t+dt using 4th-order Runge-Kutta with
- * position-dependent field evaluation from texture memory.
+ * position-dependent field evaluation from texture memory. Field textures are
+ * single-precision; CPU parity not guaranteed.
  * 
  * @param ions_in Input ion states at time t
  * @param ions_out Output ion states at time t+dt (must be pre-allocated)

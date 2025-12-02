@@ -27,10 +27,12 @@ struct RK45Params {
 };
 
 /**
- * @brief Batch RK45 integration on GPU with constant fields
+ * @brief Batch RK45 integration on GPU with constant fields (experimental)
  * 
  * Integrates all ions from t to t+dt using adaptive 4th/5th-order
- * Dormand-Prince method with local error control.
+ * Dormand-Prince method with local error control. Experimental path used by
+ * GPUIntegrationHelper tests; not wired into SimulationEngine and not
+ * validated against the CPU RK45.
  * 
  * Each ion adapts its substep independently based on local error.
  * 
@@ -56,10 +58,11 @@ void integrate_rk45_batch(
 );
 
 /**
- * @brief Batch RK45 integration on GPU with field interpolation
+ * @brief Batch RK45 integration on GPU with field interpolation (experimental)
  * 
- * Integrates all ions from t to t+dt using adaptive Dormand-Prince
- * with position-dependent field evaluation from texture memory.
+ * Integrates all ions from t to t+dt using adaptive Dormand-Prince with
+ * position-dependent field evaluation from texture memory. Field textures are
+ * single-precision; CPU parity not guaranteed.
  * 
  * @param ions_in Input ion states at time t
  * @param ions_out Output ion states at time t+dt (must be pre-allocated)

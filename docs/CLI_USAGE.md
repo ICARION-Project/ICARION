@@ -1,7 +1,7 @@
 # ICARION Command-Line Interface (CLI) Guide
 
 **Version:** 1.0  
-**Last Updated:** December 1, 2025
+**Last Updated:** December 2025
 
 ---
 
@@ -200,27 +200,22 @@ icarion --threads 4 config.json
 ```
 
 **Performance Notes:**
-- For CPU-only simulations, 4-8 threads provide the best efficiency
-- Beyond 8 threads, memory bandwidth becomes the limiting factor
-- See README.md "Performance" section for detailed scaling benchmarks
-- Ignored if OpenMP is not enabled at compile time
+- For CPU-only simulations, 4-8 threads often give best efficiency; beyond that, bandwidth can limit scaling.
+- Ignored if OpenMP is not enabled at compile time.
 
 ### `--benchmark`
-Print detailed timing statistics for each simulation phase.
+Enable profiling and print a timing summary after the run (uses the internal profiler).
 
 ```bash
 icarion --benchmark config.json
 ```
 
 **Output includes:**
-- Ion generation time
-- Physics module initialization
-- Per-step integration performance
-- Total simulation time
-- Memory allocation overhead
+- Timing summary for instrumented phases (ion generation, physics setup, main loop, output)
+- Total simulation wall-clock time
 
 ### `--profile`
-Enable profiling instrumentation for detailed performance analysis.
+Enable profiling instrumentation for detailed performance analysis (same profiler as `--benchmark`).
 
 ```bash
 icarion --profile config.json
@@ -290,8 +285,7 @@ icarion --set simulation.rng_seed=999 \
 
 ## Information Flags
 
-These flags provide information about ICARION and exit immediately  
-without requiring a configuration file.
+These flags provide information and exit immediately. `--validate-schema` requires a configuration file; the others do not.
 
 ### `--dump-build-info`
 Show detailed build configuration and features.
@@ -487,8 +481,7 @@ ICARION uses standard exit codes:
 | Code | Meaning |
 |------|---------|
 | `0` | Success - simulation completed normally |
-| `1` | Error - invalid arguments, missing config, validation failure |
-| `2` | Runtime error - simulation crashed, numerical issues |
+| `1` | Error - invalid arguments, missing config, validation failure, or runtime error |
 
 **Checking exit codes in scripts:**
 
@@ -556,6 +549,5 @@ icarion --dump-build-info > build_info.txt
 
 ---
 
-**Last Modified:** December 1, 2025  
+**Last Modified:** December 2025  
 **ICARION Version:** 1.0.0
-

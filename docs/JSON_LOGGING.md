@@ -4,7 +4,8 @@
 
 ICARION supports structured logging in JSON format for automated analysis with pandas, performance dashboards, and debugging workflows. Instead of colored console output, you get machine-readable log lines that are easy to filter and analyze.
 
-**Flag:** `--log-format json`
+**Flag:** `--log-format json`  
+**Executable:** `icarion_main` (in your build directory, e.g., `./build/src/icarion_main`)
 
 Each log entry is a single-line JSON object with `time`, `level`, `cat` (category), and `msg`:
 
@@ -19,7 +20,7 @@ Each log entry is a single-line JSON object with `time`, `level`, `cat` (categor
 ./build/src/icarion_main --log-format json examples/ims/ims_basic.json
 
 # Save to file
-./build/src/icarion_main --log-format json examples/ims/ims_basic.json 2>&1 > simulation.log
+./build/src/icarion_main --log-format json --log-file simulation.log examples/ims/ims_basic.json
 
 # Traditional text format (default)
 ./build/src/icarion_main examples/ims/ims_basic.json

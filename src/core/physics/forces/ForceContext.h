@@ -18,25 +18,9 @@ namespace ICARION::config {
 namespace ICARION::physics {
 
 /**
- * @brief Context for force computation
+ * @brief Context for force computation (no ownership)
  * 
- * Contains shared data needed by multiple forces. This struct avoids parameter
- * explosion by grouping related data together.
- * 
- * Design Notes:
- * - Uses pointers for optional data (nullptr = not needed)
- * - No ownership (context is transient, data owned elsewhere)
- * - Lightweight (only pointers, cheap to copy)
- * 
- * Usage Pattern:
- * @code
- * ForceContext ctx;
- * ctx.field_provider = &my_field_provider;
- * ctx.domain = &domain_config;
- * ctx.all_ions = &ion_ensemble;
- * 
- * Vec3 force = force_registry.compute_total_force(ion, t, ctx);
- * @endcode
+ * Holds optional pointers to shared data used by force implementations. Callers fill\n+ * what they need; nullptr means “not available”. Environment/geometry lives in the\n+ * DomainConfig referenced here.
  */
 struct ForceContext {
     // =========================================================================

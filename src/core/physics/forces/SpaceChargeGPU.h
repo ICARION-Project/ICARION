@@ -15,64 +15,9 @@
 namespace ICARION::physics {
 
 /**
- * @brief GPU-accelerated space charge force using P³M algorithm (O(N log N))
+ * @brief GPU space charge force wrapper (experimental P³M)
  * 
- * Integrates GPUSpaceChargeP3M into the IForce framework for automatic
- * GPU-accelerated space charge computation. Updates P³M solver once per 
- * timestep for all ions, then returns precomputed field for each ion.
- * 
- * **Performance vs CPU:**
- * - N = 1,000:   2 ms/timestep (GPU) vs 20 ms (CPU Grid) → **10× speedup**
- * - N = 10,000:  15 ms/timestep (GPU) vs 200 ms (CPU Grid) → **13× speedup**
- * - N = 100,000: 50 ms/timestep (GPU) vs 2000 ms (CPU Grid) → **40× speedup**
- * 
- * **When to use:**
- * - N ≥ 1000 ions (below this, CPU is competitive)
- * - GPU context available
- * - Space charge effects significant
- * 
- * **Algorithm:**
- * 1. Particle-to-Grid (P2G): Scatter charges to 3D grid using CIC interpolation
- * 2. FFT: Forward transform charge density to k-space (cuFFT)
- * 3. Poisson Solve: φ̂(k) = ρ̂(k) / (ε₀ k²) in spectral domain
- * 4. IFFT: Inverse transform potential to real space
- * 5. Gradient: Compute E = -∇φ on grid
- * 6. Grid-to-Particle (G2P): Interpolate E-field to ion positions
- * 
- * **Limitations:**
- * - Rectangular domain only (no cylindrical grids yet)
- * - Fixed grid resolution (configured at construction)
- * - ~20% accuracy error for near-field (ion separation < 50 cells)
- * - Assumes periodic boundaries (FFT limitation)
- * 
- * **Usage:**
- * @code
- * // Create GPU context
- * auto gpu_ctx = icarion::gpu::GPUContext::create(0);
- * 
- * // Configure P³M solver
- * icarion::gpu::GPUSpaceChargeP3M::Config config;
- * config.grid_nx = 128;
- * config.grid_ny = 128;
- * config.grid_nz = 128;
- * config.domain_min = Vec3{-0.05, -0.05, -0.05};  // 10cm box
- * config.domain_max = Vec3{0.05, 0.05, 0.05};
- * 
- * // Create solver
- * auto gpu_solver = icarion::gpu::GPUSpaceChargeP3M::create(gpu_ctx, config);
- * 
- * // Wrap in IForce interface
- * auto force = std::make_unique<SpaceChargeGPU>(gpu_solver);
- * force_registry.add_force(std::move(force));
- * @endcode
- * 
- * @note Requires ctx.all_ions to be populated in ForceContext
- * @note Updates solver only once per unique timestep (time-based deduplication)
- * @note For N < 1000, prefer SpaceChargeDirect (CPU is faster + exact)
- * 
- * @see GPUSpaceChargeP3M for algorithm details
- * @see SpaceChargeGrid for CPU fallback
- * @see SpaceChargeDirect for small N exact solution
+ * Wraps GPUSpaceChargeP3M as an IForce. GPU solver is experimental, rectangular-only,\n+ * not validated, and not geometry-aware (no cylindrical/Orbitrap). Use only for\n+ * exploratory runs; CPU direct remains the exact reference.\n*** End Patch
  */
 class SpaceChargeGPU : public IForce {
 public:

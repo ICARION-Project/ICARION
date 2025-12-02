@@ -7,7 +7,9 @@
  * 
  * Computes Lorentz electric force F = q·E for ions in electric fields.
  * Supports both analytical field calculations (instrument-specific) and
- * field provider-based evaluation (interpolated from grid data).
+ * field provider-based evaluation (interpolated from grid data). Field
+ * provider mode requires precomputed fields; analytical mode covers only the
+ * implemented instrument types.
  */
 
 #pragma once

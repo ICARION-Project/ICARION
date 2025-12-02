@@ -11,51 +11,10 @@
 namespace ICARION::physics {
 
 /**
- * @brief Space charge force (N-body Coulomb interactions)
+ * @brief Space charge force via direct N-body Coulomb interactions (CPU)
  * 
- * Computes electrostatic repulsion/attraction between ions in the ensemble.
- * This is the most computationally expensive force (O(N²) for N ions).
- * 
- * Physics:
- *   Coulomb force between two point charges:
- *   F = k_e · q₁ · q₂ · r̂ / r²
- * 
- *   where:
- *   - k_e = 8.987551787e9 N·m²/C² (Coulomb constant)
- *   - q₁, q₂ = charges [C]
- *   - r = distance between ions [m]
- *   - r̂ = unit vector from q₂ to q₁
- * 
- * Key Features:
- *   - Self-interaction exclusion (ion doesn't interact with itself)
- *   - Softening parameter for numerical stability (avoids 1/0 at r→0)
- *   - Newton's 3rd law: F₁₂ = -F₂₁ (symmetric interactions)
- *   - Optional spatial partitioning for performance (future: O(N log N))
- * 
- * Usage:
- * @code
- * // Create space charge force with softening
- * auto sc_force = std::make_unique<SpaceChargeDirect>(1e-10);  // 0.1 nm softening
- * 
- * // Compute force requires all_ions in context
- * ForceContext ctx;
- * ctx.all_ions = &ion_ensemble;
- * Vec3 force = sc_force->compute(ion, t, ctx);
- * @endcode
- * 
- * Performance Considerations:
- *   - O(N²) scaling: 1000 ions → 500k pairs → ~1ms per timestep
- *   - Spatial partitioning (future): reduces to O(N log N) or O(N)
- *   - OpenMP parallelization recommended for N > 100
- *   - Consider cutoff radius for long-range interactions (future)
- * 
- * Numerical Stability:
- *   - Softening parameter prevents divergence at r → 0
- *   - Modified Coulomb: r_eff = √(r² + ε²)
- *   - Typical ε: 0.01-0.1 nm (much smaller than ion spacing)
- * 
- * @note Requires ctx.all_ions to be non-null, otherwise returns zero force
- * @note For single-ion systems, always returns zero force (no pairs)
+ * Computes electrostatic interactions in O(N²) over the ensemble with optional
+ * softening to avoid singularities. No geometry masking or cutoffs are applied.\n+ * Intended for small N or verification; use with caution for cylindrical/Orbitrap\n+ * setups where this point-charge model does not respect boundaries.\n*** End Patch
  */
 class SpaceChargeDirect : public IForce {
 public:

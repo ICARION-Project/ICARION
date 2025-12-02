@@ -44,16 +44,12 @@ public:
     /**
      * @brief Compute force contribution for single ion
      * 
-     * This is the core method that must be implemented by all force types.
-     * The force should be computed in SI units (Newtons).
-     * 
      * @param ion Current ion state (position, velocity, charge, mass)
      * @param t Current simulation time [s]
      * @param context Optional context for force computation (field provider, all ions, etc.)
      * @return Force vector [N] in Cartesian coordinates
      * 
-     * @note This method must be thread-safe if OpenMP parallelization is enabled
-     * @note Return value should be zero vector if force doesn't apply to ion
+     * @note Should be thread-safe if used under OpenMP parallel loops
      */
     virtual Vec3 compute(
         const IonState& ion,

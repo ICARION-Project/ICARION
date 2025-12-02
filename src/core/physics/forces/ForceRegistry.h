@@ -14,14 +14,7 @@ namespace ICARION::physics {
 /**
  * @brief Manages and aggregates all active forces for simulation
  * 
- * ForceRegistry implements the Composite pattern to enable modular force composition.
- * Forces can be added/removed dynamically without modifying the integrator.
- * 
- * Key Features:
- * - Dynamic force registration (add/remove at runtime)
- * - Automatic force aggregation (sum of all contributions)
- * - Conditional force application (via IForce::applies_to())
- * - Zero-cost abstraction (inline-friendly, no virtual call overhead in hot path)
+ * Manages a set of force contributors and aggregates their outputs.
  * 
  * Typical Usage:
  * @code
@@ -47,25 +40,9 @@ namespace ICARION::physics {
 class ForceRegistry {
 public:
     /**
-     * @brief Default constructor (empty registry, no domain)
-     * @deprecated Use ForceRegistry(const config::DomainConfig&) instead
-     */
-    ForceRegistry() = default;
-    
-    /**
      * @brief Construct registry with domain context (RECOMMENDED)
      * 
      * @param domain Domain configuration (geometry, fields, environment)
-     * 
-     * This constructor allows forces to access domain-specific context
-     * without needing it passed through every method call.
-     * 
-     * Example:
-     * @code
-     * ForceRegistry registry(domain_config);
-     * registry.add_force(std::make_unique<ElectricFieldForce>());
-     * // Force can now access domain via registry.domain()
-     * @endcode
      */
     explicit ForceRegistry(const config::DomainConfig& domain)
         : domain_(&domain) {}

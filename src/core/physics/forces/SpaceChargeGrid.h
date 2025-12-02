@@ -12,40 +12,15 @@
 namespace ICARION::physics {
 
 /**
- * @brief Grid-based space charge force using Poisson solver (O(N log N))
+ * @brief Grid-based space charge force using Poisson solver (CPU box grid)
  * 
- * Integrates SpaceChargeSolver into the IForce framework for automatic
- * method selection. Updates Poisson solver once per timestep for all ions,
- * then interpolates field at each ion position.
+ * Wraps the CPU SpaceChargeSolver (rectangular grid) as an IForce. Updates the
+ * solver once per timestep and interpolates the resulting field at ion positions.
+ * Geometry awareness is limited to the box grid; not suitable for cylindrical/Orbitrap.
+ * No validated performance numbers; use for rough estimates only.
  * 
- * Key Features:
- * - Automatic once-per-timestep updates (tracks time to avoid redundant solves)
- * - Grid-based Poisson solver: ∇²φ = -ρ/ε₀
- * - Fast for large ensembles: O(N log N) vs O(N²) for direct Coulomb
- * - Trilinear interpolation for smooth fields
- * 
- * Performance:
- * - N = 1000:   ~20 ms/timestep (10x faster than SpaceChargeForce)
- * - N = 10000:  ~30 ms/timestep (667x faster than SpaceChargeForce)
- * - N = 100000: ~100 ms/timestep (20000x faster than SpaceChargeForce)
- * 
- * Usage:
- * @code
- * // Create solver (64³ grid, 1mm cells)
- * auto solver = std::make_shared<SpaceChargeSolver>(
- *     64, 64, 64,           // Grid resolution
- *     1e-3, 1e-3, 1e-3,     // Cell size [m]
- *     Vec3{0, 0, 0}         // Origin
- * );
- * 
- * // Wrap in IForce interface
- * auto force = std::make_unique<SpaceChargeGrid>(solver);
- * force_registry.add_force(std::move(force));
- * @endcode
- * 
- * @note Requires ctx.all_ions to be populated in ForceContext
- * @note Updates solver only once per unique timestep (time-based deduplication)
- * @note For N < 1000, prefer SpaceChargeForce (direct Coulomb is faster + exact)
+ * @note Requires ctx.all_ions to be populated. Updates are deduped by timestep.
+ * @note For small N, the direct O(N²) force is exact and may be faster.
  */
 class SpaceChargeGrid : public IForce {
 public:

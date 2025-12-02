@@ -6,19 +6,8 @@
  * @brief Deterministic collision damping forces (HardSphere, Langevin, Friction)
  * 
  * Computes velocity-dependent damping forces F = -γ·v for ions in background gas.
- * All models are DETERMINISTIC - they compute continuous friction opposing motion.
- * 
- * The damping coefficient γ differs by collision model:
- * - **HardSphere**: γ = ν_collision = n·σ·v_th·(m_n/(m_i+m_n))
- * - **Langevin**: γ = ν_Langevin(v) (velocity-dependent, polarization)
- * - **Friction**: γ = q/K₀ (mobility-based)
- * 
- * @note RANDOM THERMAL KICKS ARE NOT COMPUTED HERE!
- * Stochastic diffusion (Ornstein-Uhlenbeck process) is handled separately
- * by CollisionEngine via apply_ou_velocity_kick() when enable_ou_thermalization=true.
- * This separation matches the legacy architecture:
- *   1. ODE solver uses deterministic damping forces
- *   2. After ODE step, apply_ou_velocity_kick() adds thermal noise
+ * Thermal kicks are not applied here; stochastic diffusion (OU) is handled in the
+ * collision pipeline when enabled.
  */
 
 #pragma once
@@ -42,11 +31,9 @@ namespace physics {
  * @brief Collision model for damping force calculation
  * 
  * Each model computes F = -γ·m·v with different formulas for γ:
- * - **Friction**: Mobility-based (Mason-Schamp) - **RECOMMENDED**
- * - **HardSphere**: Kinetic theory collisions - **EXPERIMENTAL**
- * - **Langevin**: Polarization interactions - **EXPERIMENTAL** (polar molecules only)
- * 
- * @warning HardSphere and Langevin are experimental! Use Friction for production.
+ * - Friction: mobility-based (Mason-Schamp) – recommended
+ * - HardSphere: kinetic-theory collisions – experimental
+ * - Langevin: polarization interactions – experimental (polar molecules only)
  */
 enum class DampingModel {
     None,       ///< No damping
@@ -63,26 +50,17 @@ enum class DampingModel {
  * 
  * **Damping coefficient γ [1/s] by model:**
  * 
- * 1. **Friction** (mobility-based) - **RECOMMENDED**:
+ * 1. Friction (mobility-based) – recommended:
  *    γ = q/(K·m_ion) where K = K₀·(n₀/n) is actual mobility
- *    - Validated: H3O+ in N2 gives exact mobility match (356 m/s)
- *    - Based on Mason-Schamp equation (experimentally validated)
  * 
- * 2. **HardSphere** (kinetic theory) - **EXPERIMENTAL**:
- *    γ = n·σ·v_th
- *    - Requires accurate CCS for target gas (not literature values!)
- *    - Works for non-polar gases (N2, He, Ar)
- *    - γ typically 10-20% lower than Friction model
+ * 2. HardSphere (kinetic theory) – experimental:
+ *    γ = n·σ·v_th; sensitive to CCS choice and target gas
  * 
- * 3. **Langevin** (polarization) - **EXPERIMENTAL**:
+ * 3. Langevin (polarization) – experimental, polar molecules only:
  *    γ = n·σ_Langevin(v)·v_th·m_reduced/m_ion
  *    where σ_Langevin = π·q·√(α/(4πε₀·m_reduced))/|v|
- *    - **Only valid for polar molecules!**
- *    - Overpredicts damping for non-polar gases (N2: 76x too strong!)
- *    - Use only for ion-polar molecule interactions
  * 
- * @warning HardSphere and Langevin are experimental. For production simulations,
- *          use **Friction model** which has been extensively validated.
+ * @warning HardSphere and Langevin are experimental; prefer Friction for production.
  * 
  * **Usage (SSOT):**
  * ```cpp

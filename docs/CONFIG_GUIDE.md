@@ -40,7 +40,7 @@ This guide explains how to create and structure JSON configuration files for ICA
         "length_m": 0.05,
         "radius_m": 0.01
       },
-      "env": {
+      "environment": {
         "pressure_Pa": 101325.0,
         "temperature_K": 300.0,
         "gas_species": "He"
@@ -914,9 +914,9 @@ See `schema/physics.schema.json` for all options.
 
 ```json
 "output": {
-  "directory": "results/my_sim",
-  "basename": "output",
-  "trajectory_interval": 100
+  "folder": "./results/my_sim",
+  "trajectory_file": "output.h5",
+  "print_progress": true
 }
 ```
 
@@ -934,10 +934,9 @@ See `schema/output.schema.json` for all options.
     "name": "drift_tube",
     "instrument": "IMS",           // IMS, TOF, LQIT, Orbitrap, Quadrupole, FTICR
     "geometry": {
-      "shape": "Cylinder",
       "radius_m": 0.05,
       "length_m": 0.2,
-      "origin": [0, 0, 0]
+      "origin_m": [0, 0, 0]
     },
     "environment": {
       "pressure_Pa": 101325,
@@ -1214,8 +1213,7 @@ Complete configuration examples for all supported instruments are available in `
       "name": "drift_region",
       "instrument": "IMS",
       "geometry": {
-        "shape": "Cylinder",
-        "origin": [0, 0, 0],
+        "origin_m": [0, 0, 0],
         "length_m": 0.05,
         "radius_m": 0.015
       },
@@ -1253,12 +1251,12 @@ Use the global `simulation.integrator` as default, but override for specific dom
     {
       "name": "low_pressure_region",
       "integrator": "RK45",  // Override: use adaptive stepping
-      "env": { "pressure_Pa": 1e-6, ... }
+      "environment": { "pressure_Pa": 1e-6, ... }
     },
     {
       "name": "high_pressure_region",
       // No integrator specified → uses "RK4" from simulation
-      "env": { "pressure_Pa": 101325, ... }
+      "environment": { "pressure_Pa": 101325, ... }
     }
   ]
 }

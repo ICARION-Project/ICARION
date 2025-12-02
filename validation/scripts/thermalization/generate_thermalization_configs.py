@@ -5,7 +5,7 @@ Generate thermalization test configs for validation suite.
 Test Matrix:
 - 3 temperatures: 150K, 300K, 1000K
 - 5 pressures: 0.2, 2, 20, 200, 2000 Pa
-- 3 ion species: H3O+, PentanalH+, 2,6-DTBPH+
+- 3 ion species: H3O+, PentanalH+, 26DTBPH+
 - 2 collision models: HSS, EHSS
 Total: 90 configs
 
@@ -57,7 +57,7 @@ def generate_config(ion_species, collision_model, temperature_k, pressure_pa):
     species_data = {
         "H3O+": {"mass_amu": 19.0, "ccs_m2": 24.9e-20, "duration_factor": 20},
         "PentanalH+": {"mass_amu": 87.0, "ccs_m2": 53.7e-20, "duration_factor": 100},
-        "2,6-DTBPH+": {"mass_amu": 192.0, "ccs_m2": 87.02e-20, "duration_factor": 150}
+        "26DTBPH+": {"mass_amu": 192.0, "ccs_m2": 87.02e-20, "duration_factor": 150}
     }
     
     ion_data = species_data[ion_species]
@@ -87,7 +87,7 @@ def generate_config(ion_species, collision_model, temperature_k, pressure_pa):
             "write_interval": write_interval,
             "integrator": "RK4",
             "enable_gpu": False,
-            "enable_openmp": False,  # Single-threaded for reproducibility
+            "enable_openmp": True,  # Use 4 threads for faster execution
             "rng_seed": 42
         },
         "physics": {
@@ -97,7 +97,7 @@ def generate_config(ion_species, collision_model, temperature_k, pressure_pa):
         },
         "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": f"results/v1.0_test/physics/thermalization",
+            "folder": f"/home/chsch95/ICARION/results/v1.0_test/physics/thermalization",
             "trajectory_file": f"therm_{collision_model.lower()}_{ion_species.replace('+', 'p').replace(',', '').replace('-', '')}_{temperature_k}K_{pressure_pa}Pa.h5",
             "print_progress": True
         },
@@ -118,33 +118,19 @@ def generate_config(ion_species, collision_model, temperature_k, pressure_pa):
                 }
             ]
         },
-        "environment": {
-            "pressure_Pa": pressure_pa,
-            "temperature_K": temperature_k,
-            "gas_species": ["He"],
-            "gas_fractions": [1.0]
-        },
-        "geometry": {
-            "type": "basic_cylinder",
-            "radius_m": 0.05,  # 5 cm radius (large enough to avoid wall effects)
-            "length_m": 0.2   # 20 cm length
-        },
         "domains": [
             {
                 "name": "thermalization_chamber",
                 "instrument": "IMS",
                 "geometry": {
-                    "type": "cylinder",
-                    "radius_m": 0.05,
-                    "length_m": 0.2,
-                    "entrance_z": 0.0,
-                    "exit_z": 0.2
+                    "origin_m": [0.0, 0.0, -5.0],
+                    "radius_m": 10,
+                    "length_m": 10
                 },
                 "environment": {
                     "pressure_Pa": pressure_pa,
                     "temperature_K": temperature_k,
-                    "gas_species": ["He"],
-                    "gas_fractions": [1.0]
+                    "gas_species": ["He"]
                 },
                 "fields": {
                     "electric": {"type": "none"},
@@ -176,7 +162,7 @@ def main():
     # Test parameters
     temperatures = [150, 300, 1000]  # K
     pressures = [0.2, 2.0, 20.0, 200.0, 2000.0]  # Pa
-    ion_species = ["H3O+", "PentanalH+", "2,6-DTBPH+"]
+    ion_species = ["H3O+", "PentanalH+", "26DTBPH+"]
     collision_models = ["HSS", "EHSS"]
     
     # Output directory

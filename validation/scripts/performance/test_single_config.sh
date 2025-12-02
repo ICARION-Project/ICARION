@@ -36,7 +36,7 @@ cp "$CONFIG" "$OUTPUT_DIR/config.json"
 echo "Starting simulation..."
 START_TIME=$(date +%s)
 
-if "$ICARION_ROOT/build/src/icarion_main" "$CONFIG" > "$OUTPUT_DIR/simulation.log" 2>&1; then
+if "$ICARION_ROOT/build/src/icarion_main" "$CONFIG" --threads 4 > "$OUTPUT_DIR/simulation.log" 2>&1; then
     END_TIME=$(date +%s)
     RUNTIME=$((END_TIME - START_TIME))
     

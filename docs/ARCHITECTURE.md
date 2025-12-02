@@ -15,35 +15,45 @@
 
 ## System Overview
 
-ICARION is a modular C++17 framework for ion trajectory simulation in mass spectrometry and ion mobility. The architecture follows a **plugin-based design** with clear separation of concerns:
+ICARION is a modular C++17 framework for ion trajectory simulation in mass spectrometry, ion mobility, and related devices. The architecture follows a **plugin-based design** with clear separation of concerns:
 
 - **Core**: Physics simulation engine (forces, integration, collisions)
 - **Config**: JSON-based configuration system with schema validation
 - **I/O**: HDF5-based input/output with structured data formats
 - **GPU**: Optional CUDA acceleration with automatic CPU fallback
 - **Tools**: CLI interface, configuration helpers, validation tools
+- **Data Layouts**: AoS (legacy) plus SoA (`IonEnsemble`) for cache-friendly processing
 
 ### Key Architectural Principles
 
 1. **Modularity**: Components are loosely coupled via interfaces
 2. **Extensibility**: New forces, collision models, integrators via plugin pattern
 3. **Performance**: CPU/GPU hybrid with smart threshold dispatch
-4. **Reliability**: Comprehensive test coverage, schema validation, error handling
+4. **Reliability**: Comprehensive test coverage, validation suite, schema validation, error handling
 5. **Usability**: Intuitive JSON configuration, extensive documentation
 
 ## Module Structure
-
 ```
 src/
-├── core/              # Core simulation engine
-│   ├── physics/       # Forces, collisions, reactions
-│   ├── integrator/    # Time integration strategies
-│   ├── config/        # Configuration loading and validation
-│   └── gpu/          # CUDA acceleration
-├── fieldsolver/       # Electric/magnetic field computation
-├── utils/             # Shared utilities (logging, math, I/O)
-├── optimizer/         # Parameter optimization (future)
-└── main/             # CLI application and setup
+├── core/
+│   ├── config/        # FullConfig types, loader, overrides, schema hooks
+│   ├── integrator/    # SimulationEngine, DomainManager, OutputManager, strategies/
+│   ├── physics/       # Forces, collisions, reactions, contexts
+│   ├── gpu/           # GPUContext, helpers, CUDA kernels (conditional)
+│   ├── types/         # IonState, IonEnsemble (SoA), Vec3, collision types
+│   ├── log/           # Logger wrappers and sinks
+│   ├── io/            # Output helpers (HDF5, writers)
+│   ├── param/         # Legacy/bridge parameter helpers
+│   └── utils/         # Math, safety guards, profiling hooks used by core
+├── fieldsolver/       # Field computation (prototype/future)
+├── main/              # CLI entrypoint and setup wiring
+├── optimizer/         # Parameter optimization (future-facing)
+└── utils/             # Shared utilities (logging, math, profiling, CLI, common helpers)
+
+tests/                 # Unit/integration/physics/gpu suites
+validation/            # Reproducible validation configs, scripts, reports
+schema/                # JSON Schemas for configs
+tools/                 # Developer tools and scripts
 ```
 
 ### Core Dependencies
@@ -56,29 +66,17 @@ src/
 
 ### Simulation Engine
 
-`SimulationEngine` is the central orchestrator:
+`SimulationEngine` is the central orchestrator. The current AoS path (`run`) and SoA path (`run_soa`) share the same control flow:
 
-```cpp
-// Main simulation loop
-for (double t = 0; t < total_time; t += dt) {
-    // 1. Apply forces and integrate (CPU or GPU)
-    integrator->integrate_timestep(ions, dt, t);
-    
-    // 2. Handle collisions with buffer gas
-    collision_handler->process_collisions(ions, dt);
-    
-    // 3. Handle chemical reactions
-    reaction_handler->process_reactions(ions, dt);
-    
-    // 4. Apply boundary conditions
-    boundary_manager->check_boundaries(ions);
-    
-    // 5. Write output (every N steps)
-    if (step % write_interval == 0) {
-        output_manager->write_trajectories(ions, t);
-    }
-}
-```
+1. Initialize `DomainManager` and `OutputManager`, log metadata (AoS init uses a temporary conversion in the SoA path).
+2. Optionally initialize GPU helpers (integration/collisions; space charge/boundary helpers exist but are not yet dispatched).
+3. Per-timestep loop:
+   - Apply ion birth timing.
+   - Per-ion processing (OpenMP-capable): domain lookup, domain property updates, collisions (if handler), reactions (if enabled), integrator step, boundary checks, time update, safety checks.
+   - Output write every `write_interval` steps.
+4. Finalize output and optional numerical safety report; GPU stats if used.
+
+**Note:** GPU space-charge and GPU boundary checks have helpers but are not wired into the main loop yet; CPU paths run instead.
 
 **Key Files:**
 - `src/core/integrator/SimulationEngine.{h,cpp}` - Main simulation loop
@@ -100,8 +98,8 @@ public:
 **Built-in Forces:**
 - `ElectricFieldForce` - E-field from analytical or HDF5 sources
 - `MagneticFieldForce` - B-field (Boris integrator compatible)
-- `SpaceChargeForce` - Ion-ion Coulomb interactions
-- `DampingForce` - Velocity-dependent drag
+- `SpaceChargeDirect` - Ion-ion Coulomb interactions
+- `DampingForce` - Drag depending on chosen deterministic collision model
 
 **Key Files:**
 - `src/core/physics/forces/ForceRegistry.{h,cpp}` - Force management
@@ -116,15 +114,19 @@ Integration strategies implement `IIntegrationStrategy`:
 ```cpp
 class IIntegrationStrategy {
 public:
-    virtual void integrate_single_step(IonState& ion, double dt, double t, 
-                                     const ForceContext& ctx) = 0;
+    virtual void step(
+        IonState& ion,
+        double t,
+        double dt,
+        const physics::ForceRegistry& force_registry,
+        const std::vector<IonState>& all_ions) = 0;
 };
 ```
 
 **Available Strategies:**
-- `RK4Strategy` - 4th order Runge-Kutta (default, stable)
-- `RK45Strategy` - Runge-Kutta-Fehlberg (adaptive step size)
-- `BorisStrategy` - Boris push (for strong magnetic fields)
+- `RK4Strategy` - 4th order Runge-Kutta (default, stable, fixed step size)
+- `RK45Strategy` - Runge-Kutta-Fehlberg (adaptive step size) with Dormand-Prince coefficients
+- `BorisStrategy` - Boris pusher (for strong magnetic fields)
 
 **Key Files:**
 - `src/core/integrator/strategies/IntegrationStrategyFactory.h` - Factory
@@ -134,19 +136,22 @@ public:
 
 **Architecture Pattern:** Hybrid CPU/GPU with automatic dispatch
 
-GPU acceleration uses threshold-based dispatch (default: 5000 ions):
-- N < threshold → CPU integration (lower overhead)
-- N ≥ threshold → GPU integration (higher throughput)
+GPU acceleration uses threshold-based dispatch (default integration/collisions: 5000 ions):
+- N < threshold → CPU path (OpenMP-capable)
+- N ≥ threshold → GPU integration helper (RK4/RK45/Boris) and optional GPU collision helper (HSS/EHSS).
 
-**GPU Features:**
-- All integrators (RK4, RK45, Boris)
-- Collision models (HSS, EHSS)
-- Space charge forces (planned)
-- Automatic fallback on errors
+**GPU Features (current state):**
+- Integration: RK4/RK45/Boris batch kernels
+- Collisions: HSS/EHSS batch helper with CPU fallback
+- Space charge: P³M helper exists but not called from the main loop yet
+- Boundary checks: Helper exists for absorption/cylindrical only, not wired into the loop
+- Automatic CPU fallback on errors or below-threshold counts
 
 **Key Files:**
-- `src/core/gpu/GPUContext.{h,cpp}` - CUDA context management
-- `src/core/gpu/GPUIntegrationHelper.{h,cpp}` - GPU integration dispatch
+- `src/core/gpu/core/GPUContext.{h,cpp}` - CUDA context management
+- `src/core/gpu/core/GPUIntegrationHelper.{h,cpp}` - GPU integration dispatch
+- `src/core/gpu/collisions/GPUCollisionHelper.{h,cpp}` - GPU collision processing
+- `src/core/gpu/spacecharge/GPUSpaceChargeP3M.{h,cpp}` - GPU space charge helper
 - `src/core/gpu/*.cu` - CUDA kernels
 
 ### Configuration System
@@ -165,6 +170,8 @@ python3 schema/validator.py schema/icarion-config.schema.json my_config.json
 - `schema/simulation.schema.json` - Simulation parameters
 - `schema/physics.schema.json` - Physics models
 - `schema/domain.schema.json` - Geometry and fields
+
+Find all allowed schemes in the schema/ folder!
 
 **Key Files:**
 - `src/core/config/loader/ConfigLoader.{h,cpp}` - JSON loading
@@ -216,15 +223,21 @@ python3 schema/validator.py schema/icarion-config.schema.json my_config.json
 ## Testing Strategy
 
 ### Test Organization
-
 ```
 tests/
-├── unit/           # Isolated component tests
-├── integration/    # Multi-component interaction tests
-├── gpu/           # GPU-specific tests and CPU/GPU parity
-├── physics/       # Physics accuracy validation
-└── helpers/       # Test utilities and fixtures
+├── unit/           # Isolated component tests (forces, integrators, registries)
+├── integration/    # Multi-component workflows (main.cpp path, config, I/O)
+├── integrator/     # SimulationEngine-focused cases
+├── physics/        # Physics accuracy/edge cases
+├── collision/      # Collision-model tests
+├── gpu/            # GPU/CPU parity and performance probes
+├── instruments/    # Instrument-specific behaviors
+├── io/, utils/, helpers/  # I/O, shared helpers, fixtures
+└── config/         # Config parsing/override/schema tests
 ```
+
+Validation suite (scientific reproducibility) lives in `validation/`:
+- `configs/`, `scripts/`, `results/`, `figures/`, `logs/`, plus reports like `VALIDATION_REPORT_v1.0.md`.
 
 ### Validation Levels
 
@@ -233,12 +246,6 @@ tests/
 3. **Physics Tests**: Scientific accuracy (energy conservation, etc.)
 4. **Parity Tests**: CPU/GPU result matching
 5. **End-to-End Tests**: Complete simulation workflows
-
-### Key Test Files
-
-- `tests/integrator/test_rk45_boris_parity.cpp` - Integration accuracy
-- `tests/gpu/test_gpu_*.cpp` - GPU functionality and parity
-- `tests/physics/test_*_physics.cpp` - Physics model validation
 
 ## Implementation Details
 

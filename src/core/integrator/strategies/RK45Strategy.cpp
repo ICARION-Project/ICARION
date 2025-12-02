@@ -228,7 +228,8 @@ void RK45Strategy::step_adaptive(
 ) {
     const double dt_initial = dt_inout;
     
-    // Get domain from ForceRegistry (SSOT!)
+    // Domain pointer is retrieved for consistency; current implementation
+    // does not use domain fields directly.
     const config::DomainConfig* domain = force_registry.domain();
     if (!domain) {
         throw std::runtime_error("RK45Strategy: ForceRegistry has no domain configured");

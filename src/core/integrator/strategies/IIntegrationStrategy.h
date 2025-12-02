@@ -104,8 +104,9 @@ public:
     /**
      * @brief Advance single ion using SoA (Structure of Arrays) data layout
      * 
-     * Phase 3B: Cache-optimized integration using direct array access.
-     * Default implementation converts to IonState and calls step().
+     * Cache-optimized integration using direct array access.
+     * Default implementation converts the full ensemble to AoS and calls step()
+     * (correctness fallback; override for performance).
      * 
      * @param ensemble Ion ensemble (SoA)
      * @param ion_idx Index of ion to integrate

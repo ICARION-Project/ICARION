@@ -39,13 +39,7 @@ namespace integrator {
  * - Min step: dt_initial * 1e-6
  * - Max step: dt_initial * 1e3
  * 
- * **FSAL Property:**
- * First-Same-As-Last: k7(n) = k1(n+1) → 6 evaluations/step
- * 
- * **Thread Safety:**
- * - Each ion needs independent error tracking
- * - Cannot share state between ions
- * - Parallelize with per-ion RK45Strategy instances
+ * **FSAL Property:** First-Same-As-Last: k7(n) = k1(n+1) → 6 evaluations/step
  */
 class RK45Strategy : public IIntegrationStrategy {
 public:

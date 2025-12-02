@@ -21,7 +21,7 @@ void BorisStrategy::step(
     const physics::ForceRegistry& force_registry,
     const std::vector<IonState>& all_ions
 ) {
-    // Get domain from ForceRegistry (SSOT!)
+    // Get domain from ForceRegistry (SSOT!) for magnetic field access
     const config::DomainConfig* domain = force_registry.domain();
     if (!domain) {
         throw std::runtime_error("BorisStrategy: ForceRegistry has no domain configured");
@@ -43,7 +43,7 @@ void BorisStrategy::step(
     Vec3 F_electric = force_registry.compute_total_force(ion, t, ctx);
     Vec3 a_electric = F_electric / ion.mass_kg;
     
-    // Get magnetic field at current position
+    // Get magnetic field at current position (uniform field only; gradients ignored)
     Vec3 B{0, 0, 0};
     if (domain->fields.magnetic.enabled) {
         // Uniform magnetic field (most common case)

@@ -9,6 +9,8 @@
  * - Specular: elastic bounce (v' = v - 2(v·n)n)
  * - Diffuse: random cosine-weighted direction
  * - Thermal: Maxwell-Boltzmann re-emission at wall temperature
+ * 
+ * Temperature is only used for diffuse/thermal modes.
  */
 
 #pragma once

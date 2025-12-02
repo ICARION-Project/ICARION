@@ -10,7 +10,6 @@
  * - Specular Reflection: elastic bounce (v' = v - 2(v·n)n)
  * - Diffuse Reflection: random cosine-weighted direction
  * - Thermal Reflection: Maxwell-Boltzmann re-emission at wall temperature
- * - Transmission: pass through (multi-domain transitions)
  * 
  * Used by DomainManager when boundary crossing detected.
  */

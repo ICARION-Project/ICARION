@@ -18,7 +18,7 @@ void RK4Strategy::step(
     physics::ForceContext ctx;
     ctx.domain = force_registry.domain();  // Get domain from registry
     ctx.all_ions = &all_ions;
-    ctx.field_provider = nullptr;  // Not using field provider for now
+    ctx.field_provider = nullptr;  // No field provider hookup in RK4
     
     // =========================================================================
     // STAGE 1: k1 = f(t, y)
@@ -81,7 +81,7 @@ void RK4Strategy::step(
 }
 
 // ============================================================================
-// Phase 3B: SoA-optimized RK4 implementation
+// SoA-optimized RK4 implementation
 // ============================================================================
 
 void RK4Strategy::step_soa(
@@ -107,8 +107,8 @@ void RK4Strategy::step_soa(
     // Create force context (domain from ForceRegistry)
     physics::ForceContext ctx;
     ctx.domain = force_registry.domain();
-    ctx.all_ions = nullptr;  // Space charge requires conversion (TODO: Phase 3C)
-    ctx.field_provider = nullptr;
+    ctx.all_ions = nullptr;  // Space charge AoS only in default path
+    ctx.field_provider = nullptr;  // No field provider hookup in RK4
     
     // Temporary IonState for force evaluation (minimal overhead)
     IonState ion_temp;

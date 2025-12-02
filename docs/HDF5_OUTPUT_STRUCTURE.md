@@ -1,8 +1,8 @@
 # HDF5 Output Structure
 
 **Version:** 1.0  
-**Last Updated:** December 1, 2025  
-**Status:** Implemented
+**Last Updated:** December 2025  
+**Status:** Implemented (v1.0); waveform library stored (v1.1), full config JSON not yet embedded
 
 ---
 
@@ -21,7 +21,7 @@ ICARION writes simulation results to HDF5 files with a hierarchical structure de
 ```
 simulation.h5
 ├── metadata/
-│   ├── config/                    # Configuration parameters
+│   ├── config/                    # Selected configuration parameters
 │   ├── reproducibility/           # Git hash, RNG seed, build info
 │   ├── system/                    # System information
 │   ├── species/                   # Species database (tabular)
@@ -80,7 +80,7 @@ Configuration parameters extracted from `FullConfig`.
 | `enable_gpu` | bool | GPU acceleration enabled? | - |
 | `output_file` | string | Output file path | - |
 
-**Note:** Complete JSON configuration may be added in future versions.
+**Note:** Only selected fields are written; full JSON config is not embedded in v1.0.
 
 ---
 
@@ -199,7 +199,7 @@ Reaction database in tabular format.
 - `4` = Switching
 - `5` = Unknown
 
-**Note:** Current implementation writes type `2` (Association) for all reactions. Full reaction type support is planned for future versions.
+**Note:** Current implementation writes type `2` (Association) for all reactions; type-specific IDs are not yet persisted.
 
 ### `/metadata/completion/`
 

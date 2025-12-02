@@ -1,7 +1,7 @@
 # ICARION Troubleshooting Guide
 
 **Version:** 1.0  
-**Last Updated:** November 26, 2025
+**Last Updated:** December 2025
 
 This guide helps users diagnose and resolve common issues when running ICARION simulations.
 
@@ -173,7 +173,7 @@ time ./icarion_main config.json  # Should be ~4-5× faster
    export OMP_PROC_BIND=close
    ```
 
-3. **GPU acceleration** (N > 5k ions recommended):
+3. **GPU acceleration** (N > 5k ions recommended; Boris starts ~2.5k):
    ```json
    "simulation": {
      "enable_gpu": true  // Automatic dispatch at 5000 ions threshold
@@ -242,7 +242,7 @@ time ./icarion_main config.json  # Should be ~4-5× faster
 **Solution:**
 - Reduce ion count for testing
 - Disable space charge if not critical: `"enable_space_charge": false`
-- Note: v1.0 uses direct summation only (grid-based planned for v1.1)
+- Note: v1.0 uses CPU direct summation only; GPU P³M helper exists but is not called from the main loop yet.
 
 ---
 

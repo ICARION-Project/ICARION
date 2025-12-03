@@ -1,11 +1,12 @@
 {
   "simulation": {
-    "total_time_s": 0.000886173144760495,
-    "dt_s": 2.399552330320532e-11,
-    "write_interval": 3693076,
+    "total_time_s": 0.0001853241763316554,
+    "dt_s": 5.998880825801331e-11,
+    "write_interval": 15446,
     "integrator": "RK4",
     "enable_gpu": false,
     "enable_openmp": true,
+    "num_threads": 4,
     "rng_seed": 42
   },
   "physics": {
@@ -23,7 +24,7 @@
     "species": [
       {
         "species_id": "H3O+",
-        "count": 10000,
+        "count": 1000,
         "position": {
           "type": "gaussian",
           "center": [
@@ -53,9 +54,9 @@
         "origin_m": [
           0.0,
           0.0,
-          0.0
+          -0.01
         ],
-        "length_m": 0.05,
+        "length_m": 0.06,
         "radius_m": 0.05
       },
       "env": {

@@ -28,10 +28,11 @@
 ### **Completed Tests:**
 
 #### **IMS (Ion Mobility Spectrometry)** - 27 configs
-- Drift velocity validation (3 collision models × 3 E/N values × 3 species)
-- Collision models: HSS, Langevin, Friction
-- Test species: H3O+, PentanalH+, 2,6-DTBPH+
-- E/N range: 50-150 Td
+- Drift velocity validation (3 collision models × 3 E/N values × 3 pressures each)
+- Collision models: HSS, EHSS, Friction
+- Test species: H3O+
+- E/N values: 10, 40, 100 Td
+- pressure values: 10 (only stochastic), 100 Pa, 1000 Pa, 10000 Pa (only Friction)
 - Scripts: `generate_ims_configs.py`, `analyze_ims_drift.py`
 
 #### **Orbitrap** - 5 configs

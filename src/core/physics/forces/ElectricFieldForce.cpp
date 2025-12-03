@@ -164,17 +164,17 @@ Vec3 ElectricFieldForce::compute_lqit_field(const IonState& ion, double t) const
     const auto& lib = domain_->fields.waveform_library;
     
     // v1.0: Evaluate voltages/frequencies at current time (only if set)
-    const double rf_voltage = (rf.voltage_V.constant_value.has_value() || rf.voltage_V.waveform_ref.has_value()) 
+    const double rf_voltage = (rf.voltage_V.constant_value.has_value() || rf.voltage_V.waveform_ref.has_value() || rf.voltage_V.waveform.has_value()) 
                              ? eval_value(rf.voltage_V, t, lib) : 0.0;
-    const double rf_freq = (rf.frequency_Hz.constant_value.has_value() || rf.frequency_Hz.waveform_ref.has_value()) 
+    const double rf_freq = (rf.frequency_Hz.constant_value.has_value() || rf.frequency_Hz.waveform_ref.has_value() || rf.frequency_Hz.waveform.has_value()) 
                           ? eval_value(rf.frequency_Hz, t, lib) : 0.0;
-    const double ac_voltage = (ac.voltage_V.constant_value.has_value() || ac.voltage_V.waveform_ref.has_value()) 
+    const double ac_voltage = (ac.voltage_V.constant_value.has_value() || ac.voltage_V.waveform_ref.has_value() || ac.voltage_V.waveform.has_value()) 
                              ? eval_value(ac.voltage_V, t, lib) : 0.0;
-    const double ac_freq = (ac.frequency_Hz.constant_value.has_value() || ac.frequency_Hz.waveform_ref.has_value()) 
+    const double ac_freq = (ac.frequency_Hz.constant_value.has_value() || ac.frequency_Hz.waveform_ref.has_value() || ac.frequency_Hz.waveform.has_value()) 
                           ? eval_value(ac.frequency_Hz, t, lib) : 0.0;
-    const double dc_quad = (dc.quad_V.constant_value.has_value() || dc.quad_V.waveform_ref.has_value()) 
+    const double dc_quad = (dc.quad_V.constant_value.has_value() || dc.quad_V.waveform_ref.has_value() || dc.quad_V.waveform.has_value()) 
                           ? eval_value(dc.quad_V, t, lib) : 0.0;
-    const double dc_axial = (dc.axial_V.constant_value.has_value() || dc.axial_V.waveform_ref.has_value()) 
+    const double dc_axial = (dc.axial_V.constant_value.has_value() || dc.axial_V.waveform_ref.has_value() || dc.axial_V.waveform.has_value()) 
                            ? eval_value(dc.axial_V, t, lib) : 0.0;
     
     // (1) RF + DC quadrupole field (radial) - matches RFField()

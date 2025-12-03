@@ -2,18 +2,26 @@
 """
 Quick IMS drift velocity analysis
 
-Calculates drift velocity from position data and compares to Mason-Schamp prediction.
+Calculates drift velocity from position data and compares to Mason-Schamp prediction
+with effective temperature correction.
 """
 
 import h5py
 import numpy as np
 import sys
 
+# Physical constants
+kB = 1.380649e-23  # J/K - Boltzmann constant
+amu = 1.66053906660e-27  # kg - atomic mass unit
+e = 1.602176634e-19  # C - elementary charge
+
 # Mason-Schamp parameters
 K0_H3Op_He = 24.1e-4  # m²/(V·s) - H3O+ in He reduced mobility (from species_database_v1.json)
+M_H3Op = 19.02 * amu  # kg - H3O+ mass
+M_Hep = 4.003 * amu # kg - He mass
+LOSCHMIDT = 2.6867774e25  # m^-3 - number density at STP
 P0 = 101325.0  # Pa
 T0 = 273.15  # K
-T = 300.0  # K
 
 def analyze_drift(h5_file):
     """Analyze drift velocity from HDF5 trajectory data"""
@@ -54,18 +62,30 @@ def analyze_drift(h5_file):
     v_drift_mean = np.mean(drift_velocities)
     v_drift_std = np.std(drift_velocities)
     
-    # Mason-Schamp prediction using actual gas density
-    LOSCHMIDT = 2.6867774e25  # m^-3
+    # Calculate E/N in Townsend units
+    E_N_Td = (E_Vm / N_m3) * 1e21  # 1 Td = 1e-21 V·m²
+    
+    # Calculate effective temperature T_eff = T + M/(3*kB) * (K0 * E * N0/N)^2
     N_ratio = LOSCHMIDT / N_m3
-    v_expected = K0_H3Op_He * E_Vm * N_ratio
+    v_drift_field = K0_H3Op_He * E_Vm * N_ratio  # drift velocity at low field
+    T_heating = (M_Hep / (3 * kB)) * v_drift_field**2
+    T_eff = T_K + T_heating
+    
+    # Mason-Schamp with effective temperature correction
+    # K(T_eff) = K0 * (T0/T_eff)^(1/2) * (P/P0)
+    # v = K(T_eff) * E * (N0/N)
+    K_eff = K0_H3Op_He * np.sqrt(T0 / T_eff)
+    v_expected = K_eff * E_Vm * N_ratio
     
     error_pct = 100 * (v_drift_mean - v_expected) / v_expected
     
     print(f"  E-field: {E_Vm:.1f} V/m @ P={P_Pa:.0f} Pa, T={T_K:.0f} K")
+    print(f"  E/N: {E_N_Td:.1f} Td")
+    print(f"  T_eff: {T_eff:.1f} K (T_heating: {T_heating:.1f} K)")
     print(f"  Drifted ions: {n_drifted}/{len(z_start)}")
     print(f"  Drift distance: {np.mean(drift_distance[drifted_mask])*1e3:.1f} ± {np.std(drift_distance[drifted_mask])*1e3:.1f} mm")
     print(f"  Drift velocity: {v_drift_mean:.1f} ± {v_drift_std:.1f} m/s")
-    print(f"  Mason-Schamp:   {v_expected:.1f} m/s")
+    print(f"  Mason-Schamp (T_eff):   {v_expected:.1f} m/s")
     print(f"  Error:          {error_pct:+.1f}%")
     
     return v_drift_mean, v_expected, error_pct

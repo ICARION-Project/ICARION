@@ -5,7 +5,7 @@
     "write_interval": 50,
     "integrator": "RK4",
     "enable_gpu": false,
-    "enable_openmp": false,
+    "enable_openmp": true,
     "rng_seed": 42
   },
   "physics": {
@@ -15,7 +15,7 @@
   },
   "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
   "output": {
-    "folder": "results/v1.0_test/physics/thermalization",
+    "folder": "/home/chsch95/ICARION/results/v1.0_test/physics/thermalization",
     "trajectory_file": "therm_ehss_H3Op_300K_200.0Pa.h5",
     "print_progress": true
   },
@@ -44,40 +44,24 @@
       }
     ]
   },
-  "environment": {
-    "pressure_Pa": 200.0,
-    "temperature_K": 300,
-    "gas_species": [
-      "He"
-    ],
-    "gas_fractions": [
-      1.0
-    ]
-  },
-  "geometry": {
-    "type": "basic_cylinder",
-    "radius_m": 0.05,
-    "length_m": 0.2
-  },
   "domains": [
     {
       "name": "thermalization_chamber",
       "instrument": "IMS",
       "geometry": {
-        "type": "cylinder",
-        "radius_m": 0.05,
-        "length_m": 0.2,
-        "entrance_z": 0.0,
-        "exit_z": 0.2
+        "origin_m": [
+          0.0,
+          0.0,
+          -5.0
+        ],
+        "radius_m": 10,
+        "length_m": 10
       },
       "environment": {
         "pressure_Pa": 200.0,
         "temperature_K": 300,
         "gas_species": [
           "He"
-        ],
-        "gas_fractions": [
-          1.0
         ]
       },
       "fields": {

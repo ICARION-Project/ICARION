@@ -5,6 +5,7 @@
       "charge": 1,
       "mobility_cm2Vs": 24.1,
       "CCS_A2": 24.9,
+      "ccs_reference_gas": "He",
       "name": "Hydronium ion",
       "reference_temperature_K": 273.15,
       "reference_pressure_Pa": 101325,

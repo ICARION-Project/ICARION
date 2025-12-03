@@ -23,23 +23,36 @@ import os
 from pathlib import Path
 
 # IMS parameters
-DRIFT_LENGTH_M = 0.05  # 5 cm drift tube
+DRIFT_LENGTH_M = 0.06  # 5 cm drift tube
 DRIFT_TUBE_RADIUS_M = 0.05  # 5 cm radius (large to minimize wall losses)
 
-# Parameter sweeps using EN_Td (reduced field) - typical IMS values
-EN_TD_VALUES = [10.0, 40.0, 100.0]  # Td (Low, Medium, High) - realistic IMS range
-PRESSURES_PA = [100.0, 1000.0, 10000.0]  # Pa (Low, Medium, High)
+# Parameter sweeps using EN_Td (reduced field) - detailed E/N mapping
+EN_TD_VALUES = [10.0, 20.0, 30.0, 40.0, 50.0]  # Td - detailed E/N mapping for validation
+PRESSURES_PA = [10.0, 20.0, 100.0, 1000.0]  # Pa - including 20 Pa for better resolution
 ION_SPECIES = "H3O+"
-COLLISION_MODELS = ["HSS", "EHSS", "Friction"]  # Langevin and HSD are experimental
+
+# Collision models depend on pressure regime:
+# - Very low pressure (10 Pa = 0.1 mbar): Only stochastic models - individual collisions
+# - Low/medium pressure (100-1000 Pa): All models (stochastic + Friction for comparison)
+# - High pressure (10000 Pa = 100 mbar): Only Friction model is physically meaningful
+#   (stochastic models become computationally intractable and less accurate)
+def get_models_for_pressure(pressure_Pa):
+    """Return appropriate collision models for given pressure"""
+    if pressure_Pa >= 5000:  # High pressure regime (>50 mbar)
+        return ["Friction"]  # Only deterministic damping
+    elif pressure_Pa <= 20:  # Very low pressure (molecular flow regime)
+        return ["HSS", "EHSS"]  # Only stochastic - Friction not valid
+    else:  # Low/medium pressure (transition regime)
+        return ["HSS", "EHSS", "Friction"]  # All models for comparison
 
 # Physical constants
 T_K = 300.0  # Temperature
-K0_H3Op_SI = 10.5e-4  # m²/(V·s) - H3O+ in He reduced mobility (much higher than N2)
+K0_H3Op_SI = 24.1e-4  # m²/(V·s) - H3O+ in He reduced mobility (much higher than N2)
 P0 = 101325.0  # Pa
 T0 = 273.15  # K
 
 # Simulation parameters
-N_IONS = 10000  # Many ions for good statistics and validation
+N_IONS = 1000  # Many ions for good statistics and validation
 RNG_SEED = 42
 
 def calc_EN_to_E(EN_Td, pressure_Pa):
@@ -58,9 +71,16 @@ def calc_drift_time(EN_Td, pressure_Pa):
     return t_drift, v_drift, E_Vm
 
 def calc_dt(collision_freq_Hz):
-    """Calculate timestep from collision frequency"""
-    # dt = 1 / (50 * collision_freq)
-    return 1.0 / (50.0 * collision_freq_Hz)
+    """Calculate timestep from collision frequency
+    
+    Target: P_collision = ν * dt < 0.1 (10% collision probability per step)
+    Therefore: dt < 0.1 / ν
+    
+    Use 5% collision probability for safety: dt = 0.05 / ν
+    """
+    target_prob = 0.05  # 5% collision probability per timestep
+    dt = target_prob / collision_freq_Hz
+    return dt
 
 def calc_collision_freq(pressure_Pa):
     """Estimate collision frequency from kinetic theory"""
@@ -84,14 +104,16 @@ def generate_config(EN_Td, pressure_Pa, collision_model):
     t_drift, v_drift, E_Vm = calc_drift_time(EN_Td, pressure_Pa)
     collision_freq = calc_collision_freq(pressure_Pa)
     
-    # Simulation time: 5x drift time for good statistics
-    total_time_s = 5.0 * t_drift
+    # Simulation time: 2x drift time is enough for drift velocity measurement
+    # At high E/N, ions cross quickly - we don't need 3-5x
+    total_time_s = 2.0 * t_drift
     
-    # Timestep: collision_time / 50
+    # Timestep: 5% collision probability per step (P = ν * dt < 0.05)
     dt_s = calc_dt(collision_freq)
     
-    # Write interval: every 10 drift times worth of data
-    write_interval = max(1, int(total_time_s / (10 * dt_s)))
+    # Write interval: Target ~200 snapshots - enough for analysis, reasonable file size
+    total_steps = int(total_time_s / dt_s)
+    write_interval = max(1, total_steps // 200)
     
     config = {
         "simulation": {
@@ -101,6 +123,7 @@ def generate_config(EN_Td, pressure_Pa, collision_model):
             "integrator": "RK4",
             "enable_gpu": False,
             "enable_openmp": True,
+            "num_threads": 4,
             "rng_seed": RNG_SEED
         },
         "physics": {
@@ -137,7 +160,7 @@ def generate_config(EN_Td, pressure_Pa, collision_model):
                 "name": "IMS Drift Tube",
                 "instrument": "IMS",
                 "geometry": {
-                    "origin_m": [0.0, 0.0, 0.0],
+                    "origin_m": [0.0, 0.0, -0.01],
                     "length_m": DRIFT_LENGTH_M,
                     "radius_m": DRIFT_TUBE_RADIUS_M
                 },
@@ -161,16 +184,17 @@ def generate_config(EN_Td, pressure_Pa, collision_model):
 def main():
     """Generate all IMS validation configs"""
     
-    output_dir = Path(__file__).parent.parent / "configs" / "instruments" / "ims"
+    output_dir = Path(__file__).parent.parent.parent / "configs" / "instruments" / "ims"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"Generating IMS validation configs in {output_dir}")
-    print(f"Test matrix: {len(EN_TD_VALUES)} E/N values × {len(PRESSURES_PA)} pressures × {len(COLLISION_MODELS)} models = {len(EN_TD_VALUES) * len(PRESSURES_PA) * len(COLLISION_MODELS)} configs")
+    print(f"Test matrix: Pressure-dependent model selection (stochastic models only at low/medium pressure)")
     
     count = 0
     for EN_Td in EN_TD_VALUES:
         for pressure_Pa in PRESSURES_PA:
-            for collision_model in COLLISION_MODELS:
+            models = get_models_for_pressure(pressure_Pa)
+            for collision_model in models:
                 
                 config = generate_config(EN_Td, pressure_Pa, collision_model)
                 

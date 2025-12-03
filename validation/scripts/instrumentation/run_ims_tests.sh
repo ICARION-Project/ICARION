@@ -40,36 +40,70 @@ CONFIG_COUNT=$(ls "$CONFIG_DIR"/*.json 2>/dev/null | wc -l)
 echo "Found $CONFIG_COUNT IMS configurations"
 echo ""
 
-# Run tests
+# Run tests in parallel (2 at a time, 4 threads each)
 PASSED=0
 FAILED=0
 TOTAL=0
 
-for config in "$CONFIG_DIR"/*.json; do
-    TOTAL=$((TOTAL + 1))
-    basename=$(basename "$config" .json)
+# Function to run a single test
+run_test() {
+    local config="$1"
+    local total="$2"
+    local basename=$(basename "$config" .json)
     
-    echo "[$TOTAL/$CONFIG_COUNT] Running: $basename"
+    echo "[$total/$CONFIG_COUNT] Running: $basename"
     
     # Run simulation with output capture
     output_dir="$RESULTS_DIR/$basename"
     mkdir -p "$output_dir"
     
-    if "$ICARION_BIN" "$config" > "$output_dir/stdout.log" 2> "$output_dir/stderr.log"; then
+    if "$ICARION_BIN" "$config" --threads 4 > "$output_dir/stdout.log" 2> "$output_dir/stderr.log"; then
         # Check if HDF5 output was created
-        if [ -f "$output_dir/output.h5" ]; then
-            echo "  ✅ PASS"
-            PASSED=$((PASSED + 1))
+        h5_file=$(find "$output_dir" -name "*.h5" 2>/dev/null | head -1)
+        if [ -n "$h5_file" ]; then
+            echo "  ✅ PASS: $basename"
+            return 0
         else
-            echo "  ❌ FAIL (no HDF5 output)"
-            FAILED=$((FAILED + 1))
+            echo "  ❌ FAIL (no HDF5 output): $basename"
+            return 1
         fi
     else
-        echo "  ❌ FAIL (non-zero exit code)"
-        FAILED=$((FAILED + 1))
-        cat "$output_dir/stderr.log"
+        echo "  ❌ FAIL (non-zero exit code): $basename"
+        cat "$output_dir/stderr.log" | head -20
+        return 1
+    fi
+}
+
+export -f run_test
+export ICARION_BIN RESULTS_DIR CONFIG_COUNT
+
+# Collect all configs into array
+CONFIGS=("$CONFIG_DIR"/*.json)
+
+# Run tests 2 at a time
+for ((i=0; i<${#CONFIGS[@]}; i+=2)); do
+    TOTAL=$((i + 1))
+    
+    # Start first job in background
+    run_test "${CONFIGS[i]}" "$TOTAL" &
+    pid1=$!
+    
+    # Start second job if available
+    if [ $((i+1)) -lt ${#CONFIGS[@]} ]; then
+        TOTAL=$((i + 2))
+        run_test "${CONFIGS[$((i+1))]}" "$TOTAL" &
+        pid2=$!
+        
+        # Wait for both jobs
+        wait $pid1 && ((PASSED++)) || ((FAILED++))
+        wait $pid2 && ((PASSED++)) || ((FAILED++))
+    else
+        # Only one job left
+        wait $pid1 && ((PASSED++)) || ((FAILED++))
     fi
 done
+
+TOTAL=${#CONFIGS[@]}
 
 echo ""
 echo "=============================================="

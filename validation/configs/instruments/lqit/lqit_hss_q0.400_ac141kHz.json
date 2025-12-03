@@ -22,7 +22,7 @@
   "ions": {
     "species": [
       {
-        "species_id": "H3O+",
+        "id": "H3O+",
         "count": 1000,
         "position": {
           "type": "gaussian",

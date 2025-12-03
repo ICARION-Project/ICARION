@@ -1,6 +1,6 @@
 {
   "simulation": {
-    "total_time_s": 1.9999999999999998e-05,
+    "total_time_s": 2e-03,
     "dt_s": 1e-08,
     "write_interval": 100,
     "integrator": "RK4",
@@ -22,7 +22,7 @@
   "ions": {
     "species": [
       {
-        "species_id": "H3O+",
+        "id": "H3O+",
         "count": 1000,
         "position": {
           "type": "gaussian",

@@ -185,6 +185,18 @@ target_include_directories(test_multi_gas_collision PRIVATE
 )
 add_test(NAME MultiGasCollision COMMAND test_multi_gas_collision)
 
+# AoS vs SoA parity for collision handlers
+add_executable(test_collision_soa_parity test_collision_soa_parity.cpp)
+target_link_libraries(test_collision_soa_parity PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_collision_soa_parity PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME CollisionSoAParity COMMAND test_collision_soa_parity)
+
 # GPU collision parity test (CPU vs GPU collision results)
 if(ICARION_USE_GPU)
     add_executable(test_gpu_collision_parity test_gpu_collision_parity.cpp)
@@ -230,4 +242,3 @@ if(ICARION_USE_GPU)
         ${CMAKE_SOURCE_DIR}/include
     )
 endif()
-

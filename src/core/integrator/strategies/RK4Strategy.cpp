@@ -19,6 +19,7 @@ void RK4Strategy::step(
     ctx.domain = force_registry.domain();  // Get domain from registry
     ctx.all_ions = &all_ions;
     ctx.field_provider = nullptr;  // No field provider hookup in RK4
+    ctx.field_model = force_registry.field_model();
     
     // =========================================================================
     // STAGE 1: k1 = f(t, y)
@@ -109,6 +110,7 @@ void RK4Strategy::step_soa(
     ctx.domain = force_registry.domain();
     ctx.all_ions = nullptr;  // Space charge AoS only in default path
     ctx.field_provider = nullptr;  // No field provider hookup in RK4
+    ctx.field_model = force_registry.field_model();
     
     // Temporary IonState for force evaluation (minimal overhead)
     IonState ion_temp;

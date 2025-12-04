@@ -3,6 +3,7 @@
 
 #include "DomainManager.h"
 #include "core/config/types/InstrumentTypes.h"
+#include "core/config/types/AnalyticalFieldModel.h"
 #include <stdexcept>
 #include <cmath>
 
@@ -81,11 +82,16 @@ DomainManager::DomainManager(
         throw std::invalid_argument("DomainManager: domains vector is empty");
     }
     
-    // Create boundary actions for each domain
+    // Create boundary actions and analytical field models for each domain.
+    // PhysicsSetup will override with grid-backed models when present.
     boundary_actions_.reserve(domains.size());
+    field_models_.reserve(domains.size());
     for (const auto& domain : domains) {
         boundary_actions_.push_back(
             BoundaryActionFactory::create(domain.boundary, &rng_)
+        );
+        field_models_.push_back(
+            std::make_unique<config::AnalyticalFieldModel>(domain)
         );
     }
 }
@@ -105,6 +111,13 @@ const config::DomainConfig& DomainManager::get_domain(int idx) const {
                                 std::to_string(idx));
     }
     return domains_[idx];
+}
+
+const config::IFieldModel* DomainManager::field_model(int idx) const {
+    if (idx < 0 || idx >= static_cast<int>(field_models_.size())) {
+        return nullptr;
+    }
+    return field_models_[idx].get();
 }
 
 Vec3 DomainManager::global_to_local_pos(const Vec3& pos, int domain_idx) const {

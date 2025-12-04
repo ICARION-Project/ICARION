@@ -145,11 +145,17 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
         
         // Add electric field force
         if (electric_field_provider) {
-            // Use field provider mode (interpolated fields from FieldArray)
+            // Use field provider mode (interpolated fields from FieldArray) and set SSOT model
             registry->add_force(std::make_unique<physics::ElectricFieldForce>(electric_field_provider));
+            auto model = std::make_unique<config::FieldProviderModel>(electric_field_provider);
+            registry->set_field_model(model.get());
+            field_models_storage_.push_back(std::move(model));
         } else {
-            // Use analytical mode (instrument-specific fields)
+            // Use analytical mode (instrument-specific fields) and set SSOT model
             registry->add_force(std::make_unique<physics::ElectricFieldForce>(domain));
+            auto model = std::make_unique<config::AnalyticalFieldModel>(domain);
+            registry->set_field_model(model.get());
+            field_models_storage_.push_back(std::move(model));
         }
         
         // Add magnetic field force if configured (but NOT for Boris integrator)

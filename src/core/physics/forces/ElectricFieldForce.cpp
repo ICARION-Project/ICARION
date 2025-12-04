@@ -5,6 +5,7 @@
 #include "core/utils/mathUtils.h"
 #include "fieldsolver/utils/IFieldProvider.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/config/types/IFieldModel.h"
 
 #include <cmath>
 #include <algorithm>
@@ -68,6 +69,8 @@ Vec3 ElectricFieldForce::compute(const IonState& ion, double t, const ForceConte
         E_field = ctx.field_provider->get_E(ion.pos, t);  // Time-dependent evaluation
     } else if (use_field_provider_ && field_provider_) {
         E_field = field_provider_->get_E(ion.pos, t);      // Time-dependent evaluation
+    } else if (ctx.field_model) {
+        E_field = ctx.field_model->E(ion.pos, t);
     } else {
         E_field = compute_analytical_field(ion, t);
     }

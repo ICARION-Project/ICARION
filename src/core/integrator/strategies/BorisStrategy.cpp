@@ -32,6 +32,7 @@ void BorisStrategy::step(
     ctx.domain = domain;
     ctx.all_ions = &all_ions;
     ctx.field_provider = nullptr;
+    ctx.field_model = force_registry.field_model();
     
     // =========================================================================
     // STEP 1: Compute electric forces and get magnetic field

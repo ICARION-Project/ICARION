@@ -65,6 +65,12 @@ SimulationEngine::SimulationEngine(
         config_.domains,
         config_.simulation.rng_seed
     );
+    // Wire field models into force registries (same ordering as domains) if not set
+    for (size_t i = 0; i < force_registries_.size(); ++i) {
+        if (force_registries_[i] && force_registries_[i]->field_model() == nullptr) {
+            force_registries_[i]->set_field_model(domain_manager_->field_model(static_cast<int>(i)));
+        }
+    }
     
     // Initialize OpenMP thread settings (NUMA-aware)
     initialize_openmp_settings();

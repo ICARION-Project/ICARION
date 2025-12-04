@@ -20,6 +20,7 @@
 #pragma once
 
 #include "core/config/types/DomainConfig.h"  // SSOT: config::DomainConfig
+#include "core/config/types/IFieldModel.h"   // Field models (analytical/map)
 #include "core/types/Vec3.h"                // Vec3
 #include "core/types/IonState.h"            // IonState
 #include "boundaries/BoundaryAction.h"
@@ -212,10 +213,18 @@ public:
      * @brief Get number of domains
      */
     size_t num_domains() const { return domains_.size(); }
+
+    /**
+     * @brief Get field model for a domain (if constructed)
+     * @param idx Domain index
+     * @return Pointer to field model or nullptr
+     */
+    const config::IFieldModel* field_model(int idx) const;
     
 private:
     const std::vector<config::DomainConfig>& domains_;  ///< Reference to domain list (not owned, SSOT)
     std::vector<std::unique_ptr<BoundaryAction>> boundary_actions_;  ///< Boundary actions per domain
+    std::vector<std::unique_ptr<config::IFieldModel>> field_models_; ///< Field models per domain (analytical fallback)
     std::mt19937 rng_;  ///< Random number generator for boundary actions
     
     /**

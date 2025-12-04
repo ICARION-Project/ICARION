@@ -9,6 +9,10 @@
 #include "ForceContext.h"
 #include "core/config/types/DomainConfig.h"
 
+namespace ICARION::config {
+    class IFieldModel;
+}
+
 namespace ICARION::physics {
 
 /**
@@ -135,6 +139,19 @@ public:
         return domain_;
     }
     
+    /**
+     * @brief Set optional field model (non-owning)
+     *
+     * Allows integrators to pass a constructed IFieldModel via ForceContext.
+     * Caller must ensure lifetime exceeds registry usage.
+     */
+    void set_field_model(const config::IFieldModel* model) { field_model_ = model; }
+    
+    /**
+     * @brief Access configured field model (if any)
+     */
+    const config::IFieldModel* field_model() const { return field_model_; }
+    
 private:
     /**
      * @brief Vector of registered forces (owned by registry)
@@ -148,6 +165,13 @@ private:
      * Must remain valid for lifetime of registry.
      */
     const config::DomainConfig* domain_ = nullptr;
+    
+    /**
+     * @brief Optional field model (non-owning)
+     *
+     * Set by setup layer once field models are constructed.
+     */
+    const config::IFieldModel* field_model_ = nullptr;
 };
 
 } // namespace ICARION::physics

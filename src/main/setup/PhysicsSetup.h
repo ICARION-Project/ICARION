@@ -17,6 +17,8 @@
 #include "core/physics/collisions/ICollisionHandler.h"
 #include "core/physics/reactions/IReactionHandler.h"
 #include "core/io/fieldArrayLoader.h"
+#include "core/config/types/AnalyticalFieldModel.h"
+#include "core/config/types/FieldProviderModel.h"
 #include <vector>
 #include <memory>
 
@@ -82,11 +84,12 @@ private:
      * @brief Create force registries (one per domain)
      * 
      * Adds fundamental forces to each domain:
-     * - ElectricFieldForce (always)
+     * - ElectricFieldForce (always) + matching FieldModel (analytical or grid)
      * - MagneticFieldForce (if B > 0)
      * - DampingForce (if Friction model)
-     * 
-     * Also loads field arrays from HDF5 files if field_array_terms are present.
+     *
+     * Also loads field arrays from HDF5 if field_array_terms are present and
+     * wraps them in FieldProviderModel for SSOT field access.
      */
     static std::vector<std::shared_ptr<physics::ForceRegistry>> create_force_registries(
         const config::FullConfig& config
@@ -95,6 +98,8 @@ private:
     /// Static storage for field arrays (must persist for simulation lifetime)
     /// Using unique_ptr to prevent pointer invalidation on vector reallocation
     static inline std::vector<std::unique_ptr<FieldArray>> field_arrays_storage_;
+    /// Static storage for field models (must persist for simulation lifetime)
+    static inline std::vector<std::unique_ptr<config::IFieldModel>> field_models_storage_;
     
     /**
      * @brief Add space charge forces to registries

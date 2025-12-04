@@ -122,6 +122,7 @@ void RK45Strategy::compute_acceleration(
     ctx.domain = force_registry.domain();  // Get domain from registry
     ctx.all_ions = &all_ions;
     ctx.field_provider = nullptr;
+    ctx.field_model = force_registry.field_model();
     
     Vec3 F = force_registry.compute_total_force(ion, t, ctx);
     Vec3 a = F / ion.mass_kg;

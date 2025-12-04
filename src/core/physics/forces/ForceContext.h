@@ -13,6 +13,7 @@ class IFieldProvider;
 // Forward declare DomainConfig (in correct namespace)
 namespace ICARION::config {
     struct DomainConfig;
+    class IFieldModel;
 }
 
 namespace ICARION::physics {
@@ -36,6 +37,16 @@ struct ForceContext {
      * @see IFieldProvider for field sampling interface
      */
     const ::IFieldProvider* field_provider = nullptr;
+    
+    /**
+     * @brief Optional analytical/map field model (new domain/field layer)
+     *
+     * If set, forces should prefer `field_model->E/B(...)` as SSOT. Typically
+     * injected by PhysicsSetup (analytical vs. grid) and forwarded by
+     * integrators; SimulationEngine only backfills from DomainManager as a
+     * legacy fallback.
+     */
+    const ::ICARION::config::IFieldModel* field_model = nullptr;
     
     // =========================================================================
     // Domain Configuration (geometry, instrument type, field parameters)

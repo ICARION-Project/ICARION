@@ -152,8 +152,10 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
             registry->add_force(std::make_unique<physics::ElectricFieldForce>(domain));
         }
         
-        // Add magnetic field force if configured
-        if (domain.fields.magnetic.enabled) {
+        // Add magnetic field force if configured (but NOT for Boris integrator)
+        // NOTE: Boris integrator handles magnetic fields internally via rotation,
+        //       so it doesn't need/want MagneticFieldForce in the registry
+        if (domain.fields.magnetic.enabled && config.simulation.integrator != "Boris") {
             registry->add_force(std::make_unique<physics::MagneticFieldForce>(domain.fields.magnetic));
         }
         
@@ -175,10 +177,20 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
     
     size_t mag_count = 0;
     for (const auto& domain : config.domains) {
-        if (domain.fields.magnetic.enabled) mag_count++;
+        if (domain.fields.magnetic.enabled && config.simulation.integrator != "Boris") {
+            mag_count++;
+        }
     }
     if (mag_count > 0) {
-        log::Logger::main()->info("  ✓ MagneticFieldForce added to {} registries", mag_count);
+        log::Logger::main()->info("  ✓ MagneticFieldForce added to {} registries (not Boris)", mag_count);
+    } else if (config.simulation.integrator == "Boris") {
+        size_t boris_magnetic_domains = 0;
+        for (const auto& domain : config.domains) {
+            if (domain.fields.magnetic.enabled) boris_magnetic_domains++;
+        }
+        if (boris_magnetic_domains > 0) {
+            log::Logger::main()->info("  ℹ MagneticFieldForce skipped for {} domains (Boris handles B-field internally)", boris_magnetic_domains);
+        }
     }
     
     if (config.physics.collision_model == config::CollisionModel::Friction) {

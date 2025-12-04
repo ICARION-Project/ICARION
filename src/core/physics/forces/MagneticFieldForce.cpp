@@ -52,9 +52,11 @@ Vec3 MagneticFieldForce::compute(const IonState& ion, double t, const ForceConte
     
     // Priority: context field provider > constructor field provider > analytical
     if (ctx.field_provider) {
-        B_field = ctx.field_provider->get_E(ion.pos);  // get_E() used for B-field
+        // TODO: FieldProvider doesn't support magnetic fields yet
+        // B_field = ctx.field_provider->get_B(ion.pos);
     } else if (use_field_provider_ && field_provider_) {
-        B_field = field_provider_->get_E(ion.pos);
+        // TODO: FieldProvider doesn't support magnetic fields yet
+        // B_field = field_provider_->get_B(ion.pos);
     } else {
         B_field = compute_analytical_field(ion.pos);
     }

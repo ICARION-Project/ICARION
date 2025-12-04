@@ -1,0 +1,62 @@
+{
+  "simulation": {
+    "total_time_s": 5e-7,
+    "dt_s": 1e-11,
+    "write_interval": 10,
+    "integrator": "Boris",
+    "enable_gpu": false,
+    "enable_openmp": false,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "None",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/instruments/fticr",
+    "trajectory_file": "fticr_precision.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "H3O+",
+        "count": 1,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0],
+          "std": [0.0001, 0.0001, 0.0001]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "FT-ICR B=7.0T Precision",
+      "instrument": "FTICR",
+      "geometry": {
+        "radius_m": 0.01,
+        "length_m": 0.04,
+        "origin_m": [0.0, 0.0, -0.02]
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-12,
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "magnetic": {
+          "field_strength_T": [0.0, 0.0, 7.0]
+        }
+      }
+    }
+  ]
+}

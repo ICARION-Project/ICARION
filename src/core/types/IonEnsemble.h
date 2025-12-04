@@ -318,6 +318,8 @@ struct IonKinematics {
     
     void set_pos(const Vec3& p) { pos_x[index]=p.x; pos_y[index]=p.y; pos_z[index]=p.z; }
     void set_vel(const Vec3& v) { vel_x[index]=v.x; vel_y[index]=v.y; vel_z[index]=v.z; }
+    void set_mass(double m) { mass[index] = m; }
+    void set_charge(double q) { charge[index] = q; }
 };
 
 /**
@@ -331,11 +333,16 @@ struct IonCollisionData {
     const double* temperature;
     const double* gas_density;
     const double* neutral_mass;
+    const std::vector<std::string>* species_pool;
+    const uint32_t* species_id_index;
     
     double get_CCS() const { return CCS[kin.index]; }
     double get_temperature() const { return temperature[kin.index]; }
     double get_gas_density() const { return gas_density[kin.index]; }
     double get_neutral_mass() const { return neutral_mass[kin.index]; }
+    const std::string& species_id() const {
+        return (*species_pool)[species_id_index[kin.index]];
+    }
 };
 
 /**

@@ -93,6 +93,13 @@ public:
         const config::EnvironmentConfig& env
     ) override;
     
+    bool handle_collision_soa(
+        core::IonCollisionData& view,
+        double dt,
+        PhysicsRng& rng,
+        const config::EnvironmentConfig& env
+    ) override;
+    
     std::string name() const override { return "HSS"; }
     
     CollisionStats get_stats() const override { return stats_; }

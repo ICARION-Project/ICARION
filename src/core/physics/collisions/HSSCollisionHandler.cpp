@@ -20,6 +20,28 @@ HSSCollisionHandler::HSSCollisionHandler(bool enable_logging, const config::Spec
     , species_db_(species_db)
 {}
 
+bool HSSCollisionHandler::handle_collision_soa(
+    core::IonCollisionData& view,
+    double dt,
+    PhysicsRng& rng,
+    const config::EnvironmentConfig& env
+) {
+    // Build lightweight IonState view for reuse of scalar helpers
+    IonState ion;
+    ion.vel = view.kin.vel();
+    ion.mass_kg = view.kin.get_mass();
+    ion.ion_charge_C = view.kin.get_charge();
+    ion.CCS_m2 = view.get_CCS();
+    ion.species_id = view.species_id();
+    
+    bool occurred = handle_collision(ion, dt, rng, env);
+    
+    if (occurred) {
+        view.kin.set_vel(ion.vel);
+    }
+    return occurred;
+}
+
 bool HSSCollisionHandler::handle_collision(
     IonState& ion,
     double dt,
@@ -46,13 +68,41 @@ bool HSSCollisionHandler::handle_collision(
                     auto it_g = map.find(comp.species);
                     if (it_g != map.end() && it_g->second > 0.0) {
                         sigma_i = it_g->second;
-                    } else if (sigma_i > 0.0) {
                         std::string key = ion.species_id + ":" + comp.species;
                         if (!warned_missing_sigma_.count(key)) {
-                            ICARION::log::debug_log(
-                                "[HSSCollisionHandler] Warning: No CCS_HSS for gas '" + comp.species +
-                                "' and species '" + ion.species_id + "'; using ion.CCS_m2 fallback");
+                            ICARION::log::Logger::main()->info(
+                                "[HSS] Using precomputed CCS for {}:{} = {:.1f} Å²",
+                                ion.species_id, comp.species, sigma_i * 1e20);
                             warned_missing_sigma_.insert(key);
+                        }
+                    } else {
+                        // Try automatic derivation if no precomputed CCS
+                        if (it_spec->second.CCS_m2 > 0.0 && 
+                            it_spec->second.ccs_reference_gas.has_value()) {
+                            double derived = derive_ccs_for_target_gas(
+                                it_spec->second.CCS_m2,
+                                *it_spec->second.ccs_reference_gas,
+                                comp.species
+                            );
+                            if (derived > 0.0) {
+                                sigma_i = derived;
+                                std::string key = ion.species_id + ":" + comp.species;
+                                if (!warned_missing_sigma_.count(key)) {
+                                    ICARION::log::Logger::main()->info(
+                                        "[HSS] Derived CCS for {}:{} = {:.1f} Å² (from {} reference)",
+                                        ion.species_id, comp.species, derived * 1e20, 
+                                        *it_spec->second.ccs_reference_gas);
+                                    warned_missing_sigma_.insert(key);
+                                }
+                            }
+                        } else if (sigma_i > 0.0) {
+                            std::string key = ion.species_id + ":" + comp.species;
+                            if (!warned_missing_sigma_.count(key)) {
+                                ICARION::log::debug_log(
+                                    "[HSSCollisionHandler] Warning: No CCS_HSS for gas '" + comp.species +
+                                    "' and species '" + ion.species_id + "'; using ion.CCS_m2 fallback");
+                                warned_missing_sigma_.insert(key);
+                            }
                         }
                     }
                 }
@@ -187,8 +237,55 @@ bool HSSCollisionHandler::handle_collision(
     const double m_neutral = env.gas_mass_kg;
     const Vec3 v_gas = env.gas_velocity_m_s;
     
-    // Use stored effective cross-section
-    const double sigma_eff = ion.CCS_m2;
+    // Get gas-specific CCS (CRITICAL FIX: don't use ion.CCS_m2 which is for reference gas!)
+    double sigma_eff = ion.CCS_m2;  // Fallback
+    
+    if (species_db_) {
+        auto it_spec = species_db_->species.find(ion.species_id);
+        if (it_spec != species_db_->species.end()) {
+            const auto& map = it_spec->second.ccs_hss_m2;
+            auto it_g = map.find(env.gas_species);
+            if (it_g != map.end() && it_g->second > 0.0) {
+                sigma_eff = it_g->second;  // Use gas-specific CCS
+                static bool logged = false;
+                if (!logged) {
+                    ICARION::log::Logger::main()->info(
+                        "[HSS] Single-gas: Using CCS_HSS[{}][{}] = {:.1f} Å²",
+                        ion.species_id, env.gas_species, sigma_eff * 1e20);
+                    logged = true;
+                }
+            } else if (it_spec->second.CCS_m2 > 0.0 && 
+                       it_spec->second.ccs_reference_gas.has_value() &&
+                       *it_spec->second.ccs_reference_gas != env.gas_species) {
+                // Try auto-derivation if gas doesn't match reference
+                double derived = derive_ccs_for_target_gas(
+                    it_spec->second.CCS_m2,
+                    *it_spec->second.ccs_reference_gas,
+                    env.gas_species
+                );
+                if (derived > 0.0) {
+                    sigma_eff = derived;
+                    ICARION::log::Logger::main()->info(
+                        "[HSS] Single-gas path: Derived CCS for {}:{} = {:.1f} Å² (from {} reference)",
+                        ion.species_id, env.gas_species, derived * 1e20, 
+                        *it_spec->second.ccs_reference_gas);
+                }
+            }
+        } else {
+            static bool logged = false;
+            if (!logged) {
+                ICARION::log::Logger::main()->warn(
+                    "[HSS] Single-gas: Species '{}' not found in database!", ion.species_id);
+                logged = true;
+            }
+        }
+    } else {
+        static bool logged = false;
+        if (!logged) {
+            ICARION::log::Logger::main()->warn("[HSS] Single-gas: species_db_ is NULL!");
+            logged = true;
+        }
+    }
     
     if (sigma_eff <= 0.0) {
         return false;  // Invalid CCS

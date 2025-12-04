@@ -37,4 +37,21 @@ bool OUCollisionHandler::handle_collision(
     return true;  // Always "collides" (continuous process)
 }
 
+bool OUCollisionHandler::handle_collision_soa(
+    core::IonCollisionData& view,
+    double dt,
+    PhysicsRng& rng,
+    const config::EnvironmentConfig& env
+) {
+    IonState ion;
+    ion.vel = view.kin.vel();
+    ion.mass_kg = view.kin.get_mass();
+    ion.ion_charge_C = view.kin.get_charge();
+    ion.CCS_m2 = view.get_CCS();
+    
+    bool occurred = handle_collision(ion, dt, rng, env);
+    view.kin.set_vel(ion.vel);
+    return occurred;
+}
+
 } // namespace ICARION::physics

@@ -249,7 +249,9 @@ IonCollisionData IonEnsemble::collision_data(size_t i) {
         cold_.CCS.data(),
         domain_.temperature.data(),
         domain_.gas_density.data(),
-        domain_.neutral_mass.data()
+        domain_.neutral_mass.data(),
+        &cold_.species_pool,
+        cold_.species_id.data()
     };
 }
 

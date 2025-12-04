@@ -269,4 +269,24 @@ double EHSSCollisionHandler::derive_ccs_for_target_gas(
     return M_PI * (r_ion + r_target) * (r_ion + r_target);
 }
 
+bool EHSSCollisionHandler::handle_collision_soa(
+    core::IonCollisionData& view,
+    double dt,
+    PhysicsRng& rng,
+    const config::EnvironmentConfig& env
+) {
+    IonState ion;
+    ion.vel = view.kin.vel();
+    ion.mass_kg = view.kin.get_mass();
+    ion.ion_charge_C = view.kin.get_charge();
+    ion.CCS_m2 = view.get_CCS();
+    ion.species_id = view.species_id();
+    
+    bool occurred = handle_collision(ion, dt, rng, env);
+    if (occurred) {
+        view.kin.set_vel(ion.vel);
+    }
+    return occurred;
+}
+
 } // namespace ICARION::physics

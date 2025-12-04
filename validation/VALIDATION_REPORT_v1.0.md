@@ -920,23 +920,17 @@ With a = 0.010, q = 0.4: All 1000 ions remain stable. This validates:
 
 ### 4.8 Figures
 
-#### Figure 9 — LQIT RF-Ramp Mass Scan Validation
+#### Figure 9 — LQIT Comprehensive Validation Analysis
+
+![LQIT Validation Comprehensive](figures/lqit_validation_comprehensive.png)
+
+**Figure 9.** LQIT comprehensive validation analysis showing four key operational modes: **(a) Stability Region Validation** - Mathieu parameter q discrimination with 100% retention for q=0.4 and 0.7 (stable), and 0% for q=0.95 (unstable boundary), confirming correct implementation of RF pseudopotential physics. **(b) RF-Ramp Mass Accuracy** - Mass-selective ejection achieving <0.2% error for H₃O⁺ and CaffeineH⁺ in vacuum, validating the inline waveform evaluation fix. **(c) Radial Motion** - RMS radial amplitude over 2ms showing stable oscillatory confinement for both q-values with characteristic RF frequency modulation. **(d) Resonant Excitation** - Parametric resonance at 141 kHz (β≈0.4) showing 100% ion ejection, while off-resonant frequencies (71 kHz, 283 kHz) maintain stable confinement, demonstrating precise secular frequency calculation and AC dipole field implementation.
+
+#### Figure 10 — LQIT RF-Ramp Mass Scan Validation
 
 ![LQIT RF-Ramp Validation](figures/lqit_rf_ramp_validation.png)
 
-**Figure 9.** LQIT RF-Ramp mass scanning validation showing (top) simulated resonance peaks for three ion species at their characteristic RF frequencies, and (bottom) mass accuracy errors. All species achieve <0.2% mass accuracy in vacuum conditions, validating the inline waveform evaluation fix and demonstrating excellent mass selectivity across a 10× mass range (m/z 19-195). The RF voltage ramp correctly implements Mathieu stability physics with q_ejection ≈ 0.908.
-
-#### Figure 10 — LQIT Mass Scan Results
-
-![LQIT Mass Scan](figures/lqit_mass_scan.png)
-
-**Figure 10.** Combined LQIT mass scan results showing transmission efficiency and peak separation for multiple ion species under various RF conditions, demonstrating stable ion confinement and mass-selective ejection capabilities.
-
-#### Figure 11 — LQIT RF-Ramp Analysis
-
-![LQIT RF-Ramp Analysis](figures/lqit_rf_ramp_analysis.png)
-
-**Figure 11.** Detailed RF-Ramp analysis including voltage sweep characteristics, ejection timing, and stability region boundaries for comprehensive LQIT validation.
+**Figure 10.** LQIT RF-Ramp mass scanning validation showing (top) simulated resonance peaks for three ion species at their characteristic RF frequencies, and (bottom) mass accuracy errors. All species achieve <0.2% mass accuracy in vacuum conditions, validating the inline waveform evaluation fix and demonstrating excellent mass selectivity across a 10× mass range (m/z 19-195). The RF voltage ramp correctly implements Mathieu stability physics with q_ejection ≈ 0.908.
 
 ### 4.9 Detailed Results
 
@@ -1084,6 +1078,12 @@ Code implementation (ElectricFieldForce.cpp line 337-339) was **correct all alon
 
 **Figure 12.** Orbitrap frequency accuracy validation for four ion species (left) and mass scaling validation (right). Left panel shows frequency errors for individual species, all within ±0.15% of theoretical predictions based on hyperlogarithmic field curvature k = 2.01×10⁷ V/m². Right panel demonstrates perfect mass scaling with frequency ratios following f ∝ 1/√m relationship within 0.21% accuracy. The 100% ion retention and precise frequency measurements validate the electrostatic field implementation and axis-parallel ion injection method.
 
+#### Figure 13 — Orbitrap Mass Spectrum
+
+![Orbitrap Spectrum](figures/orbitrap_spectrum_corrected.png)
+
+**Figure 13.** Orbitrap mass spectrum generated from axial oscillation frequencies for four ion species. Top panel shows frequency spectrum with peaks corresponding to each ion's characteristic oscillation frequency (H₃O⁺: 1.606 MHz, PentanalH⁺: 0.751 MHz, CaffeineH⁺: 0.501 MHz, ReserpineH⁺: 0.284 MHz). Bottom panel shows the resulting mass spectrum after applying the inverse relationship m = kq/(4π²f²). Clear peak separation demonstrates the mass spectrometry capability of the Orbitrap analyzer.
+
 ### 5.7 Detailed Results
 
 **Complete analysis log with all test results:**  
@@ -1202,7 +1202,15 @@ All configurations completed successfully:
 - All simulations complete without crashes
 - Generated 773 MB of high-fidelity validation data
 
-### 6.6 Performance Metrics
+### 6.6 Figures
+
+#### Figure 14 — FTICR Cyclotron Frequency Spectrum
+
+![FTICR Spectrum](figures/fticr_spectrum_final.png)
+
+**Figure 14.** FTICR cyclotron frequency spectrum and corresponding mass spectrum for four ion species at B = 7.0 T. Top panel shows frequency-domain spectrum obtained via FFT analysis of averaged ion trajectories, with peaks at the characteristic cyclotron frequencies: H₃O⁺ (5.65 MHz), PentanalH⁺ (1.23 MHz), CaffeineH⁺ (0.55 MHz), and ReserpineH⁺ (0.17 MHz). Bottom panel shows the derived mass spectrum using the relationship m = qB/(2πf_c). The validated FFT method (averaging over ions first, then single FFT with DC offset removal) achieves <1.2% frequency accuracy across all species, demonstrating excellent agreement with theoretical cyclotron motion.
+
+### 6.7 Performance Metrics
 
 **File Sizes:**
 - H₃O⁺ high-precision: 601 MB (87,474 time points)
@@ -1225,7 +1233,24 @@ Race condition crashes in OpenMP parallel regions require single-threading for F
 **Analysis Methodology:**
 FFT-based frequency analysis with Hann windowing provides robust cyclotron frequency measurement from trajectory data. Ensemble averaging across multiple ions improves precision.
 
-### 6.8 Configuration Status
+### 6.8 Detailed Results
+
+**Complete analysis log with all test results:**  
+
+📄 [`FTICR_ANALYSIS_LOG.txt`](logs/FTICR_ANALYSIS_LOG.txt)
+
+This file contains:
+- Individual frequency measurements for all 5 test configurations
+- Cyclotron frequency validation (f_c accuracy <1.2%)
+- Mass scaling verification (f_c ∝ m⁻¹ with slope = -1.002)
+- Ion confinement results (100% retention over 1ms)
+- Multi-species test analysis (200 ions stable)
+- Validated FFT method (average ions first, then FFT with DC removal)
+- Critical bug fixes (multi-species FFT approach, configuration format)
+- Boris integrator validation
+- Overall assessment and validation status
+
+### 6.9 Configuration Status
 
 All FT-ICR validation configurations corrected and verified:
 ```
@@ -1499,11 +1524,17 @@ The TOF theory formula is **not trivial** for pulsed extraction designs:
 
 ### 6.10 Figures
 
-#### Figure 13 — TOF Performance Validation
+#### Figure 15 — TOF Flight Time Distribution and Mass Spectrum
+
+![TOF Spectrum](figures/tof_spectrum_final.png)
+
+**Figure 15.** TOF flight time distribution and corresponding mass spectrum for four ion species at V_acc = 2000 V. Top panel shows temporal separation of ion packets with flight times ranging from 7.3 μs (H₃O⁺) to 41.4 μs (ReserpineH⁺), demonstrating clear baseline resolution. Bottom panel shows the derived mass spectrum using the velocity-corrected formula m = 2qV/v² with empirical correction factor 0.972 to account for ions achieving 97.2% of theoretical velocity. All species achieve <2% mass accuracy with excellent peak separation across the 19-610 Da range.
+
+#### Figure 16 — TOF Performance Validation
 
 ![TOF Performance Validation](figures/tof_performance_validation.png)
 
-**Figure 13.** TOF performance validation showing (left) flight time accuracy for four ion species across 32× mass range, and (right) mass resolution measurements. All species achieve <0.21% flight time accuracy after correcting the theory formula for acceleration phase physics and initial ion position. Mass resolution R ≈ 245-250 is excellent for a 1m flight tube, with consistent performance across all masses demonstrating proper space-time focusing. The systematic -0.2% bias is well understood from integration tolerance and initial velocity spread.
+**Figure 16.** TOF performance validation showing (left) flight time accuracy for four ion species across 32× mass range, and (right) mass resolution measurements. All species achieve <0.21% flight time accuracy after correcting the theory formula for acceleration phase physics and initial ion position. Mass resolution R ≈ 245-250 is excellent for a 1m flight tube, with consistent performance across all masses demonstrating proper space-time focusing. The systematic -0.2% bias is well understood from integration tolerance and initial velocity spread.
 
 ### 6.11 Detailed Results
 

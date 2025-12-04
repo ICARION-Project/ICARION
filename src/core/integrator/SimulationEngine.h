@@ -109,25 +109,9 @@ public:
     );
     
     /**
-     * @brief Run simulation from t_start to t_end (legacy AoS interface)
+     * @brief Run simulation (legacy AoS interface, internally SoA)
      * @param ions Initial ion ensemble
      * @return Final ion states
-     * 
-     * **Workflow:**
-     * 1. Initialize subsystems (DomainManager, OutputManager)
-     * 2. Main time loop:
-     *    - Ion birth logic (if birth times configured)
-     *    - Parallel ion integration
-     *    - Domain transition handling
-     *    - Collision/reaction processing
-     *    - Output buffering and periodic flush
-     *    - Progress logging (every 10%)
-     * 3. Finalization (output flush, completion metadata)
-     * 
-     * **Early Exit Conditions:**
-     * - All ions inactive (lost or detected)
-     * - Simulation time exceeded
-     * - Critical error (NaN positions, invalid domain index)
      */
     std::vector<IonState> run(std::vector<IonState>& ions);
     

@@ -11,6 +11,7 @@
 #include "core/utils/mathUtils.h"
 #include "core/utils/Profiler.h"
 #include "core/physics/forces/ElectricFieldForce.h"
+#include "core/types/IonEnsemble.h"
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -779,78 +780,9 @@ void SimulationEngine::log_progress(double t) {
 }
 
 std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
-    // 1. Initialize subsystems
-    initialize(ions);
-    
-    // 2. Main time loop
-    const double dt = config_.simulation.dt_s;
-    current_time_ = 0.0;
-    current_step_ = 0;
-    
-    output_manager_->log_progress("Starting main simulation loop");
-    
-    while (should_continue(ions, current_time_)) {
-        // Apply ion birth logic (delayed emission)
-        apply_ion_birth(ions, current_time_);
-        
-        // Process one timestep
-        process_timestep(ions, dt);
-        
-        // Log trajectory snapshot (auto-flush if needed)
-        // Only write every write_interval steps to avoid excessive I/O
-        if (current_step_ % config_.simulation.write_interval == 0) {
-            PROFILE_SCOPE_IF_ENABLED("Output Writing");
-            output_manager_->log_step(current_time_, ions);
-        }
-        
-        // Update time and step counter
-        current_time_ += dt;
-        current_step_++;
-        
-        // Progress logging (every 10%)
-        {
-            PROFILE_SCOPE_IF_ENABLED("Progress Update");
-            log_progress(current_time_);
-        }
-    }
-    
-    // 3. Finalization
-    output_manager_->log_progress("Simulation completed");
-    
-    // Count active ions
-    size_t active_count = std::count_if(ions.begin(), ions.end(),
-        [](const IonState& ion) { return ion.active && ion.born; });
-    
-    std::ostringstream msg;
-    msg << "Final state: " << active_count << "/" << ions.size() << " ions active";
-    output_manager_->log_progress(msg.str());
-    
-    // Flush output and write completion metadata
-    output_manager_->finalize(current_time_, ions);
-    
-    // Generate numerical safety report if logging was enabled
-    if (config_.simulation.enable_safety_logging) {
-        std::string report_file = config_.output.folder + "/numerical_safety_report.txt";
-        safety::NumericalSafetyLogger::getInstance().generateSafetyReport(report_file);
-        
-        // Log summary statistics
-        auto stats = safety::NumericalSafetyLogger::getInstance().getStatistics();
-        std::ostringstream safety_msg;
-        safety_msg << "Numerical safety: " << stats.total_violations << " violations detected";
-        if (stats.recovery_attempts > 0) {
-            safety_msg << ", " << stats.successful_recoveries << "/" 
-                      << stats.recovery_attempts << " recoveries successful";
-        }
-        output_manager_->log_progress(safety_msg.str());
-        output_manager_->log_progress("Safety report written: " + report_file);
-    }
-    
-#ifdef ICARION_USE_GPU
-    // Log GPU performance statistics
-    finalize_gpu();
-#endif
-    
-    return ions;
+    // Thin wrapper: convert AoS to SoA, run SoA path, return AoS
+    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+    return run_soa(ensemble);
 }
 
 // ============================================================================

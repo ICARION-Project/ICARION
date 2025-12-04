@@ -80,7 +80,7 @@ tools/                 # Developer tools and scripts
 
 **Key Files:**
 - `src/core/integrator/SimulationEngine.{h,cpp}` - Main simulation loop
-- `src/core/integrator/DomainManager.{h,cpp}` - Multi-domain coordination
+- `src/core/integrator/DomainManager.{h,cpp}` - Multi-domain coordination via geometry/field strategies
 
 ### Force System
 

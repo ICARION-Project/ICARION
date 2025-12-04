@@ -189,6 +189,32 @@ TEST_CASE("SimulationEngine: Single-domain free-flight trajectory", "[simulation
     }
 }
 
+TEST_CASE("SimulationEngine: AoS vs SoA parity", "[simulation][engine][parity]") {
+    auto cfg = create_test_config();
+    cfg.simulation.total_time_s = 1e-6;
+    cfg.simulation.compute_derived();
+
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
+    auto integrator = std::make_shared<RK4Strategy>();
+    SimulationEngine engine(cfg, {force_registry}, integrator);
+
+    std::vector<IonState> ions = {create_test_ion()};
+    ions[0].vel = Vec3{0, 0, 1234.0};
+
+    // AoS path (wraps SoA)
+    auto aos_result = engine.run(ions);
+
+    // SoA path directly
+    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+    auto soa_result = engine.run_soa(ensemble);
+
+    REQUIRE(aos_result.size() == soa_result.size());
+    REQUIRE(soa_result.size() == 1);
+    REQUIRE(aos_result[0].active == soa_result[0].active);
+    REQUIRE_THAT(aos_result[0].pos.z, Catch::Matchers::WithinRel(soa_result[0].pos.z, 1e-6));
+    REQUIRE_THAT(aos_result[0].vel.z, Catch::Matchers::WithinRel(soa_result[0].vel.z, 1e-6));
+}
+
 TEST_CASE("SimulationEngine: Ion birth timing", "[simulation][engine]") {
     auto cfg = create_test_config();
     cfg.simulation.total_time_s = 5e-6;  // 5 μs

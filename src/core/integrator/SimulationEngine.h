@@ -32,7 +32,6 @@
 #include "core/types/CollisionTypes.h"  // PhysicsRng
 #include "core/physics/reactions/IReactionHandler.h"
 #include "core/integrator/DomainManager.h"
-#include "core/integrator/DomainContext.h"
 #include "core/integrator/OutputManager.h"
 #include <vector>
 #include <memory>
@@ -293,15 +292,6 @@ private:
 #endif
     
     /**
-     * @brief Process one timestep for all ions (legacy AoS)
-     * @param ions Ion ensemble
-     * @param dt Timestep [s]
-     * 
-     * Parallel ion loop with domain management, physics, and integration.
-     */
-    void process_timestep(std::vector<IonState>& ions, double dt);
-    
-    /**
      * @brief Process one timestep using SoA (Structure of Arrays)
      * @param ensemble Ion ensemble (SoA)
      * @param dt Timestep [s]
@@ -318,25 +308,6 @@ private:
     void process_timestep_soa(core::IonEnsemble& ensemble, double dt);
     
     /**
-     * @brief Apply ion birth logic (delayed emission)
-     * @param ions Ion ensemble
-     * @param t Current simulation time [s]
-     * 
-     * Activates ions with birth_time_s <= t.
-     */
-    void apply_ion_birth(std::vector<IonState>& ions, double t);
-    
-    /**
-     * @brief Check if simulation should continue
-     * @param ions Ion ensemble
-     * @param t Current time [s]
-     * @return true if simulation should continue
-     * 
-     * Stops if all ions inactive or time exceeded.
-     */
-    bool should_continue(const std::vector<IonState>& ions, double t) const;
-    
-    /**
      * @brief Log progress message (every 10%)
      * @param t Current time [s]
      * 
@@ -347,106 +318,6 @@ private:
     // ========================================================================
     // Ion Processing Pipeline (private inline for performance)
     // ========================================================================
-    
-    /**
-     * @brief Find domain index for ion position
-     * @return Domain index, or -1 if outside all domains
-     */
-    inline int find_ion_domain(const IonState& ion);
-    
-    /**
-     * @brief Update ion properties when entering new domain
-     */
-    inline void update_domain_properties(IonState& ion, int domain_idx);
-    
-    /**
-     * @brief Apply collision effects to single ion
-     * @param ctx DomainContext (manages coordinate transforms)
-     * @param rng Ion-specific RNG (thread-safe)
-     */
-    inline void process_ion_collisions(
-        IonState& ion,
-        DomainContext& ctx,
-        double dt,
-        physics::PhysicsRng& rng,
-        int domain_idx
-    );
-    
-    /**
-     * @brief Apply reaction effects to single ion
-     * @param ctx DomainContext (manages coordinate transforms)
-     * @param rng Ion-specific RNG (thread-safe)
-     */
-    inline void process_ion_reactions(
-        IonState& ion,
-        DomainContext& ctx,
-        double dt,
-        physics::PhysicsRng& rng,
-        int domain_idx
-    );
-    
-    /**
-     * @brief Integrate ion trajectory (RK4/RK45/Boris)
-     * @param ctx DomainContext (manages coordinate transforms)
-     * @param ions Full ion ensemble (needed by integrator for space charge)
-     */
-    inline void integrate_ion_trajectory(
-        IonState& ion,
-        DomainContext& ctx,
-        double dt,
-        int domain_idx,
-        std::vector<IonState>& ions
-    );
-    
-    /**
-     * @brief Check if ion crossed boundaries (aperture, walls)
-     * @param pos_before Position before integration
-     * @return true if ion is still inside domain
-     */
-    inline bool check_ion_boundaries(
-        IonState& ion,
-        DomainContext& ctx,
-        int domain_idx,
-        const Vec3& pos_before
-    );
-    
-    /**
-     * @brief Check geometry-specific boundaries (cylindrical vs Orbitrap)
-     */
-    inline bool check_geometry_boundaries(
-        const Vec3& pos,
-        const config::DomainConfig& domain_config,
-        int domain_idx
-    );
-    
-    /**
-     * @brief Verify numerical safety (NaN, Inf, bounds)
-     */
-    inline void verify_ion_safety(
-        IonState& ion,
-        int ion_index,
-        int domain_idx
-    );
-    
-    /**
-     * @brief Log safety violation event
-     */
-    inline void log_safety_violation(
-        const IonState& ion,
-        int ion_index,
-        int domain_idx,
-        bool position_valid,
-        bool velocity_valid
-    );
-    
-    /**
-     * @brief Check bounds violations (position/velocity magnitude)
-     */
-    inline void check_bounds_violations(
-        IonState& ion,
-        int ion_index,
-        int domain_idx
-    );
 };
 
 }  // namespace integrator

@@ -164,6 +164,9 @@ EnvironmentConfig DomainConfigLoader::load_environment(const Json::Value& json) 
         env.gas_velocity_m_s = load_vec3(json["gas_velocity_m_s"]);
     }
     
+    // Compute derived properties (density, mass, radius for mixture components)
+    env.compute_derived_properties();
+    
     return env;
 }
 

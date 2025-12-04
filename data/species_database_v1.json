@@ -5,12 +5,17 @@
       "charge": 1,
       "mobility_cm2Vs": 24.1,
       "CCS_A2": 24.9,
-      "ccs_reference_gas": "He",
+      "CCS_HSS": {
+        "He": 24.9,
+        "N2": 104.0
+      },
+      "CCS_reference_gas": "He",
       "name": "Hydronium ion",
       "reference_temperature_K": 273.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
-      "geometry_file": "molecules/H3O+.json"
+      "geometry_file": "molecules/H3O+.json",
+      "note": "CCS_HSS values are MOBILITY CCS Ω(1,1) from Mason-Schamp, NOT geometrical hard-sphere! HSS collision rate should use mobility CCS to account for Langevin enhancement."
     },
     "PentanalH+": {
       "mass_amu": 87.0,

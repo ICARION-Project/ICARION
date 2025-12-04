@@ -1,9 +1,23 @@
 # ICARION Validation Suite
 
 **Version:** 1.0  
-**Last Updated:** 2025-11-29  
-**Branch:** `feature/validation-suite`  
-**Goal:** Systematic validation of physics and performance after SoA Foundation v1.0
+**Last Updated:** 2025-12-04  
+**Branch:** `release/v1.0-prep`  
+**Goal:** Systematic validation of physics and performance for v1.0 release
+
+⚠️ **IMPORTANT: Validation Suite vs CTests**
+
+This directory contains **high-fidelity scientific validations** (runtime: up to 30 min).
+
+For fast CI/CD regression tests (<5s), see `tests/` directory (CTests).
+
+| Aspect | CTests (`tests/`) | Validation Suite (`validation/`) |
+|--------|-------------------|----------------------------------|
+| **Purpose** | CI/CD regression testing | Scientific validation for papers |
+| **Runtime** | <5 seconds | Up to 30 minutes |
+| **Ensemble** | 10-100 ions | 1000-10000 ions |
+| **Output** | Pass/Fail | Plots + tables + metrics |
+| **Example** | `test_gas_flow_transport.cpp` | `validate_gas_flow_transport.py` |
 
 ---
 
@@ -18,8 +32,8 @@
 | **5** | **Space Charge** | 8 | **COMPLETE** | Coulomb expansion, Direct vs Grid (N=1000 threshold) |
 | **6** | **Performance** | 18 | **COMPLETE** | CPU: Ion scaling, collision/SC overhead benchmarks |
 | **7** | **GPU Performance** | 31 | 🔄 **IN PROGRESS** | GPU vs CPU, integrator comparison, thresholds |
-**Completed:** 309 configs total across all validation categories  
-**Status:** Full validation suite ready for execution
+| **8** | **Physics Validations** | 3 | ✅ **NEW** | Gas flow transport (SIFT-MS physics), E=0 validation |
+
 
 ---
 

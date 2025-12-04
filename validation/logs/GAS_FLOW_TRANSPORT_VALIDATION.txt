@@ -1,0 +1,107 @@
+================================================================================
+GAS FLOW TRANSPORT VALIDATION
+================================================================================
+Start time: 2025-12-04 15:42:11
+
+Purpose: Validate ion transport by gas flow without electric field
+Physics: SIFT-MS (Selected Ion Flow Tube Mass Spectrometry)
+Expected: Ions drift with gas velocity after thermalization
+
+
+────────────────────────────────────────────────────────────────────────────────
+TEST: 100Pa
+────────────────────────────────────────────────────────────────────────────────
+Conditions:
+  Pressure:     100 Pa
+  Temperature:  300 K
+  Gas velocity: 100 m/s (axial)
+  Sim time:     500 ns
+
+Theory (H3O+ in N2):
+  Thermal velocity: 362.3 m/s
+  Thermalization τ: 70.1 ns
+  Collision rate γ: 0.01 GHz
+  Sim time / τ:     7.1
+
+▶ Running simulation: config_100Pa.json
+  Config: /home/chsch95/ICARION/validation/results/gas_flow_transport/config_100Pa.json
+  ✓ Simulation complete
+
+📊 Analyzing: gas_flow_100Pa.h5
+  Ions: 1000/1000 active
+  Mean velocity:
+    vx =    -7.22 ± 366.07 m/s
+    vy =    -4.61 ± 363.42 m/s
+    vz =    63.57 ± 366.33 m/s  (expected: 100.00 m/s)
+  Error: 36.4%
+
+────────────────────────────────────────────────────────────────────────────────
+TEST: 1000Pa
+────────────────────────────────────────────────────────────────────────────────
+Conditions:
+  Pressure:     1000 Pa
+  Temperature:  300 K
+  Gas velocity: 100 m/s (axial)
+  Sim time:     500 ns
+
+Theory (H3O+ in N2):
+  Thermal velocity: 362.3 m/s
+  Thermalization τ: 7.0 ns
+  Collision rate γ: 0.14 GHz
+  Sim time / τ:     71.3
+
+▶ Running simulation: config_1000Pa.json
+  Config: /home/chsch95/ICARION/validation/results/gas_flow_transport/config_1000Pa.json
+  ✓ Simulation complete
+
+📊 Analyzing: gas_flow_1000Pa.h5
+  Ions: 1000/1000 active
+  Mean velocity:
+    vx =   -14.81 ± 367.36 m/s
+    vy =     9.97 ± 360.53 m/s
+    vz =   116.69 ± 351.57 m/s  (expected: 100.00 m/s)
+  Error: 16.7%
+
+────────────────────────────────────────────────────────────────────────────────
+TEST: 5000Pa
+────────────────────────────────────────────────────────────────────────────────
+Conditions:
+  Pressure:     5000 Pa
+  Temperature:  300 K
+  Gas velocity: 100 m/s (axial)
+  Sim time:     500 ns
+
+Theory (H3O+ in N2):
+  Thermal velocity: 362.3 m/s
+  Thermalization τ: 1.4 ns
+  Collision rate γ: 0.71 GHz
+  Sim time / τ:     356.5
+
+▶ Running simulation: config_5000Pa.json
+  Config: /home/chsch95/ICARION/validation/results/gas_flow_transport/config_5000Pa.json
+  ✓ Simulation complete
+
+📊 Analyzing: gas_flow_5000Pa.h5
+  Ions: 1000/1000 active
+  Mean velocity:
+    vx =     9.41 ± 361.70 m/s
+    vy =     8.31 ± 356.57 m/s
+    vz =   100.86 ± 352.37 m/s  (expected: 100.00 m/s)
+  Error: 0.9%
+
+📈 Creating validation plot...
+  ✓ Saved: /home/chsch95/ICARION/validation/figures/gas_flow_transport_validation.png
+
+================================================================================
+VALIDATION SUMMARY
+================================================================================
+  100Pa: ❌ FAILED (error = 36.4%)
+  1000Pa: ✓ PASSED (error = 16.7%)
+  5000Pa: ✓ PASSED (error = 0.9%)
+
+❌ SOME VALIDATIONS FAILED
+
+End time: 2025-12-04 15:42:13
+Log file: /home/chsch95/ICARION/validation/logs/GAS_FLOW_TRANSPORT_VALIDATION.txt
+Figures:  /home/chsch95/ICARION/validation/figures/gas_flow_transport_validation.png
+================================================================================

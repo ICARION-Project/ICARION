@@ -4,6 +4,8 @@
 #include "DomainManager.h"
 #include "core/config/types/InstrumentTypes.h"
 #include "core/config/types/AnalyticalFieldModel.h"
+#include "core/config/types/CylindricalGeometry.h"
+#include "core/config/types/OrbitrapGeometry.h"
 #include <stdexcept>
 #include <cmath>
 
@@ -82,10 +84,11 @@ DomainManager::DomainManager(
         throw std::invalid_argument("DomainManager: domains vector is empty");
     }
     
-    // Create boundary actions and analytical field models for each domain.
-    // PhysicsSetup will override with grid-backed models when present.
+    // Create boundary actions, analytical field models, and geometry strategies for each domain.
+    // PhysicsSetup will override field models with grid-backed versions when present.
     boundary_actions_.reserve(domains.size());
     field_models_.reserve(domains.size());
+    geometries_.reserve(domains.size());
     for (const auto& domain : domains) {
         boundary_actions_.push_back(
             BoundaryActionFactory::create(domain.boundary, &rng_)
@@ -93,6 +96,11 @@ DomainManager::DomainManager(
         field_models_.push_back(
             std::make_unique<config::AnalyticalFieldModel>(domain)
         );
+        if (domain.instrument == config::Instrument::Orbitrap) {
+            geometries_.push_back(std::make_unique<config::OrbitrapGeometry>(domain));
+        } else {
+            geometries_.push_back(std::make_unique<config::CylindricalGeometry>(domain));
+        }
     }
 }
 
@@ -121,23 +129,31 @@ const config::IFieldModel* DomainManager::field_model(int idx) const {
 }
 
 Vec3 DomainManager::global_to_local_pos(const Vec3& pos, int domain_idx) const {
-    const auto& dom = get_domain(domain_idx);
-    return dom.rotation_global_to_local * (pos - dom.geometry.origin_m);
+    if (domain_idx < 0 || domain_idx >= static_cast<int>(geometries_.size())) {
+        throw std::out_of_range("DomainManager::global_to_local_pos: invalid index");
+    }
+    return geometries_[domain_idx]->global_to_local_pos(pos);
 }
 
 Vec3 DomainManager::global_to_local_vel(const Vec3& vel, int domain_idx) const {
-    const auto& dom = get_domain(domain_idx);
-    return dom.rotation_global_to_local * vel;
+    if (domain_idx < 0 || domain_idx >= static_cast<int>(geometries_.size())) {
+        throw std::out_of_range("DomainManager::global_to_local_vel: invalid index");
+    }
+    return geometries_[domain_idx]->global_to_local_vel(vel);
 }
 
 Vec3 DomainManager::local_to_global_pos(const Vec3& pos_local, int domain_idx) const {
-    const auto& dom = get_domain(domain_idx);
-    return dom.geometry.origin_m + dom.rotation_local_to_global * pos_local;
+    if (domain_idx < 0 || domain_idx >= static_cast<int>(geometries_.size())) {
+        throw std::out_of_range("DomainManager::local_to_global_pos: invalid index");
+    }
+    return geometries_[domain_idx]->local_to_global_pos(pos_local);
 }
 
 Vec3 DomainManager::local_to_global_vel(const Vec3& vel_local, int domain_idx) const {
-    const auto& dom = get_domain(domain_idx);
-    return dom.rotation_local_to_global * vel_local;
+    if (domain_idx < 0 || domain_idx >= static_cast<int>(geometries_.size())) {
+        throw std::out_of_range("DomainManager::local_to_global_vel: invalid index");
+    }
+    return geometries_[domain_idx]->local_to_global_vel(vel_local);
 }
 
 void DomainManager::check_aperture_crossing(IonState& ion, int domain_idx,
@@ -413,56 +429,10 @@ Vec3 DomainManager::compute_surface_normal(const Vec3& pos_local, int domain_idx
 }
 
 bool DomainManager::is_inside_domain(const config::DomainConfig& dom, const Vec3& globalPos) const {
-    Vec3 local = dom.rotation_global_to_local * (globalPos - dom.geometry.origin_m);
-    double r = std::sqrt(local.x * local.x + local.y * local.y);
-    
-    // ========== CYLINDRICAL GEOMETRY ==========
-    if (dom.instrument != config::Instrument::Orbitrap) {
-        return (local.z >= -DOMAIN_BOUNDARY_EPSILON && 
-                local.z < dom.geometry.length_m) && 
-               (r < dom.geometry.radius_m);
+    if (dom.domain_index >= 0 && dom.domain_index < static_cast<int>(geometries_.size())) {
+        return geometries_[dom.domain_index]->contains(globalPos);
     }
-    
-    // ========== ORBITRAP: Hyperlogarithmic Electrodes ==========
-    const double Rin = dom.geometry.radius_in_m;
-    const double Rout = dom.geometry.radius_out_m;
-    const double R_m = dom.geometry.radius_char_m;
-    
-    const double z_max = 0.5 * dom.geometry.length_m;
-    const double z_abs = std::fabs(local.z);
-    
-    // DEBUG: First few calls
-    static int orbitrap_debug_count = 0;
-    bool do_debug = (orbitrap_debug_count < 3);
-    if (do_debug) {
-        std::cerr << "\n=== ORBITRAP is_inside_domain DEBUG ===\n";
-        std::cerr << "  Global pos: (" << globalPos.x*1000 << ", " << globalPos.y*1000 << ", " << globalPos.z*1000 << ") mm\n";
-        std::cerr << "  Local pos: (" << local.x*1000 << ", " << local.y*1000 << ", " << local.z*1000 << ") mm\n";
-        std::cerr << "  r=" << r*1000 << " mm, z_abs=" << z_abs*1000 << " mm\n";
-        std::cerr << "  Rin=" << Rin*1000 << " mm, Rout=" << Rout*1000 << " mm, R_m=" << R_m*1000 << " mm\n";
-        std::cerr << "  z_max=" << z_max*1000 << " mm, length_m=" << dom.geometry.length_m*1000 << " mm\n";
-        orbitrap_debug_count++;
-    }
-    
-    // Check axial bounds
-    if (z_abs > z_max + DOMAIN_BOUNDARY_EPSILON) {
-        if (do_debug) std::cerr << "  FAIL: z_abs > z_max\n";
-        return false;
-    }
-    
-    // Compute allowed radial range at this z
-    const double r_in_allowed = orbitrap_r_for_z(z_abs, Rin, R_m);
-    const double r_out_allowed = orbitrap_r_for_z(z_abs, Rout, R_m);
-    
-    if (!(r_in_allowed > 0.0 && r_out_allowed > r_in_allowed)) {
-        return false;
-    }
-    
-    // Check if ion is in allowed corridor
-    bool inside = (r >= r_in_allowed - DOMAIN_BOUNDARY_EPSILON) &&
-                  (r <= r_out_allowed + DOMAIN_BOUNDARY_EPSILON);
-    
-    return inside;
+    return false;
 }
 
 double DomainManager::orbitrap_r_for_z(double z, double R, double R_m) const {

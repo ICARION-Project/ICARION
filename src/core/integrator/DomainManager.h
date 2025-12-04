@@ -21,6 +21,7 @@
 
 #include "core/config/types/DomainConfig.h"  // SSOT: config::DomainConfig
 #include "core/config/types/IFieldModel.h"   // Field models (analytical/map)
+#include "core/config/types/IDomainGeometry.h" // Geometry strategies
 #include "core/types/Vec3.h"                // Vec3
 #include "core/types/IonState.h"            // IonState
 #include "boundaries/BoundaryAction.h"
@@ -225,6 +226,7 @@ private:
     const std::vector<config::DomainConfig>& domains_;  ///< Reference to domain list (not owned, SSOT)
     std::vector<std::unique_ptr<BoundaryAction>> boundary_actions_;  ///< Boundary actions per domain
     std::vector<std::unique_ptr<config::IFieldModel>> field_models_; ///< Field models per domain (analytical fallback)
+    std::vector<std::unique_ptr<config::IDomainGeometry>> geometries_; ///< Geometry strategy per domain
     std::mt19937 rng_;  ///< Random number generator for boundary actions
     
     /**

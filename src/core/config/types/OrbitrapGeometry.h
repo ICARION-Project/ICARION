@@ -81,6 +81,11 @@ public:
     double length() const override { return length_; }
     double radius() const override { return radius_out_; }
     double end_aperture() const override { return 0.0; } // Not used for Orbitrap
+    
+    Vec3 surface_normal(const Vec3& /*local_pos*/) const override {
+        // Orbitrap uses midpoint termination in DomainManager; provide axial fallback.
+        return Vec3{0.0, 0.0, 1.0};
+    }
 
 private:
     // Hyperlogarithmic surface solver (matches DomainManager logic)

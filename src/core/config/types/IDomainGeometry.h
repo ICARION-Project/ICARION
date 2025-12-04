@@ -28,6 +28,9 @@ public:
     /// Exit aperture radius [m] (0 if not applicable).
     virtual double end_aperture() const = 0;
 
+    /// Compute an inward-pointing surface normal at a local point on the boundary.
+    virtual Vec3 surface_normal(const Vec3& local_pos) const = 0;
+
     /// Transform position from global to local coordinates.
     virtual Vec3 global_to_local_pos(const Vec3& global_pos) const = 0;
 

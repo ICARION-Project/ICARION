@@ -35,6 +35,22 @@ public:
     double length() const override { return length_; }
     double radius() const override { return radius_; }
     double end_aperture() const override { return end_aperture_; }
+    
+    Vec3 surface_normal(const Vec3& local_pos) const override {
+        const double r = std::sqrt(local_pos.x * local_pos.x + local_pos.y * local_pos.y);
+        const double EPS = 1e-9;
+        if (std::abs(r - radius_) < EPS && r > NUMERICAL_ZERO) {
+            return Vec3{-local_pos.x / r, -local_pos.y / r, 0.0};
+        }
+        if (std::abs(local_pos.z) < EPS) {
+            return Vec3{0.0, 0.0, 1.0};
+        }
+        if (std::abs(local_pos.z - length_) < EPS) {
+            return Vec3{0.0, 0.0, -1.0};
+        }
+        // Fallback
+        return Vec3{0.0, 0.0, 1.0};
+    }
 
     Vec3 global_to_local_pos(const Vec3& global_pos) const override {
         Vec3 shifted = global_pos - origin_;
@@ -79,6 +95,7 @@ private:
     Mat3 R_l2g_;
 
     static constexpr double EPSILON = 1e-12;
+    static constexpr double NUMERICAL_ZERO = 1e-15;
 };
 
 } // namespace ICARION::config

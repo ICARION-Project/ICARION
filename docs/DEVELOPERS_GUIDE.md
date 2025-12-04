@@ -533,7 +533,7 @@ domain.geometry.radius_m = 0.5;                     // Wide radius to prevent ra
 
 ### Overview
 
-Instrument-specific electric field calculations are in `ElectricFieldForce`. Each instrument type has analytical field formulas.
+Instrument-specific electric field calculations live in FieldModels and are consumed by `ElectricFieldForce`. Analytical formulas are implemented in `AnalyticalFieldModel`; grid/BEM/FEM fields use `FieldProviderModel` (wraps `IFieldProvider`).
 
 ### Step-by-Step Guide
 
@@ -558,51 +558,53 @@ enum class InstrumentType {
 
 Add instrument-specific field parameters to the appropriate config structures in `src/core/config/types/`.
 
-#### 3. Implement Field Calculation in ElectricFieldForce
+#### 3. Implement Field Calculation in a FieldModel
+
+Add your instrument field to `AnalyticalFieldModel` (or a new `IFieldModel` implementation):
 
 ```cpp
-Vec3 ElectricFieldForce::compute_analytical(const IonState& ion, double t) const {
-    switch (params_.instrument_type) {
-        case InstrumentType::YourInstrument:
-            return compute_your_instrument_field(ion, t);
-        // ... other cases ...
+class YourFieldModel : public IFieldModel {
+public:
+    explicit YourFieldModel(const DomainConfig& dom) : dom_(&dom) {}
+    Vec3 E(const Vec3& pos, double t) const override {
+        // Your instrument-specific analytical field: E(x, y, z, t)
+        double Ex = /* ... */;
+        double Ey = /* ... */;
+        double Ez = /* ... */;
+        return Vec3{Ex, Ey, Ez};
     }
-}
-
-Vec3 ElectricFieldForce::compute_your_instrument_field(const IonState& ion, double t) const {
-    // Your electric field formula: E(x, y, z, t)
-    
-    double Ex = /* ... */;
-    double Ey = /* ... */;
-    double Ez = /* ... */;
-    
-    return Vec3{Ex, Ey, Ez};
-}
+private:
+    const DomainConfig* dom_;
+};
 ```
 
 #### 4. Add Tests
 
+Add a parity or direct test for your FieldModel and ElectricFieldForce:
+
 ```cpp
-TEST_CASE("ElectricFieldForce - YourInstrument", "[forces][electric]") {
-    config::DomainConfig domain;
+TEST_CASE("YourFieldModel parity", "[forces][field]") {
+    DomainConfig domain;
     domain.instrument = InstrumentType::YourInstrument;
-    domain.fields.dc.axial_V.constant_value = 1000.0;
-    // Add your instrument-specific field parameters
-    
+    domain.fields.dc.axial_V = ValueOrWaveform(1000.0);
+    // instrument-specific params...
+    domain.finalize();
+
+    YourFieldModel model(domain);
     ElectricFieldForce force(domain);
-    
-    // Test field at various positions
+
     IonState ion;
     ion.pos = Vec3{0.001, 0, 0};
-    
+    ion.mass_kg = ion.ion_charge_C = 1.0;
+
     ForceContext ctx;
+    ctx.field_model = &model;
     ctx.domain = &domain;
-    Vec3 E = force.compute(ion, 0.0, ctx);
-    
-    // Verify field properties (symmetry, magnitude, direction)
-    REQUIRE(std::isfinite(E.x));
-    REQUIRE(std::isfinite(E.y));
-    REQUIRE(std::isfinite(E.z));
+
+    Vec3 F = force.compute(ion, 0.0, ctx);
+    REQUIRE(std::isfinite(F.x));
+    REQUIRE(std::isfinite(F.y));
+    REQUIRE(std::isfinite(F.z));
 }
 ```
 

@@ -36,6 +36,54 @@ DomainConfig make_orbitrap_domain() {
     return dom;
 }
 
+// Helper replicated from OrbitrapGeometry for boundary expectation
+double orbitrap_surface_residual(double r, double z, double R, double R_m) {
+    const double term1 = z * z;
+    const double term2 = 0.5 * (r * r - R * R);
+    const double term3 = R_m * R_m * std::log(R / r);
+    return term1 - term2 - term3;
+}
+
+double orbitrap_r_for_z(double z, double R, double R_m) {
+    const double z_abs = std::fabs(z);
+    const double eps = 1e-10;
+    const int max_iter = 80;
+
+    if (z_abs < eps) {
+        return R;
+    }
+
+    double r_lo = 0.1 * R;
+    double r_hi = R;
+
+    double f_lo = orbitrap_surface_residual(r_lo, z_abs, R, R_m);
+    double f_hi = orbitrap_surface_residual(r_hi, z_abs, R, R_m);
+
+    int expand_iter = 0;
+    while (f_lo * f_hi > 0.0 && expand_iter < 10) {
+        r_lo *= 0.5;
+        r_hi *= 1.5;
+        f_lo = orbitrap_surface_residual(r_lo, z_abs, R, R_m);
+        f_hi = orbitrap_surface_residual(r_hi, z_abs, R, R_m);
+        expand_iter++;
+    }
+
+    double r_mid = R;
+    for (int i = 0; i < max_iter; ++i) {
+        r_mid = 0.5 * (r_lo + r_hi);
+        double f_mid = orbitrap_surface_residual(r_mid, z_abs, R, R_m);
+        if (f_lo * f_mid <= 0.0) {
+            r_hi = r_mid;
+            f_hi = f_mid;
+        } else {
+            r_lo = r_mid;
+            f_lo = f_mid;
+        }
+        if (std::fabs(f_mid) < eps) break;
+    }
+    return r_mid;
+}
+
 } // namespace
 
 TEST_CASE("CylindricalGeometry contains/transform", "[geometry][cylindrical]") {
@@ -76,4 +124,26 @@ TEST_CASE("OrbitrapGeometry corridor checks", "[geometry][orbitrap]") {
 
     // Symmetry in z: point at mid-length still inside if radial fits corridor
     REQUIRE(geom.contains(Vec3{0.025, 0.0, 0.05}));
+}
+
+TEST_CASE("OrbitrapGeometry near-boundary sampling", "[geometry][orbitrap][boundary]") {
+    auto dom = make_orbitrap_domain();
+    OrbitrapGeometry geom(dom);
+
+    const double Rin = dom.geometry.radius_in_m;
+    const double Rout = dom.geometry.radius_out_m;
+    const double Rm = dom.geometry.radius_char_m;
+    const double z_samples[] = {0.0, 0.02, 0.05, 0.09};
+    const double delta = 5e-6;
+
+    for (double z : z_samples) {
+        double r_in = orbitrap_r_for_z(z, Rin, Rm);
+        double r_out = orbitrap_r_for_z(z, Rout, Rm);
+        // Just inside corridor
+        REQUIRE(geom.contains(Vec3{r_in + delta, 0.0, z}));
+        REQUIRE(geom.contains(Vec3{r_out - delta, 0.0, z}));
+        // Just outside corridor
+        REQUIRE_FALSE(geom.contains(Vec3{r_in - delta, 0.0, z}));
+        REQUIRE_FALSE(geom.contains(Vec3{r_out + delta, 0.0, z}));
+    }
 }

@@ -809,9 +809,14 @@ std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
         if (current_time_ >= config_.simulation.total_time_s) {
             return false;
         }
-        // Check if any ion is active
+        const auto* born_flags = ensemble.born_data();
         for (size_t i = 0; i < ensemble.size(); ++i) {
             if (ensemble.is_active(i)) {
+                return true;
+            }
+            // Continue looping if a birth is scheduled in the future
+            if (!born_flags[i] && ensemble.birth_time(i) >= current_time_ &&
+                ensemble.birth_time(i) <= config_.simulation.total_time_s) {
                 return true;
             }
         }
@@ -896,6 +901,7 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
     auto* pos_y = ensemble.pos_y_data();
     auto* pos_z = ensemble.pos_z_data();
     auto* active = ensemble.active_data();
+    auto* born = ensemble.born_data();
     
     // Parallel ion processing (OpenMP if enabled)
     #pragma omp parallel if(config_.simulation.enable_openmp)
@@ -904,8 +910,14 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
         for (int i = 0; i < n_ions; ++i) {
             PhysicsRng& ion_rng = rng_by_ion_[i];
             
-            // Skip inactive ions
-            if (!active[i]) {
+            // Birth logic (delayed emission)
+            if (!born[i] && current_time_ >= ensemble.birth_time(i)) {
+                born[i] = 1;
+                active[i] = 1;
+            }
+            
+            // Skip ions that are not active/born
+            if (!active[i] || !born[i]) {
                 continue;
             }
             
@@ -965,9 +977,17 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
             {
                 PROFILE_SCOPE_IF_ENABLED("Boundary Checks");
                 Vec3 pos_after(pos_x[i], pos_y[i], pos_z[i]);
-                if (!domain_manager_->is_inside_domain(domain_config, pos_after)) {
+                int new_domain_idx = domain_manager_->find_domain_index(pos_after);
+                if (new_domain_idx < 0) {
                     active[i] = false;
                     continue;
+                }
+                if (new_domain_idx != domain_idx) {
+                    const auto& new_dom = config_.domains[new_domain_idx];
+                    ensemble.update_domain_cache(i, new_domain_idx,
+                        new_dom.environment.temperature_K,
+                        new_dom.environment.particle_density_m_3,
+                        new_dom.environment.gas_mass_kg);
                 }
             }
             

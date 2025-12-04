@@ -43,7 +43,8 @@ DomainManager::DomainManager(
 
 int DomainManager::find_domain_index(const Vec3& pos) const {
     for (size_t i = 0; i < domains_.size(); ++i) {
-        if (is_inside_domain(domains_[i], pos)) {
+        // Use geometry strategy directly; domain_index may be unset in tests
+        if (geometries_[i]->contains(pos)) {
             return static_cast<int>(i);
         }
     }
@@ -179,6 +180,12 @@ Vec3 DomainManager::compute_surface_normal(const Vec3& pos_local, int domain_idx
 bool DomainManager::is_inside_domain(const config::DomainConfig& dom, const Vec3& globalPos) const {
     if (dom.domain_index >= 0 && dom.domain_index < static_cast<int>(geometries_.size())) {
         return geometries_[dom.domain_index]->contains(globalPos);
+    }
+    // Fallback for configs/tests that did not set domain_index: match by address
+    for (size_t i = 0; i < domains_.size(); ++i) {
+        if (&domains_[i] == &dom && i < geometries_.size()) {
+            return geometries_[i]->contains(globalPos);
+        }
     }
     return false;
 }

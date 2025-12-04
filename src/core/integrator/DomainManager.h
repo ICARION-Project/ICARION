@@ -177,35 +177,6 @@ public:
      */
     void update_domain_properties(IonState& ion, int domain_idx) const;
     
-    /**
-     * @brief Terminate ion at boundary (set position to intersection, velocity to 0)
-     * @param ion Ion state (modified: pos corrected, vel=0, active=false)
-     * @param domain_idx Current domain index
-     * @param pos_before_local Local position before integration step [m]
-     * @param pos_after_local Local position after integration step [m]
-     * 
-     * When an ion leaves the domain (detected via is_inside_domain check),
-     * this method:
-     * 1. Computes intersection point between trajectory line and domain boundary
-     * 2. Sets ion position to intersection (not extrapolated pos_after)
-     * 3. Sets velocity to zero (ion absorbed/stopped at boundary)
-     * 4. Deactivates ion (ion.active = false)
-     * 
-     * **Why this matters:**
-     * - Prevents unphysical positions in trajectory output (pos outside domain)
-     * - Makes final position physically meaningful (where ion actually hit)
-     * - Useful for analyzing loss patterns (e.g., radial losses in drift tubes)
-     * 
-     * **Boundary types handled:**
-     * - Cylindrical instruments (IMS, TOF, LQIT, SLIM, etc.):
-     *   * Radial boundary (r > radius_m): Ion hit cylindrical wall
-     *   * Axial boundaries (z < 0 or z > length_m): Ion exited entrance/exit
-     *   * Aperture (r > end_aperture_m at z=length_m): Ion blocked by aperture
-     * - Orbitrap (hyperbolic electrodes):
-     *   * Uses midpoint approximation (analytical ray-hyperbola intersection TODO)
-     * 
-     * Coordinates are in LOCAL frame (must transform to global after).
-     */
     void terminate_ion_at_boundary(IonState& ion, int domain_idx,
                                     const Vec3& pos_before_local,
                                     const Vec3& pos_after_local) const;
@@ -221,6 +192,17 @@ public:
      * @return Pointer to field model or nullptr
      */
     const config::IFieldModel* field_model(int idx) const;
+
+    /**
+     * @brief Check if position is inside domain (internal helper)
+     * @param dom Domain to check (SSOT: config::DomainConfig)
+     * @param pos Global position [m]
+     * @return true if inside domain boundaries
+     * 
+     * Handles cylindrical geometry (most instruments) and hyperbolic (Orbitrap).
+     * Replaces legacy isInsideDomain() from paramUtils.cpp.
+     */
+    bool is_inside_domain(const config::DomainConfig& dom, const Vec3& pos) const;
     
 private:
     const std::vector<config::DomainConfig>& domains_;  ///< Reference to domain list (not owned, SSOT)
@@ -236,17 +218,6 @@ private:
      * @return Unit normal vector pointing inward
      */
     Vec3 compute_surface_normal(const Vec3& pos_local, int domain_idx) const;
-    
-    /**
-     * @brief Check if position is inside domain (internal helper)
-     * @param dom Domain to check (SSOT: config::DomainConfig)
-     * @param pos Global position [m]
-     * @return true if inside domain boundaries
-     * 
-     * Handles cylindrical geometry (most instruments) and hyperbolic (Orbitrap).
-     * Replaces legacy isInsideDomain() from paramUtils.cpp.
-     */
-    bool is_inside_domain(const config::DomainConfig& dom, const Vec3& pos) const;
     
 };
 

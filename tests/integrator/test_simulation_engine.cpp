@@ -196,17 +196,18 @@ TEST_CASE("SimulationEngine: AoS vs SoA parity", "[simulation][engine][parity]")
 
     auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
     auto integrator = std::make_shared<RK4Strategy>();
-    SimulationEngine engine(cfg, {force_registry}, integrator);
 
     std::vector<IonState> ions = {create_test_ion()};
     ions[0].vel = Vec3{0, 0, 1234.0};
 
-    // AoS path (wraps SoA)
-    auto aos_result = engine.run(ions);
+    // AoS path (wraps SoA internally)
+    SimulationEngine engine_aos(cfg, {force_registry}, integrator);
+    auto aos_result = engine_aos.run(ions);
 
-    // SoA path directly
+    // SoA path directly (fresh engine/output to avoid finalize conflicts)
+    SimulationEngine engine_soa(cfg, {force_registry}, integrator);
     core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
-    auto soa_result = engine.run_soa(ensemble);
+    auto soa_result = engine_soa.run_soa(ensemble);
 
     REQUIRE(aos_result.size() == soa_result.size());
     REQUIRE(soa_result.size() == 1);

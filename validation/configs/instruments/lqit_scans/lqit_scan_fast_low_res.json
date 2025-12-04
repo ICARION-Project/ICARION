@@ -15,7 +15,7 @@
   },
   "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
   "output": {
-    "folder": "results/v1.0_test/instruments/lqit_scans",
+    "folder": "validation/results/v1.0_test/instruments/lqit_scans",
     "trajectory_file": "lqit_scan_fast_low_res.h5",
     "print_progress": true
   },

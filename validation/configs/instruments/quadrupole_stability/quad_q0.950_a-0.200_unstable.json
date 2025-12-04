@@ -15,7 +15,7 @@
   },
   "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
   "output": {
-    "folder": "results/v1.0_test/instruments/quadrupole_stability",
+    "folder": "validation/results/v1.0_test/instruments/quadrupole_stability",
     "trajectory_file": "quad_q0.950_a-0.200.h5",
     "print_progress": false
   },

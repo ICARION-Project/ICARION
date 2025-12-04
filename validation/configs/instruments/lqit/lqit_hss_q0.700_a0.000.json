@@ -1,6 +1,6 @@
 {
   "simulation": {
-    "total_time_s": 2e-03,
+    "total_time_s": 0.002,
     "dt_s": 1e-08,
     "write_interval": 100,
     "integrator": "RK4",
@@ -15,7 +15,7 @@
   },
   "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
   "output": {
-    "folder": "results/v1.0_test/instruments/lqit",
+    "folder": "validation/results/v1.0_test/instruments/lqit",
     "trajectory_file": "lqit_hss_q0.700_a-0.000.h5",
     "print_progress": true
   },

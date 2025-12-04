@@ -4,17 +4,19 @@ Analyze Time-of-Flight (TOF) mass spectrometer flight times.
 
 Theory:
   Ion acceleration: E_kin = q*V_acc = 0.5*m*v²
-  Velocity after acceleration: v = sqrt(2*q*V_acc / m)
+  Final velocity: v = sqrt(2*q*V_acc / m)
   
   Flight time:
-    t = t_acc + t_drift
-    t_acc = L_acc * sqrt(m / (2*q*V_acc))
-    t_drift = L_drift / v = L_drift * sqrt(m / (2*q*V_acc))
+    Acceleration phase (uniformly accelerated motion):
+      t_acc = 2*L_acc / v  (average velocity = v/2)
     
-  Total: t = (L_acc + L_drift) * sqrt(m / (2*q*V_acc))
-         t = L_total * sqrt(m / (2*q*V_acc))
+    Drift phase (constant velocity):
+      t_drift = L_drift / v
+    
+  Total: t = (2*L_acc + L_drift) / v
+           = (2*L_acc + L_drift) * sqrt(m / (2*q*V_acc))
          
-  Mass from flight time: m = (2*q*V_acc / L_total²) * t²
+  NOT simply t = L_total * sqrt(m / (2*q*V_acc)) ← WRONG!
 """
 
 import h5py
@@ -22,14 +24,29 @@ import numpy as np
 import sys
 from pathlib import Path
 
-def calculate_theoretical_flight_time(mass_u, charge_e, V_acc, L_total):
-    """Calculate theoretical TOF flight time."""
+def calculate_theoretical_flight_time(mass_u, charge_e, V_acc, L_acc, L_drift):
+    """Calculate theoretical TOF flight time.
+    
+    Corrected formula accounting for acceleration phase:
+      t_acc = 2*L_acc / v  (uniformly accelerated motion)
+      t_drift = L_drift / v (constant velocity drift)
+      t_total = (2*L_acc + L_drift) / v
+    """
     q_C = charge_e * 1.602176634e-19  # C
     m_kg = mass_u * 1.66053906660e-27  # kg
     
-    # Time = L * sqrt(m / (2*q*V))
-    t_flight = L_total * np.sqrt(m_kg / (2 * q_C * V_acc))
-    return t_flight
+    # Final velocity after acceleration: v = sqrt(2*q*V/m)
+    v_final = np.sqrt(2 * q_C * V_acc / m_kg)
+    
+    # Acceleration phase: uniformly accelerated motion, average velocity = v/2
+    # Distance L_acc traveled with average velocity v/2: t_acc = L_acc / (v/2) = 2*L_acc/v
+    t_acc = 2 * L_acc / v_final
+    
+    # Drift phase: constant velocity v
+    t_drift = L_drift / v_final
+    
+    # Total time: t = (2*L_acc + L_drift) / v = (2*L_acc + L_drift) * sqrt(m/(2*q*V))
+    return t_acc + t_drift
 
 def analyze_tof_trajectory(h5_path, config_path=None):
     """Extract flight time from TOF HDF5 trajectory."""
@@ -56,6 +73,9 @@ def analyze_tof_trajectory(h5_path, config_path=None):
     V_acc = config['domains'][0]['fields']['DC']['axial_V']
     L_acc = config['domains'][0]['geometry']['acc_length_m']
     L_total = config['domains'][0]['geometry']['length_m']
+    
+    # Get initial ion position (ions don't start at z=0!)
+    z_start = config['ions']['species'][0].get('position', {}).get('center', [0, 0, 0])[2]  # m
     
     # Read mass from species database
     if 'species_database_path' in config:
@@ -93,8 +113,14 @@ def analyze_tof_trajectory(h5_path, config_path=None):
     t_mean = np.mean(flight_times) * 1e6  # µs
     t_std = np.std(flight_times) * 1e6  # µs
     
-    # Theory
-    t_theory = calculate_theoretical_flight_time(mass_u, charge, V_acc, L_total) * 1e6  # µs
+    # Theory (corrected formula accounting for initial position)
+    # Ions start at z_start and experience uniform field E = V_acc/L_acc
+    # They gain energy: E_kin = q * E * (L_acc - z_start) = q * V_acc * (L_acc - z_start)/L_acc
+    # Effective voltage: V_eff = V_acc * (L_acc - z_start) / L_acc
+    L_acc_eff = L_acc - z_start  # Effective acceleration distance
+    V_eff = V_acc * L_acc_eff / L_acc  # Effective voltage gained
+    L_drift = L_total - L_acc  # Drift region starts at L_acc, not z_start!
+    t_theory = calculate_theoretical_flight_time(mass_u, charge, V_eff, L_acc_eff, L_drift) * 1e6  # µs
     
     # Error
     error_pct = 100 * (t_mean - t_theory) / t_theory

@@ -96,7 +96,7 @@ public:
 ```
 
 **Built-in Forces:**
-- `ElectricFieldForce` - E-field from analytical or HDF5 sources
+- `ElectricFieldForce` - E-field via `IFieldModel` (analytical or grid-backed); provider fallback legacy only
 - `MagneticFieldForce` - B-field (Boris integrator compatible)
 - `SpaceChargeDirect` - Ion-ion Coulomb interactions
 - `DampingForce` - Drag depending on chosen deterministic collision model

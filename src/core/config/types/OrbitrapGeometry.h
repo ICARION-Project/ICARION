@@ -24,19 +24,24 @@ public:
           radius_out_(cfg.geometry.radius_out_m),
           radius_in_(cfg.geometry.radius_in_m),
           radius_char_(cfg.geometry.radius_char_m),
-          epsilon_(cfg.geometry.boundary_epsilon),
-          R_g2l_(cfg.geometry.rotation_global_to_local),
-          R_l2g_(cfg.geometry.rotation_local_to_global) {}
+          R_g2l_(cfg.rotation_global_to_local),
+          R_l2g_(cfg.rotation_local_to_global) {}
 
     bool contains(const Vec3& global_pos) const override {
         Vec3 local = global_to_local_pos(global_pos);
-        if (local.z < -epsilon_ || local.z > length_ + epsilon_) return false;
+        const double z_abs = std::fabs(local.z);
+        const double z_max = 0.5 * length_;
+        if (z_abs > z_max + EPSILON) return false;
         double r2 = local.x * local.x + local.y * local.y;
-        // Basic radial check: inside outer radius and outside inner radius if defined
-        if (radius_in_ > 0.0 && r2 < (radius_in_ - epsilon_) * (radius_in_ - epsilon_)) {
+        const double r = std::sqrt(r2);
+        // Radial corridor from hyperlogarithmic electrodes
+        const double r_in_allowed = orbitrap_r_for_z(z_abs, radius_in_, radius_char_);
+        const double r_out_allowed = orbitrap_r_for_z(z_abs, radius_out_, radius_char_);
+
+        if (!(r_in_allowed > 0.0 && r_out_allowed > r_in_allowed)) {
             return false;
         }
-        return r2 <= (radius_out_ + epsilon_) * (radius_out_ + epsilon_);
+        return (r >= r_in_allowed - EPSILON) && (r <= r_out_allowed + EPSILON);
     }
 
     Vec3 global_to_local_pos(const Vec3& global_pos) const override {
@@ -74,14 +79,63 @@ public:
     }
 
 private:
+    // Hyperlogarithmic surface solver (matches DomainManager logic)
+    static double orbitrap_surface_residual(double r, double z, double R, double R_m) {
+        const double term1 = z * z;
+        const double term2 = 0.5 * (r * r - R * R);
+        const double term3 = R_m * R_m * std::log(R / r);
+        return term1 - term2 - term3;
+    }
+
+    static double orbitrap_r_for_z(double z, double R, double R_m) {
+        const double z_abs = std::fabs(z);
+        const double eps = 1e-10;
+        const int max_iter = 80;
+
+        if (z_abs < eps) {
+            return R;
+        }
+
+        double r_lo = 0.1 * R;
+        double r_hi = R;
+
+        double f_lo = orbitrap_surface_residual(r_lo, z_abs, R, R_m);
+        double f_hi = orbitrap_surface_residual(r_hi, z_abs, R, R_m);
+
+        int expand_iter = 0;
+        while (f_lo * f_hi > 0.0 && expand_iter < 10) {
+            r_lo *= 0.5;
+            r_hi *= 1.5;
+            f_lo = orbitrap_surface_residual(r_lo, z_abs, R, R_m);
+            f_hi = orbitrap_surface_residual(r_hi, z_abs, R, R_m);
+            expand_iter++;
+        }
+
+        double r_mid = R;
+        for (int i = 0; i < max_iter; ++i) {
+            r_mid = 0.5 * (r_lo + r_hi);
+            double f_mid = orbitrap_surface_residual(r_mid, z_abs, R, R_m);
+            if (f_lo * f_mid <= 0.0) {
+                r_hi = r_mid;
+                f_hi = f_mid;
+            } else {
+                r_lo = r_mid;
+                f_lo = f_mid;
+            }
+            if (std::fabs(f_mid) < eps) break;
+        }
+        return r_mid;
+    }
+
     Vec3 origin_;
     double length_;
     double radius_out_;
     double radius_in_;
     double radius_char_;
-    double epsilon_;
-    RotationMatrix R_g2l_;
-    RotationMatrix R_l2g_;
+    Mat3 R_g2l_;
+    Mat3 R_l2g_;
+
+    static constexpr double EPSILON = 1e-12;
 };
 
 } // namespace ICARION::config

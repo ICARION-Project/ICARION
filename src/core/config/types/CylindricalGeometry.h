@@ -5,6 +5,7 @@
 
 #include "IDomainGeometry.h"
 #include "core/config/types/DomainConfig.h"
+#include <cmath>
 
 namespace ICARION::config {
 
@@ -20,15 +21,14 @@ public:
         : origin_(cfg.geometry.origin_m),
           radius_(cfg.geometry.radius_m),
           length_(cfg.geometry.length_m),
-          epsilon_(cfg.geometry.boundary_epsilon),
-          R_g2l_(cfg.geometry.rotation_global_to_local),
-          R_l2g_(cfg.geometry.rotation_local_to_global) {}
+          R_g2l_(cfg.rotation_global_to_local),
+          R_l2g_(cfg.rotation_local_to_global) {}
 
     bool contains(const Vec3& global_pos) const override {
         Vec3 local = global_to_local_pos(global_pos);
-        if (local.z < -epsilon_ || local.z > length_ + epsilon_) return false;
+        if (local.z < -EPSILON || local.z >= length_ + EPSILON) return false;
         double r2 = local.x * local.x + local.y * local.y;
-        return r2 <= (radius_ + epsilon_) * (radius_ + epsilon_);
+        return r2 <= (radius_ + EPSILON) * (radius_ + EPSILON);
     }
 
     Vec3 global_to_local_pos(const Vec3& global_pos) const override {
@@ -69,9 +69,10 @@ private:
     Vec3 origin_;
     double radius_;
     double length_;
-    double epsilon_;
-    RotationMatrix R_g2l_;
-    RotationMatrix R_l2g_;
+    Mat3 R_g2l_;
+    Mat3 R_l2g_;
+
+    static constexpr double EPSILON = 1e-12;
 };
 
 } // namespace ICARION::config

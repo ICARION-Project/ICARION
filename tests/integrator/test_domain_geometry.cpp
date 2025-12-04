@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include "core/config/types/CylindricalGeometry.h"
 #include "core/config/types/OrbitrapGeometry.h"
 #include "core/config/types/DomainConfig.h"
@@ -11,6 +12,7 @@ using ICARION::config::CylindricalGeometry;
 using ICARION::config::OrbitrapGeometry;
 using ICARION::config::DomainConfig;
 using ICARION::core::Vec3;
+using Catch::Approx;
 
 namespace {
 

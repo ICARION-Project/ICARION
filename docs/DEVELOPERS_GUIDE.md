@@ -1572,12 +1572,14 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 
 - **Collision System SSOT**:
   - ICollisionHandler interface with factory
-  - EHSS, HSS, OU collision handlers
+  - EHSS, HSS, OU collision handlers (SoA overrides implemented)
   - Energy conservation validation
+  - AoS↔SoA parity: `tests/physics/collisions/test_collision_soa_parity.cpp`
 
 - **Reaction System Handlers**:
   - IReactionHandler interface with factory
-  - StochasticReactionHandler implementation
+  - StochasticReactionHandler implementation (SoA override implemented)
+  - AoS↔SoA parity: `tests/physics/reactions/test_reaction_soa_parity.cpp`
   - Database-driven reaction loading
 
 - **Integration Strategies**:

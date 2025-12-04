@@ -23,6 +23,7 @@ ICARION is a modular C++17 framework for ion trajectory simulation in mass spect
 - **GPU**: Optional CUDA acceleration with automatic CPU fallback
 - **Tools**: CLI interface, configuration helpers, validation tools
 - **Data Layouts**: AoS (legacy) plus SoA (`IonEnsemble`) for cache-friendly processing
+- **Parity Coverage**: AoS↔SoA parity tests for SimulationEngine, collisions, reactions
 
 ### Key Architectural Principles
 

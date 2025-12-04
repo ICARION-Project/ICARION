@@ -21,8 +21,15 @@ import sys
 from pathlib import Path
 
 def calculate_theoretical_frequency(mass_u, charge_e, V_rad, r_char, r_in, r_out):
-    """Calculate theoretical axial frequency for Orbitrap."""
-    k = 2 * V_rad / (r_char**2 * np.log(r_out / r_in))  # V/m²
+    """Calculate theoretical axial frequency for Orbitrap.
+    
+    Field curvature constant from hyperlogarithmic potential:
+    k = 2*V_rad / (r_char² * ln(r_out/r_in) - 0.5*(r_out² - r_in²))
+    
+    This matches ElectricFieldForce.cpp line 337-339.
+    """
+    denominator = r_char**2 * np.log(r_out / r_in) - 0.5 * (r_out**2 - r_in**2)
+    k = 2 * V_rad / denominator  # V/m²
     q_C = charge_e * 1.602176634e-19  # C
     m_kg = mass_u * 1.66053906660e-27  # kg
     omega_z = np.sqrt(abs(k) * q_C / m_kg)  # rad/s

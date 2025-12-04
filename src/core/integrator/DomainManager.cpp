@@ -178,7 +178,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
                 if (t > 0.0 && t < t_min) {
                     Vec3 candidate = pos_before_local + dir * t;
                     if (candidate.z >= -DOMAIN_BOUNDARY_EPSILON && 
-                        candidate.z <= dom.geometry.length_m) {
+                        candidate.z <= geometries_[domain_idx]->length()) {
                         t_min = t;
                         intersection = candidate;
                     }
@@ -230,7 +230,6 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
 }
 
 Vec3 DomainManager::compute_surface_normal(const Vec3& pos_local, int domain_idx) const {
-    const auto& dom = get_domain(domain_idx);
     const double R = geometries_[domain_idx]->radius();
     const double EPSILON = 1e-6;
     

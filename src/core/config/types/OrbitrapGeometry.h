@@ -78,6 +78,10 @@ public:
         };
     }
 
+    double length() const override { return length_; }
+    double radius() const override { return radius_out_; }
+    double end_aperture() const override { return 0.0; } // Not used for Orbitrap
+
 private:
     // Hyperlogarithmic surface solver (matches DomainManager logic)
     static double orbitrap_surface_residual(double r, double z, double R, double R_m) {

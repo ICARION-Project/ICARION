@@ -160,22 +160,24 @@ void DomainManager::check_aperture_crossing(IonState& ion, int domain_idx,
                                              const Vec3& pos_before, const Vec3& pos_after) const {
     const auto& dom = get_domain(domain_idx);
     
-    if (dom.geometry.end_aperture_m <= 0.0) {
+    double aperture = geometries_[domain_idx]->end_aperture();
+    if (aperture <= 0.0) {
         return;  // No aperture constraint
     }
     
     Vec3 pb_local = global_to_local_pos(pos_before, domain_idx);
     Vec3 pa_local = global_to_local_pos(pos_after, domain_idx);
     
-    bool before_exit = (pb_local.z < dom.geometry.length_m);
-    bool after_exit = (pa_local.z >= dom.geometry.length_m);
+    double length = geometries_[domain_idx]->length();
+    bool before_exit = (pb_local.z < length);
+    bool after_exit = (pa_local.z >= length);
     
     if (before_exit && after_exit) {
-        double t = (dom.geometry.length_m - pb_local.z) / (pa_local.z - pb_local.z);
+        double t = (length - pb_local.z) / (pa_local.z - pb_local.z);
         Vec3 crossing = pb_local + (pa_local - pb_local) * t;
         double r_cross = std::sqrt(crossing.x*crossing.x + crossing.y*crossing.y);
         
-        if (r_cross > dom.geometry.end_aperture_m) {
+        if (r_cross > aperture) {
             ion.active = false;
         }
     }
@@ -326,7 +328,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
     Vec3 intersection = pos_after_local;
     
     // 1. Radial boundary
-    const double R = dom.geometry.radius_m;
+    const double R = geometries_[domain_idx]->radius();
     const double a = dir.x*dir.x + dir.y*dir.y;
     const double b = 2.0*(pos_before_local.x*dir.x + pos_before_local.y*dir.y);
     const double c = pos_before_local.x*pos_before_local.x + 
@@ -367,12 +369,12 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
     
     // 3. Exit plane (z=length_m)
     if (std::abs(dir.z) > NUMERICAL_ZERO) {
-        double t = (dom.geometry.length_m - pos_before_local.z) / dir.z;
+        double t = (geometries_[domain_idx]->length() - pos_before_local.z) / dir.z;
         if (t > 0.0 && t < t_min) {
             Vec3 candidate = pos_before_local + dir * t;
             double r = std::sqrt(candidate.x*candidate.x + candidate.y*candidate.y);
-            double aperture_limit = (dom.geometry.end_aperture_m > 0.0) ? 
-                                    dom.geometry.end_aperture_m : R;
+            double aperture_limit = (geometries_[domain_idx]->end_aperture() > 0.0) ? 
+                                    geometries_[domain_idx]->end_aperture() : R;
             if (r <= aperture_limit) {
                 t_min = t;
                 intersection = candidate;
@@ -396,7 +398,7 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
 
 Vec3 DomainManager::compute_surface_normal(const Vec3& pos_local, int domain_idx) const {
     const auto& dom = get_domain(domain_idx);
-    const double R = dom.geometry.radius_m;
+    const double R = geometries_[domain_idx]->radius();
     const double EPSILON = 1e-6;
     
     // Determine which surface was hit
@@ -415,7 +417,7 @@ Vec3 DomainManager::compute_surface_normal(const Vec3& pos_local, int domain_idx
     }
     
     // Exit plane (z=length_m)
-    if (std::abs(pos_local.z - dom.geometry.length_m) < EPSILON) {
+    if (std::abs(pos_local.z - geometries_[domain_idx]->length()) < EPSILON) {
         // Normal points into domain: -z direction
         return Vec3{0.0, 0.0, -1.0};
     }

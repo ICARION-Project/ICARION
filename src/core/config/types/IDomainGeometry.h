@@ -19,6 +19,15 @@ public:
     /// Check whether a global position lies inside the domain.
     virtual bool contains(const Vec3& global_pos) const = 0;
 
+    /// Domain length [m] along local z.
+    virtual double length() const = 0;
+
+    /// Characteristic radius [m] (cylindrical or outer radius).
+    virtual double radius() const = 0;
+
+    /// Exit aperture radius [m] (0 if not applicable).
+    virtual double end_aperture() const = 0;
+
     /// Transform position from global to local coordinates.
     virtual Vec3 global_to_local_pos(const Vec3& global_pos) const = 0;
 

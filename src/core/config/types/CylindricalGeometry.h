@@ -21,6 +21,7 @@ public:
         : origin_(cfg.geometry.origin_m),
           radius_(cfg.geometry.radius_m),
           length_(cfg.geometry.length_m),
+          end_aperture_(cfg.geometry.end_aperture_m),
           R_g2l_(cfg.rotation_global_to_local),
           R_l2g_(cfg.rotation_local_to_global) {}
 
@@ -30,6 +31,10 @@ public:
         double r2 = local.x * local.x + local.y * local.y;
         return r2 <= (radius_ + EPSILON) * (radius_ + EPSILON);
     }
+
+    double length() const override { return length_; }
+    double radius() const override { return radius_; }
+    double end_aperture() const override { return end_aperture_; }
 
     Vec3 global_to_local_pos(const Vec3& global_pos) const override {
         Vec3 shifted = global_pos - origin_;
@@ -69,6 +74,7 @@ private:
     Vec3 origin_;
     double radius_;
     double length_;
+    double end_aperture_;
     Mat3 R_g2l_;
     Mat3 R_l2g_;
 

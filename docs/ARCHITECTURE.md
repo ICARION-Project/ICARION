@@ -66,13 +66,13 @@ tools/                 # Developer tools and scripts
 
 ### Simulation Engine
 
-`SimulationEngine` is the central orchestrator. The current AoS path (`run`) and SoA path (`run_soa`) share the same control flow:
+`SimulationEngine` is the central orchestrator. The legacy AoS entry point (`run`) now converts once to `IonEnsemble` and delegates to the SoA core (`run_soa`); both share identical control flow:
 
 1. Initialize `DomainManager` and `OutputManager`, log metadata (AoS init uses a temporary conversion in the SoA path).
 2. Optionally initialize GPU helpers (integration/collisions; space charge/boundary helpers exist but are not yet dispatched).
 3. Per-timestep loop:
-   - Apply ion birth timing.
-   - Per-ion processing (OpenMP-capable): domain lookup, domain property updates, collisions (if handler), reactions (if enabled), integrator step, boundary checks, time update, safety checks.
+   - Apply ion birth timing (SoA birth flags).
+   - Per-ion processing (OpenMP-capable): domain lookup, domain property updates, collisions (if handler), reactions (if enabled), integrator step, boundary checks/domain transitions, time update, safety checks.
    - Output write every `write_interval` steps.
 4. Finalize output and optional numerical safety report; GPU stats if used.
 

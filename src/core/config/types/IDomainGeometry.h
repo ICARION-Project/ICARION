@@ -31,6 +31,11 @@ public:
     /// Compute an inward-pointing surface normal at a local point on the boundary.
     virtual Vec3 surface_normal(const Vec3& local_pos) const = 0;
 
+    /// Compute first boundary intersection along segment; returns true if hit.
+    virtual bool first_boundary_intersection(const Vec3& start_local,
+                                             const Vec3& end_local,
+                                             Vec3& intersection_local) const = 0;
+
     /// Transform position from global to local coordinates.
     virtual Vec3 global_to_local_pos(const Vec3& global_pos) const = 0;
 

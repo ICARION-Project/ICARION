@@ -87,6 +87,13 @@ public:
         return Vec3{0.0, 0.0, 1.0};
     }
 
+    bool first_boundary_intersection(const Vec3& start_local,
+                                     const Vec3& end_local,
+                                     Vec3& intersection_local) const override {
+        intersection_local = (start_local + end_local) * 0.5;
+        return true;
+    }
+
 private:
     // Hyperlogarithmic surface solver (matches DomainManager logic)
     static double orbitrap_surface_residual(double r, double z, double R, double R_m) {

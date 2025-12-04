@@ -52,6 +52,72 @@ public:
         return Vec3{0.0, 0.0, 1.0};
     }
 
+    bool first_boundary_intersection(const Vec3& start_local,
+                                     const Vec3& end_local,
+                                     Vec3& intersection_local) const override {
+        Vec3 d = end_local - start_local;
+        double t_min = 1.0;
+        bool hit = false;
+
+        // Radial cylinder
+        const double a = d.x*d.x + d.y*d.y;
+        const double b = 2.0*(start_local.x*d.x + start_local.y*d.y);
+        const double c = start_local.x*start_local.x + start_local.y*start_local.y - radius_*radius_;
+
+        if (a > NUMERICAL_ZERO) {
+            double disc = b*b - 4.0*a*c;
+            if (disc >= 0.0) {
+                double sqrt_disc = std::sqrt(disc);
+                double t1 = (-b + sqrt_disc) / (2.0*a);
+                double t2 = (-b - sqrt_disc) / (2.0*a);
+                for (double t : {t1, t2}) {
+                    if (t > 0.0 && t <= 1.0) {
+                        Vec3 cand = start_local + d * t;
+                        if (cand.z >= -EPSILON && cand.z <= length_ + EPSILON && t < t_min) {
+                            t_min = t;
+                            intersection_local = cand;
+                            hit = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Entrance plane z=0
+        if (std::abs(d.z) > NUMERICAL_ZERO) {
+            double t = (-start_local.z) / d.z;
+            if (t > 0.0 && t <= 1.0 && t < t_min) {
+                Vec3 cand = start_local + d * t;
+                double r2 = cand.x*cand.x + cand.y*cand.y;
+                if (r2 <= radius_*radius_) {
+                    t_min = t;
+                    intersection_local = cand;
+                    hit = true;
+                }
+            }
+        }
+
+        // Exit plane z=length_
+        if (std::abs(d.z) > NUMERICAL_ZERO) {
+            double t = (length_ - start_local.z) / d.z;
+            if (t > 0.0 && t <= 1.0 && t < t_min) {
+                Vec3 cand = start_local + d * t;
+                double r2 = cand.x*cand.x + cand.y*cand.y;
+                double limit = (end_aperture_ > 0.0) ? end_aperture_ : radius_;
+                if (r2 <= limit*limit) {
+                    t_min = t;
+                    intersection_local = cand;
+                    hit = true;
+                }
+            }
+        }
+
+        if (!hit) {
+            intersection_local = end_local;
+        }
+        return hit;
+    }
+
     Vec3 global_to_local_pos(const Vec3& global_pos) const override {
         Vec3 shifted = global_pos - origin_;
         return {

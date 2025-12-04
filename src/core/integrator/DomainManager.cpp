@@ -155,65 +155,8 @@ void DomainManager::terminate_ion_at_boundary(IonState& ion, int domain_idx,
         return;
     }
     
-    dir = dir * (1.0 / dir_len);
-    
-    double t_min = dir_len;
-    Vec3 intersection = pos_after_local;
-    
-    // 1. Radial boundary
-    const double R = geometries_[domain_idx]->radius();
-    const double a = dir.x*dir.x + dir.y*dir.y;
-    const double b = 2.0*(pos_before_local.x*dir.x + pos_before_local.y*dir.y);
-    const double c = pos_before_local.x*pos_before_local.x + 
-                     pos_before_local.y*pos_before_local.y - R*R;
-    
-    if (a > NUMERICAL_ZERO) {
-        const double discriminant = b*b - 4.0*a*c;
-        if (discriminant >= 0.0) {
-            const double sqrt_disc = std::sqrt(discriminant);
-            const double t1 = (-b + sqrt_disc) / (2.0*a);
-            const double t2 = (-b - sqrt_disc) / (2.0*a);
-            
-            for (double t : {t1, t2}) {
-                if (t > 0.0 && t < t_min) {
-                    Vec3 candidate = pos_before_local + dir * t;
-                    if (candidate.z >= -DOMAIN_BOUNDARY_EPSILON && 
-                        candidate.z <= geometries_[domain_idx]->length()) {
-                        t_min = t;
-                        intersection = candidate;
-                    }
-                }
-            }
-        }
-    }
-    
-    // 2. Entrance plane (z=0)
-    if (std::abs(dir.z) > NUMERICAL_ZERO) {
-        double t = (0.0 - pos_before_local.z) / dir.z;
-        if (t > 0.0 && t < t_min) {
-            Vec3 candidate = pos_before_local + dir * t;
-            double r = std::sqrt(candidate.x*candidate.x + candidate.y*candidate.y);
-            if (r <= R) {
-                t_min = t;
-                intersection = candidate;
-            }
-        }
-    }
-    
-    // 3. Exit plane (z=length_m)
-    if (std::abs(dir.z) > NUMERICAL_ZERO) {
-        double t = (geometries_[domain_idx]->length() - pos_before_local.z) / dir.z;
-        if (t > 0.0 && t < t_min) {
-            Vec3 candidate = pos_before_local + dir * t;
-            double r = std::sqrt(candidate.x*candidate.x + candidate.y*candidate.y);
-            double aperture_limit = (geometries_[domain_idx]->end_aperture() > 0.0) ? 
-                                    geometries_[domain_idx]->end_aperture() : R;
-            if (r <= aperture_limit) {
-                t_min = t;
-                intersection = candidate;
-            }
-        }
-    }
+    Vec3 intersection;
+    geometries_[domain_idx]->first_boundary_intersection(pos_before_local, pos_after_local, intersection);
     
     // Compute surface normal at intersection (pointing inward)
     Vec3 normal = geometries_[domain_idx]->surface_normal(intersection);

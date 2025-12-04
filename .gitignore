@@ -37,3 +37,7 @@ CTestTestfile.cmake
 
 # Validation suite configs
 validation/**/*.json
+
+# Other artifacts
+*.pyc
+__pycache__/

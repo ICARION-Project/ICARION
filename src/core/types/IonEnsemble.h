@@ -351,11 +351,18 @@ struct IonCollisionData {
 struct IonReactionData {
     IonKinematics kin;
     const std::vector<std::string>* species_pool;
-    const uint32_t* species_id_index;
+    uint32_t* species_id_index;
+    double* CCS;
+    double* mobility;
     
     const std::string& species_id() const { 
         return (*species_pool)[species_id_index[kin.index]]; 
     }
+    void set_species_index(uint32_t idx) { species_id_index[kin.index] = idx; }
+    double get_CCS() const { return CCS[kin.index]; }
+    void set_CCS(double v) { CCS[kin.index] = v; }
+    double get_mobility() const { return mobility[kin.index]; }
+    void set_mobility(double v) { mobility[kin.index] = v; }
 };
 
 /**

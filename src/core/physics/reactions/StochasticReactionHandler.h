@@ -76,6 +76,17 @@ public:
         const config::EnvironmentConfig& env
     ) override;
     
+    bool handle_reaction_soa(
+        core::IonReactionData& view,
+        double* CCS_array,
+        double* mobility_array,
+        double dt,
+        PhysicsRng& rng,
+        const config::ReactionDatabase& reaction_db,
+        const config::SpeciesDatabase& species_db,
+        const config::EnvironmentConfig& env
+    ) override;
+    
     std::string name() const override { return "Stochastic"; }
     
     ReactionStats get_stats() const override { return stats_; }

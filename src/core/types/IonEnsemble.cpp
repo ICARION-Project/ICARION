@@ -259,7 +259,9 @@ IonReactionData IonEnsemble::reaction_data(size_t i) {
     return {
         kinematics(i),
         &cold_.species_pool,
-        cold_.species_id.data()
+        cold_.species_id.data(),
+        cold_.CCS.data(),
+        cold_.mobility.data()
     };
 }
 

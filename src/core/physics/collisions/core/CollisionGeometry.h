@@ -12,7 +12,7 @@
 #pragma once
 
 #include "core/types/Vec3.h"
-#include "core/types/CollisionTypes.h"  // For EhssRng
+#include "core/types/CollisionTypes.h"  // For PhysicsRng
 
 namespace ICARION::physics::collision_core {
 
@@ -70,7 +70,7 @@ public:
      * @note Equivalent to old `rand_rotation()` function from collisionHelpers.h
      */
     static void generate_random_rotation(
-        EhssRng& rng,
+        PhysicsRng& rng,
         double R[3][3]
     );
     

@@ -21,7 +21,7 @@
 
 namespace ICARION::tests {
 
-using physics::EhssRng;
+using physics::PhysicsRng;
 
 struct SimpleSimTrace {
     std::vector<double> times;
@@ -125,7 +125,7 @@ inline SimpleSimResult run_simple_simulation(
     const auto& dom = cfg.domains.front();
     const double dt = cfg.simulation.dt_s;
     const int total_steps = cfg.simulation.total_steps;
-    EhssRng rng(1337);
+    PhysicsRng rng(1337);
 
     if (total_steps > 0 && total_steps < 10'000'000) {
         result.trace.times.reserve(total_steps + 1);

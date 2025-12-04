@@ -15,7 +15,7 @@
 #include "core/types/IonState.h"
 #include "core/types/IonEnsemble.h"  // For IonCollisionData view
 #include "core/config/types/EnvironmentConfig.h"
-#include "core/types/CollisionTypes.h"  // EhssRng
+#include "core/types/CollisionTypes.h"  // PhysicsRng
 #include <string>
 #include <cstddef>
 
@@ -75,7 +75,7 @@ public:
      * env.temperature_K = 300.0;
      * env.pressure_Pa = 101325.0;
      * 
-     * EhssRng rng(12345);
+     * PhysicsRng rng(12345);
      * IonState ion;
      * 
      * bool collision_occurred = handler->handle_collision(ion, 1e-9, rng, env);
@@ -84,7 +84,7 @@ public:
     virtual bool handle_collision(
         IonState& ion,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env
     ) = 0;
     
@@ -106,7 +106,7 @@ public:
     virtual bool handle_collision_soa(
         core::IonCollisionData& view,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env
     ) {
         // Default: convert to IonState and call legacy method

@@ -29,7 +29,7 @@
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/integrator/strategies/IIntegrationStrategy.h"
 #include "core/physics/collisions/ICollisionHandler.h"
-#include "core/types/CollisionTypes.h"  // EhssRng
+#include "core/types/CollisionTypes.h"  // PhysicsRng
 #include "core/physics/reactions/IReactionHandler.h"
 #include "core/integrator/DomainManager.h"
 #include "core/integrator/DomainContext.h"
@@ -180,7 +180,7 @@ private:
     int current_step_ = 0;
     
     // Per-ion RNG states (persistent across timesteps!)
-    std::vector<physics::EhssRng> rng_by_ion_;
+    std::vector<physics::PhysicsRng> rng_by_ion_;
     
 #ifdef ICARION_USE_GPU
     // GPU acceleration (optional)
@@ -384,7 +384,7 @@ private:
         IonState& ion,
         DomainContext& ctx,
         double dt,
-        physics::EhssRng& rng,
+        physics::PhysicsRng& rng,
         int domain_idx
     );
     
@@ -397,7 +397,7 @@ private:
         IonState& ion,
         DomainContext& ctx,
         double dt,
-        physics::EhssRng& rng,
+        physics::PhysicsRng& rng,
         int domain_idx
     );
     

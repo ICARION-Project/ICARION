@@ -10,7 +10,7 @@ Vec3 VelocitySampling::sample_neutral_velocity(
     double temperature_K,
     double mass_kg,
     const Vec3& flow_velocity,
-    EhssRng& rng
+    PhysicsRng& rng
 ) {
     // PHYSICS: Exact implementation from collisionHelpers.cpp::sample_neutral_velocity()
     // NO CHANGES to algorithm - only refactored for clarity
@@ -37,7 +37,7 @@ Vec3 VelocitySampling::sample_neutral_velocity(
 double VelocitySampling::sample_thermal_component(
     double temperature_K,
     double mass_kg,
-    EhssRng& rng
+    PhysicsRng& rng
 ) {
     double sigma = thermal_velocity_width(temperature_K, mass_kg);
     return box_muller_sample(sigma, rng);
@@ -53,7 +53,7 @@ double VelocitySampling::thermal_velocity_width(
     return std::sqrt(BOLTZMANN_CONSTANT * temperature_K / mass_kg);
 }
 
-double VelocitySampling::box_muller_sample(double sigma, EhssRng& rng) {
+double VelocitySampling::box_muller_sample(double sigma, PhysicsRng& rng) {
     // PHYSICS: Box-Muller transform (exact copy from old implementation)
     // Generates N(0, sigma) from two uniform random numbers
     

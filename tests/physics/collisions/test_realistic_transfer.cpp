@@ -13,7 +13,7 @@
 
 using namespace ICARION;
 using namespace ICARION::physics::collision_core;
-using ICARION::physics::EhssRng;
+using ICARION::physics::PhysicsRng;
 using ICARION::physics::EHSSParams;
 
 int main() {
@@ -28,7 +28,7 @@ int main() {
     p.sigma_eff = 25e-20;
     p.Rn = std::sqrt(p.sigma_eff / M_PI);
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     
     // Test: Ion with high energy, neutral SAMPLED from Maxwell-Boltzmann
     const int N_trials = 10000;
@@ -125,7 +125,7 @@ int main() {
         #pragma omp parallel for reduction(+:sum_E)
         for (int ion_idx = 0; ion_idx < N_IONS_TEST; ++ion_idx) {
             Vec3 v_ion_local{v_ion_init, 0.0, 0.0};
-            EhssRng rng_local(1000 + ion_idx);
+            PhysicsRng rng_local(1000 + ion_idx);
             
             for (int i = 0; i < N_coll; ++i) {
                 Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(

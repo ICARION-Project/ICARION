@@ -26,7 +26,7 @@
 namespace ICARION {
 namespace integrator {
 
-using physics::EhssRng;
+using physics::PhysicsRng;
 
 SimulationEngine::SimulationEngine(
     const config::FullConfig& config,
@@ -681,7 +681,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         #pragma omp for schedule(static, CACHE_BLOCK_SIZE)
         for (int i = 0; i < n_ions; ++i) {
             IonState& ion = ions[i];
-            physics::EhssRng& ion_rng = rng_by_ion_[i];  // Ion-specific RNG (persistent!)
+            physics::PhysicsRng& ion_rng = rng_by_ion_[i];  // Ion-specific RNG (persistent!)
             
             if (!ion.active) continue;
             
@@ -964,7 +964,7 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
     {
         #pragma omp for schedule(static, 256)
         for (int i = 0; i < n_ions; ++i) {
-            EhssRng& ion_rng = rng_by_ion_[i];
+            PhysicsRng& ion_rng = rng_by_ion_[i];
             
             // Skip inactive ions
             if (!active[i]) {
@@ -1105,7 +1105,7 @@ inline void SimulationEngine::process_ion_collisions(
     IonState& ion,
     DomainContext& ctx,
     double dt,
-    physics::EhssRng& rng,
+    physics::PhysicsRng& rng,
     int domain_idx
 ) {
     if (!collision_handler_) return;
@@ -1128,7 +1128,7 @@ inline void SimulationEngine::process_ion_reactions(
     IonState& ion,
     DomainContext& ctx,
     double dt,
-    physics::EhssRng& rng,
+    physics::PhysicsRng& rng,
     int domain_idx
 ) {
     if (!reaction_handler_ || config_.reaction_db.reactions.empty()) return;

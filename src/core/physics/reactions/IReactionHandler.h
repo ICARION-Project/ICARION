@@ -8,7 +8,7 @@
 #include "core/config/types/ReactionConfig.h"
 #include "core/config/types/SpeciesConfig.h"
 #include "core/config/types/EnvironmentConfig.h"
-#include "core/types/CollisionTypes.h"  // EhssRng
+#include "core/types/CollisionTypes.h"  // PhysicsRng
 #include <string>
 
 namespace ICARION {
@@ -72,7 +72,7 @@ public:
     virtual bool handle_reaction(
         IonState& ion,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::ReactionDatabase& reaction_db,
         const config::SpeciesDatabase& species_db,
         const config::EnvironmentConfig& env
@@ -101,7 +101,7 @@ public:
         double* CCS_array,
         double* mobility_array,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::ReactionDatabase& reaction_db,
         const config::SpeciesDatabase& species_db,
         const config::EnvironmentConfig& env

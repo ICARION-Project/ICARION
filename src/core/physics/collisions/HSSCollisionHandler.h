@@ -89,7 +89,7 @@ public:
     bool handle_collision(
         IonState& ion,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env
     ) override;
     
@@ -120,7 +120,7 @@ private:
     const config::SpeciesDatabase* species_db_;
     mutable std::unordered_set<std::string> warned_missing_sigma_;
 
-    bool handle_single_gas(IonState& ion, double dt, EhssRng& rng, const config::EnvironmentConfig& env);
+    bool handle_single_gas(IonState& ion, double dt, PhysicsRng& rng, const config::EnvironmentConfig& env);
     std::unordered_map<std::string, size_t> collisions_by_species_;
 };
 

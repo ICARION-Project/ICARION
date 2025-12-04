@@ -76,7 +76,7 @@ int main() {
             ion.pos = Vec3{0.0, 0.0, 0.0};
             ion.vel = Vec3{v_init, 0.0, 0.0};
             
-            EhssRng rng(42 + ion_idx);
+            PhysicsRng rng(42 + ion_idx);
             
             int collision_count = 0;
             for (int i = 0; i < N_STEPS; ++i) {
@@ -123,7 +123,7 @@ int main() {
             ion.pos = Vec3{0.0, 0.0, 0.0};
             ion.vel = Vec3{v_init, 0.0, 0.0};
             
-            EhssRng rng(1000 + ion_idx);
+            PhysicsRng rng(1000 + ion_idx);
             
             int collision_count = 0;
             for (int i = 0; i < N_STEPS; ++i) {
@@ -175,7 +175,7 @@ int main() {
             ion.pos = Vec3{0.0, 0.0, 0.0};
             ion.vel = Vec3{v_init, 0.0, 0.0};
             
-            EhssRng rng(2000 + ion_idx);
+            PhysicsRng rng(2000 + ion_idx);
             
             for (int i = 0; i < N_STEPS; ++i) {
                 handler.handle_collision(ion, dt, rng, env);

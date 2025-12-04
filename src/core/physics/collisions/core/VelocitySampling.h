@@ -20,7 +20,7 @@
 #pragma once
 
 #include "core/types/Vec3.h"
-#include "core/types/CollisionTypes.h"  // For EhssRng
+#include "core/types/CollisionTypes.h"  // For PhysicsRng
 #include "utils/constants.h"
 
 namespace ICARION::physics::collision_core {
@@ -57,7 +57,7 @@ public:
         double temperature_K,
         double mass_kg,
         const Vec3& flow_velocity,
-        EhssRng& rng
+        PhysicsRng& rng
     );
     
     /**
@@ -77,7 +77,7 @@ public:
     static double sample_thermal_component(
         double temperature_K,
         double mass_kg,
-        EhssRng& rng
+        PhysicsRng& rng
     );
     
     /**
@@ -109,7 +109,7 @@ private:
      * @param rng Random number generator
      * @return Random sample from N(0, sigma)
      */
-    static double box_muller_sample(double sigma, EhssRng& rng);
+    static double box_muller_sample(double sigma, PhysicsRng& rng);
 };
 
 } // namespace ICARION::physics::collision_core

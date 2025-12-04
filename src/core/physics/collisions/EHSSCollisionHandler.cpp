@@ -33,7 +33,7 @@ EHSSCollisionHandler::EHSSCollisionHandler(
 bool EHSSCollisionHandler::handle_collision(
     IonState& ion,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
     // Mixture-aware handling
@@ -153,7 +153,7 @@ double EHSSCollisionHandler::compute_effective_ccs(
             const auto& map = it->second.ccs_ehss_m2;
             auto itg = map.find(gas_id);
             if (itg != map.end() && itg->second > 0.0) {
-                return itg->second;  // ✅ Precomputed CCS (from ccs_precompute tool)
+                return itg->second;  // Precomputed CCS (from ccs_precompute tool)
             }
         }
     }
@@ -163,7 +163,7 @@ double EHSSCollisionHandler::compute_effective_ccs(
     if (it_geom != geometry_map_.end() && !it_geom->second.first.empty()) {
         const auto& [centers, radii] = it_geom->second;
         // Orientation-averaged projection approximation (OAPA)
-        EhssRng rng(12345);
+        PhysicsRng rng(12345);
         double A_sum = 0.0;
         double Rmat[3][3];
         const int n_orientations = 64;

@@ -24,7 +24,7 @@
 
 using namespace ICARION::physics::collision_core;
 using namespace ICARION::core;
-using ICARION::physics::EhssRng;
+using ICARION::physics::PhysicsRng;
 using Catch::Matchers::WithinAbs;
 using Catch::Matchers::WithinRel;
 
@@ -42,7 +42,7 @@ Vec3 total_momentum(const Vec3& v1, double m1, const Vec3& v2, double m2) {
 
 TEST_CASE("CollisionKernels: HSS collision basics", "[collision][kernels][hss]") {
     SECTION("Momentum conservation") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         Vec3 v_ion{100.0, 50.0, -20.0};
         Vec3 v_neutral{10.0, -5.0, 15.0};
@@ -62,7 +62,7 @@ TEST_CASE("CollisionKernels: HSS collision basics", "[collision][kernels][hss]")
     }
     
     SECTION("Energy conservation") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         Vec3 v_ion{100.0, 50.0, -20.0};
         Vec3 v_neutral{10.0, -5.0, 15.0};
@@ -88,7 +88,7 @@ TEST_CASE("CollisionKernels: HSS collision basics", "[collision][kernels][hss]")
     }
     
     SECTION("Isotropic scattering (statistical test)") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         Vec3 v_ion{100.0, 0.0, 0.0};  // Ion moving in +x direction
         Vec3 v_neutral{0.0, 0.0, 0.0};  // Neutral at rest
@@ -114,8 +114,8 @@ TEST_CASE("CollisionKernels: HSS collision basics", "[collision][kernels][hss]")
     }
     
     SECTION("Determinism with same seed") {
-        EhssRng rng1(123);
-        EhssRng rng2(123);
+        PhysicsRng rng1(123);
+        PhysicsRng rng2(123);
         
         Vec3 v_ion{100.0, 50.0, -20.0};
         Vec3 v_neutral{10.0, -5.0, 15.0};
@@ -133,7 +133,7 @@ TEST_CASE("CollisionKernels: HSS collision basics", "[collision][kernels][hss]")
 
 TEST_CASE("CollisionKernels: EHSS collision basics", "[collision][kernels][ehss]") {
     SECTION("Simple single-atom geometry") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         // Simple geometry: one atom at origin
         std::vector<Vec3> centers = {{0.0, 0.0, 0.0}};
@@ -155,7 +155,7 @@ TEST_CASE("CollisionKernels: EHSS collision basics", "[collision][kernels][ehss]
     }
     
     SECTION("Momentum conservation with geometry") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         // H2O-like geometry (simplified)
         std::vector<Vec3> centers = {
@@ -186,7 +186,7 @@ TEST_CASE("CollisionKernels: EHSS collision basics", "[collision][kernels][ehss]
     }
     
     SECTION("Energy conservation with geometry") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         std::vector<Vec3> centers = {{0.0, 0.0, 0.0}};
         std::vector<double> radii = {1.5e-10};
@@ -219,7 +219,7 @@ TEST_CASE("CollisionKernels: EHSS collision basics", "[collision][kernels][ehss]
     }
     
     SECTION("No collision with empty geometry") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         std::vector<Vec3> centers;
         std::vector<double> radii;
@@ -244,7 +244,7 @@ TEST_CASE("CollisionKernels: EHSS collision basics", "[collision][kernels][ehss]
 
 TEST_CASE("CollisionKernels: OU velocity updates", "[collision][kernels][ou]") {
     SECTION("Thermalization to gas velocity (damping mode)") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         IonState ion;
         ion.mass_kg = 28.0 * AMU_TO_KG;
@@ -267,7 +267,7 @@ TEST_CASE("CollisionKernels: OU velocity updates", "[collision][kernels][ou]") {
     }
     
     SECTION("Thermal kicks only (no damping)") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         IonState ion;
         ion.mass_kg = 28.0 * AMU_TO_KG;
@@ -286,8 +286,8 @@ TEST_CASE("CollisionKernels: OU velocity updates", "[collision][kernels][ou]") {
     }
     
     SECTION("Determinism with same seed") {
-        EhssRng rng1(123);
-        EhssRng rng2(123);
+        PhysicsRng rng1(123);
+        PhysicsRng rng2(123);
         
         IonState ion1, ion2;
         ion1.mass_kg = ion2.mass_kg = 28.0 * AMU_TO_KG;
@@ -307,7 +307,7 @@ TEST_CASE("CollisionKernels: OU velocity updates", "[collision][kernels][ou]") {
     }
     
     SECTION("Velocity variance approaches thermal equilibrium") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         
         double T = 300.0;
         double m = 28.0 * AMU_TO_KG;
@@ -356,8 +356,8 @@ TEST_CASE("CollisionKernels: OU velocity updates", "[collision][kernels][ou]") {
 TEST_CASE("CollisionKernels: Regression tests", "[collision][kernels][regression]") {
     SECTION("HSS collision matches old implementation") {
         // Use same seed for both
-        EhssRng rng_old(42);
-        EhssRng rng_new(42);
+        PhysicsRng rng_old(42);
+        PhysicsRng rng_new(42);
         
         Vec3 v_ion{100.0, 50.0, -20.0};
         Vec3 v_neutral{10.0, -5.0, 15.0};

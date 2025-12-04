@@ -20,7 +20,7 @@
 
 using namespace ICARION::physics::collision_core;
 using namespace ICARION::core;  // For Vec3
-using ICARION::physics::EhssRng;
+using ICARION::physics::PhysicsRng;
 using Catch::Matchers::WithinAbs;
 
 // Numerical tolerance for floating-point comparisons
@@ -82,7 +82,7 @@ TEST_CASE("CollisionGeometry: Orthonormal basis construction", "[collision][geom
 
 TEST_CASE("CollisionGeometry: Random rotation matrix generation", "[collision][geometry]") {
     SECTION("Generated rotation is valid") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         double R[3][3];
         
         CollisionGeometry::generate_random_rotation(rng, R);
@@ -91,7 +91,7 @@ TEST_CASE("CollisionGeometry: Random rotation matrix generation", "[collision][g
     }
     
     SECTION("Multiple rotations are all valid") {
-        EhssRng rng(123);
+        PhysicsRng rng(123);
         
         for (int i = 0; i < 100; ++i) {
             double R[3][3];
@@ -102,7 +102,7 @@ TEST_CASE("CollisionGeometry: Random rotation matrix generation", "[collision][g
     }
     
     SECTION("Rotation matrix is orthogonal (R^T R = I)") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         double R[3][3];
         
         CollisionGeometry::generate_random_rotation(rng, R);
@@ -133,7 +133,7 @@ TEST_CASE("CollisionGeometry: Random rotation matrix generation", "[collision][g
     }
     
     SECTION("Determinant is +1 (proper rotation)") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         double R[3][3];
         
         CollisionGeometry::generate_random_rotation(rng, R);
@@ -148,7 +148,7 @@ TEST_CASE("CollisionGeometry: Random rotation matrix generation", "[collision][g
 
 TEST_CASE("CollisionGeometry: Vector rotation", "[collision][geometry]") {
     SECTION("Rotation preserves vector norm") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         double R[3][3];
         CollisionGeometry::generate_random_rotation(rng, R);
         
@@ -191,7 +191,7 @@ TEST_CASE("CollisionGeometry: Vector rotation", "[collision][geometry]") {
     }
     
     SECTION("Random rotation preserves norm for multiple vectors") {
-        EhssRng rng(123);
+        PhysicsRng rng(123);
         double R[3][3];
         CollisionGeometry::generate_random_rotation(rng, R);
         
@@ -285,8 +285,8 @@ TEST_CASE("CollisionGeometry: Regression test against old implementation", "[col
     
     SECTION("Random rotation with fixed seed produces consistent results") {
         // Same seed should produce identical rotation matrix
-        EhssRng rng1(42);
-        EhssRng rng2(42);
+        PhysicsRng rng1(42);
+        PhysicsRng rng2(42);
         
         double R1[3][3];
         double R2[3][3];

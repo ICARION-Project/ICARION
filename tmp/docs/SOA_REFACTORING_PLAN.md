@@ -243,7 +243,7 @@ bool HSSCollisionHandler::handle_collision(IonState& ion, double dt, ...) {
 bool HSSCollisionHandler::handle_collision(
     IonCollisionData& data, 
     double dt, 
-    EhssRng& rng
+    PhysicsRng& rng
 ) {
     // Only loads: pos(24) + vel(24) + CCS(8) + temp(8) + density(8) = 72 bytes
     // No domain_gas_velocity, no species_id, no history_index
@@ -282,7 +282,7 @@ void SimulationEngine::collisions_soa(IonEnsemble& ensemble, double dt) {
 void ReactionHandler::handle_reaction(
     IonReactionData& data,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const ReactionDatabase& db
 ) {
     const std::string& species = *data.species_id;

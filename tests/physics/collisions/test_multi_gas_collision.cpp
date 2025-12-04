@@ -13,7 +13,7 @@
 
 using Catch::Approx;
 using namespace ICARION;
-using ICARION::physics::EhssRng;
+using ICARION::physics::PhysicsRng;
 
 namespace {
 
@@ -22,7 +22,7 @@ size_t count_collisions(physics::HSSCollisionHandler& handler,
                         int trials,
                         uint64_t seed,
                         double dt) {
-    EhssRng rng(seed);
+    PhysicsRng rng(seed);
     IonState ion;
     ion.species_id = "X+";
     ion.mass_kg = 28.0 * AMU_TO_KG;
@@ -60,7 +60,7 @@ TEST_CASE("EHSS uses CCS_EHSS map in mixture", "[collision][ehss][multigas]") {
     physics::GeometryMap geom;
     geom["X+"] = physics::GeometryData{{Vec3{0,0,0}}, {1e-10}};
     physics::EHSSCollisionHandler handler(geom, false, &db);
-    EhssRng rng(123);
+    PhysicsRng rng(123);
 
     IonState ion;
     ion.species_id = "X+";
@@ -103,7 +103,7 @@ TEST_CASE("EHSS missing CCS in mixture falls back to geometry", "[collision][ehs
     geom["Y+"] = gd;
 
     physics::EHSSCollisionHandler handler(geom, false, nullptr);
-    EhssRng rng(7);
+    PhysicsRng rng(7);
 
     IonState ion;
     ion.species_id = "Y+";
@@ -135,7 +135,7 @@ TEST_CASE("HSS uses gas-specific CCS map in mixture", "[collision][multigas]") {
     db.species[sp.id] = sp;
 
     physics::HSSCollisionHandler handler(false, &db);
-    EhssRng rng(1234);
+    PhysicsRng rng(1234);
 
     IonState ion;
     ion.species_id = "X+";
@@ -178,7 +178,7 @@ TEST_CASE("HSS uses gas-specific CCS map in mixture", "[collision][multigas]") {
 
 TEST_CASE("HSS throws when mixture has no sigma", "[collision][multigas][safety]") {
     physics::HSSCollisionHandler handler(false, nullptr);
-    EhssRng rng(42);
+    PhysicsRng rng(42);
 
     IonState ion;
     ion.mass_kg = 28.0 * AMU_TO_KG;

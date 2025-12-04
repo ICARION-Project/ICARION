@@ -19,7 +19,7 @@
 
 using namespace ICARION;
 using namespace ICARION::physics::collision_core;
-using ICARION::physics::EhssRng;
+using ICARION::physics::PhysicsRng;
 using ICARION::physics::EHSSParams;
 using Catch::Matchers::WithinRel;
 using Catch::Matchers::WithinAbs;
@@ -45,7 +45,7 @@ TEST_CASE("Hard-sphere collision conserves total energy", "[collision][energy][c
     p.n = 1e20;  // m^-3
     p.dt = 1e-9;
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     
     SECTION("Single collision with thermal neutral") {
         // Ion moving fast
@@ -155,7 +155,7 @@ TEST_CASE("EHSS collision with geometry conserves energy", "[collision][energy][
     };
     std::vector<double> radii = {1.2e-10, 1.1e-10, 1.1e-10, 1.1e-10};
     
-    EhssRng rng(123);
+    PhysicsRng rng(123);
     
     SECTION("EHSS geometry collision conserves energy") {
         int N_trials = 100;
@@ -266,7 +266,7 @@ TEST_CASE("Thermalization to correct equilibrium validates collision physics", "
         #pragma omp parallel for reduction(+:sum_E_final)
         for (int ion_idx = 0; ion_idx < N_IONS; ++ion_idx) {
             Vec3 v_ion{3000.0, 0.0, 0.0};  // Start with high energy
-            EhssRng rng(1000 + ion_idx);
+            PhysicsRng rng(1000 + ion_idx);
             
             // Apply many collisions with properly sampled thermal neutrals
             for (int i = 0; i < N_COLLISIONS; ++i) {
@@ -311,7 +311,7 @@ TEST_CASE("Thermalization to correct equilibrium validates collision physics", "
         #pragma omp parallel for reduction(+:sum_E_final)
         for (int ion_idx = 0; ion_idx < N_IONS; ++ion_idx) {
             Vec3 v_ion{2500.0, 0.0, 0.0};
-            EhssRng rng(2000 + ion_idx);
+            PhysicsRng rng(2000 + ion_idx);
             
             for (int i = 0; i < N_COLLISIONS; ++i) {
                 Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng);
@@ -350,7 +350,7 @@ TEST_CASE("Thermalization to correct equilibrium validates collision physics", "
         #pragma omp parallel for reduction(+:sum_E_final)
         for (int ion_idx = 0; ion_idx < N_IONS; ++ion_idx) {
             Vec3 v_ion{2000.0, 0.0, 0.0};
-            EhssRng rng(3000 + ion_idx);
+            PhysicsRng rng(3000 + ion_idx);
             
             for (int i = 0; i < N_COLLISIONS; ++i) {
                 Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng);
@@ -391,7 +391,7 @@ TEST_CASE("Thermalization to correct equilibrium validates collision physics", "
             #pragma omp parallel for reduction(+:sum_E)
             for (int ion_idx = 0; ion_idx < N_IONS; ++ion_idx) {
                 Vec3 v_ion{3000.0, 0.0, 0.0};
-                EhssRng rng(4000 + ion_idx * 10 + (int)T_gas);
+                PhysicsRng rng(4000 + ion_idx * 10 + (int)T_gas);
                 
                 for (int i = 0; i < N_COLLISIONS; ++i) {
                     Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng);

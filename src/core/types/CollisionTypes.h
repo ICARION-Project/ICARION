@@ -6,7 +6,8 @@
  * @brief Common types for collision physics (RNG, parameters)
  * 
  * Defines shared types used across collision modules:
- * - EhssRng: Random number generator wrapper
+ * - PhysicsRng: Random number generator wrapper
+ * - EhssRng: Legacy alias kept for backward compatibility
  * - EHSSParams: Legacy parameter struct (for backwards compatibility)
  */
 
@@ -25,6 +26,7 @@ namespace ICARION::physics {
  * 
  * @note Previously named EhssRng (legacy EHSS-specific name).
  *       Now used globally for all stochastic physics processes.
+ *       Prefer PhysicsRng in new code; EhssRng remains as an alias only.
  */
 class PhysicsRng {
 public:
@@ -46,7 +48,7 @@ private:
     std::normal_distribution<double> norm_;
 };
 
-// Legacy alias for backwards compatibility
+// Legacy alias for backwards compatibility (prefer PhysicsRng in new code)
 using EhssRng = PhysicsRng;
 
 /**

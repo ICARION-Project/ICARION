@@ -28,7 +28,7 @@ void CollisionGeometry::construct_orthonormal_basis(
 }
 
 void CollisionGeometry::generate_random_rotation(
-    EhssRng& rng,
+    PhysicsRng& rng,
     double R[3][3]
 ) {
     // PHYSICS: Exact implementation from collisionHelpers.cpp::rand_rotation()

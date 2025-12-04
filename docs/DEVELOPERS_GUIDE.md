@@ -265,7 +265,7 @@ public:
     bool handle_collision(
         IonState& ion,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env  // SSOT!
     ) override;
     
@@ -295,7 +295,7 @@ YourCollisionHandler::YourCollisionHandler(double your_param)
 bool YourCollisionHandler::handle_collision(
     IonState& ion,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
     // Read parameters directly from env (SSOT!)
@@ -394,7 +394,7 @@ TEST_CASE("YourCollisionHandler: Basic functionality", "[collision][yourmodel]")
     env.pressure_Pa = 101325.0;
     // ...
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     double dt = 1e-9;
     
     // Act

@@ -81,7 +81,7 @@ TEST_CASE("HSSCollisionHandler: Thermalization of H3O+", "[collision][hss][therm
         ion.vel = Vec3{v_init, 0.0, 0.0};
         
         // Use different RNG seed for each ion
-        EhssRng rng(42 + ion_idx);
+        PhysicsRng rng(42 + ion_idx);
         
         int collision_count = 0;
         for (int i = 0; i < N_STEPS; ++i) {
@@ -160,7 +160,7 @@ TEST_CASE("HSSCollisionHandler: Thermalization from high energy", "[collision][h
         double v_init2 = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;
         sum_v2_initial += v_init2;
         
-        EhssRng rng(123 + ion_idx);
+        PhysicsRng rng(123 + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
             handler.handle_collision(ion, dt, rng, env);
@@ -223,7 +223,7 @@ TEST_CASE("HSSCollisionHandler: Isotropic velocity distribution", "[collision][h
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{1000.0, 0.0, 0.0};  // Start with directed velocity
         
-        EhssRng rng(999 + ion_idx);
+        PhysicsRng rng(999 + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
             handler.handle_collision(ion, dt, rng, env);

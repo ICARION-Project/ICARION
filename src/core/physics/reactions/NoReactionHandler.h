@@ -34,7 +34,7 @@ public:
     bool handle_reaction(
         IonState& ion,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::ReactionDatabase& reaction_db,
         const config::SpeciesDatabase& species_db,
         const config::EnvironmentConfig& env

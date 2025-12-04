@@ -13,7 +13,7 @@
 
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
-#include "core/types/CollisionTypes.h"  // For EhssRng
+#include "core/types/CollisionTypes.h"  // For PhysicsRng
 #include <vector>
 
 namespace ICARION::physics::collision_core {
@@ -70,7 +70,7 @@ public:
         double ion_radius,
         const std::vector<Vec3>& atom_centers,
         const std::vector<double>& atom_radii,
-        EhssRng& rng,
+        PhysicsRng& rng,
         int max_attempts = 256,
         double sigma_eff_m2 = 0.0
     );
@@ -107,7 +107,7 @@ public:
         const Vec3& v_neutral_lab,
         double ion_mass,
         double neutral_mass,
-        EhssRng& rng
+        PhysicsRng& rng
     );
     
     /**
@@ -137,7 +137,7 @@ public:
      */
     static void ou_velocity_update(
         IonState& ion_state,
-        EhssRng& rng,
+        PhysicsRng& rng,
         double dt,
         double gamma,
         double temperature_K,
@@ -209,7 +209,7 @@ private:
         const Vec3& collision_axis,
         double ion_radius,
         double sigma_eff_m2,
-        EhssRng& rng
+        PhysicsRng& rng
     );
     
     /**
@@ -225,7 +225,7 @@ private:
     static ImpactGeometry sample_impact_geometry(
         const Vec3& collision_axis,
         double b_max,
-        EhssRng& rng
+        PhysicsRng& rng
     );
     
     /**
@@ -292,7 +292,7 @@ private:
      * @param rng Random number generator
      * @return Unit vector with isotropic distribution
      */
-    static Vec3 sample_isotropic_direction(EhssRng& rng);
+    static Vec3 sample_isotropic_direction(PhysicsRng& rng);
 };
 
 } // namespace ICARION::physics::collision_core

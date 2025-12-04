@@ -45,7 +45,7 @@ int main() {
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{6000.0, 0.0, 0.0};  // Start with high energy in x
         
-        EhssRng rng(456 + ion_idx);
+        PhysicsRng rng(456 + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
             handler.handle_collision(ion, dt, rng, env);

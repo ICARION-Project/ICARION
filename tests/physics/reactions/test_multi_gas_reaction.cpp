@@ -14,7 +14,7 @@
 
 using Catch::Approx;
 using namespace ICARION;
-using ICARION::physics::EhssRng;
+using ICARION::physics::PhysicsRng;
 
 TEST_CASE("StochasticReactionHandler uses mixture partial densities", "[reaction][multigas]") {
     // Species DB
@@ -74,7 +74,7 @@ TEST_CASE("StochasticReactionHandler uses mixture partial densities", "[reaction
         ion.CCS_m2 = db.get("A+").CCS_m2;
         ion.reduced_mobility_cm2_Vs = db.get("A+").mobility_m2Vs / CM2_TO_M2;
 
-        EhssRng rng(static_cast<uint64_t>(42 + i));
+        PhysicsRng rng(static_cast<uint64_t>(42 + i));
         bool reacted = handler.handle_reaction(ion, 1e-7, rng, rxn_db, db, env);
         if (reacted) {
             if (ion.species_id == "B+") count_B++;

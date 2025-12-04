@@ -631,14 +631,14 @@ public:
     );
     
     // Single-ion interface (fallback)
-    bool handle_collision(IonState& ion, double dt, EhssRng& rng,
+    bool handle_collision(IonState& ion, double dt, PhysicsRng& rng,
                          const config::EnvironmentConfig& env) override;
     
     // Batch interface (GPU-optimized)
     void handle_collisions_batch(
         std::vector<IonState>& ions,
         double dt,
-        std::vector<EhssRng>& rngs,
+        std::vector<PhysicsRng>& rngs,
         const std::vector<config::EnvironmentConfig>& envs
     );
 };
@@ -801,7 +801,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         #pragma omp for schedule(static, 256)
         for (int i = 0; i < n_ions; ++i) {
             IonState& ion = ions[i];
-            physics::EhssRng& ion_rng = rng_by_ion_[i];
+            physics::PhysicsRng& ion_rng = rng_by_ion_[i];
             
             if (!ion.active) continue;
             

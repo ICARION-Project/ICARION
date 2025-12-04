@@ -72,7 +72,7 @@ void SimulationEngine::process_timestep(std::vector<IonState>& ions, double dt) 
         #pragma omp for schedule(static, 256)
         for (int i = 0; i < n_ions; ++i) {
             IonState& ion = ions[i];
-            EhssRng& ion_rng = rng_by_ion_[i];
+            PhysicsRng& ion_rng = rng_by_ion_[i];
             
             if (!ion.active) continue;
             
@@ -112,7 +112,7 @@ inline int find_ion_domain(const IonState& ion) {
 }
 
 inline void process_ion_collisions(IonState& ion, DomainContext& ctx, 
-                                   double dt, EhssRng& rng, int domain_idx) {
+                                   double dt, PhysicsRng& rng, int domain_idx) {
     if (!collision_handler_) return;
     
     PROFILE_SCOPE_IF_ENABLED("Collision Handling");
@@ -128,7 +128,7 @@ inline void process_ion_collisions(IonState& ion, DomainContext& ctx,
 }
 
 inline void process_ion_reactions(IonState& ion, DomainContext& ctx,
-                                  double dt, EhssRng& rng, int domain_idx) {
+                                  double dt, PhysicsRng& rng, int domain_idx) {
     if (!reaction_handler_ || config_.reaction_db.reactions.empty()) return;
     
     PROFILE_SCOPE_IF_ENABLED("Reaction Handling");
@@ -441,7 +441,7 @@ private:
      * @param rng Ion-specific RNG (thread-safe)
      */
     inline void process_ion_collisions(IonState& ion, DomainContext& ctx,
-                                       double dt, EhssRng& rng, int domain_idx);
+                                       double dt, PhysicsRng& rng, int domain_idx);
     
     /**
      * @brief Apply reaction effects to single ion
@@ -449,7 +449,7 @@ private:
      * @param rng Ion-specific RNG (thread-safe)
      */
     inline void process_ion_reactions(IonState& ion, DomainContext& ctx,
-                                      double dt, EhssRng& rng, int domain_idx);
+                                      double dt, PhysicsRng& rng, int domain_idx);
     
     /**
      * @brief Integrate ion trajectory (RK4/RK45/Boris)
@@ -602,7 +602,7 @@ TEST(SimulationEngine, ProcessIonCollisions) {
     SimulationEngine engine(config, ...);
     IonState ion = create_test_ion();
     DomainContext ctx(ion, 0, domain_manager);
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     
     // Vorher: Schwierig zu testen (150 Zeilen Monolith)
     // Nachher: Einfach zu testen (isolierte 15-Zeilen Funktion)

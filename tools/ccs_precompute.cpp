@@ -107,7 +107,7 @@ double compute_oapa_ccs(const std::vector<Vec3>& centers,
                         const std::vector<double>& radii,
                         double neutral_radius,
                         int n_orientations) {
-    ICARION::physics::EhssRng rng(12345);
+    ICARION::physics::PhysicsRng rng(12345);
     double A_sum = 0.0;
     double R[3][3];
 

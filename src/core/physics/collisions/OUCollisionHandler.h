@@ -119,7 +119,7 @@ public:
     bool handle_collision(
         IonState& ion,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env
     ) override;
     

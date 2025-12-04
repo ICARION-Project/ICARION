@@ -18,7 +18,7 @@ Vec3 CollisionKernels::ehss_collision(
     double ion_radius,
     const std::vector<Vec3>& atom_centers,
     const std::vector<double>& atom_radii,
-    EhssRng& rng,
+    PhysicsRng& rng,
     int max_attempts,
     double sigma_eff_m2
 ) {
@@ -98,7 +98,7 @@ Vec3 CollisionKernels::hss_collision(
     const Vec3& v_neutral_lab,
     double ion_mass,
     double neutral_mass,
-    EhssRng& rng
+    PhysicsRng& rng
 ) {
     // PHYSICS: Exact copy from collisionHelpers.cpp::collide_hs_cpu()
     // NO CHANGES to algorithm
@@ -127,7 +127,7 @@ Vec3 CollisionKernels::hss_collision(
 
 void CollisionKernels::ou_velocity_update(
     IonState& ion_state,
-    EhssRng& rng,
+    PhysicsRng& rng,
     double dt,
     double gamma,
     double temperature_K,
@@ -180,7 +180,7 @@ CollisionKernels::RotatedMolecule CollisionKernels::rotate_and_analyze_molecule(
     const Vec3& collision_axis,
     double ion_radius,
     double sigma_eff_m2,
-    EhssRng& rng
+    PhysicsRng& rng
 ) {
     const int nat = static_cast<int>(atom_centers.size());
     
@@ -225,7 +225,7 @@ CollisionKernels::RotatedMolecule CollisionKernels::rotate_and_analyze_molecule(
 CollisionKernels::ImpactGeometry CollisionKernels::sample_impact_geometry(
     const Vec3& collision_axis,
     double b_max,
-    EhssRng& rng
+    PhysicsRng& rng
 ) {
     // Construct orthonormal basis for impact plane
     Vec3 t1, t2;
@@ -320,7 +320,7 @@ Vec3 CollisionKernels::to_lab_frame(
     return Vcom + v_rel_reflected * (neutral_mass * inv_mt);
 }
 
-Vec3 CollisionKernels::sample_isotropic_direction(EhssRng& rng) {
+Vec3 CollisionKernels::sample_isotropic_direction(PhysicsRng& rng) {
     // Uniform distribution on unit sphere via spherical coordinates
     // cosθ ~ U(-1,1), φ ~ U(0,2π)
     double u1 = rng.uniform01();

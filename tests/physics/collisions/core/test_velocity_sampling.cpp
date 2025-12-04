@@ -22,7 +22,7 @@
 
 using namespace ICARION::physics::collision_core;
 using namespace ICARION::core;
-using ICARION::physics::EhssRng;
+using ICARION::physics::PhysicsRng;
 using Catch::Matchers::WithinAbs;
 using Catch::Matchers::WithinRel;
 
@@ -66,7 +66,7 @@ TEST_CASE("VelocitySampling: Thermal velocity width", "[collision][velocity]") {
 
 TEST_CASE("VelocitySampling: Thermal component sampling", "[collision][velocity]") {
     SECTION("Statistical properties (mean ≈ 0, variance ≈ σ²)") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         double T = 300.0;
         double m = 28.0 * 1.66054e-27;  // N2
         double sigma = VelocitySampling::thermal_velocity_width(T, m);
@@ -105,8 +105,8 @@ TEST_CASE("VelocitySampling: Thermal component sampling", "[collision][velocity]
     }
     
     SECTION("Determinism with same seed") {
-        EhssRng rng1(123);
-        EhssRng rng2(123);
+        PhysicsRng rng1(123);
+        PhysicsRng rng2(123);
         
         double T = 300.0;
         double m = 28.0 * 1.66054e-27;
@@ -120,7 +120,7 @@ TEST_CASE("VelocitySampling: Thermal component sampling", "[collision][velocity]
 
 TEST_CASE("VelocitySampling: Neutral velocity sampling", "[collision][velocity]") {
     SECTION("Zero flow velocity → thermal only") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         double T = 300.0;
         double m = 28.0 * 1.66054e-27;
         Vec3 v_bulk{0.0, 0.0, 0.0};
@@ -154,7 +154,7 @@ TEST_CASE("VelocitySampling: Neutral velocity sampling", "[collision][velocity]"
     }
     
     SECTION("Non-zero flow velocity → thermal + bulk") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         double T = 300.0;
         double m = 28.0 * 1.66054e-27;
         Vec3 v_bulk{100.0, 50.0, -30.0};  // m/s
@@ -188,7 +188,7 @@ TEST_CASE("VelocitySampling: Neutral velocity sampling", "[collision][velocity]"
     }
     
     SECTION("Velocity magnitude distribution (Maxwell-Boltzmann)") {
-        EhssRng rng(42);
+        PhysicsRng rng(42);
         double T = 300.0;
         double m = 28.0 * 1.66054e-27;
         Vec3 v_bulk{0.0, 0.0, 0.0};
@@ -223,8 +223,8 @@ TEST_CASE("VelocitySampling: Regression test against old implementation", "[coll
         // Old implementation used inline Box-Muller in sample_neutral_velocity()
         // New implementation uses same algorithm via box_muller_sample()
         
-        EhssRng rng_old(42);
-        EhssRng rng_new(42);
+        PhysicsRng rng_old(42);
+        PhysicsRng rng_new(42);
         
         double T = 300.0;
         double m = 28.0 * 1.66054e-27;
@@ -254,8 +254,8 @@ TEST_CASE("VelocitySampling: Regression test against old implementation", "[coll
     }
     
     SECTION("Multiple samples with same seed match") {
-        EhssRng rng_old(123);
-        EhssRng rng_new(123);
+        PhysicsRng rng_old(123);
+        PhysicsRng rng_new(123);
         
         double T = 300.0;
         double m = 28.0 * 1.66054e-27;

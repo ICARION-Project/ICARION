@@ -19,7 +19,7 @@ OUCollisionHandler::OUCollisionHandler(double gamma_coefficient, bool apply_damp
 bool OUCollisionHandler::handle_collision(
     IonState& ion,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
     // ===================================================================

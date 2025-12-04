@@ -151,7 +151,7 @@ TEST_CASE("StochasticReactionHandler: SSOT compliance", "[reaction][ssot]") {
     ion.mass_kg = 19.0 * AMU_TO_KG;
     ion.ion_charge_C = ELEM_CHARGE_C;
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     double dt = 1e-9;  // 1 ns
     
     // SSOT: Pass databases directly (no intermediate structs!)
@@ -180,7 +180,7 @@ TEST_CASE("StochasticReactionHandler: Second-order reaction", "[reaction][order]
     ion.ion_charge_C = ELEM_CHARGE_C;
     
     // Run many reactions to get statistics
-    EhssRng rng(12345);
+    PhysicsRng rng(12345);
     double dt = 1e-9;  // 1 ns
     int num_trials = 1000;
     int num_reactions = 0;
@@ -219,7 +219,7 @@ TEST_CASE("StochasticReactionHandler: Third-order reaction", "[reaction][order]"
     //                 = 1.2e-28 × 6.25e50 = 7.5e22 [s⁻¹]
     // P = 1 - exp(-7.5e22 × 1e-9) ≈ 1.0 (certain)
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     double dt = 1e-9;
     
     bool rxn = handler.handle_reaction(
@@ -246,7 +246,7 @@ TEST_CASE("StochasticReactionHandler: Buffer gas fallback", "[reaction][fallback
     // Expected: k_eff = 1e-10 [m³/s] × 1e20 [m⁻³] = 1e10 [s⁻¹]
     // P = 1 - exp(-1e10 × 1e-9) = 1 - exp(-10) ≈ 0.99995
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     double dt = 1e-9;
     
     int num_trials = 100;
@@ -281,7 +281,7 @@ TEST_CASE("StochasticReactionHandler: Species database lookup", "[reaction][spec
     ion.ion_charge_C = ELEM_CHARGE_C;
     ion.CCS_m2 = 50e-20;
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     double dt = 1e-6;  // 1 μs (high dt → certain reaction)
     
     bool rxn = handler.handle_reaction(
@@ -314,7 +314,7 @@ TEST_CASE("StochasticReactionHandler: No applicable reactions", "[reaction][none
     ion.species_id = "Unknown+";  // No reactions for this species
     ion.mass_kg = 20.0 * AMU_TO_KG;
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     double dt = 1e-6;
     
     bool rxn = handler.handle_reaction(
@@ -339,7 +339,7 @@ TEST_CASE("StochasticReactionHandler: Reaction statistics", "[reaction][stats]")
     ion.species_id = "H3O+";
     ion.mass_kg = 19.0 * AMU_TO_KG;
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     double dt = 1e-6;  // High dt → certain reactions
     
     // Run 10 reactions
@@ -413,7 +413,7 @@ TEST_CASE("StochasticReactionHandler handles competing channels correctly", "[re
     auto env = create_test_environment(300.0, 2.5e25);
     
     StochasticReactionHandler handler(false);
-    EhssRng rng(12345);
+    PhysicsRng rng(12345);
     
     IonState test_ion;
     test_ion.species_id = "Ion+";
@@ -478,7 +478,7 @@ TEST_CASE("StochasticReactionHandler handles zero reactions gracefully", "[react
     auto env = create_test_environment(300.0, 2.5e25);
     
     StochasticReactionHandler handler(false);
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     
     IonState ion;
     ion.species_id = "Ion+";
@@ -529,7 +529,7 @@ TEST_CASE("StochasticReactionHandler handles very large k_eff", "[reactions][han
     auto env = create_test_environment(300.0, 2.5e25);
     
     StochasticReactionHandler handler(false);
-    EhssRng rng(99);
+    PhysicsRng rng(99);
     
     IonState ion;
     ion.species_id = "Ion+";
@@ -583,7 +583,7 @@ TEST_CASE("StochasticReactionHandler handles very small k_eff", "[reactions][han
     auto env = create_test_environment(300.0, 2.5e25);
     
     StochasticReactionHandler handler(false);
-    EhssRng rng(123);
+    PhysicsRng rng(123);
     
     IonState ion;
     ion.species_id = "Ion+";
@@ -637,7 +637,7 @@ TEST_CASE("StochasticReactionHandler early exit for k_total < 1e-60", "[reaction
     auto env = create_test_environment(300.0, 2.5e25);
     
     StochasticReactionHandler handler(false);
-    EhssRng rng(999);
+    PhysicsRng rng(999);
     
     IonState ion;
     ion.species_id = "Ion+";
@@ -688,7 +688,7 @@ TEST_CASE("StochasticReactionHandler numerical safety for k*dt > 50", "[reaction
     auto env = create_test_environment(300.0, 2.5e25);
     
     StochasticReactionHandler handler(false);
-    EhssRng rng(777);
+    PhysicsRng rng(777);
     
     IonState ion;
     ion.species_id = "Ion+";
@@ -750,7 +750,7 @@ TEST_CASE("StochasticReactionHandler: Arrhenius temperature dependence", "[react
     reaction_db.reactions = {rxn};
     
     StochasticReactionHandler handler(false);
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     
     IonState ion;
     ion.species_id = "Ion+";

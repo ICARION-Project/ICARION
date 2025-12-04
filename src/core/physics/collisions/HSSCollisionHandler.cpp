@@ -23,7 +23,7 @@ HSSCollisionHandler::HSSCollisionHandler(bool enable_logging, const config::Spec
 bool HSSCollisionHandler::handle_collision(
     IonState& ion,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
     // Mixture-aware path

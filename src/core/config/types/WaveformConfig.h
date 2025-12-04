@@ -163,6 +163,12 @@ struct ValueOrWaveform {
     std::optional<Waveform> waveform;
     std::optional<std::string> waveform_ref;
     
+    // Default constructor (all nullopt)
+    ValueOrWaveform() = default;
+    
+    // Convenience constructor for constant value
+    explicit ValueOrWaveform(double value) : constant_value(value) {}
+    
     /**
      * @brief Check if exactly one option is set
      */

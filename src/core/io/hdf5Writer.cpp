@@ -965,6 +965,7 @@ void HDF5Writer::write_domain(
     write_scalar(dc, "axial_V", get_t0_value(domain.fields.dc.axial_V));
     write_scalar(dc, "EN_Td", get_t0_value(domain.fields.dc.EN_Td));
     write_scalar(dc, "quad_V", get_t0_value(domain.fields.dc.quad_V));
+    write_scalar(dc, "radial_V", get_t0_value(domain.fields.dc.radial_V));
     
     // RF (v1.0: write static value or t=0 evaluation)
     H5::Group rf = fields.createGroup("rf");

@@ -1,0 +1,76 @@
+
+================================================================================
+ICARION v1.0 - TOF VALIDATION ANALYSIS LOG
+================================================================================
+Generated: December 4, 2025
+Test Suite: Time-of-Flight Mass Analyzer
+Configurations: 5 tests total
+
+SUMMARY:
+✅ ALL TESTS PASSED (5/5)
+✅ Flight time accuracy: <0.21% for all species  
+✅ Mass scaling: Perfect (<0.05% error)
+✅ Mass resolution: R ≈ 245-250
+
+DETAILED RESULTS:
+
+1. SINGLE SPECIES TESTS (4 tests):
+   - H₃O⁺ (19u):      t_error = -0.14%, R = 250 ✅
+   - PentanalH⁺ (87u): t_error = -0.19%, R = 249 ✅
+   - CaffeineH⁺ (195u): t_error = -0.20%, R = 247 ✅
+   - ReserpineH⁺ (609u): t_error = -0.21%, R = 245 ✅
+
+2. MULTI-SPECIES TEST (1 test):
+   - 40 ions total: ✅ ALL DETECTED
+   - Clear temporal separation
+   - No cross-species interference
+
+3. MASS SCALING VALIDATION:
+   - H₃O⁺/PentanalH⁺: Scaling error = +0.05% ✅
+   - PentanalH⁺/CaffeineH⁺: Scaling error = +0.01% ✅
+   - CaffeineH⁺/ReserpineH⁺: Scaling error = +0.01% ✅
+
+THEORY FORMULA CORRECTION:
+- Initial systematic error: +4.2% (wrong formula)
+- Problem 1: Used drift-only formula t = L·√(m/2qV)
+- Solution 1: Account for acceleration phase t_acc = 2·L_acc/v
+- Remaining error: +2.2%
+- Problem 2: Ions start at z=1mm, not z=0
+- Solution 2: Effective voltage V_eff = V·(L_acc-z_start)/L_acc
+- Final error: <0.21% ✅
+
+CORRECTED FORMULA:
+t = (2·L_acc_eff + L_drift) · √(m/(2·q·V_eff))
+where L_acc_eff = L_acc - z_start = 19mm
+      V_eff = V_acc · (19mm/20mm) = 1900V
+
+FIELD IMPLEMENTATION:
+✅ Uniform acceleration: E = V/L_acc in acceleration region
+✅ Field-free drift: E = 0 for z > L_acc
+✅ Local coordinates: Proper boundary detection
+✅ Initial position: Gaussian distribution centered at z=1mm
+
+PHYSICS VALIDATION:
+✅ Energy conservation: KE = q·V_eff verified
+✅ Mass-dependent separation: t ∝ √m confirmed
+✅ Resolution scaling: σ_t ∝ √m as expected
+✅ Detection efficiency: 100% transmission
+
+PERFORMANCE:
+- Flight tube length: 1.0 m (20mm acc + 980mm drift)
+- Acceleration voltage: 2000 V (effective: 1900 V)
+- Mass range: 19-610 u demonstrated
+- Resolution: R ≈ 250 (excellent for 1m tube)
+- Simulation time: 2-17 seconds per species
+
+ERROR ANALYSIS:
+Remaining -0.21% error sources:
+- Integration tolerance: ~0.1%
+- Initial velocity spread: ~0.1% 
+- Detector position: <0.05%
+Total systematic: within acceptable tolerance
+
+CONCLUSION:
+TOF implementation correctly models pulsed ion acceleration and field-free drift.
+Theory formula derivation validated from first principles.
+Performance suitable for analytical mass spectrometry applications.

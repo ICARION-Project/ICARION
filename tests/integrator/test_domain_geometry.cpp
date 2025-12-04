@@ -134,11 +134,15 @@ TEST_CASE("OrbitrapGeometry near-boundary sampling", "[geometry][orbitrap][bound
     const double Rout = dom.geometry.radius_out_m;
     const double Rm = dom.geometry.radius_char_m;
     const double z_samples[] = {0.0, 0.02, 0.05, 0.09};
-    const double delta = 5e-6;
 
     for (double z : z_samples) {
         double r_in = orbitrap_r_for_z(z, Rin, Rm);
         double r_out = orbitrap_r_for_z(z, Rout, Rm);
+        REQUIRE(r_out > r_in);
+        const double delta = std::max(1e-5, 1e-3 * r_out);
+        // Mid-corridor should be inside
+        double r_mid = 0.5 * (r_in + r_out);
+        REQUIRE(geom.contains(Vec3{r_mid, 0.0, z}));
         // Just inside corridor
         REQUIRE(geom.contains(Vec3{r_in + delta, 0.0, z}));
         REQUIRE(geom.contains(Vec3{r_out - delta, 0.0, z}));

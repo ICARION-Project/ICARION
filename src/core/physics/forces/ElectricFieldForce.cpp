@@ -256,11 +256,14 @@ Vec3 ElectricFieldForce::compute_ims_field(const IonState& ion, double t) const 
 // Matches computeAccelerations.cpp behavior.
 // ----------------------------------------------------------------------------
 Vec3 ElectricFieldForce::compute_tof_field(const IonState& ion) const {
+    // Transform position to local coordinates (relative to domain origin)
+    const double z_local = ion.pos.z - domain_->geometry.origin_m.z;
+    
     // SSOT: Position-dependent field (acceleration vs drift region)
     const double acc_length = domain_->geometry.acc_length_m;
     
-    // Field only in acceleration region (z < acc_length_m)
-    if (ion.pos.z < acc_length) {
+    // Field only in acceleration region (z_local < acc_length_m)
+    if (z_local < acc_length) {
         // v1.0: Evaluate axial voltage at t=0 (DC field)
         const double dc_axial = eval_value(domain_->fields.dc.axial_V, 0.0, domain_->fields.waveform_library);
         return Vec3{

@@ -1029,44 +1029,13 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
                 integrator_->step_soa(ensemble, i, current_time_, dt, *force_registry);
             }
             
-            // 8. Boundary checks (per-ion, CPU only for now)
-            // NOTE: GPU batch boundary check would require restructuring to separate pass
+            // 8. Boundary checks via geometry strategy (CPU)
             {
                 PROFILE_SCOPE_IF_ENABLED("Boundary Checks");
-                
                 Vec3 pos_after(pos_x[i], pos_y[i], pos_z[i]);
-                
-                // Instrument-specific boundary check
-                if (domain_config.instrument == config::Instrument::Orbitrap) {
-                    Vec3 pos_global = domain_manager_->local_to_global_pos(pos_after, domain_idx);
-                    int check_domain = domain_manager_->find_domain_index(pos_global);
-                    
-                    if (check_domain != domain_idx) {
-                        active[i] = false;
-                        continue;
-                    }
-                } else {
-                    // Cylindrical boundary check
-                    const double EPSILON = 1e-9;
-                    bool is_last_domain = (domain_idx == static_cast<int>(config_.domains.size()) - 1);
-                    
-                    bool still_inside = (pos_after.z >= -EPSILON);
-                    
-                    if (is_last_domain) {
-                        still_inside = still_inside && (pos_after.z < domain_config.geometry.length_m);
-                    } else {
-                        still_inside = still_inside && (pos_after.z <= domain_config.geometry.length_m + EPSILON);
-                    }
-                    
-                    if (still_inside) {
-                        double r = std::sqrt(pos_after.x*pos_after.x + pos_after.y*pos_after.y);
-                        still_inside = (r <= domain_config.geometry.radius_m + EPSILON);
-                    }
-                    
-                    if (!still_inside) {
-                        active[i] = false;
-                        continue;
-                    }
+                if (!domain_manager_->is_inside_domain(domain_config, pos_after)) {
+                    active[i] = false;
+                    continue;
                 }
             }
             

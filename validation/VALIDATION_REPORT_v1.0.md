@@ -16,6 +16,8 @@ ICARION v1.0 has been validated across four comprehensive test suites covering c
 
 4. **Linear Quadrupole Ion Trap (16 tests):** RF confinement, parametric resonance, collision damping, and vacuum RF-Ramp mass scanning validated. Stability discrimination 100% accurate (q=0.4/0.7 stable, q=0.95 unstable). RF-Ramp ejection shows <0.2% error for m=19-195u in vacuum. Critical inline waveform bug discovered and fixed.
 
+5. **Orbitrap (5 tests):** Hyperlogarithmic field implementation validated with <0.15% frequency error across m=19-610u. Mass scaling f ∝ 1/√m verified with <0.21% error. 100% ion retention over 1ms. Field curvature constant k correctly calculated. Initial analysis script bug fixed (missing denominator term in k formula).
+
 **Overall Status: PASS** - Code validated for scientific publication and production use.
 
 ---
@@ -942,17 +944,124 @@ ICARION v1.0 LQIT implementation correctly simulates:
 
 ---
 
-## 5. Time-of-Flight (TOF) Validation
-
-### 4.1 Test Objective
-
-*(To be completed)*
-
----
-
 ## 5. Orbitrap Validation
 
 ### 5.1 Test Objective
+
+Validate Orbitrap hyperlogarithmic electrode field implementation and axial oscillation frequency. Verify:
+- Correct field curvature constant k calculation
+- Axial oscillation frequency f_z = (1/2π)·√(kq/m)
+- Mass-dependent frequency scaling (f ∝ 1/√m)
+- Ion confinement stability over millisecond timescales
+- Multi-species operation
+
+### 5.2 Test Matrix
+
+| Category | Tests | Species |
+|----------|-------|---------|
+| **Single Species** | 4 | H₃O⁺, PentanalH⁺, CaffeineH⁺, ReserpineH⁺ |
+| **Multi-Species** | 1 | All 4 species simultaneously |
+| **Total** | **5 configurations** | |
+
+**Test Design:**
+- Radial voltage: V_rad = 3500 V
+- Geometry: r_in = 6 mm, r_out = 15 mm, r_char = 22 mm
+- Injection: 1600 eV kinetic energy, tangential (y-direction)
+- Injection point: (9 mm, 0, 6 mm)
+- Pressure: 1e-7 Pa (high vacuum, no collisions)
+- Simulation duration: 1 ms
+- Timestep: 1 ns (RK4 integrator)
+
+### 5.3 Theoretical Foundation
+
+**Hyperlogarithmic Potential:**
+
+$U(r,z) = \frac{k}{2}\left(z^2 - \frac{r^2}{2} + r_{char}^2 \ln\frac{r}{r_{char}}\right)$
+
+**Field Curvature Constant:**
+
+$k = \frac{2V_{rad}}{r_{char}^2 \ln(r_{out}/r_{in}) - 0.5(r_{out}^2 - r_{in}^2)}$
+
+For test geometry with V_rad = 3500 V:
+- k = 2.01 × 10⁷ V/m²
+
+**Axial Oscillation Frequency:**
+
+Ion undergoes harmonic oscillation along z-axis:
+
+$\omega_z = \sqrt{\frac{k \cdot q}{m}}, \quad f_z = \frac{\omega_z}{2\pi}$
+
+**Mass Scaling:**
+
+Frequency ratio for two masses:
+
+$\frac{f_1}{f_2} = \sqrt{\frac{m_2}{m_1}}$
+
+### 5.4 Results Summary
+
+**Axial Frequency Validation (4/4 PASS):**
+
+| Species | Mass [u] | f_theory [Hz] | f_measured [Hz] | Error | Status |
+|---------|----------|---------------|-----------------|-------|--------|
+| H₃O⁺ | 19.02 | 1,605,430 | 1,605,839 | +0.03% | ✅ PERFECT |
+| PentanalH⁺ | 87.00 | 750,649 | 750,925 | +0.04% | ✅ PERFECT |
+| CaffeineH⁺ | 195.08 | 501,291 | 500,950 | -0.07% | ✅ PERFECT |
+| ReserpineH⁺ | 609.66 | 283,565 | 283,972 | +0.14% | ✅ PERFECT |
+
+**Mass Scaling Validation:**
+
+Frequency ratios verify f ∝ 1/√m relationship:
+
+| Mass Pair | f₁/f₂ (measured) | f₁/f₂ (theory) | Error | Status |
+|-----------|------------------|----------------|-------|--------|
+| H₃O⁺/PentanalH⁺ | 2.1385 | 2.1387 | -0.01% | ✅ PERFECT |
+| PentanalH⁺/CaffeineH⁺ | 1.4990 | 1.4974 | +0.10% | ✅ PERFECT |
+| CaffeineH⁺/ReserpineH⁺ | 1.7641 | 1.7678 | -0.21% | ✅ PERFECT |
+
+**Ion Confinement:**
+- All single-species tests: 1/1 ions stable over 1 ms
+- Multi-species test: 151/151 ions stable over 1 ms
+- 100% retention rate
+
+### 5.5 Critical Finding: Analysis Script Bug
+
+**Initial Problem:**
+First analysis showed ~13% systematic frequency offset (all ions too fast).
+
+**Root Cause:**
+Analysis script used simplified k formula missing denominator term:
+```python
+# WRONG: k = 2V / (r_char² · ln(r_out/r_in))
+# CORRECT:
+k = 2V / (r_char² · ln(r_out/r_in) - 0.5·(r_out² - r_in²))
+```
+
+**Resolution:**
+Code implementation (ElectricFieldForce.cpp line 337-339) was **correct all along**. Only analysis script needed fixing. After correction, all tests show <0.15% error.
+
+### 5.6 Conclusions
+
+**Validation Status:** ✅ **PASS (5/5 tests, <0.15% frequency error)**
+
+ICARION v1.0 Orbitrap implementation correctly simulates:
+1. **Hyperlogarithmic Field:** k = 2.01 × 10⁷ V/m² matches theory
+2. **Axial Oscillation:** Frequencies within 0.15% of theory for m = 19-610u
+3. **Mass Scaling:** f ∝ 1/√m verified with <0.21% error
+4. **Ion Confinement:** 100% retention over millisecond timescales
+5. **Multi-Species:** All 151 ions stable simultaneously
+
+**Test Configurations:**
+- Single species: `validation/configs/instruments/orbitrap/orbitrap_*_V3500.00.json`
+- Multi-species: `validation/configs/instruments/orbitrap/orbitrap_multi_species_V3500.00.json`
+
+**Analysis Script:**
+- `validation/scripts/instrumentation/analyze_orbitrap_frequency.py`
+
+---
+
+## 6. Time-of-Flight (TOF) Validation
+
+### 6.1 Test Objective
 
 *(To be completed)*
 
@@ -1000,6 +1109,7 @@ ICARION v1.0 LQIT implementation correctly simulates:
 | **IMS** | 52 | See Section 2 | ✅ Complete |
 | **Quadrupole Stability** | 88 | 100% | ✅ Complete |
 | **LQIT** | 16 | 100% | ✅ Complete |
+| **Orbitrap** | 5 | 100% | ✅ Complete |
 | TOF | TBD | TBD | ⏳ Planned |
 | Orbitrap | TBD | TBD | ⏳ Planned |
 | Reactions | TBD | TBD | ⏳ Planned |

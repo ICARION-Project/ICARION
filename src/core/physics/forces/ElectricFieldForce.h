@@ -19,6 +19,8 @@
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/config/types/IFieldModel.h"
+#include "core/config/types/AnalyticalFieldModel.h"
 
 #include <memory>
 
@@ -38,30 +40,9 @@ namespace physics {
  * @class ElectricFieldForce
  * @brief Computes electric field force F = q·E
  * 
- * Two modes of operation:
- * 
- * 1. **Analytical Mode** (no field provider):
- *    - Uses instrument-specific analytical field formulas
- *    - Fast, exact for ideal geometries
- *    - Supports: IMS, LQIT, TOF, FTICR, Orbitrap, QuadrupoleRF
- * 
- * 2. **Field Provider Mode** (with field provider):
- *    - Uses IFieldProvider to evaluate E-field at ion position
- *    - Supports grid-based interpolation, BEM, FEM, etc.
- *    - More general but requires precomputed field data
- * 
- * **Usage:**
- * ```cpp
- * // Analytical mode (SSOT-compliant)
- * config::DomainConfig domain = load_config("config.json");
- * auto force = std::make_unique<ElectricFieldForce>(domain);
- * 
- * // Field provider mode
- * auto field_provider = std::make_unique<GridFieldProvider>(...);
- * auto force = std::make_unique<ElectricFieldForce>(std::move(field_provider));
- * ```
- * 
- * @note Reads fields directly from DomainConfig (SSOT).
+ * Prefers field sampling via IFieldModel (SSOT: injected by setup).
+ * Falls back to a provider (legacy) or an internal AnalyticalFieldModel if
+ * no model is available.
  */
 class ElectricFieldForce : public IForce {
 public:
@@ -108,28 +89,13 @@ public:
     }
 
 private:
-    /**
-     * @brief Compute analytical electric field for instrument type
-     * @param ion Ion state
-     * @param t Current time [s]
-     * @return Electric field vector [V/m]
-     * 
-     * Reads parameters directly from domain_ (SSOT).
-     */
-    Vec3 compute_analytical_field(const IonState& ion, double t) const;
-    
-    // Instrument-specific field calculations (all read from domain_)
-    Vec3 compute_lqit_field(const IonState& ion, double t) const;
-    Vec3 compute_ims_field(const IonState& ion, double t) const;  // Time-dependent (RF field)
-    Vec3 compute_tof_field(const IonState& ion) const;
-    Vec3 compute_fticr_field(const IonState& ion) const;
-    Vec3 compute_orbitrap_field(const IonState& ion) const;
-    Vec3 compute_quadrupole_rf_field(const IonState& ion, double t) const;
-    
     // Field calculation mode
     bool use_field_provider_ = false;
     std::shared_ptr<::IFieldProvider> field_provider_ = nullptr;
     const ICARION::config::DomainConfig* domain_ = nullptr;  // SSOT: config reference
+
+    // Local fallback model (analytical) if no model is injected
+    std::unique_ptr<ICARION::config::IFieldModel> fallback_model_;
 };
 
 } // namespace physics

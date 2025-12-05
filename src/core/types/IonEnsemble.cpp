@@ -39,6 +39,7 @@ IonEnsemble IonEnsemble::from_legacy(const std::vector<IonState>& ions) {
         ensemble.cold_.CCS[i] = ion.CCS_m2;
         ensemble.cold_.mobility[i] = ion.reduced_mobility_cm2_Vs;
         ensemble.cold_.birth_time[i] = ion.birth_time_s;
+        ensemble.cold_.death_time[i] = ion.death_time_s;
         ensemble.cold_.species_id[i] = ensemble.get_species_index(ion.species_id);
         
         // Domain cache - initialize to defaults (updated by DomainManager)
@@ -75,6 +76,7 @@ std::vector<IonState> IonEnsemble::to_legacy() const {
         ion.CCS_m2 = cold_.CCS[i];
         ion.reduced_mobility_cm2_Vs = cold_.mobility[i];
         ion.birth_time_s = cold_.birth_time[i];
+        ion.death_time_s = cold_.death_time[i];
         ion.species_id = cold_.species_pool[cold_.species_id[i]];
         
         // Domain cache
@@ -111,6 +113,7 @@ void IonEnsemble::reserve(size_t n) {
     cold_.mobility.reserve(n);
     cold_.species_id.reserve(n);
     cold_.birth_time.reserve(n);
+    cold_.death_time.reserve(n);
     
     // Domain cache
     domain_.gas_density.reserve(n);
@@ -141,6 +144,7 @@ void IonEnsemble::resize(size_t n) {
     cold_.mobility.resize(n);
     cold_.species_id.resize(n);
     cold_.birth_time.resize(n);
+    cold_.death_time.resize(n, -1.0);
     
     // Domain cache
     domain_.gas_density.resize(n);
@@ -171,6 +175,7 @@ void IonEnsemble::clear() {
     cold_.mobility.clear();
     cold_.species_id.clear();
     cold_.birth_time.clear();
+    cold_.death_time.clear();
     cold_.species_pool.clear();
     cold_.species_index.clear();
     
@@ -208,6 +213,7 @@ size_t IonEnsemble::compact_inactive() {
                 cold_.mobility[write_idx] = cold_.mobility[read_idx];
                 cold_.species_id[write_idx] = cold_.species_id[read_idx];
                 cold_.birth_time[write_idx] = cold_.birth_time[read_idx];
+                cold_.death_time[write_idx] = cold_.death_time[read_idx];
                 
                 domain_.gas_density[write_idx] = domain_.gas_density[read_idx];
                 domain_.temperature[write_idx] = domain_.temperature[read_idx];

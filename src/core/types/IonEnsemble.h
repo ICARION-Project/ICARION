@@ -203,10 +203,13 @@ public:
     double CCS(size_t i) const { return cold_.CCS[i]; }
     double mobility(size_t i) const { return cold_.mobility[i]; }
     double birth_time(size_t i) const { return cold_.birth_time[i]; }
+    double death_time(size_t i) const { return cold_.death_time[i]; }
     
     // Cold data (mutable access for SoA processing)
     double* CCS_data() { return cold_.CCS.data(); }
     double* mobility_data() { return cold_.mobility.data(); }
+    double* death_time_data() { return cold_.death_time.data(); }
+    const double* death_time_data() const { return cold_.death_time.data(); }
     const std::vector<std::string>* species_pool() const { return &cold_.species_pool; }
     const uint32_t* species_id_indices() const { return cold_.species_id.data(); }
     
@@ -226,6 +229,8 @@ public:
     int history_index(size_t i) const { return output_.history_index[i]; }
     double time(size_t i) const { return output_.t[i]; }
     void set_time(size_t i, double t) { output_.t[i] = t; }
+    void set_death_time(size_t i, double t) { cold_.death_time[i] = t; }
+    double* time_data() { return output_.t.data(); }
 
 private:
     /**
@@ -255,6 +260,7 @@ private:
         std::vector<double> mobility;             // 8 bytes
         std::vector<uint32_t> species_id;         // 4 bytes (index into pool)
         std::vector<double> birth_time;           // 8 bytes
+        std::vector<double> death_time;           // 8 bytes (inactive = -1)
         
         // String pool: Deduplicate species names (e.g., "H3O+")
         // Typical: 5-10 unique species for 10k ions

@@ -889,8 +889,25 @@ void HDF5Writer::update_death_times(
     const std::string& filename,
     const core::IonEnsemble& final_ensemble
 ) {
-    auto legacy = final_ensemble.to_legacy();
-    update_death_times(filename, legacy);
+    std::vector<double> death_times;
+    death_times.reserve(final_ensemble.size());
+    const auto* death_ptr = final_ensemble.death_time_data();
+    for (size_t i = 0; i < final_ensemble.size(); ++i) {
+        death_times.push_back(death_ptr ? death_ptr[i] : -1.0);
+    }
+    try {
+        H5::H5File file(filename, H5F_ACC_RDWR);
+        H5::Group ion_group = file.openGroup("/ions");
+        hsize_t dims[1] = {death_times.size()};
+        H5::DataSpace space(1, dims);
+        H5::DataSet dataset = ion_group.openDataSet("death_time_s");
+        dataset.write(death_times.data(), H5::PredType::NATIVE_DOUBLE);
+        file.close();
+        log::Logger::hdf5()->debug("Updated death_time_s for {} ions (SoA)", death_times.size());
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to update death times (SoA): {}", e.getCDetailMsg());
+        throw;
+    }
 }
 
 void HDF5Writer::finalize(

@@ -129,9 +129,21 @@ void SimulationEngine::initialize(const std::vector<IonState>& ions) {
 }
 
 void SimulationEngine::initialize_soa(const core::IonEnsemble& ensemble) {
-    // Single conversion at startup for metadata/output initialization
-    auto ions_legacy = ensemble.to_legacy();
-    initialize(ions_legacy);
+    // Initialize output system without per-step AoS conversions
+    output_manager_->initialize_soa(config_, ensemble);
+    
+    output_manager_->log_progress("Simulation engine initialized (SoA)");
+    
+    std::ostringstream msg;
+    msg << "Configuration: " << ensemble.size() << " ions, "
+        << config_.domains.size() << " domains, "
+        << "dt = " << config_.simulation.dt_s * 1e9 << " ns, "
+        << "t_max = " << config_.simulation.total_time_s * 1e6 << " µs";
+    output_manager_->log_progress(msg.str());
+    
+#ifdef ICARION_USE_GPU
+    initialize_gpu(config_.simulation.enable_gpu);
+#endif
 }
 
 void SimulationEngine::initialize_openmp_settings() {
@@ -781,6 +793,7 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
                 domain_idx = domain_manager_->find_domain_index(pos);
                 if (domain_idx < 0) {
                     active[i] = false;
+                    ensemble.set_death_time(i, current_time_);
                     continue;
                 }
             }
@@ -832,6 +845,7 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
                 int new_domain_idx = domain_manager_->find_domain_index(pos_after);
                 if (new_domain_idx < 0) {
                     active[i] = false;
+                    ensemble.set_death_time(i, current_time_);
                     continue;
                 }
                 if (new_domain_idx != domain_idx) {
@@ -855,6 +869,7 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
             
             if (!position_valid || !velocity_valid) {
                 active[i] = false;
+                ensemble.set_death_time(i, current_time_);
                 
                 if (!config_.simulation.enable_safety_logging) {
                     std::cerr << "Warning: Ion " << i << " has invalid state at t = " 

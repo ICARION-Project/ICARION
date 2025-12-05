@@ -251,6 +251,150 @@ ICARION v1.0 collision physics provides good agreement between simulation and th
 
 ---
 
+## 1.11 Gas Mixture Thermalization Validation
+
+### 1.11.1 Test Objective
+
+Validate thermalization physics for gas mixtures (He/N2) using HSS collision model. Critical test case for multi-component environments in drift tube IMS and other instruments.
+
+**Test Purpose:**
+- Verify correct collision rate calculation for gas mixtures
+- Validate thermal equilibration with mixed buffer gases
+- Ensure collision physics scales correctly with mole fractions
+
+### 1.11.2 Test Matrix
+
+| Parameter | Values |
+|-----------|--------|
+| **Gas Mixtures (He/N2)** | 100/0, 75/25, 50/50, 25/75, 0/100 |
+| **Pressure** | 1000 Pa |
+| **Temperature** | 300 K (0.1 K cold start) |
+| **Ion Species** | H₃O⁺ |
+| **Duration** | 2000 collision times |
+| **Total Tests** | **5** |
+
+**Ion Properties (H₃O⁺):**
+- Mass: 19.02 u
+- CCS (He): 25.56 Å²
+- CCS (N2): 104.02 Å²
+
+### 1.11.3 Critical Bug Fix (December 5, 2025)
+
+**Bug Discovered:**
+Gas mixture collision handler was using **bulk velocity** for collision rate calculation instead of **thermal-averaged relative velocity**:
+
+```cpp
+// WRONG (before fix):
+Vec3 v_rel_bulk = ion.vel - env.gas_velocity_m_s;
+double v_rel_mag = norm(v_rel_bulk);
+double k_i = n_i * sigma_i * v_rel_mag;  // ← Nearly zero for cold ions!
+```
+
+**Impact:**
+- Collision rate k_i ≈ 0 for stationary/cold ions (v_ion ≈ 0, v_gas_bulk = 0)
+- Ions failed to thermalize: reached only ~130-195 K instead of 300 K
+- Error: 35-68% across all mixtures
+
+**Root Cause:**
+The collision rate calculation ignored **thermal motion of neutral molecules**. For gas mixtures, using bulk velocity difference gives wrong collision frequency when ions are cold or stationary.
+
+**Correct Physics:**
+The collision rate for component i in a gas mixture must use the **thermal-averaged relative velocity**:
+
+$$k_i = n_i \times \sigma_i \times \langle v_{rel} \rangle$$
+
+where the thermal average is:
+
+$$\langle v_{rel} \rangle = \sqrt{\frac{8k_BT}{\pi \mu}}$$
+
+with reduced mass $\mu = \frac{m_{ion} \times m_{gas}}{m_{ion} + m_{gas}}$
+
+**Fix Applied:**
+```cpp
+// CORRECT (after fix):
+double mu = (ion.mass_kg * comp.mass_kg) / (ion.mass_kg + comp.mass_kg);
+double v_rel_thermal = std::sqrt(8.0 * k_B * T / (M_PI * mu));
+double k_i = n_i * sigma_i * v_rel_thermal;  // ✓ Correct!
+```
+
+### 1.11.4 Results Summary
+
+**After Bug Fix:**
+- Mean error: **0.58%** (target: <10%)
+- Range: 0.4% to 0.9%
+- **100% tests PASS** (5/5)
+
+| Mixture (He/N2) | T_final [K] | T_error [%] | Status |
+|-----------------|-------------|-------------|--------|
+| 100/0 | 297.3 | 0.9 | ✅ |
+| 75/25 | 298.2 | 0.6 | ✅ |
+| 50/50 | 298.8 | 0.4 | ✅ |
+| 25/75 | 301.9 | 0.6 | ✅ |
+| 0/100 | 301.2 | 0.4 | ✅ |
+
+**Before Bug Fix:**
+- Mean error: **36-68%**
+- Ions reached only ~130-195 K instead of 300 K
+- **0% tests passed** (0/5)
+
+### 1.11.5 Physical Interpretation
+
+**Collision Frequency in Gas Mixtures:**
+
+For a mixture of gases with mole fractions $x_i$, the total collision frequency is:
+
+$$\nu_{total} = \sum_i x_i N_{total} \sigma_i \langle v_{rel,i} \rangle$$
+
+where:
+- $N_{total} = P/(k_BT)$ is total number density
+- $\sigma_i$ is collision cross section for gas species i
+- $\langle v_{rel,i} \rangle$ is thermal-averaged relative velocity
+
+**Key Physics:**
+1. Each gas component contributes to collision rate proportional to its mole fraction
+2. Heavier molecules (N2) have slower thermal velocities but larger cross sections
+3. Lighter molecules (He) have faster thermal velocities but smaller cross sections
+4. Final ion temperature equals ambient gas temperature (thermal equilibrium)
+
+**CCS Scaling:**
+- H₃O⁺ in He: 25.56 Å² (small, fast gas)
+- H₃O⁺ in N2: 104.02 Å² (large, slow gas)
+- Ratio: σ(N2)/σ(He) = 4.1×
+
+### 1.11.6 Figure
+
+![Gas Mixture Thermalization](figures/mixture_thermalization_validation.png)
+
+*Figure: Thermalization of H₃O⁺ ions in He/N2 mixtures. All compositions reach 300 K within 0.4-0.9% after ~0.5 µs. Cold start at 0.1 K demonstrates proper collision physics.*
+
+### 1.11.7 Validation Criteria
+
+✅ **VALIDATED:**
+- All gas mixture compositions thermalize correctly
+- Temperature accuracy: 0.4-0.9% (EXCELLENT)
+- No systematic bias across He/N2 ratios
+- Collision rate calculation uses correct thermal physics
+- Single-gas path remains unaffected (no regression)
+
+**Impact:**
+- Gas mixture simulations now fully functional
+- Fixes drift tube IMS with buffer gas mixtures
+- Enables accurate DTIMS, TWIMS simulations
+- Critical for ion funnel and other multi-gas instruments
+
+### 1.11.8 Conclusions
+
+**Summary:**
+- Critical bug in gas mixture collision rate calculation identified and fixed
+- All 5 mixture tests PASS with 0.4-0.9% error (EXCELLENT)
+- HSS collision model validated for multi-component buffer gases
+- Single-gas thermalization unaffected (90/90 tests still pass)
+
+**Lesson Learned:**
+Collision rate calculations in gas mixtures must use **thermal-averaged relative velocities**, not bulk velocity differences. This is fundamental to gas kinetic theory and critical for correct thermalization physics.
+
+---
+
 ## 2. Ion Mobility Spectrometry (IMS) Validation
 
 ### 2.1 Test Objective

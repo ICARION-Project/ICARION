@@ -38,6 +38,10 @@
 
 namespace ICARION::io {
 
+// Forward helpers
+static void write_string_vector(H5::Group& group, const std::string& name, const std::vector<std::string>& data);
+static void write_array_int(H5::Group& group, const std::string& name, const std::vector<int>& data);
+
 // ====================================================================
 // Public API
 // ====================================================================
@@ -92,9 +96,34 @@ void HDF5Writer::create_file(
     const std::string& git_hash,
     const std::string& build_info
 ) {
-    // Single conversion at init only; avoids per-step AoS usage.
-    auto legacy = ions.to_legacy();
-    create_file(filename, config, legacy, git_hash, build_info);
+    log::Logger::hdf5()->info("Creating HDF5 file: {}", filename);
+    
+    try {
+        H5::H5File file(filename, H5F_ACC_TRUNC);
+        
+        write_config_metadata(file, config);
+        write_reproducibility_metadata(file, config, git_hash, build_info);
+        write_system_metadata(file);
+        
+        write_species_metadata(file, config.species_db, ions);
+        
+        if (config.physics.enable_reactions && !config.reaction_db.reactions.empty()) {
+            write_reactions_metadata(file, config.reaction_db, ions, config.species_db);
+        }
+        
+        write_domains(file, config.domains);
+        
+        write_ion_metadata(file, ions);
+        
+        file.createGroup("/trajectory");
+        
+        file.close();
+        log::Logger::hdf5()->info("HDF5 file created successfully");
+        
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to create HDF5 file: {}", e.getCDetailMsg());
+        throw;
+    }
 }
 
 void HDF5Writer::append_trajectory(
@@ -1208,6 +1237,76 @@ void HDF5Writer::write_species_metadata(
     log::Logger::hdf5()->info("Wrote {} species to metadata (filtered from {} total)", n, species_db.size());
 }
 
+void HDF5Writer::write_species_metadata(
+    H5::H5File& file,
+    const config::SpeciesDatabase& species_db,
+    const core::IonEnsemble& ions
+) {
+    if (species_db.size() == 0) {
+        log::Logger::hdf5()->warn("No species in database - skipping species metadata");
+        return;
+    }
+
+    std::set<std::string> used_species;
+    const auto* species_pool = ions.species_pool();
+    const auto* idx = ions.species_id_indices();
+    for (size_t i = 0; i < ions.size(); ++i) {
+        used_species.insert((*species_pool)[idx[i]]);
+    }
+
+    if (used_species.empty()) {
+        log::Logger::hdf5()->warn("No ions provided - skipping species metadata");
+        return;
+    }
+
+    H5::Group species_group = file.openGroup("/metadata").createGroup("species");
+
+    std::vector<std::string> names;
+    std::vector<double> masses_kg;
+    std::vector<double> charges_C;
+    std::vector<double> mobilities_m2Vs;
+    std::vector<double> ccs_m2;
+
+    for (const auto& species_name : used_species) {
+        auto it = species_db.species.find(species_name);
+        if (it == species_db.species.end()) {
+            log::Logger::hdf5()->warn("Ion references unknown species '{}' - skipping", species_name);
+            continue;
+        }
+
+        const auto& species = it->second;
+        names.push_back(species_name);
+        masses_kg.push_back(species.mass_kg);
+        charges_C.push_back(species.charge_C);
+        mobilities_m2Vs.push_back(species.mobility_m2Vs);
+        ccs_m2.push_back(species.CCS_m2);
+    }
+
+    size_t n = names.size();
+    if (n == 0) {
+        log::Logger::hdf5()->warn("No valid species found - skipping species metadata");
+        return;
+    }
+
+    hsize_t dims[1] = {n};
+    H5::DataSpace space(1, dims);
+
+    H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+    H5::DataSet ds_names = species_group.createDataSet("names", str_type, space);
+    std::vector<const char*> name_ptrs;
+    for (const auto& name : names) {
+        name_ptrs.push_back(name.c_str());
+    }
+    ds_names.write(name_ptrs.data(), str_type);
+
+    write_array(species_group, "mass_kg", masses_kg);
+    write_array(species_group, "charge_C", charges_C);
+    write_array(species_group, "mobility_m2Vs", mobilities_m2Vs);
+    write_array(species_group, "ccs_m2", ccs_m2);
+
+    log::Logger::hdf5()->info("Wrote {} species to metadata (filtered from {} total)", n, species_db.size());
+}
+
 void HDF5Writer::write_reactions_metadata(
     H5::H5File& file,
     const config::ReactionDatabase& reaction_db,
@@ -1278,6 +1377,61 @@ void HDF5Writer::write_reactions_metadata(
     H5::DataSet ds_type = rxn_group.createDataSet("type", H5::PredType::NATIVE_INT, space);
     ds_type.write(types.data(), H5::PredType::NATIVE_INT);
     
+    log::Logger::hdf5()->info("Wrote {} reactions to metadata (filtered from {} total)", n, reaction_db.reactions.size());
+}
+
+void HDF5Writer::write_reactions_metadata(
+    H5::H5File& file,
+    const config::ReactionDatabase& reaction_db,
+    const core::IonEnsemble& ions,
+    const config::SpeciesDatabase& species_db
+) {
+    if (reaction_db.reactions.empty()) {
+        return;
+    }
+
+    std::set<std::string> used_species;
+    const auto* species_pool = ions.species_pool();
+    const auto* idx = ions.species_id_indices();
+    for (size_t i = 0; i < ions.size(); ++i) {
+        used_species.insert((*species_pool)[idx[i]]);
+    }
+
+    std::vector<std::string> ids;
+    std::vector<std::string> reactant_1;
+    std::vector<std::string> reactant_2;
+    std::vector<std::string> product_1;
+    std::vector<double> rate_constants;
+    std::vector<int> types;
+
+    for (const auto& rxn : reaction_db.reactions) {
+        if (used_species.count(rxn.reactant) == 0) {
+            continue;
+        }
+
+        ids.push_back(rxn.id);
+        reactant_1.push_back(rxn.reactant);
+        reactant_2.push_back("");
+        product_1.push_back(rxn.product);
+        rate_constants.push_back(rxn.rate_constant);
+        types.push_back(2);
+    }
+
+    size_t n = ids.size();
+    if (n == 0) {
+        log::Logger::hdf5()->warn("No reactions matched used species");
+        return;
+    }
+
+    H5::Group rxn_group = file.openGroup("/metadata").createGroup("reactions");
+    write_string_vector(rxn_group, "id", ids);
+    write_string_vector(rxn_group, "reactant_1", reactant_1);
+    write_string_vector(rxn_group, "reactant_2", reactant_2);
+    write_string_vector(rxn_group, "product_1", product_1);
+    write_array_int(rxn_group, "type", types);
+
+    write_array(rxn_group, "rate_constant_m3s", rate_constants);
+
     log::Logger::hdf5()->info("Wrote {} reactions to metadata (filtered from {} total)", n, reaction_db.reactions.size());
 }
 
@@ -1468,6 +1622,83 @@ void HDF5Writer::write_ion_metadata(
     log::Logger::hdf5()->debug("Wrote metadata for {} ions", n);
 }
 
+void HDF5Writer::write_ion_metadata(
+    H5::H5File& file,
+    const core::IonEnsemble& ions
+) {
+    if (ions.empty()) {
+        log::Logger::hdf5()->warn("No ions - skipping ion metadata");
+        return;
+    }
+
+    H5::Group ion_group = file.createGroup("/ions");
+    size_t n = ions.size();
+
+    std::vector<std::string> species_ids;
+    std::vector<double> initial_pos_x, initial_pos_y, initial_pos_z;
+    std::vector<double> initial_vel_x, initial_vel_y, initial_vel_z;
+    std::vector<double> birth_times;
+    std::vector<double> death_times;
+    std::vector<double> charges;
+
+    species_ids.reserve(n);
+    initial_pos_x.reserve(n);
+    initial_pos_y.reserve(n);
+    initial_pos_z.reserve(n);
+    initial_vel_x.reserve(n);
+    initial_vel_y.reserve(n);
+    initial_vel_z.reserve(n);
+    birth_times.reserve(n);
+    death_times.reserve(n);
+    charges.reserve(n);
+
+    const auto* pos_x = ions.pos_x_data();
+    const auto* pos_y = ions.pos_y_data();
+    const auto* pos_z = ions.pos_z_data();
+    const auto* vel_x = ions.vel_x_data();
+    const auto* vel_y = ions.vel_y_data();
+    const auto* vel_z = ions.vel_z_data();
+    const auto* birth = ions.birth_time_data();
+    const auto* death = ions.death_time_data();
+    const auto* charge = ions.charge_data();
+    const auto* species_pool = ions.species_pool();
+    const auto* species_idx = ions.species_id_indices();
+
+    for (size_t i = 0; i < n; ++i) {
+        species_ids.push_back((*species_pool)[species_idx[i]]);
+        initial_pos_x.push_back(pos_x[i]);
+        initial_pos_y.push_back(pos_y[i]);
+        initial_pos_z.push_back(pos_z[i]);
+        initial_vel_x.push_back(vel_x[i]);
+        initial_vel_y.push_back(vel_y[i]);
+        initial_vel_z.push_back(vel_z[i]);
+        birth_times.push_back(birth ? birth[i] : 0.0);
+        death_times.push_back(death ? death[i] : -1.0);
+        charges.push_back(charge[i]);
+    }
+
+    hsize_t dims[1] = {n};
+    H5::DataSpace space(1, dims);
+
+    H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+    H5::DataSet ds_species = ion_group.createDataSet("initial_species_id", str_type, space);
+    std::vector<const char*> species_ptrs;
+    for (const auto& s : species_ids) species_ptrs.push_back(s.c_str());
+    ds_species.write(species_ptrs.data(), str_type);
+
+    write_array(ion_group, "initial_pos_x", initial_pos_x);
+    write_array(ion_group, "initial_pos_y", initial_pos_y);
+    write_array(ion_group, "initial_pos_z", initial_pos_z);
+    write_array(ion_group, "initial_vel_x", initial_vel_x);
+    write_array(ion_group, "initial_vel_y", initial_vel_y);
+    write_array(ion_group, "initial_vel_z", initial_vel_z);
+    write_array(ion_group, "birth_time_s", birth_times);
+    write_array(ion_group, "death_time_s", death_times);
+    write_array(ion_group, "charge_C", charges);
+
+    log::Logger::hdf5()->debug("Wrote metadata for {} ions (SoA)", n);
+}
+
 // ====================================================================
 // Helper Functions
 // ====================================================================
@@ -1495,6 +1726,26 @@ void HDF5Writer::write_scalar(H5::Group& group, const std::string& name, bool va
     H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_HBOOL, space);
     hbool_t hval = value ? 1 : 0;
     dataset.write(&hval, H5::PredType::NATIVE_HBOOL);
+}
+
+static void write_string_vector(H5::Group& group, const std::string& name, const std::vector<std::string>& data) {
+    if (data.empty()) return;
+    hsize_t dims[2] = {data.size(), 1};
+    H5::DataSpace space(2, dims);
+    H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+    std::vector<const char*> ptrs;
+    ptrs.reserve(data.size());
+    for (const auto& s : data) ptrs.push_back(s.c_str());
+    H5::DataSet ds = group.createDataSet(name, str_type, space);
+    ds.write(ptrs.data(), str_type);
+}
+
+static void write_array_int(H5::Group& group, const std::string& name, const std::vector<int>& data) {
+    if (data.empty()) return;
+    hsize_t dims[1] = {data.size()};
+    H5::DataSpace space(1, dims);
+    H5::DataSet ds = group.createDataSet(name, H5::PredType::NATIVE_INT, space);
+    ds.write(data.data(), H5::PredType::NATIVE_INT);
 }
 
 void HDF5Writer::write_string(H5::Group& group, const std::string& name, const std::string& value) {

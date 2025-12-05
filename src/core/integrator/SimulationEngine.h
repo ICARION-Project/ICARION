@@ -126,7 +126,7 @@ public:
      * 
      * **Note:** Uses process_timestep_soa() internally for bulk operations
      */
-    std::vector<IonState> run(core::IonEnsemble& ensemble);
+    core::IonEnsemble run(core::IonEnsemble& ensemble);
     
     /**
      * @brief Get simulation configuration

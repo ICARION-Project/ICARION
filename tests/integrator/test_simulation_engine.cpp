@@ -207,7 +207,8 @@ TEST_CASE("SimulationEngine: AoS vs SoA parity", "[simulation][engine][parity]")
     // SoA path directly (fresh engine/output to avoid finalize conflicts)
     SimulationEngine engine_soa(cfg, {force_registry}, integrator);
     core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
-    auto soa_result = engine_soa.run(ensemble);
+    auto soa_result_ens = engine_soa.run(ensemble);
+    auto soa_result = soa_result_ens.to_legacy();
 
     REQUIRE(aos_result.size() == soa_result.size());
     REQUIRE(soa_result.size() == 1);

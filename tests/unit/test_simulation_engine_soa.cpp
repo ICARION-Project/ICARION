@@ -109,7 +109,8 @@ TEST_CASE("SimulationEngine SoA - Basic construction and run", "[soa][integratio
         
         // Convert to SoA and run
         auto ensemble = IonEnsemble::from_legacy(ions_soa_init);
-    auto result_soa = engine_soa.run(ensemble);
+    auto result_soa_ens = engine_soa.run(ensemble);
+    auto result_soa = result_soa_ens.to_legacy();
         
         // Results should be identical (Phase 2 uses same underlying code)
         REQUIRE(result_aos.size() == result_soa.size());

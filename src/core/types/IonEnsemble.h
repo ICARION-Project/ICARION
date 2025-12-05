@@ -208,7 +208,9 @@ public:
     // Cold data (mutable access for SoA processing)
     double* CCS_data() { return cold_.CCS.data(); }
     double* mobility_data() { return cold_.mobility.data(); }
+    double* birth_time_data() { return cold_.birth_time.data(); }
     double* death_time_data() { return cold_.death_time.data(); }
+    const double* birth_time_data() const { return cold_.birth_time.data(); }
     const double* death_time_data() const { return cold_.death_time.data(); }
     const std::vector<std::string>* species_pool() const { return &cold_.species_pool; }
     const uint32_t* species_id_indices() const { return cold_.species_id.data(); }

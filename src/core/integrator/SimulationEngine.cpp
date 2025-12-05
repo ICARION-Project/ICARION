@@ -653,10 +653,11 @@ void SimulationEngine::log_progress(double t) {
 std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
     // Thin wrapper: convert AoS to SoA, run SoA path, return AoS
     core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
-    return run(ensemble);
+    auto result = run(ensemble);
+    return result.to_legacy();
 }
 
-std::vector<IonState> SimulationEngine::run(core::IonEnsemble& ensemble) {
+core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     
     // 1. Initialize subsystems
     initialize_soa(ensemble);
@@ -743,7 +744,7 @@ std::vector<IonState> SimulationEngine::run(core::IonEnsemble& ensemble) {
     }
     
     // Return final ions in legacy format (for API compatibility)
-    return ensemble.to_legacy();
+    return ensemble;
 }
 
 void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double dt) {

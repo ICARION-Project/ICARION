@@ -17,8 +17,9 @@ namespace gpu {
 
 // Kernel launch wrappers are implemented as member functions in .cu file
 // Implementation of main compute function
-bool GPUSpaceChargeP3M::compute_space_charge_field(
-    const std::vector<IonState>& ions,
+bool GPUSpaceChargeP3M::compute_space_charge_field_raw(
+    const std::vector<Vec3>& positions,
+    const std::vector<double>& charges,
     std::vector<Vec3>& E_field_out
 ) {
     if (!initialized_) {
@@ -26,7 +27,7 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
         return false;
     }
     
-    size_t n_ions = ions.size();
+    size_t n_ions = positions.size();
     if (n_ions == 0) {
         E_field_out.clear();
         return true;
@@ -64,14 +65,6 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
         cudaMalloc(&d_ion_positions_, n_ions * sizeof(Vec3));
         cudaMalloc(&d_ion_charges_, n_ions * sizeof(double));
         cudaMalloc(&d_ion_E_fields_, n_ions * sizeof(Vec3));
-    }
-    
-    // Extract positions and charges from ions
-    std::vector<Vec3> positions(n_ions);
-    std::vector<double> charges(n_ions);
-    for (size_t i = 0; i < n_ions; ++i) {
-        positions[i] = ions[i].pos;
-        charges[i] = ions[i].ion_charge_C;
     }
     
     cudaMemcpy(d_ion_positions_, positions.data(), n_ions * sizeof(Vec3), cudaMemcpyHostToDevice);
@@ -190,12 +183,40 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
 }
 
 bool GPUSpaceChargeP3M::compute_space_charge_field(
+    const std::vector<IonState>& ions,
+    std::vector<Vec3>& E_field_out
+) {
+    std::vector<Vec3> positions;
+    std::vector<double> charges;
+    positions.reserve(ions.size());
+    charges.reserve(ions.size());
+    for (const auto& ion : ions) {
+        positions.push_back(ion.pos);
+        charges.push_back(ion.ion_charge_C);
+    }
+    return compute_space_charge_field_raw(positions, charges, E_field_out);
+}
+
+bool GPUSpaceChargeP3M::compute_space_charge_field(
     const core::IonEnsemble& ions,
     std::vector<Vec3>& E_field_out
 ) {
-    // Minimal AoS conversion for now; keeps interface SoA-compatible
-    auto legacy = ions.to_legacy();
-    return compute_space_charge_field(legacy, E_field_out);
+    const size_t n = ions.size();
+    std::vector<Vec3> positions;
+    std::vector<double> charges;
+    positions.reserve(n);
+    charges.reserve(n);
+
+    const auto* pos_x = ions.pos_x_data();
+    const auto* pos_y = ions.pos_y_data();
+    const auto* pos_z = ions.pos_z_data();
+    const auto* charge = ions.charge_data();
+    for (size_t i = 0; i < n; ++i) {
+        positions.push_back(Vec3{pos_x[i], pos_y[i], pos_z[i]});
+        charges.push_back(charge[i]);
+    }
+
+    return compute_space_charge_field_raw(positions, charges, E_field_out);
 }
 
 } // namespace gpu

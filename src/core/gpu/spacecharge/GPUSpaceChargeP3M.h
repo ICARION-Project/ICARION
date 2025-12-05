@@ -143,7 +143,14 @@ public:
         const core::IonEnsemble& ions,
         std::vector<Vec3>& E_field_out
     );
-    
+
+private:
+    bool compute_space_charge_field_raw(
+        const std::vector<Vec3>& positions,
+        const std::vector<double>& charges,
+        std::vector<Vec3>& E_field_out
+    );
+
     /**
      * @brief Performance statistics
      */

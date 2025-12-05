@@ -186,6 +186,11 @@ private:
         const config::SpeciesDatabase& species_db,
         const std::vector<IonState>& ions
     );
+    static void write_species_metadata(
+        H5::H5File& file,
+        const config::SpeciesDatabase& species_db,
+        const core::IonEnsemble& ions
+    );
     
     /**
      * @brief Write /metadata/reactions/
@@ -197,6 +202,12 @@ private:
         H5::H5File& file,
         const config::ReactionDatabase& reaction_db,
         const std::vector<IonState>& ions,
+        const config::SpeciesDatabase& species_db
+    );
+    static void write_reactions_metadata(
+        H5::H5File& file,
+        const config::ReactionDatabase& reaction_db,
+        const core::IonEnsemble& ions,
         const config::SpeciesDatabase& species_db
     );
     
@@ -251,6 +262,10 @@ private:
     static void write_ion_metadata(
         H5::H5File& file,
         const std::vector<IonState>& ions
+    );
+    static void write_ion_metadata(
+        H5::H5File& file,
+        const core::IonEnsemble& ions
     );
     
     // === Helpers ===

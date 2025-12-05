@@ -9,6 +9,7 @@
 #include "core/config/types/SpeciesConfig.h"
 #include "core/physics/collisions/EHSSCollisionHandler.h"
 #include "core/physics/collisions/geometryUtils.h"
+#include "core/types/IonEnsemble.h"
 #include "utils/constants.h"
 
 using Catch::Approx;
@@ -16,6 +17,18 @@ using namespace ICARION;
 using ICARION::physics::PhysicsRng;
 
 namespace {
+
+bool run_collision(physics::ICollisionHandler& handler,
+                   IonState& ion,
+                   double dt,
+                   PhysicsRng& rng,
+                   const config::EnvironmentConfig& env) {
+    auto ensemble = core::IonEnsemble::from_legacy({ion});
+    auto view = ensemble.collision_data(0);
+    bool res = handler.handle_collision(view, dt, rng, env);
+    ion.vel = view.kin.vel();
+    return res;
+}
 
 size_t count_collisions(physics::HSSCollisionHandler& handler,
                         const config::EnvironmentConfig& env,
@@ -33,7 +46,7 @@ size_t count_collisions(physics::HSSCollisionHandler& handler,
     size_t collisions = 0;
     for (int i = 0; i < trials; ++i) {
         IonState ion_copy = ion;
-        if (handler.handle_collision(ion_copy, dt, rng, env)) {
+        if (run_collision(handler, ion_copy, dt, rng, env)) {
             collisions++;
         }
     }
@@ -83,7 +96,7 @@ TEST_CASE("EHSS uses CCS_EHSS map in mixture", "[collision][ehss][multigas]") {
     const int trials = 400;
     for (int i = 0; i < trials; ++i) {
         IonState ion_copy = ion;
-        bool collided = handler.handle_collision(ion_copy, 1e-7, rng, env);
+        bool collided = run_collision(handler, ion_copy, 1e-7, rng, env);
         if (collided) {
             // We can't directly know which gas, but we can sample relative weights via sigma
             // Approximate by expected ratio: N2 weight ~0.5*1, O2 weight ~0.5*2 -> O2 ~2x N2
@@ -118,7 +131,7 @@ TEST_CASE("EHSS missing CCS in mixture falls back to geometry", "[collision][ehs
     env.gas_mixture = {{"N2", 1.0, -1.0, -1.0}};
     env.compute_derived_properties();
 
-    REQUIRE_NOTHROW(handler.handle_collision(ion, 1e-7, rng, env));
+    REQUIRE_NOTHROW(run_collision(handler, ion, 1e-7, rng, env));
 }
 
 }  // namespace
@@ -157,7 +170,7 @@ TEST_CASE("HSS uses gas-specific CCS map in mixture", "[collision][multigas]") {
     int collisions = 0;
     for (int i = 0; i < trials; ++i) {
         IonState ion_copy = ion;
-        bool occurred = handler.handle_collision(ion_copy, 1e-7, rng, env);
+        bool occurred = run_collision(handler, ion_copy, 1e-7, rng, env);
         if (occurred) {
             collisions++;
         }
@@ -192,7 +205,7 @@ TEST_CASE("HSS throws when mixture has no sigma", "[collision][multigas][safety]
     env.gas_mixture = {{"N2", 1.0, -1.0, -1.0}};
     env.compute_derived_properties();
 
-    REQUIRE_THROWS(handler.handle_collision(ion, 1e-7, rng, env));
+    REQUIRE_THROWS(run_collision(handler, ion, 1e-7, rng, env));
 }
 
 TEST_CASE("HSS mixture thermalization proxy via collision counts", "[collision][multigas][thermalization]") {

@@ -63,7 +63,7 @@ public:
                                  const config::SpeciesDatabase* species_db = nullptr);
     
     /**
-     * @brief Handle HSS collision for single timestep
+     * @brief Handle HSS collision for single timestep (SoA)
      * 
      * **Algorithm:**
      * 1. Compute collision probability from mean free path (using ion.CCS_m2)
@@ -87,13 +87,6 @@ public:
      * @return true if collision occurred, false otherwise
      */
     bool handle_collision(
-        IonState& ion,
-        double dt,
-        PhysicsRng& rng,
-        const config::EnvironmentConfig& env
-    ) override;
-    
-    bool handle_collision_soa(
         core::IonCollisionData& view,
         double dt,
         PhysicsRng& rng,
@@ -127,7 +120,6 @@ private:
     const config::SpeciesDatabase* species_db_;
     mutable std::unordered_set<std::string> warned_missing_sigma_;
 
-    bool handle_single_gas(IonState& ion, double dt, PhysicsRng& rng, const config::EnvironmentConfig& env);
     std::unordered_map<std::string, size_t> collisions_by_species_;
 };
 

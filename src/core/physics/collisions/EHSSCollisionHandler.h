@@ -27,6 +27,7 @@
 #pragma once
 
 #include "ICollisionHandler.h"
+#include "core/types/IonState.h"
 #include "core/types/Vec3.h"
 #include "core/config/types/SpeciesConfig.h"
 #include <vector>
@@ -93,39 +94,9 @@ public:
     );
     
     /**
-     * @brief Handle EHSS collision for single timestep
-     * 
-     * **Algorithm:**
-     * 1. Look up geometry for ion species (fallback to ion.CCS_m2 if not found)
-     * 2. Compute collision probability from mean free path
-     * 3. If collision occurs:
-     *    - Sample neutral velocity from Maxwell-Boltzmann distribution
-     *    - Sample random molecular orientation
-     *    - Detect collision with atom-centered spheres
-     *    - Apply hard-sphere momentum transfer in COM frame
-     * 
-     * **SSOT:** Reads gas properties directly from `env`:
-     * - env.temperature_K → thermal velocity
-     * - env.pressure_Pa → particle density
-     * - env.neutral_mass_kg → reduced mass
-     * - env.gas_velocity_m_s → bulk flow
-     * - env.neutral_radius_m → fallback CCS if no geometry
-     * 
-     * @param[in,out] ion Ion state (velocity modified if collision occurs)
-     * @param[in] dt Timestep [s]
-     * @param[in,out] rng Random number generator
-     * @param[in] env Environment configuration (SSOT!)
-     * 
-     * @return true if collision occurred, false otherwise
+     * @brief Handle EHSS collision for single timestep (SoA)
      */
     bool handle_collision(
-        IonState& ion,
-        double dt,
-        PhysicsRng& rng,
-        const config::EnvironmentConfig& env
-    ) override;
-    
-    bool handle_collision_soa(
         core::IonCollisionData& view,
         double dt,
         PhysicsRng& rng,

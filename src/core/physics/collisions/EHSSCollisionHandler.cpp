@@ -31,11 +31,18 @@ EHSSCollisionHandler::EHSSCollisionHandler(
 }
 
 bool EHSSCollisionHandler::handle_collision(
-    IonState& ion,
+    core::IonCollisionData& view,
     double dt,
     PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
+    IonState ion;
+    ion.vel = view.kin.vel();
+    ion.mass_kg = view.kin.get_mass();
+    ion.ion_charge_C = view.kin.get_charge();
+    ion.CCS_m2 = view.get_CCS();
+    ion.species_id = view.species_id();
+
     // Mixture-aware handling
     auto do_collision = [&](double n, double T_K, double m_neutral, const Vec3& v_gas, double neutral_radius) -> bool {
         const double sigma_eff = compute_effective_ccs(ion, neutral_radius, "");
@@ -81,6 +88,7 @@ bool EHSSCollisionHandler::handle_collision(
         }
 
         ion.vel = v_post;
+        view.kin.set_vel(ion.vel);
         stats_.total_collisions++;
         return true;
     };
@@ -267,26 +275,6 @@ double EHSSCollisionHandler::derive_ccs_for_target_gas(
     // sigma_target = π(r_ion + r_target)²
     double r_target = it_tgt->second;
     return M_PI * (r_ion + r_target) * (r_ion + r_target);
-}
-
-bool EHSSCollisionHandler::handle_collision_soa(
-    core::IonCollisionData& view,
-    double dt,
-    PhysicsRng& rng,
-    const config::EnvironmentConfig& env
-) {
-    IonState ion;
-    ion.vel = view.kin.vel();
-    ion.mass_kg = view.kin.get_mass();
-    ion.ion_charge_C = view.kin.get_charge();
-    ion.CCS_m2 = view.get_CCS();
-    ion.species_id = view.species_id();
-    
-    bool occurred = handle_collision(ion, dt, rng, env);
-    if (occurred) {
-        view.kin.set_vel(ion.vel);
-    }
-    return occurred;
 }
 
 } // namespace ICARION::physics

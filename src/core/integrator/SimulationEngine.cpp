@@ -105,28 +105,7 @@ SimulationEngine::SimulationEngine(
     }
 }
 
-void SimulationEngine::initialize(const std::vector<IonState>& ions) {
-    // SSOT: Birth conditions already set by IonLoader
-    // No need to modify ion state here!
-    
-    // Initialize output system
-    output_manager_->initialize(config_, ions);
-    
-    // Log initialization
-    output_manager_->log_progress("Simulation engine initialized");
-    
-    std::ostringstream msg;
-    msg << "Configuration: " << ions.size() << " ions, "
-        << config_.domains.size() << " domains, "
-        << "dt = " << config_.simulation.dt_s * 1e9 << " ns, "
-        << "t_max = " << config_.simulation.total_time_s * 1e6 << " µs";
-    output_manager_->log_progress(msg.str());
-    
-#ifdef ICARION_USE_GPU
-    // Initialize GPU acceleration (optional, controlled by config)
-    initialize_gpu(config_.simulation.enable_gpu);
-#endif
-}
+
 
 void SimulationEngine::initialize_soa(const core::IonEnsemble& ensemble) {
     // Initialize output system without per-step AoS conversions
@@ -296,139 +275,9 @@ const IFieldProvider* SimulationEngine::extract_field_provider(int domain_id) co
     return nullptr;  // No field provider found
 }
 
-bool SimulationEngine::try_gpu_integration(std::vector<IonState>& ions, double dt) {
-    PROFILE_SCOPE_IF_ENABLED("GPU Integration");
-    
-    // Early exit: GPU not available
-    if (!gpu_helper_) {
-        return false;
-    }
-    
-    // =========================================================================
-    // Smart threshold: Adjust based on integrator complexity
-    // =========================================================================
-    // Cache integrator type to avoid repeated dynamic_cast (expensive!)
-    if (!integrator_type_cached_) {
-        if (dynamic_cast<RK4Strategy*>(integrator_.get())) {
-            integrator_type_ = IntegratorType::RK4;
-        } else if (dynamic_cast<RK45Strategy*>(integrator_.get())) {
-            integrator_type_ = IntegratorType::RK45;
-        } else if (dynamic_cast<BorisStrategy*>(integrator_.get())) {
-            integrator_type_ = IntegratorType::Boris;
-        } else {
-            integrator_type_ = IntegratorType::Unknown;
-        }
-        integrator_type_cached_ = true;
-    }
-    
-    // Early exit: Unknown integrator
-    if (integrator_type_ == IntegratorType::Unknown) {
-        return false;
-    }
-    
-    // Dynamic threshold based on integrator cost:
-    // - Boris: 1 force eval → lower threshold (GPU beneficial at ~2000 ions)
-    // - RK4:   4 force evals → standard threshold (5000 ions)
-    // - RK45:  6 force evals → standard threshold (5000 ions)
-    size_t effective_threshold = gpu_threshold_;
-    if (integrator_type_ == IntegratorType::Boris) {
-        effective_threshold = gpu_threshold_ / 2;  // Boris cheaper → lower threshold
-    }
-    
-    int n_ions = static_cast<int>(ions.size());
-    if (n_ions < static_cast<int>(effective_threshold)) {
-        return false;  // Below threshold, use CPU
-    }
-    
-    // =========================================================================
-    // Extract field provider (assumes single-domain or domain 0)
-    // =========================================================================
-    const IFieldProvider* field_provider = extract_field_provider(0);
-    
-    // =========================================================================
-    // Dispatch to appropriate GPU kernel (no dynamic_cast overhead!)
-    // =========================================================================
-    bool gpu_success = false;
-    
-    switch (integrator_type_) {
-        case IntegratorType::RK4:
-            gpu_success = gpu_helper_->integrate_batch_rk4(ions, dt, current_time_, field_provider);
-            break;
-            
-        case IntegratorType::RK45: {
-            // Get RK45 tolerance parameters
-            auto* rk45 = static_cast<RK45Strategy*>(integrator_.get());  // Safe: type cached
-            const auto& config = rk45->get_config();
-            gpu_success = gpu_helper_->integrate_batch_rk45(
-                ions, dt, current_time_, field_provider,
-                config.atol, config.rtol
-            );
-            break;
-        }
-            
-        case IntegratorType::Boris:
-            gpu_success = gpu_helper_->integrate_batch_boris(ions, dt, current_time_, field_provider);
-            break;
-            
-        default:
-            return false;  // Should never reach here
-    }
-    
-    // GPU integration failed → fallback to CPU
-    if (!gpu_success) {
-        return false;
-    }
-    
-    // =========================================================================
-    // GPU success! Update ion times (GPU only updates pos/vel, not time)
-    // =========================================================================
-    #pragma omp parallel for if(config_.simulation.enable_openmp)
-    for (int i = 0; i < n_ions; ++i) {
-        if (ions[i].active) {
-            ions[i].t += dt;
-        }
-    }
-    
-    return true;  // GPU path complete
-}
 
-bool SimulationEngine::try_gpu_collisions(std::vector<IonState>& ions, double dt) {
-    PROFILE_SCOPE_IF_ENABLED("GPU Collision Processing");
-    
-    // Early exit: GPU collision helper not available
-    if (!gpu_collision_helper_) {
-        return false;
-    }
-    
-    // Count active ions for threshold check
-    int n_active = 0;
-    for (const auto& ion : ions) {
-        if (ion.active) n_active++;
-    }
-    
-    // Early exit: Below threshold (use active ion count, not total)
-    if (n_active < static_cast<int>(gpu_collision_threshold_)) {
-        return false;
-    }
-    
-    // Need to get environment config from current domain
-    // For simplicity, use domain 0's environment (assumes single-domain or uniform env)
-    // TODO: Support multi-domain with different environments
-    if (config_.domains.empty()) {
-        return false;
-    }
-    
-    const auto& env = config_.domains[0].environment;
-    
-    // Dispatch to GPU
-    bool gpu_success = gpu_collision_helper_->process_collisions_batch(ions, dt, env);
-    
-    if (!gpu_success) {
-        return false;  // GPU failed, fallback to CPU
-    }
-    
-    return true;  // GPU collision processing complete
-}
+
+
 
 bool SimulationEngine::try_gpu_boundary_check(core::IonEnsemble& ensemble, int domain_idx) {
     // Early exit: GPU not available
@@ -512,103 +361,7 @@ bool SimulationEngine::try_gpu_boundary_check(core::IonEnsemble& ensemble, int d
     return true;  // GPU boundary check succeeded
 }
 
-bool SimulationEngine::try_gpu_space_charge(const std::vector<IonState>& ions, std::vector<Vec3>& E_fields) {
-    PROFILE_SCOPE_IF_ENABLED("GPU Space Charge");
-    
-    // Early exit: GPU context not available
-    if (!gpu_context_) {
-        return false;
-    }
-    
-    // NOTE: This helper is not yet invoked from the main integration loop.
-    // When wired in, caller must supply E_fields and handle CPU fallback.
-    
-    // =========================================================================
-    // Threshold check: P³M only beneficial above ~1000 ions
-    // =========================================================================
-    // For small N, direct summation O(N²) is faster than P³M O(N log N)
-    // because FFT overhead dominates. P³M is not dispatched from SimulationEngine yet.
-    // =========================================================================
-    
-    size_t n_active = 0;
-    for (const auto& ion : ions) {
-        if (ion.active) ++n_active;
-    }
-    
-    if (n_active < gpu_space_charge_threshold_) {
-        return false;  // Below threshold → CPU direct summation faster
-    }
-    
-    // =========================================================================
-    // Lazy initialization: Create P³M solver on first use
-    // =========================================================================
-    if (!gpu_space_charge_) {
-        // Auto-configure based on first domain's geometry
-        // (Multi-domain space charge requires more sophisticated handling)
-        if (config_.domains.empty()) {
-            return false;  // No domains configured
-        }
-        
-        const auto& domain = config_.domains[0];
-        
-        // Estimate domain bounds from geometry
-        // TODO: Use actual SpaceChargeConfig when available
-        double L = domain.geometry.length_m;
-        double R = domain.geometry.radius_m;
-        
-        Vec3 domain_min, domain_max;
-        if (L > 0 && R > 0) {
-            // Use cylindrical geometry bounds
-            domain_min = Vec3{-R, -R, 0.0};
-            domain_max = Vec3{R, R, L};
-        } else {
-            // Default fallback (1cm cube)
-            domain_min = Vec3{-0.01, -0.01, -0.01};
-            domain_max = Vec3{0.01, 0.01, 0.01};
-        }
-        
-        icarion::gpu::GPUSpaceChargeP3M::Config p3m_config;
-        
-        // Grid dimensions (adaptive based on domain size)
-        // Target: ~30 µm cell size for good accuracy
-        Vec3 domain_size = domain_max - domain_min;
-        double target_cell_size = 3e-5;  // 30 µm
-        
-        p3m_config.grid_nx = std::max(32, std::min(256, static_cast<int>(domain_size.x / target_cell_size)));
-        p3m_config.grid_ny = std::max(32, std::min(256, static_cast<int>(domain_size.y / target_cell_size)));
-        p3m_config.grid_nz = std::max(32, std::min(256, static_cast<int>(domain_size.z / target_cell_size)));
-        
-        p3m_config.domain_min = domain_min;
-        p3m_config.domain_max = domain_max;
-        p3m_config.epsilon_0 = 8.854187817e-12;  // F/m
-        
-        gpu_space_charge_ = icarion::gpu::GPUSpaceChargeP3M::create(*gpu_context_, p3m_config);
-        
-        if (!gpu_space_charge_) {
-            output_manager_->log_progress("GPU: Space Charge P³M initialization failed, using CPU");
-            return false;
-        }
-        
-        std::ostringstream msg;
-        msg << "GPU: Space Charge P³M initialized (grid: " 
-            << p3m_config.grid_nx << "×" << p3m_config.grid_ny << "×" << p3m_config.grid_nz
-            << ", N >= " << gpu_space_charge_threshold_ << " ions)";
-        output_manager_->log_progress(msg.str());
-    }
-    
-    // =========================================================================
-    // Compute space charge field on GPU
-    // =========================================================================
-    bool success = gpu_space_charge_->compute_space_charge_field(ions, E_fields);
-    
-    if (!success) {
-        // GPU computation failed (out of bounds, CUDA error, etc.)
-        // Fall back to CPU
-        return false;
-    }
-    
-    return true;  // GPU space charge succeeded
-}
+
 
 void SimulationEngine::finalize_gpu() {
     if (!gpu_helper_) {
@@ -736,7 +489,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
         output_manager_->log_progress("Safety report written: " + report_file);
     }
     
-    // Return final ions in legacy format (for API compatibility)
+    // Return final SoA ensemble
     return ensemble;
 }
 
@@ -806,8 +559,8 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
             if (collision_handler_) {
                 PROFILE_SCOPE_IF_ENABLED("Collision Handling");
                 auto collision_view = ensemble.collision_data(i);
-                collision_handler_->handle_collision_soa(collision_view, dt, ion_rng, 
-                                                        domain_config.environment);
+                collision_handler_->handle_collision(collision_view, dt, ion_rng, 
+                                                      domain_config.environment);
             }
             
             if (reaction_handler_ && !config_.reaction_db.reactions.empty()) {
@@ -829,7 +582,7 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
                 const auto& force_registry = force_registries_[domain_idx];
                 
                 // Integrate directly using SoA (no conversion!)
-                integrator_->step_soa(ensemble, i, current_time_, dt, *force_registry);
+                integrator_->step(ensemble, i, current_time_, dt, *force_registry);
             }
             
             // 8. Boundary checks via geometry strategy (CPU)

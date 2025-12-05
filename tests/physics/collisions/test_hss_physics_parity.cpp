@@ -12,10 +12,22 @@
 #include "core/types/CollisionTypes.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 
 using namespace ICARION;
 using namespace ICARION::config;
 using namespace ICARION::physics;
+
+static void run_collision(HSSCollisionHandler& handler,
+                          IonState& ion,
+                          double dt,
+                          PhysicsRng& rng,
+                          const EnvironmentConfig& env) {
+    auto ens = core::IonEnsemble::from_legacy({ion});
+    auto view = ens.collision_data(0);
+    handler.handle_collision(view, dt, rng, env);
+    ion.vel = view.kin.vel();
+}
 
 int main() {
     // Environment
@@ -46,7 +58,7 @@ int main() {
     PhysicsRng cpu_rng(42);
     HSSCollisionHandler cpu_handler(false, nullptr);
     for (auto& ion : cpu_ions) {
-        cpu_handler.handle_collision(ion, dt, cpu_rng, env);
+        run_collision(cpu_handler, ion, dt, cpu_rng, env);
     }
     
     // Compute mean

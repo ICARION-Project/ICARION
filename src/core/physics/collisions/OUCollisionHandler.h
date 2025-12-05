@@ -95,35 +95,11 @@ public:
     explicit OUCollisionHandler(double gamma_coefficient, bool apply_damping = true);
     
     /**
-     * @brief Apply OU thermal kick for single timestep
-     * 
-     * **Algorithm:**
-     * 1. Compute thermal velocity: v_th = √(kB·T/m)
-     * 2. Compute kick amplitude: A = v_th · √(1 - exp(-2·γ·dt))
-     * 3. Sample 3D Gaussian noise: N(0,1)
-     * 4. Apply kick: Δv = A · N(0,1)
-     * 
-     * **SSOT:** Reads temperature directly from `env`:
-     * - env.temperature_K → thermal velocity scale
-     * 
-     * @param[in,out] ion Ion state (velocity modified by thermal kick)
-     * @param[in] dt Timestep [s]
-     * @param[in,out] rng Random number generator
-     * @param[in] env Environment configuration (SSOT!)
-     * 
-     * @return true (always "collides" - continuous process)
-     * 
-     * @note Unlike EHSS/HSS, this is a continuous stochastic process,
-     *       not a discrete collision event. Return value always true.
+     * @brief Apply OU thermal kick for single timestep (SoA)
+     *
+     * Return value always true (continuous process).
      */
     bool handle_collision(
-        IonState& ion,
-        double dt,
-        PhysicsRng& rng,
-        const config::EnvironmentConfig& env
-    ) override;
-    
-    bool handle_collision_soa(
         core::IonCollisionData& view,
         double dt,
         PhysicsRng& rng,

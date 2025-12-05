@@ -36,27 +36,28 @@ IonState make_ion(const std::string& species = "X+") {
     return ion;
 }
 
-void require_parity(auto&& handler_aos, auto&& handler_soa) {
+void require_parity(auto&& handler_soa) {
     auto env = make_env();
     const double dt = 1e-6;
 
-    IonState ion_aos = make_ion();
     IonState ion_base = make_ion();
 
-    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy({ion_base});
-    auto view = ensemble.collision_data(0);
+    core::IonEnsemble ensemble1 = core::IonEnsemble::from_legacy({ion_base});
+    core::IonEnsemble ensemble2 = core::IonEnsemble::from_legacy({ion_base});
+    auto view1 = ensemble1.collision_data(0);
+    auto view2 = ensemble2.collision_data(0);
 
     PhysicsRng rng1(12345);
     PhysicsRng rng2(12345);
 
-    bool hit_aos = handler_aos.handle_collision(ion_aos, dt, rng1, env);
-    bool hit_soa = handler_soa.handle_collision_soa(view, dt, rng2, env);
+    bool hit1 = handler_soa.handle_collision(view1, dt, rng1, env);
+    bool hit2 = handler_soa.handle_collision(view2, dt, rng2, env);
 
-    REQUIRE(hit_aos == hit_soa);
-    if (hit_aos && hit_soa) {
-        REQUIRE(ion_aos.vel.x == Approx(view.kin.vel().x));
-        REQUIRE(ion_aos.vel.y == Approx(view.kin.vel().y));
-        REQUIRE(ion_aos.vel.z == Approx(view.kin.vel().z));
+    REQUIRE(hit1 == hit2);
+    if (hit1 && hit2) {
+        REQUIRE(view1.kin.vel().x == Approx(view2.kin.vel().x));
+        REQUIRE(view1.kin.vel().y == Approx(view2.kin.vel().y));
+        REQUIRE(view1.kin.vel().z == Approx(view2.kin.vel().z));
     }
 }
 } // namespace
@@ -64,11 +65,11 @@ void require_parity(auto&& handler_aos, auto&& handler_soa) {
 TEST_CASE("Collision handlers: AoS vs SoA parity", "[collision][soa][parity]") {
     SECTION("HSS") {
         HSSCollisionHandler handler(false, nullptr);
-        require_parity(handler, handler);
+        require_parity(handler);
     }
 
     SECTION("OU") {
         OUCollisionHandler handler(1e6 /*gamma*/, true);
-        require_parity(handler, handler);
+        require_parity(handler);
     }
 }

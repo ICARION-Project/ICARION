@@ -22,6 +22,7 @@
 #include "core/types/CollisionTypes.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/Vec3.h"
 
 #include <vector>
@@ -32,6 +33,17 @@ using namespace ICARION;
 using namespace ICARION::config;
 using icarion::gpu::GPUContext;
 using icarion::gpu::GPUCollisionHelper;
+
+static void run_cpu_collision(physics::HSSCollisionHandler& handler,
+                              physics::IonState& ion,
+                              double dt,
+                              physics::PhysicsRng& rng,
+                              const EnvironmentConfig& env) {
+    auto ens = core::IonEnsemble::from_legacy({ion});
+    auto view = ens.collision_data(0);
+    handler.handle_collision(view, dt, rng, env);
+    ion.vel = view.kin.vel();
+}
 
 // =============================================================================
 // TEST: GPU collision helper threshold behavior
@@ -278,8 +290,8 @@ TEST_CASE("CPU HSS handler also produces deterministic results with fixed seed",
     
     // Process all ions with both handlers
     for (size_t i = 0; i < N; ++i) {
-        handler1.handle_collision(ions_run1[i], dt, rng1, env);
-        handler2.handle_collision(ions_run2[i], dt, rng2, env);
+        run_cpu_collision(handler1, ions_run1[i], dt, rng1, env);
+        run_cpu_collision(handler2, ions_run2[i], dt, rng2, env);
     }
     
     // With same seed, CPU results should be IDENTICAL
@@ -373,7 +385,7 @@ TEST_CASE("CPU and GPU HSS produce statistically equivalent results", "[collisio
     physics::HSSCollisionHandler cpu_handler(false, nullptr);
     
     for (size_t i = 0; i < N; ++i) {
-        cpu_handler.handle_collision(cpu_ions[i], dt, cpu_rng, env);
+        run_cpu_collision(cpu_handler, cpu_ions[i], dt, cpu_rng, env);
     }
     
     // Process with GPU

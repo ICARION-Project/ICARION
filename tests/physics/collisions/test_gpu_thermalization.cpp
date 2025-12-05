@@ -17,6 +17,7 @@
 #include "core/types/CollisionTypes.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "utils/constants.h"
 
 #include <iostream>
@@ -30,6 +31,18 @@ using namespace ICARION::physics;
 
 double thermal_energy_eV(double T_K) {
     return (1.5 * BOLTZMANN_CONSTANT * T_K) / ELEM_CHARGE_C;
+}
+
+static bool run_collision(HSSCollisionHandler& handler,
+                          IonState& ion,
+                          double dt,
+                          PhysicsRng& rng,
+                          const EnvironmentConfig& env) {
+    auto ens = core::IonEnsemble::from_legacy({ion});
+    auto view = ens.collision_data(0);
+    bool res = handler.handle_collision(view, dt, rng, env);
+    ion.vel = view.kin.vel();
+    return res;
 }
 
 struct ThermalizationResult {
@@ -65,7 +78,7 @@ ThermalizationResult run_cpu_thermalization(
         PhysicsRng rng(seed_offset + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
-            handler.handle_collision(ion, dt, rng, env);
+            run_collision(handler, ion, dt, rng, env);
         }
         
         double v2 = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;

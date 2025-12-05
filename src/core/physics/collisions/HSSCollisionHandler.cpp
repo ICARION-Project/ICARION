@@ -20,7 +20,7 @@ HSSCollisionHandler::HSSCollisionHandler(bool enable_logging, const config::Spec
     , species_db_(species_db)
 {}
 
-bool HSSCollisionHandler::handle_collision_soa(
+bool HSSCollisionHandler::handle_collision(
     core::IonCollisionData& view,
     double dt,
     PhysicsRng& rng,
@@ -33,21 +33,7 @@ bool HSSCollisionHandler::handle_collision_soa(
     ion.ion_charge_C = view.kin.get_charge();
     ion.CCS_m2 = view.get_CCS();
     ion.species_id = view.species_id();
-    
-    bool occurred = handle_collision(ion, dt, rng, env);
-    
-    if (occurred) {
-        view.kin.set_vel(ion.vel);
-    }
-    return occurred;
-}
 
-bool HSSCollisionHandler::handle_collision(
-    IonState& ion,
-    double dt,
-    PhysicsRng& rng,
-    const config::EnvironmentConfig& env
-) {
     // Mixture-aware path
     if (!env.gas_mixture.empty()) {
         Vec3 v_rel_bulk = ion.vel - env.gas_velocity_m_s;
@@ -343,6 +329,7 @@ bool HSSCollisionHandler::handle_collision(
     
     // Update ion velocity
     ion.vel = v_post;
+    view.kin.set_vel(ion.vel);
     
     // Update statistics (for single-threaded tests)
     stats_.total_collisions++;

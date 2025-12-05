@@ -19,6 +19,7 @@
 
 #include "core/physics/collisions/OUCollisionHandler.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "utils/constants.h"
 #include <catch2/catch_test_macros.hpp>
@@ -29,6 +30,18 @@ using namespace ICARION::physics;
 using namespace ICARION::config;
 using namespace ICARION::core;
 using Catch::Approx;
+
+static bool run_collision(OUCollisionHandler& handler,
+                          IonState& ion,
+                          double dt,
+                          PhysicsRng& rng,
+                          const EnvironmentConfig& env) {
+    auto ens = IonEnsemble::from_legacy({ion});
+    auto view = ens.collision_data(0);
+    bool res = handler.handle_collision(view, dt, rng, env);
+    ion.vel = view.kin.vel();
+    return res;
+}
 
 // Helper: Calculate kinetic energy from velocity
 double kinetic_energy_eV(const Vec3& vel, double mass_kg) {
@@ -96,7 +109,7 @@ TEST_CASE("OUCollisionHandler: Thermalization of H3O+", "[collision][ou][thermal
         
         int kick_count = 0;
         for (int i = 0; i < N_STEPS; ++i) {
-            bool kicked = handler.handle_collision(ion, dt, rng, env);
+            bool kicked = run_collision(handler, ion, dt, rng, env);
             if (kicked) kick_count++;
         }
         
@@ -171,7 +184,7 @@ TEST_CASE("OUCollisionHandler: Thermalization from high energy", "[collision][ou
         PhysicsRng rng(123 + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
-            handler.handle_collision(ion, dt, rng, env);
+            run_collision(handler, ion, dt, rng, env);
         }
         
         double v_final2 = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;
@@ -236,7 +249,7 @@ TEST_CASE("OUCollisionHandler: Isotropic velocity distribution", "[collision][ou
         PhysicsRng rng(999 + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
-            handler.handle_collision(ion, dt, rng, env);
+            run_collision(handler, ion, dt, rng, env);
         }
         
         total_vx2 += ion.vel.x * ion.vel.x;
@@ -302,7 +315,7 @@ TEST_CASE("OUCollisionHandler: Fluctuation-Dissipation balance", "[collision][ou
         PhysicsRng rng(777 + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
-            handler.handle_collision(ion, dt, rng, env);
+            run_collision(handler, ion, dt, rng, env);
         }
         
         sum_vx2 += ion.vel.x * ion.vel.x;

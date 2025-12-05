@@ -114,10 +114,10 @@ def create_config(mixture_name, x_He, x_N2, output_file):
     nu, tau_coll = calculate_collision_frequency(ion_mass_amu, x_He, x_N2, T_K, P_Pa)
     
     # Simulation parameters
-    n_collision_times = 100  # More collision times for better thermalization
+    n_collision_times = 2000  # Very long time to check convergence
     total_time_s = n_collision_times * tau_coll
     dt_s = tau_coll / 50.0  # 50 steps per collision time
-    write_interval = max(1, int(0.5 * n_collision_times))  # ~50 writes total
+    write_interval = max(1, int(n_collision_times // 10))  # ~10 writes total
     
     # Domain size
     length_m = 0.2

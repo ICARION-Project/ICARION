@@ -244,6 +244,13 @@ private:
      */
     void finalize_gpu();
 #endif
+
+    /**
+     * @brief Update all registered space-charge models (if any).
+     *
+     * Ensures each unique model recomputes its field cache once per timestep.
+     */
+    void update_space_charge_models(core::IonEnsemble& ensemble);
     
     /**
      * @brief Process one timestep using SoA (Structure of Arrays)

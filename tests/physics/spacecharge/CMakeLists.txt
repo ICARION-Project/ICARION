@@ -69,3 +69,24 @@ set_tests_properties(SpaceChargeIntegration PROPERTIES
     LABELS "physics;spacecharge;integration"
     TIMEOUT 60
 )
+
+# Direct model tests
+add_executable(test_space_charge_model_direct
+    test_space_charge_model_direct.cpp
+)
+
+target_include_directories(test_space_charge_model_direct PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_space_charge_model_direct PRIVATE
+    Catch2::Catch2WithMain
+    icarion_core
+)
+
+add_test(NAME SpaceChargeDirectModel COMMAND test_space_charge_model_direct)
+set_tests_properties(SpaceChargeDirectModel PROPERTIES
+    LABELS "physics;spacecharge;direct"
+    TIMEOUT 10
+)

@@ -5,6 +5,7 @@
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/physics/forces/MagneticFieldForce.h"
 #include "core/physics/forces/DampingForce.h"
+#include "core/physics/spacecharge/SpaceChargeModelFactory.h"
 #include "core/physics/forces/SpaceChargeDirect.h"
 #include "core/physics/forces/SpaceChargeGrid.h"
 #include "core/physics/spacecharge/spaceChargeSolver.h"
@@ -213,6 +214,23 @@ void PhysicsSetup::add_space_charge_forces(
     const core::IonEnsemble& ions
 ) {
     const size_t N = ions.size();
+    const size_t domain_count = registries.size();
+
+    bool model_configured = false;
+    for (size_t idx = 0; idx < domain_count; ++idx) {
+        const auto& domain = config.domains[idx];
+        auto model = physics::SpaceChargeModelFactory::create(config, domain, N);
+        if (model) {
+            registries[idx]->set_space_charge_model(model);
+            log::Logger::main()->info("Space charge: {} uses {}", domain.name, model->name());
+            model_configured = true;
+        }
+    }
+
+    if (model_configured) {
+        return;  // vNext path enabled
+    }
+
     constexpr size_t SPACE_CHARGE_THRESHOLD = 1000;
     
     // Priority: GPU > Grid (CPU) > Direct (CPU)

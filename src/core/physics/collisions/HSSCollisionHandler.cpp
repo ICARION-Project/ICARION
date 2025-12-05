@@ -36,12 +36,16 @@ bool HSSCollisionHandler::handle_collision(
 
     // Mixture-aware path
     if (!env.gas_mixture.empty()) {
-        Vec3 v_rel_bulk = ion.vel - env.gas_velocity_m_s;
-        double v_rel_mag = norm(v_rel_bulk);
-        if (v_rel_mag < MIN_RELATIVE_VELOCITY) {
-            return false;
-        }
-
+        // CRITICAL: For collision rate calculation in gas mixtures, we need to use
+        // the thermal-averaged relative velocity, NOT the bulk velocity difference!
+        // 
+        // The collision rate k_i for component i is:
+        //   k_i = n_i × σ_i × <v_rel>
+        // where <v_rel> = sqrt(8kT/(π×μ)) is the mean relative velocity
+        // 
+        // Using v_rel_bulk = |v_ion - v_gas| is WRONG when the ion is cold or stationary,
+        // because it ignores the thermal motion of the neutral molecules!
+        
         std::vector<double> k_values;
         k_values.reserve(env.gas_mixture.size());
         double k_total = 0.0;
@@ -98,7 +102,13 @@ bool HSSCollisionHandler::handle_collision(
                 k_values.push_back(0.0);
                 continue;
             }
-            double k_i = n_i * sigma_i * v_rel_mag;
+            
+            // Calculate thermal-averaged relative velocity for this gas component
+            // <v_rel> = sqrt(8kT/(π×μ)) where μ = (m_ion × m_gas) / (m_ion + m_gas)
+            double mu = (ion.mass_kg * comp.mass_kg) / (ion.mass_kg + comp.mass_kg);
+            double v_rel_thermal = std::sqrt(8.0 * BOLTZMANN_CONSTANT * env.temperature_K / (M_PI * mu));
+            
+            double k_i = n_i * sigma_i * v_rel_thermal;
             k_values.push_back(k_i);
             k_total += k_i;
         }
@@ -205,10 +215,14 @@ bool HSSCollisionHandler::handle_collision(
         const Vec3 v_post = collision_core::CollisionKernels::hss_collision(
             ion.vel, v_neutral, ion.mass_kg, comp.mass_kg, rng
         );
-        ion.vel = v_post;
+        
+        // CRITICAL FIX: Write back velocity to SoA view!
+        view.kin.set_vel(v_post);
+        
         // For single-threaded tests, update collision statistics
         stats_.total_collisions++;
         collisions_by_species_[comp.species]++;
+        
         return true;
     }
 

@@ -493,6 +493,23 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     return ensemble;
 }
 
+void SimulationEngine::update_space_charge_models(core::IonEnsemble& ensemble) {
+    std::vector<const physics::ISpaceChargeModel*> updated;
+    updated.reserve(force_registries_.size());
+
+    for (const auto& registry : force_registries_) {
+        if (!registry) continue;
+        auto* model = registry->space_charge_model();
+        if (!model) continue;
+
+        if (std::find(updated.begin(), updated.end(), model) != updated.end()) {
+            continue;  // already updated (shared model)
+        }
+        model->update_fields(ensemble, current_time_);
+        updated.push_back(model);
+    }
+}
+
 void SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt) {
     // Direct SoA processing (no conversions!)
     const int n_ions = static_cast<int>(ensemble.size());
@@ -507,6 +524,8 @@ void SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt) 
         }
     }
     
+    update_space_charge_models(ensemble);
+
     // Get raw array pointers for cache-friendly iteration
     auto* pos_x = ensemble.pos_x_data();
     auto* pos_y = ensemble.pos_y_data();

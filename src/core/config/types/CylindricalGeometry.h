@@ -6,6 +6,9 @@
 #include "IDomainGeometry.h"
 #include "core/config/types/DomainConfig.h"
 #include <cmath>
+#include <array>
+#include <limits>
+#include <algorithm>
 
 namespace ICARION::config {
 
@@ -150,6 +153,35 @@ public:
             R_l2g_.m[1][0] * local_vel.x + R_l2g_.m[1][1] * local_vel.y + R_l2g_.m[1][2] * local_vel.z,
             R_l2g_.m[2][0] * local_vel.x + R_l2g_.m[2][1] * local_vel.y + R_l2g_.m[2][2] * local_vel.z
         };
+    }
+
+    BoundingBox bounding_box(double margin) const override {
+        const double r = radius_ + std::max(0.0, margin);
+        const double z_min = -std::max(0.0, margin);
+        const double z_max = length_ + std::max(0.0, margin);
+
+        BoundingBox box;
+        box.min = Vec3{ std::numeric_limits<double>::max(),
+                        std::numeric_limits<double>::max(),
+                        std::numeric_limits<double>::max() };
+        box.max = Vec3{ std::numeric_limits<double>::lowest(),
+                        std::numeric_limits<double>::lowest(),
+                        std::numeric_limits<double>::lowest() };
+
+        for (double x : { -r, r }) {
+            for (double y : { -r, r }) {
+                for (double z : { z_min, z_max }) {
+                    Vec3 global = local_to_global_pos(Vec3{x, y, z});
+                    box.min.x = std::min(box.min.x, global.x);
+                    box.min.y = std::min(box.min.y, global.y);
+                    box.min.z = std::min(box.min.z, global.z);
+                    box.max.x = std::max(box.max.x, global.x);
+                    box.max.y = std::max(box.max.y, global.y);
+                    box.max.z = std::max(box.max.z, global.z);
+                }
+            }
+        }
+        return box;
     }
 
 private:

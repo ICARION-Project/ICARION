@@ -8,6 +8,7 @@
 #include "IForce.h"
 #include "ForceContext.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/physics/spacecharge/ISpaceChargeModel.h"
 #include "core/types/IonEnsemble.h"
 
 namespace ICARION::config {
@@ -164,6 +165,18 @@ public:
      * @brief Access configured field model (if any)
      */
     const config::IFieldModel* field_model() const { return field_model_; }
+
+    /**
+     * @brief Assign shared space-charge model (optional).
+     *
+     * Registries can share the same model (e.g., global direct Coulomb solver).
+     */
+    void set_space_charge_model(SpaceChargeModelPtr model);
+
+    /**
+     * @brief Access space-charge model (may be shared).
+     */
+    ISpaceChargeModel* space_charge_model() const { return space_charge_model_.get(); }
     
 private:
     /**
@@ -185,6 +198,11 @@ private:
      * Set by setup layer once field models are constructed.
      */
     const config::IFieldModel* field_model_ = nullptr;
+
+    /**
+     * @brief Optional shared space-charge model.
+     */
+    SpaceChargeModelPtr space_charge_model_;
 };
 
 } // namespace ICARION::physics

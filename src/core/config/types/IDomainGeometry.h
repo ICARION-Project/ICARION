@@ -7,6 +7,11 @@
 
 namespace ICARION::config {
 
+struct BoundingBox {
+    Vec3 min;
+    Vec3 max;
+};
+
 /**
  * @brief Interface for domain geometry/boundary handling
  *
@@ -47,6 +52,9 @@ public:
 
     /// Transform velocity from local to global coordinates.
     virtual Vec3 local_to_global_vel(const Vec3& local_vel) const = 0;
+
+    /// Axis-aligned bounding box (global coordinates) with optional margin [m].
+    virtual BoundingBox bounding_box(double margin) const = 0;
 };
 
 } // namespace ICARION::config

@@ -4,6 +4,9 @@
 #pragma once
 
 #include "core/types/Vec3.h"
+#include <vector>
+
+struct Grid3D;
 
 namespace ICARION::config {
 
@@ -55,6 +58,11 @@ public:
 
     /// Axis-aligned bounding box (global coordinates) with optional margin [m].
     virtual BoundingBox bounding_box(double margin) const = 0;
+
+    /// Optional hook to apply boundary conditions to a grid (default: no-op).
+    virtual void apply_spacecharge_dirichlet(const ::Grid3D&,
+                                             std::vector<char>&,
+                                             std::vector<double>&) const {}
 };
 
 } // namespace ICARION::config

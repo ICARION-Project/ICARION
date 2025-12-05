@@ -100,8 +100,15 @@ Forces implement `IForce` and register with `ForceRegistry`. The SoA path is pri
 **Built-in Forces:**
 - `ElectricFieldForce` - E-field via `IFieldModel` (analytical or grid-backed); SSOT: PhysicsSetup injects `FieldProviderModel` when grid data exist, otherwise `AnalyticalFieldModel` fallback
 - `MagneticFieldForce` - B-field (Boris integrator compatible)
-- `SpaceChargeDirect` - Ion-ion Coulomb interactions
+- `SpaceCharge models` - `ForceRegistry` feeds `ISpaceChargeModel` implementations (Direct/Grid/GPU) produced by `SpaceChargeModelFactory`
 - `DampingForce` - Drag depending on chosen deterministic collision model
+
+**Space-Charge Pipeline**
+- `ISpaceChargeModel` – interface implemented by:
+  - `SpaceChargeDirectModel` (shared across domains, O(N²))
+  - `SpaceChargeGridModel` (geometry-aware Poisson solver)
+  - `SpaceChargeGPUModel` (experimental GPU P³M; enabled via `physics.enable_space_charge_gpu`)
+- `SpaceChargeModelFactory` selects the model per-domain (GPU → Grid → Direct) and `ForceRegistry` injects the Coulomb field into the SoA loop without AoS fallbacks.
 
 **Key Files:**
 - `src/core/physics/forces/ForceRegistry.{h,cpp}` - Force management
@@ -133,7 +140,7 @@ GPU acceleration uses threshold-based dispatch (default integration/collisions: 
 **GPU Features (current state):**
 - Integration: RK4/RK45/Boris batch kernels
 - Collisions: HSS/EHSS batch helper with CPU fallback
-- Space charge: P³M helper exists but not called from the main loop yet
+- Space charge: P³M helper exposed through `SpaceChargeGPUModel`; enabled when `physics.enable_space_charge_gpu=true` and `ICARION_USE_GPU` is defined (falls back to Grid/Direct otherwise)
 - Boundary checks: Helper exists for absorption/cylindrical only, not wired into the loop
 - Automatic CPU fallback on errors or below-threshold counts
 

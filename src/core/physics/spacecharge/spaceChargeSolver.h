@@ -10,6 +10,10 @@
 #include "core/types/IonEnsemble.h"
 #include <vector>
 
+namespace ICARION::config {
+class IDomainGeometry;
+}
+
 /**
  * @class SpaceChargeSolver
  * @brief Poisson-based solver for self-consistent space-charge fields (CPU)
@@ -113,6 +117,9 @@ public:
     /** @brief Manually compute field from current potential */
     void computeField() { m_solver.computeElectricField(); }
 
+    /** @brief Use geometry mask to reject out-of-domain ions during deposition */
+    void setGeometryMask(const ICARION::config::IDomainGeometry* geometry) { m_geometry_mask = geometry; }
+
     // --- Preset configurations ---
     
     /** @brief Optimize for long simulations with frequent field updates */
@@ -139,4 +146,5 @@ private:
     size_t m_last_ion_count = 0;
     int m_step_counter = 0;
     std::vector<Vec3> m_last_ion_positions;
+    const ICARION::config::IDomainGeometry* m_geometry_mask = nullptr;
 };

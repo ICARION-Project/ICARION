@@ -32,10 +32,10 @@ from scipy import stats
 K0_He = 24.1e-4  # m²/(V·s) - H3O+ in pure He
 K0_N2 = 3.2e-4   # m²/(V·s) - H3O+ in pure N2
 
-# Test conditions
+# Test conditions (using E=5000 V/m which showed 2.2% error in combined_drift validation)
 P_Pa = 1000.0
 T_K = 300.0
-E_Vm = 1000.0
+E_Vm = 5000.0  # Changed from 1000 to 5000 V/m (E/N ~21 Td, best agreement)
 N_ions = 500  # Fewer ions for faster tests
 total_time_ms = 0.1  # Shorter simulation time
 

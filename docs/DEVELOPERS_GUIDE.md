@@ -542,6 +542,16 @@ Instrument-specific electric field calculations live in FieldModels and are cons
 
 Multi-domain geometry handling lives in `IDomainGeometry` strategies (e.g., `CylindricalGeometry`, `OrbitrapGeometry`) used by `DomainManager` and `DomainContext` for transforms and boundary checks. DomainManager now only orchestrates these strategies (no AoS boundary helpers); geometry classes encapsulate containment/intersection logic.
 
+### Space-Charge Architecture (v1.0)
+
+- `ISpaceChargeModel` exposes `update_fields()` + `sample_electric_field()`. ForceRegistry owns an optional instance and adds Coulomb force directly in the SoA loop (no fallback AoS conversions).
+- Models:
+  - `SpaceChargeDirectModel` – exact O(N²), shared across domains for small ion counts.
+  - `SpaceChargeGridModel` – geometry-driven Poisson solver (Dirichlet masks + bounding boxes from `IDomainGeometry`).
+  - `SpaceChargeGPUModel` – wraps `gpu::GPUSpaceChargeP3M`; compiles as a stub in CPU-only builds.
+- `SpaceChargeModelFactory` decides per-domain: try GPU if `physics.enable_space_charge_gpu` and CUDA build, else grid, else direct. Logging records fallbacks automatically.
+- Configuration overrides / CLI: `physics.enable_space_charge` toggles feature, `physics.enable_space_charge_gpu` requests GPU acceleration (safe to enable even on CPU because the factory degrades gracefully).
+
 ### Step-by-Step Guide
 
 #### 1. Add Instrument to Enum (`src/core/config/types/InstrumentTypes.h`)
@@ -650,7 +660,7 @@ ICARION's GPU acceleration is designed for **easy extensibility**. This guide sh
 - RK4/RK45/Boris batch integrators (automatic dispatch; Boris threshold ~half of default 5000)
 - HSS/EHSS collision helper (active-ion threshold default 5000; EHSS geometry upload TODO)
 - Field-provider upload for integration when ElectricFieldForce is present
-- Space charge P³M helper exists but is not invoked from the main loop yet
+- Space charge P³M helper wired through `SpaceChargeGPUModel` (opt-in via `physics.enable_space_charge_gpu`, CPU fallback guaranteed)
 - Boundary check helper supports absorption/cylindrical only and is not wired into the main loop
 
 **Note:** GPU features require CUDA toolkit and `enable_gpu: true` in config. Automatic CPU fallback on errors or below-threshold counts.
@@ -1295,7 +1305,7 @@ __device__ double kahan_add(double sum, double x, double& c) {
 - Automatic dispatch based on particle count (default threshold: 5000, Boris: 2500)
 - Implementation details in `src/core/integrator/` and integration strategy classes
 - Validation tests: `tests/integrator/test_rk45_boris_parity.cpp` (407 lines)
-- Space charge GPU: `src/core/physics/forces/SpaceChargeGPU.{h,cpp}`
+- Space charge GPU: `src/core/physics/spacecharge/SpaceChargeGPUModel.{h,cpp}` + `GPUSpaceChargeP3M.{h,cu}`
 
 **GPU Performance:**
 GPU performance varies significantly with hardware, simulation complexity, and data transfer patterns. Benchmark your specific use case to determine optimal threshold values.

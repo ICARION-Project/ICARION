@@ -90,3 +90,45 @@ set_tests_properties(SpaceChargeDirectModel PROPERTIES
     LABELS "physics;spacecharge;direct"
     TIMEOUT 10
 )
+
+# Grid model parity vs direct
+add_executable(test_space_charge_model_parity
+    test_space_charge_model_parity.cpp
+)
+
+target_include_directories(test_space_charge_model_parity PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_space_charge_model_parity PRIVATE
+    Catch2::Catch2WithMain
+    icarion_core
+)
+
+add_test(NAME SpaceChargeGridModelParity COMMAND test_space_charge_model_parity)
+set_tests_properties(SpaceChargeGridModelParity PROPERTIES
+    LABELS "physics;spacecharge;grid"
+    TIMEOUT 15
+)
+
+# GPU model availability / stub test
+add_executable(test_space_charge_gpu_model
+    test_space_charge_gpu_model.cpp
+)
+
+target_include_directories(test_space_charge_gpu_model PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_space_charge_gpu_model PRIVATE
+    Catch2::Catch2WithMain
+    icarion_core
+)
+
+add_test(NAME SpaceChargeGPUModelTest COMMAND test_space_charge_gpu_model)
+set_tests_properties(SpaceChargeGPUModelTest PROPERTIES
+    LABELS "physics;spacecharge;gpu"
+    TIMEOUT 10
+)

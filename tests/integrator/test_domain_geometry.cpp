@@ -3,10 +3,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#include <vector>
 #include "core/config/types/CylindricalGeometry.h"
 #include "core/config/types/OrbitrapGeometry.h"
 #include "core/config/types/DomainConfig.h"
 #include "core/utils/mathUtils.h"
+#include "core/types/Grid3D.h"
 
 using ICARION::config::CylindricalGeometry;
 using ICARION::config::OrbitrapGeometry;
@@ -155,4 +157,54 @@ TEST_CASE("OrbitrapGeometry near-boundary sampling", "[geometry][orbitrap][bound
         REQUIRE_FALSE(geom.contains(Vec3{r_in - delta_in, 0.0, z}));
         REQUIRE_FALSE(geom.contains(Vec3{r_out + delta_out, 0.0, z}));
     }
+}
+
+TEST_CASE("CylindricalGeometry bounding_box reflects radius/length", "[geometry][cylindrical][bbox]") {
+    auto dom = make_cyl_domain();
+    dom.geometry.origin_m = Vec3{0.1, -0.2, 0.3};
+    CylindricalGeometry geom(dom);
+
+    auto bbox = geom.bounding_box(0.0);
+    REQUIRE(bbox.min.x == Approx(dom.geometry.origin_m.x - dom.geometry.radius_m));
+    REQUIRE(bbox.max.x == Approx(dom.geometry.origin_m.x + dom.geometry.radius_m));
+    REQUIRE(bbox.min.y == Approx(dom.geometry.origin_m.y - dom.geometry.radius_m));
+    REQUIRE(bbox.max.y == Approx(dom.geometry.origin_m.y + dom.geometry.radius_m));
+    REQUIRE(bbox.min.z == Approx(dom.geometry.origin_m.z));
+    REQUIRE(bbox.max.z == Approx(dom.geometry.origin_m.z + dom.geometry.length_m));
+
+    auto padded = geom.bounding_box(0.002);
+    REQUIRE(padded.min.x == Approx(bbox.min.x - 0.002));
+    REQUIRE(padded.max.z == Approx(bbox.max.z + 0.002));
+}
+
+TEST_CASE("CylindricalGeometry provides Dirichlet mask", "[geometry][cylindrical][spacecharge]") {
+    auto dom = make_cyl_domain();
+    dom.geometry.origin_m = Vec3{0.0, 0.0, 0.0};
+    dom.fields.dc.axial_V.constant_value = 50.0;
+    dom.fields.dc.radial_V.constant_value = -5.0;
+    CylindricalGeometry geom(dom);
+
+    const double dx = dom.geometry.radius_m * 2.0 / 8.0;
+    const double dz = dom.geometry.length_m / 10.0;
+    Grid3D grid(9, 9, 11, dx, dx, dz);
+    grid.origin_m = Vec3{-dom.geometry.radius_m, -dom.geometry.radius_m, 0.0};
+
+    std::vector<char> mask;
+    std::vector<double> values;
+    geom.apply_spacecharge_dirichlet(grid, mask, values);
+
+    const int center = grid.index(grid.Nx / 2, grid.Ny / 2, grid.Nz / 2);
+    REQUIRE(mask[center] == 0);
+
+    const int bottom = grid.index(grid.Nx / 2, grid.Ny / 2, 0);
+    REQUIRE(mask[bottom] == 1);
+    REQUIRE(values[bottom] == Approx(0.0));
+
+    const int top = grid.index(grid.Nx / 2, grid.Ny / 2, grid.Nz - 1);
+    REQUIRE(mask[top] == 1);
+    REQUIRE(values[top] == Approx(dom.fields.dc.axial_V.constant_value.value()));
+
+    const int radial = grid.index(0, grid.Ny / 2, grid.Nz / 2);
+    REQUIRE(mask[radial] == 1);
+    REQUIRE(values[radial] == Approx(dom.fields.dc.radial_V.constant_value.value()));
 }

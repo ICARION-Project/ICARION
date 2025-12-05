@@ -27,7 +27,8 @@ namespace {
  * @return std::vector<double> Charge density array (size Nx*Ny*Nz).
  */
 std::vector<double> deposit_charge(const std::vector<IonState>& ions,
-                                   const Grid3D& grid)
+                                   const Grid3D& grid,
+                                   const ICARION::config::IDomainGeometry* geometry)
 {
     const int Nx = grid.Nx, Ny = grid.Ny, Nz = grid.Nz;
     std::vector<double> rho(Nx * Ny * Nz, 0.0);
@@ -99,6 +100,7 @@ std::vector<double> deposit_charge(const std::vector<IonState>& ions,
             for (size_t ion_idx = 0; ion_idx < ions.size(); ++ion_idx) {
                 const auto& ion = ions[ion_idx];
                 if (!ion.active || !ion.born) continue;
+                if (geometry && !geometry->contains(ion.pos)) continue;
 
                 // Fast grid mapping
                 int i = static_cast<int>((ion.pos.x - grid.origin_m.x) * inv_dx);
@@ -127,6 +129,8 @@ std::vector<double> deposit_charge(const std::vector<IonState>& ions,
         for (size_t ion_idx = 0; ion_idx < ions.size(); ++ion_idx) {
             const auto& ion = ions[ion_idx];
             if (!ion.active || !ion.born)
+                continue;
+            if (geometry && !geometry->contains(ion.pos))
                 continue;
 
             // --- Position relative to grid origin ---
@@ -185,7 +189,8 @@ std::vector<double> deposit_charge(const std::vector<IonState>& ions,
 }
 
 std::vector<double> deposit_charge(const ICARION::core::IonEnsemble& ions,
-                                   const Grid3D& grid)
+                                   const Grid3D& grid,
+                                   const ICARION::config::IDomainGeometry* geometry)
 {
     const int Nx = grid.Nx, Ny = grid.Ny, Nz = grid.Nz;
     std::vector<double> rho(Nx * Ny * Nz, 0.0);
@@ -229,6 +234,10 @@ std::vector<double> deposit_charge(const ICARION::core::IonEnsemble& ions,
             #pragma omp for nowait
             for (size_t ion_idx = 0; ion_idx < num_ions; ++ion_idx) {
                 if (active[ion_idx] == 0 || born[ion_idx] == 0) continue;
+                if (geometry) {
+                    Vec3 global_pos{pos_x[ion_idx], pos_y[ion_idx], pos_z[ion_idx]};
+                    if (!geometry->contains(global_pos)) continue;
+                }
 
                 int i = static_cast<int>((pos_x[ion_idx] - grid.origin_m.x) * inv_dx);
                 int j = static_cast<int>((pos_y[ion_idx] - grid.origin_m.y) * inv_dy);
@@ -251,6 +260,10 @@ std::vector<double> deposit_charge(const ICARION::core::IonEnsemble& ions,
         #pragma omp parallel for
         for (size_t ion_idx = 0; ion_idx < num_ions; ++ion_idx) {
             if (active[ion_idx] == 0 || born[ion_idx] == 0) continue;
+            if (geometry) {
+                Vec3 global_pos{pos_x[ion_idx], pos_y[ion_idx], pos_z[ion_idx]};
+                if (!geometry->contains(global_pos)) continue;
+            }
 
             double x_rel = (pos_x[ion_idx] - grid.origin_m.x) * inv_dx;
             double y_rel = (pos_y[ion_idx] - grid.origin_m.y) * inv_dy;

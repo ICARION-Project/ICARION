@@ -5,6 +5,7 @@
 
 #include "IDomainGeometry.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/types/Grid3D.h"
 #include <cmath>
 #include <array>
 #include <limits>
@@ -28,7 +29,9 @@ public:
           radius_in_(cfg.geometry.radius_in_m),
           radius_char_(cfg.geometry.radius_char_m),
           R_g2l_(cfg.rotation_global_to_local),
-          R_l2g_(cfg.rotation_local_to_global) {}
+          R_l2g_(cfg.rotation_local_to_global),
+          inner_potential_(cfg.fields.dc.axial_V.constant_value.value_or(0.0)),
+          outer_potential_(0.0) {}
 
     bool contains(const Vec3& global_pos) const override {
         Vec3 local = global_to_local_pos(global_pos);
@@ -127,6 +130,45 @@ public:
         return box;
     }
 
+    void apply_spacecharge_dirichlet(const ::Grid3D& grid,
+                                     std::vector<char>& mask,
+                                     std::vector<double>& values) const override {
+        mask.assign(grid.size(), 0);
+        values.assign(grid.size(), 0.0);
+
+        const double tol_r = 0.5 * std::max(grid.dx, grid.dy) + 1e-9;
+        const double tol_z = 0.5 * grid.dz + 1e-9;
+        const double half_len = 0.5 * length_;
+
+        for (int k = 0; k < grid.Nz; ++k) {
+            const double z = grid.origin_m.z + static_cast<double>(k) * grid.dz;
+            for (int j = 0; j < grid.Ny; ++j) {
+                const double y = grid.origin_m.y + static_cast<double>(j) * grid.dy;
+                for (int i = 0; i < grid.Nx; ++i) {
+                    const double x = grid.origin_m.x + static_cast<double>(i) * grid.dx;
+                    const int idx = grid.index(i, j, k);
+                    Vec3 local = global_to_local_pos(Vec3{x, y, z});
+                    const double r = std::sqrt(local.x * local.x + local.y * local.y);
+                    const bool near_inner = r <= radius_in_ + tol_r;
+                    const bool near_outer = r >= radius_out_ - tol_r;
+                    const bool beyond_inner = r < radius_in_ - tol_r;
+                    const bool beyond_outer = r > radius_out_ + tol_r;
+                    const bool axial_cap = std::fabs(local.z) >= (half_len - tol_z);
+
+                    if (near_inner || beyond_inner || axial_cap) {
+                        mask[idx] = 1;
+                        values[idx] = inner_potential_;
+                        continue;
+                    }
+                    if (near_outer || beyond_outer) {
+                        mask[idx] = 1;
+                        values[idx] = outer_potential_;
+                    }
+                }
+            }
+        }
+    }
+
 private:
     // Hyperlogarithmic surface solver (matches DomainManager logic)
     static double orbitrap_surface_residual(double r, double z, double R, double R_m) {
@@ -183,6 +225,8 @@ private:
     double radius_char_;
     Mat3 R_g2l_;
     Mat3 R_l2g_;
+    double inner_potential_;
+    double outer_potential_;
 
     static constexpr double EPSILON = 1e-12;
 };

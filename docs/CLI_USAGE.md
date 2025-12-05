@@ -255,6 +255,7 @@ Can be specified multiple times to override multiple values.
 - `physics.collision_model` - Collision model (NoCollisions, HSD, Langevin, Friction, HSS, EHSS)
 - `physics.enable_reactions` - Enable chemical reactions (true/false)
 - `physics.enable_space_charge` - Enable space charge effects (true/false)
+- `physics.enable_space_charge_gpu` - Prefer GPU-based P³M space charge (if built with CUDA; falls back to CPU if unavailable)
 - `physics.enable_ou_thermalization` - Enable Ornstein-Uhlenbeck thermalization (true/false)
 
 **Output parameters:**

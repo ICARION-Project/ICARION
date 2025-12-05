@@ -6,15 +6,6 @@
 #include "core/physics/forces/MagneticFieldForce.h"
 #include "core/physics/forces/DampingForce.h"
 #include "core/physics/spacecharge/SpaceChargeModelFactory.h"
-#include "core/physics/forces/SpaceChargeDirect.h"
-#include "core/physics/forces/SpaceChargeGrid.h"
-#include "core/physics/spacecharge/spaceChargeSolver.h"
-
-#ifdef ICARION_USE_GPU
-#include "core/physics/forces/SpaceChargeGPU.h"
-#include "core/gpu/core/GPUContext.h"
-#include "core/gpu/spacecharge/GPUSpaceChargeP3M.h"
-#endif
 #include "core/integrator/strategies/RK4Strategy.h"
 #include "core/integrator/strategies/RK45Strategy.h"
 #include "core/integrator/strategies/BorisStrategy.h"
@@ -214,201 +205,62 @@ void PhysicsSetup::add_space_charge_forces(
     const core::IonEnsemble& ions
 ) {
     const size_t N = ions.size();
+    if (registries.empty() || N == 0) {
+        return;
+    }
+
     const size_t domain_count = registries.size();
+    auto create_model_for_domain = [&](size_t idx) {
+        return physics::SpaceChargeModelFactory::create(
+            config, config.domains[idx], N);
+    };
 
-    bool model_configured = false;
-    for (size_t idx = 0; idx < domain_count; ++idx) {
-        const auto& domain = config.domains[idx];
-        auto model = physics::SpaceChargeModelFactory::create(config, domain, N);
-        if (model) {
-            registries[idx]->set_space_charge_model(model);
-            log::Logger::main()->info("Space charge: {} uses {}", domain.name, model->name());
-            model_configured = true;
-        }
+    auto first_model = create_model_for_domain(0);
+    if (!first_model) {
+        log::Logger::main()->warn(
+            "Space charge enabled, but no model could be created for domain '{}'. "
+            "Skipping space-charge coupling.",
+            config.domains.front().name);
+        return;
     }
 
-    if (model_configured) {
-        return;  // vNext path enabled
-    }
-
-    constexpr size_t SPACE_CHARGE_THRESHOLD = 1000;
-    
-    // Priority: GPU > Grid (CPU) > Direct (CPU)
-    // - GPU: N >= 1000 + GPU available → SpaceChargeGPU (10-40× faster than CPU Grid)
-    // - Grid: N >= 1000 + no GPU → SpaceChargeGrid (10-100× faster than Direct)
-    // - Direct: N < 1000 → SpaceChargeDirect (exact, competitive for small N)
-    
-#ifdef ICARION_USE_GPU
-    // Try GPU first (if N >= threshold and GPU available)
-    if (N >= SPACE_CHARGE_THRESHOLD) {
-        try {
-            // Attempt to create GPU context
-            auto gpu_ctx = icarion::gpu::GPUContext::create(0);  // Device 0
-            
-            if (gpu_ctx && gpu_ctx->is_valid()) {
-                log::Logger::main()->info("Space charge: Using SpaceChargeGPU (N={} >= {}, GPU available)",
-                                          N, SPACE_CHARGE_THRESHOLD);
-                log::Logger::main()->info("  → GPU P³M algorithm (O(N log N), cuFFT-based Poisson solver)");
-                
-                // Estimate domain size from ion initial positions (SoA)
-                const auto* px = ions.pos_x_data();
-                const auto* py = ions.pos_y_data();
-                const auto* pz = ions.pos_z_data();
-                Vec3 min_pos{px[0], py[0], pz[0]};
-                Vec3 max_pos{px[0], py[0], pz[0]};
-                for (size_t i = 1; i < N; ++i) {
-                    min_pos.x = std::min(min_pos.x, px[i]);
-                    min_pos.y = std::min(min_pos.y, py[i]);
-                    min_pos.z = std::min(min_pos.z, pz[i]);
-                    max_pos.x = std::max(max_pos.x, px[i]);
-                    max_pos.y = std::max(max_pos.y, py[i]);
-                    max_pos.z = std::max(max_pos.z, pz[i]);
-                }
-                
-                Vec3 domain_size = {max_pos.x - min_pos.x, max_pos.y - min_pos.y, max_pos.z - min_pos.z};
-                
-                // Add 50% margin (ions will move)
-                domain_size = domain_size * 1.5;
-                
-                // Ensure minimum domain size (1cm cube)
-                domain_size.x = std::max(domain_size.x, 0.01);
-                domain_size.y = std::max(domain_size.y, 0.01);
-                domain_size.z = std::max(domain_size.z, 0.01);
-                
-                Vec3 domain_center = {
-                    (min_pos.x + max_pos.x) / 2,
-                    (min_pos.y + max_pos.y) / 2,
-                    (min_pos.z + max_pos.z) / 2
-                };
-                
-                // Configure P³M solver: Target 30µm cells, 32-256 grid resolution
-                constexpr double TARGET_CELL_SIZE = 30e-6;  // 30 µm
-                int nx = std::clamp(static_cast<int>(domain_size.x / TARGET_CELL_SIZE), 32, 256);
-                int ny = std::clamp(static_cast<int>(domain_size.y / TARGET_CELL_SIZE), 32, 256);
-                int nz = std::clamp(static_cast<int>(domain_size.z / TARGET_CELL_SIZE), 32, 256);
-                
-                icarion::gpu::GPUSpaceChargeP3M::Config p3m_config;
-                p3m_config.grid_nx = nx;
-                p3m_config.grid_ny = ny;
-                p3m_config.grid_nz = nz;
-                p3m_config.domain_min = {
-                    domain_center.x - domain_size.x / 2,
-                    domain_center.y - domain_size.y / 2,
-                    domain_center.z - domain_size.z / 2
-                };
-                p3m_config.domain_max = {
-                    domain_center.x + domain_size.x / 2,
-                    domain_center.y + domain_size.y / 2,
-                    domain_center.z + domain_size.z / 2
-                };
-                
-                log::Logger::main()->info("  Grid: {}×{}×{} cells, {:.1f}×{:.1f}×{:.1f} µm cell size",
-                                          nx, ny, nz,
-                                          domain_size.x / nx * 1e6,
-                                          domain_size.y / ny * 1e6,
-                                          domain_size.z / nz * 1e6);
-                log::Logger::main()->info("  Domain: [{:.3f}, {:.3f}] x [{:.3f}, {:.3f}] x [{:.3f}, {:.3f}] mm",
-                                          p3m_config.domain_min.x * 1e3, p3m_config.domain_max.x * 1e3,
-                                          p3m_config.domain_min.y * 1e3, p3m_config.domain_max.y * 1e3,
-                                          p3m_config.domain_min.z * 1e3, p3m_config.domain_max.z * 1e3);
-                
-                // Create GPU P³M solver
-                auto gpu_solver_unique = icarion::gpu::GPUSpaceChargeP3M::create(*gpu_ctx, p3m_config);
-                
-                if (gpu_solver_unique) {
-                    // Convert unique_ptr to shared_ptr (multiple registries need same solver)
-                    auto gpu_solver = std::shared_ptr<icarion::gpu::GPUSpaceChargeP3M>(std::move(gpu_solver_unique));
-                    
-                    // Wrap in IForce interface
-                    for (auto& registry : registries) {
-                        registry->add_force(std::make_unique<physics::SpaceChargeGPU>(gpu_solver));
-                    }
-                    log::Logger::main()->info("  ✓ SpaceChargeGPU added to {} registries", registries.size());
-                    return;  // GPU setup successful - exit function
-                } else {
-                    log::Logger::main()->warn("  ⚠ GPU P³M solver creation failed - falling back to CPU Grid");
-                }
-            } else {
-                log::Logger::main()->info("  ℹ GPU context unavailable - using CPU Grid");
-            }
-        } catch (const std::exception& e) {
-            log::Logger::main()->warn("  ⚠ GPU initialization failed: {} - falling back to CPU Grid", e.what());
-        }
-    }
-#endif
-    
-    if (N < SPACE_CHARGE_THRESHOLD) {
-        // Use direct N-body Coulomb (exact, but O(N²))
-        log::Logger::main()->info("Space charge: Using SpaceChargeDirect (N={} < {})",
-                                  N, SPACE_CHARGE_THRESHOLD);
-        log::Logger::main()->info("  → Direct N-body Coulomb (exact, O(N²))");
-        
-        constexpr double SOFTENING_LENGTH = 1e-10;  // 0.1 nm (prevents 1/r² divergence)
+    if (first_model->name() == "SpaceChargeDirectModel") {
         for (auto& registry : registries) {
-            registry->add_force(std::make_unique<physics::SpaceChargeDirect>(SOFTENING_LENGTH));
+            registry->set_space_charge_model(first_model);
         }
-        log::Logger::main()->info("  ✓ SpaceChargeDirect added to {} registries (ε={:.2e} m)",
-                                  registries.size(), SOFTENING_LENGTH);
-    } else {
-        // Use grid-based Poisson solver (fast, but approximate)
-        log::Logger::main()->info("Space charge: Using SpaceChargeGrid (N={} >= {})",
-                                  N, SPACE_CHARGE_THRESHOLD);
-        log::Logger::main()->info("  → Grid-based Poisson solver (fast, O(N log N))");
-        
-        // Estimate domain size from ion initial positions (SoA)
-        const auto* px = ions.pos_x_data();
-        const auto* py = ions.pos_y_data();
-        const auto* pz = ions.pos_z_data();
-        Vec3 min_pos{px[0], py[0], pz[0]};
-        Vec3 max_pos{px[0], py[0], pz[0]};
-        for (size_t i = 1; i < N; ++i) {
-            min_pos.x = std::min(min_pos.x, px[i]);
-            min_pos.y = std::min(min_pos.y, py[i]);
-            min_pos.z = std::min(min_pos.z, pz[i]);
-            max_pos.x = std::max(max_pos.x, px[i]);
-            max_pos.y = std::max(max_pos.y, py[i]);
-            max_pos.z = std::max(max_pos.z, pz[i]);
+        log::Logger::main()->info(
+            "Space charge: Using {} shared across {} domains",
+            first_model->name(),
+            registries.size());
+        return;
+    }
+
+    registries[0]->set_space_charge_model(first_model);
+    log::Logger::main()->info("Space charge: {} uses {}",
+                              config.domains[0].name,
+                              first_model->name());
+
+    size_t assigned_models = first_model ? 1 : 0;
+    for (size_t idx = 1; idx < domain_count; ++idx) {
+        auto model = create_model_for_domain(idx);
+        if (!model) {
+            log::Logger::main()->warn(
+                "Space charge: No model available for domain '{}'; "
+                "space charge disabled for this domain.",
+                config.domains[idx].name);
+            continue;
         }
-        
-        Vec3 domain_size = {max_pos.x - min_pos.x, max_pos.y - min_pos.y, max_pos.z - min_pos.z};
-        Vec3 domain_center = {(min_pos.x + max_pos.x) / 2, (min_pos.y + max_pos.y) / 2, (min_pos.z + max_pos.z) / 2};
-        
-        // Add 50% margin to domain size (ions will move)
-        domain_size = domain_size * 1.5;
-        
-        // Grid resolution: Aim for ~1mm cells (adjust based on domain)
-        constexpr int TARGET_GRID_SIZE = 64;  // 64³ = 262k cells (good balance)
-        double cell_size_x = domain_size.x / TARGET_GRID_SIZE;
-        double cell_size_y = domain_size.y / TARGET_GRID_SIZE;
-        double cell_size_z = domain_size.z / TARGET_GRID_SIZE;
-        
-        // Use uniform cell size (max of xyz)
-        double cell_size = std::max({cell_size_x, cell_size_y, cell_size_z, 1e-4});  // Min 0.1mm
-        
-        Vec3 grid_origin = {
-            domain_center.x - (TARGET_GRID_SIZE * cell_size) / 2,
-            domain_center.y - (TARGET_GRID_SIZE * cell_size) / 2,
-            domain_center.z - (TARGET_GRID_SIZE * cell_size) / 2
-        };
-        
-        log::Logger::main()->info("  Grid: {}³ cells, {:.2e} m cell size", TARGET_GRID_SIZE, cell_size);
-        log::Logger::main()->info("  Domain: [{:.3f}, {:.3f}] x [{:.3f}, {:.3f}] x [{:.3f}, {:.3f}] mm",
-                                  grid_origin.x * 1e3, (grid_origin.x + TARGET_GRID_SIZE * cell_size) * 1e3,
-                                  grid_origin.y * 1e3, (grid_origin.y + TARGET_GRID_SIZE * cell_size) * 1e3,
-                                  grid_origin.z * 1e3, (grid_origin.z + TARGET_GRID_SIZE * cell_size) * 1e3);
-        
-        // Create solver
-        auto sc_solver = std::make_shared<SpaceChargeSolver>(
-            TARGET_GRID_SIZE, TARGET_GRID_SIZE, TARGET_GRID_SIZE,
-            cell_size, cell_size, cell_size,
-            grid_origin
-        );
-        
-        // Wrap solver in IForce interface and add to registries
-        for (auto& registry : registries) {
-            registry->add_force(std::make_unique<physics::SpaceChargeGrid>(sc_solver));
-        }
-        log::Logger::main()->info("  ✓ SpaceChargeGrid added to {} registries", registries.size());
+
+        registries[idx]->set_space_charge_model(model);
+        assigned_models++;
+        log::Logger::main()->info("Space charge: {} uses {}",
+                                  config.domains[idx].name,
+                                  model->name());
+    }
+
+    if (assigned_models == 0) {
+        log::Logger::main()->warn("Space charge: No domains received a model; "
+                                  "space charge remains disabled.");
     }
 }
 

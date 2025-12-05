@@ -26,13 +26,110 @@
 #include "core/physics/forces/ForceContext.h"
 #include "utils/constants.h"
 
+#include "core/physics/spacecharge/SpaceChargeGridModel.h"
+#include "core/physics/spacecharge/SpaceChargeDirectModel.h"
+#include "core/config/types/CylindricalGeometry.h"
+#include "core/config/types/DomainConfig.h"
+#include "core/types/IonEnsemble.h"
+#include "core/utils/mathUtils.h"
+
 #include <vector>
 #include <cmath>
+#include <limits>
+#include <memory>
 
 using namespace ICARION;
 using namespace ICARION::physics;
 using Catch::Matchers::WithinRel;
 using Catch::Matchers::WithinAbs;
+
+// ====================================================================================
+// TEST CASE 0: Geometry-driven grid parity using new models
+// ====================================================================================
+
+TEST_CASE("SpaceCharge Integration: geometry-aware grid vs direct model",
+          "[spacecharge][integration][geometry]") {
+    config::DomainConfig dom;
+    dom.name = "rotated_cylinder";
+    dom.geometry.length_m = 0.06;
+    dom.geometry.radius_m = 0.008;
+    dom.geometry.end_aperture_m = 0.008;
+    dom.geometry.origin_m = Vec3{0.012, -0.018, 0.01};
+
+    const double theta = M_PI / 4.0; // 45 degrees
+    Mat3 R;
+    R.m[0][0] = std::cos(theta); R.m[0][1] = -std::sin(theta); R.m[0][2] = 0.0;
+    R.m[1][0] = std::sin(theta); R.m[1][1] =  std::cos(theta); R.m[1][2] = 0.0;
+    R.m[2][0] = 0.0;             R.m[2][1] = 0.0;              R.m[2][2] = 1.0;
+    dom.rotation_global_to_local = R;
+    dom.rotation_local_to_global = transpose(R);
+
+    config::CylindricalGeometry geometry(dom);
+
+    std::vector<IonState> ions;
+    ions.reserve(32);
+    for (int ix = 0; ix < 2; ++ix) {
+        for (int iy = 0; iy < 2; ++iy) {
+            for (int iz = 0; iz < 4; ++iz) {
+                Vec3 local_pos{
+                    -0.003 + ix * 0.0025,
+                    -0.002 + iy * 0.0025,
+                    0.002 + iz * 0.01};
+                IonState ion;
+                ion.pos = geometry.local_to_global_pos(local_pos);
+                ion.vel = Vec3{0.0, 0.0, 0.0};
+                ion.ion_charge_C = ELEM_CHARGE_C;
+                ion.mass_kg = AMU_TO_KG;
+                ion.active = true;
+                ion.born = true;
+                ions.push_back(ion);
+            }
+        }
+    }
+
+    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+
+    physics::SpaceChargeDirectModel direct_model(1e-10);
+    direct_model.update_fields(ensemble, 0.0);
+
+    auto geometry_model = std::make_unique<config::CylindricalGeometry>(dom);
+    physics::SpaceChargeGridModel grid_model(dom, std::move(geometry_model), 0.0005, 64);
+    grid_model.update_fields(ensemble, 0.0);
+
+    constexpr double SIGNIFICANCE = 1e-3;
+    double sum_rel_sq = 0.0;
+    size_t rel_count = 0;
+    double max_rel_significant = 0.0;
+    double max_abs_small = 0.0;
+
+    for (size_t i = 0; i < ensemble.size(); ++i) {
+        Vec3 E_direct = direct_model.sample_electric_field(i);
+        Vec3 E_grid = grid_model.sample_electric_field(i);
+        Vec3 diff = E_grid - E_direct;
+
+        double mag_direct = norm(E_direct);
+        double mag_diff = norm(diff);
+
+        if (mag_direct > SIGNIFICANCE) {
+            double rel = mag_diff / std::max(1e-12, mag_direct);
+            max_rel_significant = std::max(max_rel_significant, rel);
+            sum_rel_sq += rel * rel;
+            rel_count++;
+        } else {
+            max_abs_small = std::max(max_abs_small, mag_diff);
+        }
+    }
+    double rms_rel = rel_count > 0 ? std::sqrt(sum_rel_sq / rel_count) : 0.0;
+
+    INFO("Geometry-aware grid parity rms_rel=" << rms_rel
+         << " max_rel(sig)=" << max_rel_significant
+         << " max_abs_small=" << max_abs_small
+         << " rel_count=" << rel_count);
+
+    REQUIRE(max_rel_significant < 0.7);
+    REQUIRE(max_abs_small < 2e-3);
+    REQUIRE(rms_rel < 0.35);
+}
 
 // ====================================================================================
 // TEST CASE 1: Two-ion Coulomb repulsion (Direct vs Grid comparison)

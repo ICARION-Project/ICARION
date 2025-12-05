@@ -5,6 +5,7 @@
 #include "core/types/IonState.h"
 #include "core/types/IonEnsemble.h"
 #include "core/types/Grid3D.h"
+#include "core/config/types/IDomainGeometry.h"
 #include "utils/constants.h"
 #include <vector>
 
@@ -16,8 +17,8 @@
  * 
  * @return Charge density [C/m³] at each grid point (size = Nx×Ny×Nz)
  * 
- * @note Current implementation uses CIC on a box grid. No geometry masking or boundary
- *       conditions are applied beyond the grid extents.
+ * @note Geometry-aware solvers pass an optional IDomainGeometry pointer to reject
+ *       ions outside the physical domain before deposition; legacy callers may pass nullptr.
  * 
  * Maps discrete ion positions to continuous charge density field using
  * particle-in-cell (PIC) methods with second-order accuracy.
@@ -60,10 +61,12 @@
  * @throws std::runtime_error if grid size is insufficient for ion distribution
  */
 std::vector<double> deposit_charge(const std::vector<IonState>& ions,
-                                   const Grid3D& grid);
+                                   const Grid3D& grid,
+                                   const ICARION::config::IDomainGeometry* geometry = nullptr);
 
 /**
  * @brief Deposit ion charges onto 3D grid (SoA path)
  */
 std::vector<double> deposit_charge(const ICARION::core::IonEnsemble& ions,
-                                   const Grid3D& grid);
+                                   const Grid3D& grid,
+                                   const ICARION::config::IDomainGeometry* geometry = nullptr);

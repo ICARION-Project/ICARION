@@ -59,10 +59,10 @@ public:
      * 
      * Creates:
      * - ForceRegistry per domain with:
-     *   * ElectricFieldForce (always)
-     *   * MagneticFieldForce (if B > 0)
-     *   * DampingForce (if Friction model)
-     *   * SpaceChargeDirect or SpaceChargeGrid (if enabled, auto-selected)
+ *   * ElectricFieldForce (always)
+ *   * MagneticFieldForce (if B > 0)
+ *   * DampingForce (if Friction model)
+ *   * Space-charge model provided via SpaceChargeModelFactory (Direct/Grid/GPU)
      * - Integration strategy (RK4/RK45/Boris from config)
      * - Collision handler (EHSS/HSS/OU/Friction from config)
      * - Reaction handler (if reactions enabled)
@@ -71,9 +71,8 @@ public:
      * @param ions Initial ion ensemble (for space charge grid estimation)
      * @return Physics modules ready for SimulationEngine
      * 
-     * @note Space charge method auto-selection:
-     *       - N < 1000: SpaceChargeDirect (exact O(N²))
-     *       - N ≥ 1000: SpaceChargeGrid (fast O(N log N))
+     * @note Space charge method selection is delegated to SpaceChargeModelFactory,
+     *       which evaluates domain geometry, ion count, and GPU availability.
      */
     static PhysicsModules initialize(
         const config::FullConfig& config,
@@ -103,11 +102,10 @@ private:
     static inline std::vector<std::unique_ptr<config::IFieldModel>> field_models_storage_;
     
     /**
-     * @brief Add space charge forces to registries
+     * @brief Add space charge models to registries
      * 
-     * Auto-selects method based on ion count:
-     * - Direct N-body if N < 1000
-     * - Grid-based Poisson if N ≥ 1000
+     * Delegates selection to SpaceChargeModelFactory for each domain. Direct models
+     * are shared between registries, while grid/GPU models are instantiated per-domain.
      */
     static void add_space_charge_forces(
         std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,

@@ -5,6 +5,7 @@
 
 #include "IDomainGeometry.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/types/Grid3D.h"
 #include <cmath>
 #include <array>
 #include <limits>
@@ -26,7 +27,10 @@ public:
           length_(cfg.geometry.length_m),
           end_aperture_(cfg.geometry.end_aperture_m),
           R_g2l_(cfg.rotation_global_to_local),
-          R_l2g_(cfg.rotation_local_to_global) {}
+          R_l2g_(cfg.rotation_local_to_global),
+          entrance_potential_(0.0),
+          exit_potential_(cfg.fields.dc.axial_V.constant_value.value_or(0.0)),
+          wall_potential_(cfg.fields.dc.radial_V.constant_value.value_or(0.0)) {}
 
     bool contains(const Vec3& global_pos) const override {
         Vec3 local = global_to_local_pos(global_pos);
@@ -184,6 +188,49 @@ public:
         return box;
     }
 
+    void apply_spacecharge_dirichlet(const ::Grid3D& grid,
+                                     std::vector<char>& mask,
+                                     std::vector<double>& values) const override {
+        mask.assign(grid.size(), 0);
+        values.assign(grid.size(), 0.0);
+
+        const double tol_z = 0.5 * grid.dz + 1e-9;
+        const double tol_r = 0.5 * std::max(grid.dx, grid.dy) + 1e-9;
+
+        for (int k = 0; k < grid.Nz; ++k) {
+            const double z = grid.origin_m.z + static_cast<double>(k) * grid.dz;
+            for (int j = 0; j < grid.Ny; ++j) {
+                const double y = grid.origin_m.y + static_cast<double>(j) * grid.dy;
+                for (int i = 0; i < grid.Nx; ++i) {
+                    const double x = grid.origin_m.x + static_cast<double>(i) * grid.dx;
+                    const int idx = grid.index(i, j, k);
+                    Vec3 local = global_to_local_pos(Vec3{x, y, z});
+                    const double r = std::sqrt(local.x * local.x + local.y * local.y);
+                    const bool bottom_plane = local.z <= tol_z;
+                    const bool top_plane = local.z >= length_ - tol_z;
+                    const bool outside_lower = local.z < -tol_z;
+                    const bool outside_upper = local.z > length_ + tol_z;
+                    const bool radial_wall = r >= radius_ - tol_r;
+
+                    if (outside_lower || bottom_plane) {
+                        mask[idx] = 1;
+                        values[idx] = entrance_potential_;
+                        continue;
+                    }
+                    if (outside_upper || top_plane) {
+                        mask[idx] = 1;
+                        values[idx] = exit_potential_;
+                        continue;
+                    }
+                    if (radial_wall || r >= radius_ + tol_r) {
+                        mask[idx] = 1;
+                        values[idx] = wall_potential_;
+                    }
+                }
+            }
+        }
+    }
+
 private:
     Vec3 origin_;
     double radius_;
@@ -191,6 +238,9 @@ private:
     double end_aperture_;
     Mat3 R_g2l_;
     Mat3 R_l2g_;
+    double entrance_potential_;
+    double exit_potential_;
+    double wall_potential_;
 
     static constexpr double EPSILON = 1e-12;
     static constexpr double NUMERICAL_ZERO = 1e-15;

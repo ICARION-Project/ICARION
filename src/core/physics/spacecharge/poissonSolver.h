@@ -16,8 +16,11 @@
  *     ∇²φ = -ρ/ε₀       (Poisson)
  *     ∇²φ = 0            (Laplace)
  *
- * Supports Dirichlet and Neumann boundary conditions; periodic/FFT path is stubbed.
- * Used by the CPU space-charge solver; geometry awareness is limited to the box grid.
+ * Current CPU implementation supports Dirichlet/Neumann boundary conditions via
+ * explicit masks and uses Gauss-Seidel or Red-Black SOR iterations. Periodic/GPU/FFT
+ * paths are stubbed for future work; callers should expect the GS/SOR pipeline.
+ * Used by the CPU space-charge solver; geometry awareness is provided externally by
+ * building grids from IDomainGeometry bounding boxes and applying Dirichlet masks.
  */
 class PoissonSolver {
 public:

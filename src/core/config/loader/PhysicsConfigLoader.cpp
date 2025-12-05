@@ -25,6 +25,10 @@ PhysicsConfig PhysicsConfigLoader::load(const Json::Value& json) {
         config.enable_space_charge = json["enable_space_charge"].asBool();
     }
     
+    if (json.isMember("enable_space_charge_gpu") && json["enable_space_charge_gpu"].isBool()) {
+        config.enable_space_charge_gpu = json["enable_space_charge_gpu"].asBool();
+    }
+    
     // Thermalization
     if (json.isMember("enable_ou_thermalization") && json["enable_ou_thermalization"].isBool()) {
         config.enable_ou_thermalization = json["enable_ou_thermalization"].asBool();

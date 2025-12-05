@@ -16,24 +16,24 @@
 ## Phase 2 – Grid Model & Geometry Hooks (Day 2-3)
 - [ ] Extend `IDomainGeometry` with:
   - [x] `BoundingBox global_bounding_box(double margin) const`.
-  - [ ] `void apply_spacecharge_dirichlet(Grid3D&, std::vector<char>& mask, std::vector<double>& values) const` (default no-op).
-- [ ] Implement `SpaceChargeGridModel`:
-  - Construct grid from geometry bbox (configurable padding/cell size).
-  - Deposit charge (`depositCharge.cpp`), call `PoissonSolver` using geometry-supplied BCs.
-  - Cache `E` field and serve through `sample_E`.
-- [ ] Update `PoissonSolver` doc/comments to clarify solver selection (keep GS + Multigrid, deprecate extra modes for now).
+  - [x] `void apply_spacecharge_dirichlet(Grid3D&, std::vector<char>& mask, std::vector<double>& values) const` (default no-op).
+- [x] Implement `SpaceChargeGridModel` foundation:
+  - [x] Construct grid from geometry bbox (configurable padding/cell size).
+  - [x] Deposit charge (`deposit_charge` now accepts optional `IDomainGeometry` mask and `SpaceChargeSolver` propagates it, so geometry filtering happens without copying).
+  - [x] Cache `E` field and serve through `sample_E`.
+- [x] Update `PoissonSolver` doc/comments to clarify solver selection (keep GS + Multigrid, deprecate extra modes for now).
 - [x] Modify `PhysicsSetup::add_space_charge_forces` to instantiate per-domain models via new `SpaceChargeModelFactory` (direct path active; legacy grid/GPU branch remains as fallback until GridModel lands).
-- [ ] Tests: expand `test_space_charge_integration` to cover geometry-based bbox; add `test_cylindrical_spacecharge_bbox` (unit-level).
+- [x] Tests: extend coverage via `test_domain_geometry` (bbox + Dirichlet mask), `test_space_charge_model_parity` (SoA parity), and an additional geometry-aware section in `test_space_charge_integration`.
 
 ## Phase 3 – GPU Model Integration (Day 4)
-- [ ] Wrap `gpu::GPUSpaceChargeP3M` in `SpaceChargeGPUModel` (implement interface).
-- [ ] Extend factory to try GPU when `config.physics.enable_space_charge_gpu` and thresholds satisfied.
-- [ ] Ensure CPU fallback path (if GPU fails) returns Grid/Direct.
-- [ ] Tests: basic GPU stub test or compile-time skip; keep existing GPU helper tests for regression.
+- [x] Wrap `gpu::GPUSpaceChargeP3M` in `SpaceChargeGPUModel` (implement interface).
+- [x] Extend factory to try GPU when `config.physics.enable_space_charge_gpu` and thresholds satisfied.
+- [x] Ensure CPU fallback path (if GPU fails) returns Grid/Direct.
+- [x] Tests: basic GPU stub test or compile-time skip; keep existing GPU helper tests for regression.
 
 ## Phase 4 – Docs & Validation (Day 5)
-- [ ] Update `docs/ARCHITECTURE.md` + `docs/DEVELOPERS_GUIDE.md` to describe `ISpaceChargeModel` design.
-- [ ] Document solver selection + geometry-driven grids in `docs/CONFIG_GUIDE.md` (space charge section).
+- [x] Update `docs/ARCHITECTURE.md` + `docs/DEVELOPERS_GUIDE.md` to describe `ISpaceChargeModel` design.
+- [x] Document solver selection + geometry-driven grids in `docs/CONFIG_GUIDE.md` (space charge section).
 - [ ] Run validation scripts (IMS drift, mixture thermalization) to confirm behavior.
 
 ## Risks & Mitigations

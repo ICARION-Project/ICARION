@@ -902,11 +902,14 @@ See `schema/simulation.schema.json` for all options.
 "physics": {
   "collision_model": "HSS",      // NoCollisions, HSD, HSS, EHSS, Langevin, Friction
   "enable_reactions": false,
-  "enable_space_charge": false
+  "enable_space_charge": false,
+  "enable_space_charge_gpu": false  // Prefer GPU P³M (requires CUDA build; falls back automatically)
 }
 ```
 
 **Collision Models:** See [COLLISION_MODELS.md](COLLISION_MODELS.md) for detailed physics and use cases.
+
+**Space charge:** Set `enable_space_charge` to true to activate Coulomb coupling. Optional `enable_space_charge_gpu` requests the GPU P³M solver (only when ICARION is built with CUDA); otherwise the factory automatically falls back to grid/direct CPU implementations.
 
 See `schema/physics.schema.json` for all options.
 

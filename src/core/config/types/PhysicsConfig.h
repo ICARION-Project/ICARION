@@ -23,6 +23,7 @@ struct PhysicsConfig {
     // === Feature flags ===
     bool enable_reactions = false;
     bool enable_space_charge = false;
+    bool enable_space_charge_gpu = false;
     
     // === Thermalization ===
     bool enable_ou_thermalization = false;

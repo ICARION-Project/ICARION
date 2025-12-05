@@ -143,7 +143,7 @@ void SpaceChargeSolver::update(const std::vector<IonState>& ions)
     }
     
     // 1. Charge deposition (box grid; no geometry masking)
-    auto rho = deposit_charge(ions, m_grid);
+    auto rho = deposit_charge(ions, m_grid, m_geometry_mask);
     m_solver.setSourceTerm(rho);
 
     // 2. Optimized solve for few ions, many timesteps
@@ -216,7 +216,7 @@ void SpaceChargeSolver::update(const ICARION::core::IonEnsemble& ions)
         return;
     }
 
-    auto rho = deposit_charge(ions, m_grid);
+    auto rho = deposit_charge(ions, m_grid, m_geometry_mask);
     m_solver.setSourceTerm(rho);
 
     double tolerance;

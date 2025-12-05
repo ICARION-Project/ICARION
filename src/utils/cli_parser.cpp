@@ -340,8 +340,9 @@ Hierarchical Structure:
     write_interval      int32       Output write interval
     integrator          string      Solver type (RK4, RK45, Leapfrog, etc.)
     collision_model     string      Collision model (EHSS, HSS, etc.)
-    enable_reactions    bool        Chemical reactions enabled?
-    enable_space_charge bool        Space charge enabled?
+    enable_reactions        bool        Chemical reactions enabled?
+    enable_space_charge     bool        Space charge enabled?
+    enable_space_charge_gpu bool        Prefer GPU space charge (if available)?
     enable_gpu          bool        GPU acceleration enabled?
   
   /reproducibility/

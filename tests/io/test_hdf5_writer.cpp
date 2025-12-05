@@ -166,7 +166,8 @@ TEST_CASE("HDF5Writer v2 creates correct file structure", "[hdf5][io]") {
     auto ions = create_test_ions();
     
     // Create file with metadata
-    io::HDF5Writer::create_file(test_file, config, ions, "test_git_hash", "gcc 11.4.0 -O3");
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
+    io::HDF5Writer::create_file(test_file, config, ensemble, "test_git_hash", "gcc 11.4.0 -O3");
     
     REQUIRE(std::filesystem::exists(test_file));
     
@@ -191,8 +192,9 @@ TEST_CASE("HDF5Writer v2 writes simulation metadata correctly", "[hdf5][io]") {
     std::string test_file = get_test_file();
     auto config = create_minimal_config();
     auto ions = create_test_ions();
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
     
-    io::HDF5Writer::create_file(test_file, config, ions, "abc123def", "gcc 11.4.0");
+    io::HDF5Writer::create_file(test_file, config, ensemble, "abc123def", "gcc 11.4.0");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     H5::Group cfg_group = file.openGroup("/metadata/config");
@@ -250,7 +252,8 @@ TEST_CASE("HDF5Writer v2 writes species metadata in tabular format", "[hdf5][io]
     auto config = create_minimal_config();
     auto ions = create_test_ions();
     
-    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
+    io::HDF5Writer::create_file(test_file, config, ensemble, "test", "test");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     H5::Group species_group = file.openGroup("/metadata/species");
@@ -281,7 +284,8 @@ TEST_CASE("HDF5Writer v2 writes domain configuration", "[hdf5][io]") {
     auto config = create_minimal_config();
     auto ions = create_test_ions();
     
-    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    auto ensemble2 = core::IonEnsemble::from_legacy(ions);
+    io::HDF5Writer::create_file(test_file, config, ensemble2, "test", "test");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     H5::Group domain = file.openGroup("/domains/domain_0");

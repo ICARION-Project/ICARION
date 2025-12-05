@@ -3,7 +3,10 @@
 **Version:** 1.0 
 **Last Updated:** December 2025
 
-This guide provides practical instructions for extending ICARION with new features.
+This guide provides practical instructions for extending ICARION with new features.  
+**Baseline:** Core CPU paths are SoA-first (`IonEnsemble`). AoS helpers exist only for tests/legacy entry points and should not be used in hot loops.
+
+**Separation of concerns:** The engine orchestrates while pluggable strategies/registries do the work: forces (`IForce` + `ForceRegistry`), collisions (`ICollisionHandler` + factory), reactions (`IReactionHandler` + factory), fields/geometry (`IFieldModel`/`IDomainGeometry` via DomainManager), integrators (`IIntegrationStrategy` + factory). Swap components without changing the engine loop.
 
 ---
 
@@ -22,7 +25,7 @@ This guide provides practical instructions for extending ICARION with new featur
 
 ### Overview
 
-ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement `IForce::compute()` and are managed by `ForceRegistry`.
+ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement the SoA path `IForce::compute_soa()` (and optionally `compute()` for tests/legacy) and are managed by `ForceRegistry`.
 
 **Version:** 1.0 uses **const config references** (Single Source of Truth pattern)
 
@@ -41,7 +44,7 @@ ICARION's force system follows a plugin architecture using the **IForce interfac
 
 ---
 
-### Step-by-Step Guide
+### Step-by-Step Guide (SoA-first)
 
 #### 1. Create Force Header (`src/core/physics/forces/YourForce.h`)
 
@@ -78,7 +81,8 @@ public:
      */
     explicit YourForce(const config::DomainConfig& domain, double additional_param = 0.0);
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
+Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;  // AoS (tests)
+Vec3 compute_soa(const core::IonEnsemble& ensemble, size_t i, double t, const ForceContext& ctx) const override; // SoA hot path
     
 private:
     const config::DomainConfig& domain_;  ///< Reference, not copy!
@@ -195,6 +199,7 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 
 **DO:**
 
+- Implement `compute_soa` (primary path); keep `compute` only if you need AoS tests/mocks.
 - **Use const config references**, not parameter structs
 - **Store references as members**: `const config::DomainConfig& domain_;`
 - **Read config on-demand**: `double V = domain_.fields.dc.axial_V;`

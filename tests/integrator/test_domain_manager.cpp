@@ -260,8 +260,5 @@ TEST_CASE("CylindricalGeometry: aperture respected at exit plane") {
     Vec3 start_block{0.03, 0.0, 0.19};  // r=0.03 > aperture
     Vec3 end_block{0.03, 0.0, 0.21};
     Vec3 hit_block{};
-    REQUIRE(geom.first_boundary_intersection(start_block, end_block, hit_block));
-    double r_hit = std::sqrt(hit_block.x * hit_block.x + hit_block.y * hit_block.y);
-    // Intersection exists, but radius exceeds aperture; caller can reject
-    REQUIRE(r_hit > dom.geometry.end_aperture_m);
+    REQUIRE_FALSE(geom.first_boundary_intersection(start_block, end_block, hit_block));
 }

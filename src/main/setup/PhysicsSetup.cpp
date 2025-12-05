@@ -24,6 +24,7 @@
 #include "fieldsolver/utils/GridFieldProvider.h"
 #include "fieldsolver/utils/CompositeFieldProvider.h"
 #include "core/log/Logger.h"
+#include "core/types/IonEnsemble.h"
 #include <algorithm>
 #include <unordered_set>
 
@@ -31,7 +32,7 @@ namespace ICARION::setup {
 
 PhysicsModules PhysicsSetup::initialize(
     const config::FullConfig& config,
-    const std::vector<core::IonState>& ions
+    const core::IonEnsemble& ions
 ) {
     log::Logger::main()->info("Initializing physics modules");
     
@@ -209,7 +210,7 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
 void PhysicsSetup::add_space_charge_forces(
     std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
     const config::FullConfig& config,
-    const std::vector<core::IonState>& ions
+    const core::IonEnsemble& ions
 ) {
     const size_t N = ions.size();
     constexpr size_t SPACE_CHARGE_THRESHOLD = 1000;
@@ -231,16 +232,19 @@ void PhysicsSetup::add_space_charge_forces(
                                           N, SPACE_CHARGE_THRESHOLD);
                 log::Logger::main()->info("  → GPU P³M algorithm (O(N log N), cuFFT-based Poisson solver)");
                 
-                // Estimate domain size from ion initial positions
-                Vec3 min_pos = ions[0].pos;
-                Vec3 max_pos = ions[0].pos;
-                for (const auto& ion : ions) {
-                    min_pos.x = std::min(min_pos.x, ion.pos.x);
-                    min_pos.y = std::min(min_pos.y, ion.pos.y);
-                    min_pos.z = std::min(min_pos.z, ion.pos.z);
-                    max_pos.x = std::max(max_pos.x, ion.pos.x);
-                    max_pos.y = std::max(max_pos.y, ion.pos.y);
-                    max_pos.z = std::max(max_pos.z, ion.pos.z);
+                // Estimate domain size from ion initial positions (SoA)
+                const auto* px = ions.pos_x_data();
+                const auto* py = ions.pos_y_data();
+                const auto* pz = ions.pos_z_data();
+                Vec3 min_pos{px[0], py[0], pz[0]};
+                Vec3 max_pos{px[0], py[0], pz[0]};
+                for (size_t i = 1; i < N; ++i) {
+                    min_pos.x = std::min(min_pos.x, px[i]);
+                    min_pos.y = std::min(min_pos.y, py[i]);
+                    min_pos.z = std::min(min_pos.z, pz[i]);
+                    max_pos.x = std::max(max_pos.x, px[i]);
+                    max_pos.y = std::max(max_pos.y, py[i]);
+                    max_pos.z = std::max(max_pos.z, pz[i]);
                 }
                 
                 Vec3 domain_size = {max_pos.x - min_pos.x, max_pos.y - min_pos.y, max_pos.z - min_pos.z};
@@ -333,16 +337,19 @@ void PhysicsSetup::add_space_charge_forces(
                                   N, SPACE_CHARGE_THRESHOLD);
         log::Logger::main()->info("  → Grid-based Poisson solver (fast, O(N log N))");
         
-        // Estimate domain size from ion initial positions
-        Vec3 min_pos = ions[0].pos;
-        Vec3 max_pos = ions[0].pos;
-        for (const auto& ion : ions) {
-            min_pos.x = std::min(min_pos.x, ion.pos.x);
-            min_pos.y = std::min(min_pos.y, ion.pos.y);
-            min_pos.z = std::min(min_pos.z, ion.pos.z);
-            max_pos.x = std::max(max_pos.x, ion.pos.x);
-            max_pos.y = std::max(max_pos.y, ion.pos.y);
-            max_pos.z = std::max(max_pos.z, ion.pos.z);
+        // Estimate domain size from ion initial positions (SoA)
+        const auto* px = ions.pos_x_data();
+        const auto* py = ions.pos_y_data();
+        const auto* pz = ions.pos_z_data();
+        Vec3 min_pos{px[0], py[0], pz[0]};
+        Vec3 max_pos{px[0], py[0], pz[0]};
+        for (size_t i = 1; i < N; ++i) {
+            min_pos.x = std::min(min_pos.x, px[i]);
+            min_pos.y = std::min(min_pos.y, py[i]);
+            min_pos.z = std::min(min_pos.z, pz[i]);
+            max_pos.x = std::max(max_pos.x, px[i]);
+            max_pos.y = std::max(max_pos.y, py[i]);
+            max_pos.z = std::max(max_pos.z, pz[i]);
         }
         
         Vec3 domain_size = {max_pos.x - min_pos.x, max_pos.y - min_pos.y, max_pos.z - min_pos.z};

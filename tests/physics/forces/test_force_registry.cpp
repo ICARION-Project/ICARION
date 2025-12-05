@@ -7,9 +7,13 @@
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/physics/forces/IForce.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/types/IonEnsemble.h"
+#include "core/types/IonState.h"
+#include "core/types/Vec3.h"
 
 using namespace ICARION::physics;
 using namespace ICARION::config;
+using ICARION::core::IonEnsemble;
 using Catch::Approx;
 
 // ============================================================================
@@ -48,6 +52,12 @@ public:
         (void)ion; (void)t; (void)ctx;  // Unused
         return force_;
     }
+
+    Vec3 compute_soa(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                     const ForceContext& ctx) const override {
+        (void)t; (void)ctx;
+        return force_;
+    }
     
     std::string name() const override { return "ConstantForce"; }
     
@@ -67,6 +77,12 @@ public:
     
     Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
         (void)ion; (void)t; (void)ctx;  // Unused
+        return force_;
+    }
+
+    Vec3 compute_soa(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                     const ForceContext& ctx) const override {
+        (void)ensemble; (void)ion_idx; (void)t; (void)ctx;
         return force_;
     }
     
@@ -93,6 +109,13 @@ public:
     Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
         (void)t; (void)ctx;  // Unused
         return Vec3{0, 0, -ion.mass_kg * g_};
+    }
+
+    Vec3 compute_soa(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                     const ForceContext& ctx) const override {
+        (void)t; (void)ctx;
+        double m = ensemble.mass_data()[ion_idx];
+        return Vec3{0, 0, -m * g_};
     }
     
     std::string name() const override { return "Gravity"; }
@@ -317,6 +340,23 @@ TEST_CASE("ForceRegistry - Force context (SSOT)", "[forces][registry]") {
                 return Vec3{ctx.domain->environment.temperature_K, 0, 0};
             }
             return Vec3{0, 0, 0};
+        }
+
+        Vec3 compute_soa(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                         const ForceContext& ctx) const override {
+            IonState ion;
+            ion.pos = ensemble.get_pos(ion_idx);
+            ion.vel = ensemble.get_vel(ion_idx);
+            ion.mass_kg = ensemble.mass_data()[ion_idx];
+            ion.ion_charge_C = ensemble.charge_data()[ion_idx];
+            ion.active = ensemble.active_data()[ion_idx] != 0;
+            ion.born = ensemble.born_data()[ion_idx] != 0;
+            ion.current_domain_index = ensemble.domain_index(ion_idx);
+            ion.CCS_m2 = ensemble.CCS(ion_idx);
+            ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+            ion.species_id = ensemble.species_id(ion_idx);
+            ion.birth_time_s = ensemble.birth_time(ion_idx);
+            return compute(ion, t, ctx);
         }
         
         std::string name() const override { return "ContextAware"; }

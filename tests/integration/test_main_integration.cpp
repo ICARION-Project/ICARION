@@ -12,6 +12,8 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "core/config/loader/ConfigLoader.h"
+#include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/integrator/SimulationEngine.h"
 #include "core/integrator/strategies/RK4Strategy.h"
 #include "core/integrator/strategies/RK45Strategy.h"
@@ -142,10 +144,11 @@ TEST_CASE("Main integration: Complete simulation pipeline", "[integration][main]
         );
         
         // Run simulation
-        auto final_ions = engine.run(ions);
+        auto ensemble = core::IonEnsemble::from_legacy(ions);
+        auto final_ensemble = engine.run(ensemble);
         
         // Verify results
-        REQUIRE(final_ions.size() == initial_count);
+        REQUIRE(final_ensemble.size() == initial_count);
         
         // Just verify simulation completed successfully
         // (movement check might fail for very short simulations)

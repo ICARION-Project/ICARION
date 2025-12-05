@@ -14,7 +14,6 @@
 #pragma once
 
 #include "core/config/types/FullConfig.h"
-#include "core/types/IonState.h"
 #include "core/types/IonEnsemble.h"
 #include <H5Cpp.h>
 #include <vector>
@@ -48,15 +47,6 @@ public:
     static void create_file(
         const std::string& filename,
         const config::FullConfig& config,
-        const std::vector<IonState>& ions,
-        const std::string& git_hash,
-        const std::string& build_info
-    );
-
-    // SoA overload
-    static void create_file(
-        const std::string& filename,
-        const config::FullConfig& config,
         const core::IonEnsemble& ions,
         const std::string& git_hash,
         const std::string& build_info
@@ -73,12 +63,6 @@ public:
      * 
      * @note For better performance, use append_trajectory_batch() when writing multiple timesteps.
      */
-    static void append_trajectory(
-        const std::string& filename,
-        double time,
-        const std::vector<IonState>& ions
-    );
-
     static void append_trajectory(
         const std::string& filename,
         double time,
@@ -99,12 +83,6 @@ public:
     static void append_trajectory_batch(
         const std::string& filename,
         const std::vector<double>& times,
-        const std::vector<std::vector<IonState>>& trajectories
-    );
-
-    static void append_trajectory_batch(
-        const std::string& filename,
-        const std::vector<double>& times,
         const std::vector<core::IonEnsemble>& trajectories
     );
     
@@ -118,11 +96,6 @@ public:
      * boundary absorption times. Initial write in write_ion_metadata()
      * sets all to -1 (alive). This updates with actual death times.
      */
-    static void update_death_times(
-        const std::string& filename,
-        const std::vector<IonState>& final_ions
-    );
-
     static void update_death_times(
         const std::string& filename,
         const core::IonEnsemble& final_ensemble
@@ -184,11 +157,6 @@ private:
     static void write_species_metadata(
         H5::H5File& file,
         const config::SpeciesDatabase& species_db,
-        const std::vector<IonState>& ions
-    );
-    static void write_species_metadata(
-        H5::H5File& file,
-        const config::SpeciesDatabase& species_db,
         const core::IonEnsemble& ions
     );
     
@@ -198,12 +166,6 @@ private:
      * Tabular format: id, reactants, products, rate constants, types
      * Only writes reactions involving species present in ions (filters large databases)
      */
-    static void write_reactions_metadata(
-        H5::H5File& file,
-        const config::ReactionDatabase& reaction_db,
-        const std::vector<IonState>& ions,
-        const config::SpeciesDatabase& species_db
-    );
     static void write_reactions_metadata(
         H5::H5File& file,
         const config::ReactionDatabase& reaction_db,
@@ -259,10 +221,6 @@ private:
      * 
      * Per-ion metadata: species, initial pos/vel, birth time
      */
-    static void write_ion_metadata(
-        H5::H5File& file,
-        const std::vector<IonState>& ions
-    );
     static void write_ion_metadata(
         H5::H5File& file,
         const core::IonEnsemble& ions

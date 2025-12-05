@@ -108,23 +108,16 @@ public:
     );
     
     /**
-     * @brief Run simulation (legacy AoS interface, internally SoA)
-     * @param ions Initial ion ensemble
-     * @return Final ion states
-     */
-    std::vector<IonState> run(std::vector<IonState>& ions);
-    
-    /**
      * @brief Run simulation using SoA (Structure of Arrays) data layout
      * @param ensemble Initial ion ensemble (SoA)
-     * @return Final ion states (converted back to AoS for compatibility)
+     * @return Final ion states (SoA)
      * 
      * **Performance Notes:**
      * - SoA loop is used internally for per-timestep work.
      * - Entry from legacy AoS calls converts once and reuses SoA thereafter.
      * - OpenMP friendliness remains (no false sharing in the hot arrays).
      * 
-     * **Note:** Uses process_timestep_soa() internally for bulk operations
+     * **Note:** Uses process_timestep() internally for bulk operations
      */
     core::IonEnsemble run(core::IonEnsemble& ensemble);
     
@@ -186,12 +179,7 @@ private:
      * 
      * Creates DomainManager and OutputManager, writes initial HDF5 metadata.
      */
-    void initialize(const std::vector<IonState>& ions);
-
-    /**
-     * @brief Initialize simulation subsystems from SoA ensemble
-     */
-    void initialize_soa(const core::IonEnsemble& ensemble);
+    void initialize(const core::IonEnsemble& ensemble);
     
     /**
      * @brief Initialize OpenMP thread settings and NUMA awareness
@@ -216,44 +204,6 @@ private:
      * Called automatically during initialize().
      */
     void initialize_gpu(bool enable_gpu);
-    
-    /**
-     * @brief Try GPU batch integration (if enabled and above threshold)
-     * @param ions Ion ensemble
-     * @param dt Timestep [s]
-     * @return true if GPU integration succeeded, false if CPU fallback needed
-     * 
-     * Automatically falls back to CPU if GPU unavailable or N < threshold.
-     */
-    bool try_gpu_integration(std::vector<IonState>& ions, double dt);
-    
-    /**
-     * @brief Try GPU batch collision processing (if enabled and above threshold)
-     * @param ions Ion ensemble
-     * @param dt Timestep [s]
-     * @return true if GPU collision processing succeeded, false if CPU fallback needed
-     * 
-     * Automatically falls back to CPU if GPU unavailable or N < threshold.
-     */
-    bool try_gpu_collisions(std::vector<IonState>& ions, double dt);
-    
-    /**
-     * @brief Try GPU space charge field computation (P³M algorithm)
-     * @param ions Ion ensemble
-     * @param E_fields Output: E-field at each ion position [V/m]
-     * @return true if GPU space charge succeeded, false if CPU fallback needed
-     * 
-     * **Dispatch Logic:**
-     * - Requires N >= gpu_space_charge_threshold_ (default: 1000 ions)
-     * - Uses P³M algorithm (O(N log N) via FFT)
-     * - SimulationEngine does not dispatch this helper yet; caller must invoke manually.
-     * 
-     * **Automatically falls back to CPU if:**
-     * - GPU not available
-     * - N < threshold (direct summation O(N²) faster for small N)
-     * - Space charge config missing or disabled
-     */
-    bool try_gpu_space_charge(const std::vector<IonState>& ions, std::vector<Vec3>& E_fields);
     
     /**
      * @brief Extract field provider from force registry
@@ -309,7 +259,7 @@ private:
      * **Performance:** Gains materialize when integrators override step_soa() and
      * avoid AoS conversions; default wrappers may limit gains.
      */
-    void process_timestep_soa(core::IonEnsemble& ensemble, double dt);
+    void process_timestep(core::IonEnsemble& ensemble, double dt);
     
     /**
      * @brief Log progress message (every 10%)

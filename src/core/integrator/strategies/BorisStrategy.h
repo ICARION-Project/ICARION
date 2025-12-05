@@ -56,49 +56,9 @@ public:
     BorisStrategy() = default;
     
     /**
-     * @brief Advance ion by one timestep using Boris pusher
-     * 
-     * @param ion Ion state (updated in-place)
-     * @param t Current time [s]
-     * @param dt Timestep [s]
-     * @param force_registry Force computation engine
-     * @param domain Domain configuration (SSOT!)
-     * @param all_ions All ions (for space charge)
-     * 
-     * **Implementation Details:**
-     * 1. Compute electric and magnetic forces at current position
-     * 2. Half-step electric acceleration
-     * 3. Boris rotation in magnetic field
-     * 4. Half-step electric acceleration
-     * 5. Position update with new velocity
-     * 
-     * **Force Decomposition:**
-     * - Electric force: F_E = q*E → contributes to v^- and v^+
-     * - Magnetic force: F_B = q*v×B → rotation operator
-     * - Other forces (drag, collisions): treated as electric-like
-     * 
-     * **Numerical Stability:**
-     * - Unconditionally stable for pure B-field
-     * - Stable for E-field if dt < 2/ω_plasma
-     * - Typical safety: dt < 0.1 * T_cyclotron
-     * 
-     * **Thread Safety:**
-     * - Read-only access to force_registry, all_ions
-     * - Modifies only `ion` parameter
-     * - Can parallelize over ions (no shared state)
-     */
-    void step(
-        IonState& ion,
-        double t,
-        double dt,
-        const physics::ForceRegistry& force_registry,
-        const std::vector<IonState>& all_ions
-    ) override;
-
-    /**
      * @brief SoA-aware Boris step (avoids AoS reconstruction)
      */
-    void step_soa(
+    void step(
         core::IonEnsemble& ensemble,
         size_t ion_idx,
         double t,

@@ -41,7 +41,6 @@ OutputManager::OutputManager(
     
     // Reserve buffer space
     times_buffer_.reserve(buffer_max_);
-    trajectory_buffer_.reserve(buffer_max_);
 }
 
 OutputManager::~OutputManager() {
@@ -76,52 +75,6 @@ OutputManager::~OutputManager() {
 }
 
 void OutputManager::initialize(
-    const config::FullConfig& config,
-    const std::vector<IonState>& ions
-) {
-    if (initialized_) {
-        throw std::runtime_error("OutputManager: Already initialized");
-    }
-    
-    // 1. Create HDF5 file with metadata using HDF5Writer
-    try {
-        io::HDF5Writer::create_file(
-            hdf5_filename_,
-            config,
-            ions,
-            GIT_HASH,
-            BUILD_TYPE
-        );
-    } catch (const std::exception& e) {
-        throw std::runtime_error("OutputManager: Failed to create HDF5 file: " + 
-                                 std::string(e.what()));
-    }
-    
-    // 2. Initialize text logger (if enabled)
-    if (!log_filename_.empty()) {
-        std::lock_guard<std::mutex> lock(text_log_mutex_);
-        text_log_file_.open(log_filename_, std::ios::out | std::ios::trunc);
-        if (!text_log_file_.is_open()) {
-            throw std::runtime_error("Failed to create text log: " + log_filename_);
-        }
-        
-        // Write header banner
-        text_log_file_ << "============================================================\n";
-        text_log_file_ << "       ICARION Ion Collision And Reaction IntegratiON       \n";
-        text_log_file_ << "============================================================\n";
-        auto now = std::chrono::system_clock::now();
-        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-        std::tm tm = *std::localtime(&now_c);
-        text_log_file_ << "Simulation started: ";
-        text_log_file_ << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << "\n\n";
-        text_log_file_.flush();
-    }
-    
-    initialized_ = true;
-    next_write_time_ = write_interval_dt_;
-}
-
-void OutputManager::initialize_soa(
     const config::FullConfig& config,
     const core::IonEnsemble& ensemble
 ) {
@@ -164,27 +117,11 @@ void OutputManager::initialize_soa(
     
     initialized_ = true;
     next_write_time_ = write_interval_dt_;
-    soa_mode_ = true;
 }
 
-void OutputManager::log_step(double t, const std::vector<IonState>& ions) {
+void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
     if (!initialized_) {
-        throw std::runtime_error("OutputManager: Not initialized (call initialize() first)");
-    }
-    
-    last_time_ = t;
-    
-    if (should_write_before_add(t)) {
-        flush();
-    }
-    
-    times_buffer_.push_back(t);
-    trajectory_buffer_.push_back(ions);
-}
-
-void OutputManager::log_step_soa(double t, const core::IonEnsemble& ensemble) {
-    if (!initialized_) {
-        throw std::runtime_error("OutputManager: Must call initialize() before log_step_soa()");
+        throw std::runtime_error("OutputManager: Must call initialize() before log_step()");
     }
     
     if (finalized_) {
@@ -236,25 +173,14 @@ void OutputManager::flush() {
     
     try {
         // Write all buffered snapshots in ONE batch operation
-        // This is much faster than individual append_trajectory() calls
-        // because it opens/closes the file only once
-        if (soa_mode_) {
-            io::HDF5Writer::append_trajectory_batch(
-                hdf5_filename_,
-                times_buffer_,
-                trajectory_buffer_soa_
-            );
-        } else {
-            io::HDF5Writer::append_trajectory_batch(
-                hdf5_filename_,
-                times_buffer_,
-                trajectory_buffer_
-            );
-        }
+        io::HDF5Writer::append_trajectory_batch(
+            hdf5_filename_,
+            times_buffer_,
+            trajectory_buffer_soa_
+        );
         
         // Clear buffers
         times_buffer_.clear();
-        trajectory_buffer_.clear();
         trajectory_buffer_soa_.clear();
         
         // Update next write time (avoid drift with adaptive timesteps)
@@ -268,105 +194,7 @@ void OutputManager::flush() {
     }
 }
 
-void OutputManager::finalize(double t_final, const std::vector<IonState>& final_ions) {
-    if (!initialized_) {
-        return;  // Nothing to finalize
-    }
-    
-    // 1. Ensure last snapshot is included
-    if (times_buffer_.empty() || times_buffer_.back() < t_final) {
-        times_buffer_.push_back(t_final);
-        trajectory_buffer_.push_back(final_ions);
-    }
-    
-    // 2. Flush remaining HDF5 data
-    if (!times_buffer_.empty()) {
-        flush();
-    }
-    
-    // 3. Update death_time_s in HDF5 file
-    try {
-        io::HDF5Writer::update_death_times(hdf5_filename_, final_ions);
-    } catch (const std::exception& e) {
-        std::cerr << "Warning: Failed to update death times in HDF5 file: " 
-                  << e.what() << std::endl;
-    }
-    
-    // 4. Finalize HDF5 file (writes completion metadata)
-    try {
-        size_t active_count = std::count_if(
-            final_ions.begin(), final_ions.end(),
-            [](const IonState& ion) { return ion.active && ion.born; }
-        );
-        
-        io::HDF5Writer::finalize(
-            hdf5_filename_,
-            true,  // success
-            t_final,
-            active_count
-        );
-    } catch (const std::exception& e) {
-        std::cerr << "Warning: Failed to finalize HDF5 file: " 
-                  << e.what() << std::endl;
-    }
-    
-    // 4. Write text log completion summary (thread-safe)
-    {
-        std::lock_guard<std::mutex> lock(text_log_mutex_);
-        if (text_log_file_.is_open()) {
-            // Compute ion statistics
-            size_t total = final_ions.size();
-            size_t active = std::count_if(final_ions.begin(), final_ions.end(),
-                                          [](const IonState& i){ return i.active; });
-            size_t lost = total - active;
-            double frac_lost = total > 0 ? 100.0 * static_cast<double>(lost) / total : 0.0;
-            
-            // Compute HDF5 file size
-            double file_size_MB = 0.0;
-            std::ifstream f(hdf5_filename_, std::ifstream::ate | std::ifstream::binary);
-            if (f.is_open()) {
-                file_size_MB = static_cast<double>(f.tellg()) / (1024.0 * 1024.0);
-            }
-            
-            // Write summary
-            text_log_file_ << "------------------------------------------------------------\n";
-            text_log_file_ << "Summary:\n";
-            text_log_file_ << "  Active ions remaining    : " << active << "\n";
-            text_log_file_ << "  Lost ions (boundary)     : " << lost
-                           << " (" << std::fixed << std::setprecision(1) << frac_lost << " %)\n";
-            text_log_file_ << "  Output file size         : "
-                           << std::setprecision(1) << file_size_MB << " MB\n";
-            text_log_file_ << "------------------------------------------------------------\n\n";
-            
-            // Write completion timestamp
-            auto now = std::chrono::system_clock::now();
-            std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-            std::tm tm = *std::localtime(&now_c);
-            text_log_file_ << "------------------------------------------------------------\n";
-            text_log_file_ << "Simulation finished: ";
-            text_log_file_ << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << "\n";
-            text_log_file_ << "------------------------------------------------------------\n";
-            text_log_file_ << "Project repository:\n";
-            text_log_file_ << "  https://github.com/ICARION-Project/ICARION\n";
-            text_log_file_ << "Please cite ICARION once the reference paper is available.\n";
-            text_log_file_ << "------------------------------------------------------------\n";
-            
-            text_log_file_.close();
-            
-            auto logger = ICARION::log::Logger::main();
-            if (logger) {
-                logger->info("Text log written to {}", log_filename_);
-            } else {
-                std::cout << "Log written to " << log_filename_ << std::endl;
-            }
-        }
-    }
-    
-    finalized_ = true;
-    initialized_ = false;
-}
-
-void OutputManager::finalize_soa(double t_final, const core::IonEnsemble& final_ensemble) {
+void OutputManager::finalize(double t_final, const core::IonEnsemble& final_ensemble) {
     if (!initialized_) {
         return;
     }

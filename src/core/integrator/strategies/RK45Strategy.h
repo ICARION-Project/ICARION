@@ -4,6 +4,7 @@
 #pragma once
 
 #include "IIntegrationStrategy.h"
+#include "core/types/IonState.h"
 #include <limits>
 
 namespace ICARION {
@@ -78,25 +79,16 @@ public:
     explicit RK45Strategy(const AdaptiveConfig& config);
     
     /**
-     * @brief Advance ion by one timestep using RK45 (base interface)
-     * 
-     * @param ion Ion state (updated in-place)
-     * @param t Current time [s]
-     * @param dt Timestep [s] (fixed from config)
-     * @param force_registry Force computation engine
-     * @param all_ions All ions (for space charge)
-     * 
-     * This overrides the base interface with fixed dt.
-     * For adaptive timestep control, use step_adaptive().
+     * @brief Advance ion by one timestep using RK45 (SoA interface)
      */
     void step(
-        IonState& ion,
+        core::IonEnsemble& ensemble,
+        size_t ion_idx,
         double t,
         double dt,
-        const physics::ForceRegistry& force_registry,
-        const std::vector<IonState>& all_ions
+        const physics::ForceRegistry& force_registry
     ) override;
-    
+
     /**
      * @brief Advance ion by one adaptive timestep using RK45
      * 
@@ -147,17 +139,6 @@ public:
         const std::vector<IonState>& all_ions
     );
 
-    /**
-     * @brief SoA-aware step wrapper (uses compute_total_force_soa)
-     */
-    void step_soa(
-        core::IonEnsemble& ensemble,
-        size_t ion_idx,
-        double t,
-        double dt,
-        const physics::ForceRegistry& force_registry
-    ) override;
-    
     /**
      * @brief Get method name
      */
@@ -215,6 +196,13 @@ private:
         double& ax, double& ay, double& az,
         const core::IonEnsemble& ensemble,
         size_t ion_idx,
+        double t,
+        const physics::ForceRegistry& force_registry
+    );
+
+    void compute_acceleration_state(
+        double& ax, double& ay, double& az,
+        const IonState& state,
         double t,
         const physics::ForceRegistry& force_registry
     );

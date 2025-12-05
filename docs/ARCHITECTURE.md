@@ -22,8 +22,8 @@ ICARION is a modular C++17 framework for ion trajectory simulation in mass spect
 - **I/O**: HDF5-based input/output with structured data formats
 - **GPU**: Optional CUDA acceleration with automatic CPU fallback
 - **Tools**: CLI interface, configuration helpers, validation tools
-- **Data Layouts**: AoS (legacy) plus SoA (`IonEnsemble`) for cache-friendly processing
-- **Parity Coverage**: AoS↔SoA parity tests for SimulationEngine, collisions, reactions
+- **Data Layouts**: SoA-first `IonEnsemble` (legacy AoS callers convert once at entry)
+- **Parity Coverage**: CPU/GPU parity tests; SoA parity retained for regression safety
 
 ### Key Architectural Principles
 
@@ -67,7 +67,15 @@ tools/                 # Developer tools and scripts
 
 ### Simulation Engine
 
-`SimulationEngine` is the central orchestrator. The legacy AoS entry point (`run`) now converts once to `IonEnsemble` and delegates to the SoA core (`run` overload taking `IonEnsemble&`); both share identical control flow:
+`SimulationEngine` is the central orchestrator. The engine runs on the SoA `IonEnsemble`; any legacy AoS callers are converted once at the boundary before entering the timestep loop.
+
+**Separation of concerns via strategies/factories:** SimulationEngine orchestrates, but domain logic is delegated to pluggable components:
+- Geometry/fields: `IDomainGeometry` + `IFieldModel` (wired by DomainManager)
+- Forces: `IForce` implementations aggregated by `ForceRegistry`
+- Collisions: `ICollisionHandler` selected by factory
+- Reactions: `IReactionHandler` selected by factory
+- Integrators: `IIntegrationStrategy` selected by factory
+Swapping a strategy/factory changes behavior without touching the loop.
 
 1. Initialize `DomainManager` and `OutputManager`, log metadata (AoS init uses a temporary conversion in the SoA path).
 2. Optionally initialize GPU helpers (integration/collisions; space charge/boundary helpers exist but are not yet dispatched).
@@ -85,16 +93,9 @@ tools/                 # Developer tools and scripts
 
 ### Force System
 
-**Architecture Pattern:** Registry + Strategy
+**Architecture Pattern:** Registry + Strategy (SoA-first)
 
-Forces implement `IForce` interface and register with `ForceRegistry`:
-
-```cpp
-class IForce {
-public:
-    virtual Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) = 0;
-};
-```
+Forces implement `IForce` and register with `ForceRegistry`. The SoA path is primary (`compute_soa(...)`), with `compute(...)` retained for tests and legacy hooks.
 
 **Built-in Forces:**
 - `ElectricFieldForce` - E-field via `IFieldModel` (analytical or grid-backed); SSOT: PhysicsSetup injects `FieldProviderModel` when grid data exist, otherwise `AnalyticalFieldModel` fallback
@@ -110,19 +111,7 @@ public:
 
 **Architecture Pattern:** Strategy + Factory
 
-Integration strategies implement `IIntegrationStrategy`:
-
-```cpp
-class IIntegrationStrategy {
-public:
-    virtual void step(
-        IonState& ion,
-        double t,
-        double dt,
-        const physics::ForceRegistry& force_registry,
-        const std::vector<IonState>& all_ions) = 0;
-};
-```
+Integration strategies implement `IIntegrationStrategy::step(IonEnsemble&, size_t ion_idx, ...)` on the SoA container.
 
 **Available Strategies:**
 - `RK4Strategy` - 4th order Runge-Kutta (default, stable, fixed step size)

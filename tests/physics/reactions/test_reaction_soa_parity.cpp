@@ -61,7 +61,7 @@ EnvironmentConfig make_env() {
 }
 } // namespace
 
-TEST_CASE("StochasticReactionHandler: AoS vs SoA parity", "[reaction][soa][parity]") {
+TEST_CASE("StochasticReactionHandler: deterministic parity with fixed seed", "[reaction][soa][parity]") {
     auto db = make_reaction_db();
     auto species_db = make_species_db();
     auto env = make_env();
@@ -79,30 +79,26 @@ TEST_CASE("StochasticReactionHandler: AoS vs SoA parity", "[reaction][soa][parit
     IonState ion1 = ion0;
     ion1.species_id = "B+";  // ensure product exists in pool
 
-    // AoS path
     StochasticReactionHandler handler;
+
+    core::IonEnsemble ensemble1 = core::IonEnsemble::from_legacy({ion0, ion1});
+    core::IonEnsemble ensemble2 = core::IonEnsemble::from_legacy({ion0, ion1});
+
+    auto view1 = ensemble1.reaction_data(0);
+    auto view2 = ensemble2.reaction_data(0);
     PhysicsRng rng1(777);
-    IonState ion_aos = ion0;
-    bool reacted_aos = handler.handle_reaction(ion_aos, dt, rng1, db, species_db, env);
-
-    // SoA path
-    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy({ion0, ion1});
-    auto view = ensemble.reaction_data(0);
-    double* CCS = ensemble.CCS_data();
-    double* mobility = ensemble.mobility_data();
     PhysicsRng rng2(777);
-    bool reacted_soa = handler.handle_reaction_soa(view, CCS, mobility, dt, rng2, db, species_db, env);
 
-    REQUIRE(reacted_aos == reacted_soa);
-    if (reacted_aos && reacted_soa) {
-        // Species should be product
-        REQUIRE(ion_aos.species_id == "B+");
-        auto pool = ensemble.species_pool();
-        REQUIRE(pool->end() != std::find(pool->begin(), pool->end(), "B+"));
-        // Check mass/CCS/mobility updated
-        REQUIRE(ion_aos.mass_kg == Approx(species_db.get("B+").mass_kg));
-        REQUIRE(CCS[0] == Approx(species_db.get("B+").CCS_m2));
-        REQUIRE(mobility[0] == Approx(species_db.get("B+").mobility_m2Vs / CM2_TO_M2));
+    bool reacted1 = handler.handle_reaction(view1, dt, rng1, db, species_db, env);
+    bool reacted2 = handler.handle_reaction(view2, dt, rng2, db, species_db, env);
+
+    REQUIRE(reacted1 == reacted2);
+    if (reacted1 && reacted2) {
+        REQUIRE(view1.species_id() == "B+");
+        REQUIRE(view2.species_id() == "B+");
+        REQUIRE(view1.kin.get_mass() == Approx(species_db.get("B+").mass_kg));
+        REQUIRE(view1.kin.get_charge() == Approx(species_db.get("B+").charge_C));
+        REQUIRE(view1.get_CCS() == Approx(species_db.get("B+").CCS_m2));
+        REQUIRE(view1.get_mobility() == Approx(species_db.get("B+").mobility_m2Vs / CM2_TO_M2));
     }
 }
-

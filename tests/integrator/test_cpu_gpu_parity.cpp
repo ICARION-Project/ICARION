@@ -11,6 +11,7 @@
 #include "core/integrator/strategies/RK4Strategy.h"
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
 
@@ -22,6 +23,7 @@ using namespace ICARION;
 using namespace ICARION::integrator;
 using namespace ICARION::physics;
 using namespace ICARION::config;
+using ICARION::core::IonEnsemble;
 using Catch::Matchers::WithinAbs;
 using icarion::gpu::GPUContext;
 using icarion::gpu::GPUIntegrationHelper;
@@ -54,6 +56,21 @@ IonBatch create_identical_ions(size_t count, Vec3 pos0, Vec3 vel0, double mass =
     }
     
     return batch;
+}
+
+void advance_cpu_batch(RK4Strategy& integrator,
+                       ForceRegistry& forces,
+                       std::vector<IonState>& ions,
+                       double t,
+                       double dt) {
+    IonEnsemble ensemble = IonEnsemble::from_legacy(ions);
+    for (size_t i = 0; i < ions.size(); ++i) {
+        if (!ensemble.is_active(i)) {
+            continue;
+        }
+        integrator.step(ensemble, i, t, dt, forces);
+    }
+    ions = ensemble.to_legacy();
 }
 
 // =============================================================================
@@ -105,10 +122,7 @@ TEST_CASE("CPU/GPU parity - single RK4 step, uniform motion", "[parity][integrat
         const double t0 = 0.0;
         
         // CPU integration
-        ForceContext ctx_cpu;
-        for (auto& ion : batch.cpu_ions) {
-            cpu_integrator.step(ion, t0, dt, cpu_forces, batch.cpu_ions);
-        }
+        advance_cpu_batch(cpu_integrator, cpu_forces, batch.cpu_ions, t0, dt);
         
         // GPU integration
         bool success = gpu_helper->integrate_batch_rk4(batch.gpu_ions, dt, t0);
@@ -126,10 +140,7 @@ TEST_CASE("CPU/GPU parity - single RK4 step, uniform motion", "[parity][integrat
         const double t0 = 0.0;
         
         // CPU integration (per-ion loop)
-        ForceContext ctx_cpu;
-        for (auto& ion : batch.cpu_ions) {
-            cpu_integrator.step(ion, t0, dt, cpu_forces, batch.cpu_ions);
-        }
+        advance_cpu_batch(cpu_integrator, cpu_forces, batch.cpu_ions, t0, dt);
         
         // GPU integration (batch)
         bool success = gpu_helper->integrate_batch_rk4(batch.gpu_ions, dt, t0);
@@ -168,10 +179,7 @@ TEST_CASE("CPU/GPU parity - multi-step trajectory", "[parity][integration]") {
             double t = step * dt;
             
             // CPU per-ion
-            ForceContext ctx_cpu;
-            for (auto& ion : batch.cpu_ions) {
-                cpu_integrator.step(ion, t, dt, cpu_forces, batch.cpu_ions);
-            }
+            advance_cpu_batch(cpu_integrator, cpu_forces, batch.cpu_ions, t, dt);
             
             // GPU batch
             bool success = gpu_helper->integrate_batch_rk4(batch.gpu_ions, dt, t);
@@ -210,10 +218,7 @@ TEST_CASE("CPU/GPU parity - different timestep sizes", "[parity][integration]") 
             auto batch = create_identical_ions(20, Vec3{1.0, 0.0, 0.0}, Vec3{2.0, 0.0, 0.0});
             
             // CPU
-            ForceContext ctx_cpu;
-            for (auto& ion : batch.cpu_ions) {
-                cpu_integrator.step(ion, 0.0, dt, cpu_forces, batch.cpu_ions);
-            }
+            advance_cpu_batch(cpu_integrator, cpu_forces, batch.cpu_ions, 0.0, dt);
             
             // GPU
             bool success = gpu_helper->integrate_batch_rk4(batch.gpu_ions, dt, 0.0);
@@ -263,10 +268,7 @@ TEST_CASE("CPU/GPU parity - diverse initial conditions", "[parity][integration]"
         const double dt = 0.01;
         
         // CPU
-        ForceContext ctx_cpu;
-        for (auto& ion : batch.cpu_ions) {
-            cpu_integrator.step(ion, 0.0, dt, cpu_forces, batch.cpu_ions);
-        }
+        advance_cpu_batch(cpu_integrator, cpu_forces, batch.cpu_ions, 0.0, dt);
         
         // GPU
         bool success = gpu_helper->integrate_batch_rk4(batch.gpu_ions, dt, 0.0);
@@ -308,12 +310,7 @@ TEST_CASE("CPU/GPU parity - inactive ions", "[parity][integration]") {
         const double dt = 0.01;
         
         // CPU (RK4Strategy skips inactive ions)
-        ForceContext ctx_cpu;
-        for (auto& ion : batch.cpu_ions) {
-            if (ion.active) {
-                cpu_integrator.step(ion, 0.0, dt, cpu_forces, batch.cpu_ions);
-            }
-        }
+        advance_cpu_batch(cpu_integrator, cpu_forces, batch.cpu_ions, 0.0, dt);
         
         // GPU (kernel skips inactive ions)
         bool success = gpu_helper->integrate_batch_rk4(batch.gpu_ions, dt, 0.0);
@@ -350,10 +347,7 @@ TEST_CASE("CPU/GPU parity - numerical stability", "[parity][integration]") {
         const double dt = 1e-9;
         
         // CPU
-        ForceContext ctx_cpu;
-        for (auto& ion : batch.cpu_ions) {
-            cpu_integrator.step(ion, 0.0, dt, cpu_forces, batch.cpu_ions);
-        }
+        advance_cpu_batch(cpu_integrator, cpu_forces, batch.cpu_ions, 0.0, dt);
         
         // GPU
         bool success = gpu_helper->integrate_batch_rk4(batch.gpu_ions, dt, 0.0);
@@ -372,10 +366,7 @@ TEST_CASE("CPU/GPU parity - numerical stability", "[parity][integration]") {
         const double dt = 1e-6;
         
         // CPU
-        ForceContext ctx_cpu;
-        for (auto& ion : batch.cpu_ions) {
-            cpu_integrator.step(ion, 0.0, dt, cpu_forces, batch.cpu_ions);
-        }
+        advance_cpu_batch(cpu_integrator, cpu_forces, batch.cpu_ions, 0.0, dt);
         
         // GPU
         bool success = gpu_helper->integrate_batch_rk4(batch.gpu_ions, dt, 0.0);
@@ -417,11 +408,8 @@ TEST_CASE("CPU/GPU performance comparison", "[parity][integration][.performance]
         
         // CPU timing
         auto cpu_start = std::chrono::high_resolution_clock::now();
-        ForceContext ctx_cpu;
         for (int step = 0; step < n_steps; ++step) {
-            for (auto& ion : batch.cpu_ions) {
-                cpu_integrator.step(ion, step * dt, dt, cpu_forces, batch.cpu_ions);
-            }
+            advance_cpu_batch(cpu_integrator, cpu_forces, batch.cpu_ions, step * dt, dt);
         }
         auto cpu_end = std::chrono::high_resolution_clock::now();
         double cpu_ms = std::chrono::duration<double, std::milli>(cpu_end - cpu_start).count();

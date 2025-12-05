@@ -362,9 +362,22 @@ struct IonReactionData {
     uint32_t* species_id_index;
     double* CCS;
     double* mobility;
+    std::unordered_map<std::string, uint32_t>* species_index;
     
     const std::string& species_id() const { 
         return (*species_pool)[species_id_index[kin.index]]; 
+    }
+    void set_species_id(const std::string& id) {
+        auto it = species_index->find(id);
+        uint32_t idx;
+        if (it != species_index->end()) {
+            idx = it->second;
+        } else {
+            idx = static_cast<uint32_t>(species_pool->size());
+            species_index->emplace(id, idx);
+            const_cast<std::vector<std::string>*>(species_pool)->push_back(id);
+        }
+        species_id_index[kin.index] = idx;
     }
     void set_species_index(uint32_t idx) { species_id_index[kin.index] = idx; }
     double get_CCS() const { return CCS[kin.index]; }

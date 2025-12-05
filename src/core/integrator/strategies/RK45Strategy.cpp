@@ -157,6 +157,29 @@ void RK45Strategy::compute_acceleration_soa(
     az = a.z;
 }
 
+void RK45Strategy::compute_acceleration_state(
+    double& ax, double& ay, double& az,
+    const IonState& state,
+    double t,
+    const physics::ForceRegistry& force_registry
+) {
+    physics::ForceContext ctx;
+    ctx.domain = force_registry.domain();
+    ctx.all_ions = nullptr;
+    ctx.field_provider = nullptr;
+    ctx.field_model = force_registry.field_model();
+    ctx.ion_ensemble = nullptr;
+    ctx.ion_index = 0;
+
+    Vec3 F = force_registry.compute_total_force(state, t, ctx);
+    const double inv_mass = 1.0 / state.mass_kg;
+    Vec3 a = F * inv_mass;
+
+    ax = a.x;
+    ay = a.y;
+    az = a.z;
+}
+
 double RK45Strategy::estimate_error(
     const IonState& y4,
     const IonState& y5,
@@ -270,20 +293,20 @@ void RK45Strategy::step(
     IonState y0 = ion;
 
     while (!step_accepted && attempts < MAX_REJECT_ATTEMPTS) {
-        Vec3 k1_v, k1_a;
-        Vec3 k2_v, k2_a;
-        Vec3 k3_v, k3_a;
-        Vec3 k4_v, k4_a;
-        Vec3 k5_v, k5_a;
-        Vec3 k6_v, k6_a;
-        Vec3 k7_v, k7_a;
+    Vec3 k1_v, k1_a;
+    Vec3 k2_v, k2_a;
+    Vec3 k3_v, k3_a;
+    Vec3 k4_v, k4_a;
+    Vec3 k5_v, k5_a;
+    Vec3 k6_v, k6_a;
+    Vec3 k7_v, k7_a;
 
         k1_v = y0.vel;
         if (fsal_available_) {
             k1_a = Vec3{k1_stored_.ax, k1_stored_.ay, k1_stored_.az};
         } else {
             double ax, ay, az;
-            compute_acceleration_soa(ax, ay, az, ensemble, ion_idx, t, force_registry);
+            compute_acceleration_state(ax, ay, az, y0, t, force_registry);
             k1_a = Vec3{ax, ay, az};
         }
 
@@ -292,7 +315,7 @@ void RK45Strategy::step(
         y2.vel += k1_a * (dt_work * a21);
         k2_v = y2.vel;
         double ax2, ay2, az2;
-        compute_acceleration_soa(ax2, ay2, az2, ensemble, ion_idx, t + c2*dt_work, force_registry);
+        compute_acceleration_state(ax2, ay2, az2, y2, t + c2*dt_work, force_registry);
         k2_a = Vec3{ax2, ay2, az2};
 
         IonState y3 = y0;
@@ -300,7 +323,7 @@ void RK45Strategy::step(
         y3.vel += (k1_a * a31 + k2_a * a32) * dt_work;
         k3_v = y3.vel;
         double ax3, ay3, az3;
-        compute_acceleration_soa(ax3, ay3, az3, ensemble, ion_idx, t + c3*dt_work, force_registry);
+        compute_acceleration_state(ax3, ay3, az3, y3, t + c3*dt_work, force_registry);
         k3_a = Vec3{ax3, ay3, az3};
 
         IonState y4_temp = y0;
@@ -308,7 +331,7 @@ void RK45Strategy::step(
         y4_temp.vel += (k1_a * a41 + k2_a * a42 + k3_a * a43) * dt_work;
         k4_v = y4_temp.vel;
         double ax4, ay4, az4;
-        compute_acceleration_soa(ax4, ay4, az4, ensemble, ion_idx, t + c4*dt_work, force_registry);
+        compute_acceleration_state(ax4, ay4, az4, y4_temp, t + c4*dt_work, force_registry);
         k4_a = Vec3{ax4, ay4, az4};
 
         IonState y5_temp = y0;
@@ -316,7 +339,7 @@ void RK45Strategy::step(
         y5_temp.vel += (k1_a * a51 + k2_a * a52 + k3_a * a53 + k4_a * a54) * dt_work;
         k5_v = y5_temp.vel;
         double ax5, ay5, az5;
-        compute_acceleration_soa(ax5, ay5, az5, ensemble, ion_idx, t + c5*dt_work, force_registry);
+        compute_acceleration_state(ax5, ay5, az5, y5_temp, t + c5*dt_work, force_registry);
         k5_a = Vec3{ax5, ay5, az5};
 
         IonState y6 = y0;
@@ -324,7 +347,7 @@ void RK45Strategy::step(
         y6.vel += (k1_a * a61 + k2_a * a62 + k3_a * a63 + k4_a * a64 + k5_a * a65) * dt_work;
         k6_v = y6.vel;
         double ax6, ay6, az6;
-        compute_acceleration_soa(ax6, ay6, az6, ensemble, ion_idx, t + c6*dt_work, force_registry);
+        compute_acceleration_state(ax6, ay6, az6, y6, t + c6*dt_work, force_registry);
         k6_a = Vec3{ax6, ay6, az6};
 
         IonState y7 = y0;
@@ -332,7 +355,7 @@ void RK45Strategy::step(
         y7.vel += (k1_a * a71 + k2_a * a72 + k3_a * a73 + k4_a * a74 + k5_a * a75 + k6_a * a76) * dt_work;
         k7_v = y7.vel;
         double ax7, ay7, az7;
-        compute_acceleration_soa(ax7, ay7, az7, ensemble, ion_idx, t + c7*dt_work, force_registry);
+        compute_acceleration_state(ax7, ay7, az7, y7, t + c7*dt_work, force_registry);
         k7_a = Vec3{ax7, ay7, az7};
 
         IonState y4 = y7;  // FSAL property
@@ -527,7 +550,9 @@ void RK45Strategy::step_adaptive(
             
             // Compute new step size for next step
             double dt_next = compute_new_step(dt, error, dt_min, dt_max);
-            dt_inout = dt_next;
+            // Expose used dt to caller; next-step hint can be derived if needed
+            dt_inout = dt;
+            (void)dt_next;
             
             last_error_ = error;
             

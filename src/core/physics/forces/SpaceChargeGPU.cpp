@@ -7,6 +7,7 @@
 #include "ForceContext.h"
 #include <stdexcept>
 #include <cmath>
+#include <algorithm>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -106,24 +107,25 @@ Vec3 SpaceChargeGPU::compute_soa(
     double t,
     const ForceContext& ctx
 ) const {
-    // Build minimal IonState for AoS API reuse
-    IonState ion;
-    ion.pos = ensemble.get_pos(ion_idx);
-    ion.vel = ensemble.get_vel(ion_idx);
-    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
-    ion.mass_kg = ensemble.mass_data()[ion_idx];
-    ion.active = ensemble.active_data()[ion_idx] != 0;
-    ion.born = ensemble.born_data()[ion_idx] != 0;
-    ion.current_domain_index = ensemble.domain_index(ion_idx);
-    ion.species_id = ensemble.species_id(ion_idx);
-    ion.CCS_m2 = ensemble.CCS(ion_idx);
-    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
-    ion.birth_time_s = ensemble.birth_time(ion_idx);
+    if (!solver_) {
+        return {0, 0, 0};
+    }
 
-    ForceContext ctx_with = ctx;
-    ctx_with.ion_ensemble = &ensemble;
-    ctx_with.ion_index = ion_idx;
-    return compute(ion, t, ctx_with);
+    // Fast path: skip inactive or unborn ions
+    if (ensemble.active_data()[ion_idx] == 0 || ensemble.born_data()[ion_idx] == 0) {
+        return {0, 0, 0};
+    }
+
+    // Ensure we have fields for this timestep
+    update_fields_if_needed(ensemble, t);
+
+    if (ion_idx >= cached_E_fields_.size()) {
+        return {0, 0, 0};
+    }
+
+    const Vec3 E_sc = cached_E_fields_[ion_idx];
+    const double q = ensemble.charge_data()[ion_idx];
+    return E_sc * q;
 }
 
 bool SpaceChargeGPU::applies_to(const IonState& ion) const {
@@ -134,6 +136,38 @@ bool SpaceChargeGPU::applies_to(const IonState& ion) const {
 
 std::string SpaceChargeGPU::name() const {
     return "SpaceChargeGPU";
+}
+
+void SpaceChargeGPU::update_fields_if_needed(
+    const core::IonEnsemble& ensemble,
+    double t
+) const {
+    constexpr double TIME_EPSILON = 1e-12;
+
+    if (std::abs(t - last_update_time_) <= TIME_EPSILON) {
+        return;
+    }
+
+    const size_t N = ensemble.size();
+
+    #ifdef _OPENMP
+    #pragma omp critical(space_charge_gpu_solver_update)
+    #endif
+    {
+        if (std::abs(t - last_update_time_) > TIME_EPSILON) {
+            if (cached_E_fields_.size() != N) {
+                cached_E_fields_.resize(N);
+            }
+
+            const bool success = solver_->compute_space_charge_field(ensemble, cached_E_fields_);
+            if (!success) {
+                std::fill(cached_E_fields_.begin(), cached_E_fields_.end(), Vec3{0, 0, 0});
+            }
+
+            last_update_time_ = t;
+            solver_updated_this_step_ = true;
+        }
+    }
 }
 
 }  // namespace ICARION::physics

@@ -20,8 +20,7 @@
 #pragma once
 
 #include "core/config/types/FullConfig.h"
-#include "core/types/IonState.h"
-#include "core/types/IonEnsemble.h"  
+#include "core/types/IonEnsemble.h"
 #include "core/log/Logger.h"
 #include <string>
 #include <vector>
@@ -98,25 +97,8 @@ public:
      * 
      * Must be called before log_step().
      */
-    void initialize(const config::FullConfig& config, 
-                    const std::vector<IonState>& ions);
-
-    /**
-     * @brief Initialize output system (SoA)
-     */
-    void initialize_soa(const config::FullConfig& config,
-                        const core::IonEnsemble& ensemble);
-    
-    /**
-     * @brief Log timestep snapshot (legacy AoS variant)
-     * @param t Current simulation time [s]
-     * @param ions Current ion states
-     * 
-     * Appends snapshot to buffer. Triggers flush if:
-     * - Buffer is full (size >= buffer_max)
-     * - Time interval exceeded (t >= next_write_time)
-     */
-    void log_step(double t, const std::vector<IonState>& ions);
+    void initialize(const config::FullConfig& config,
+                    const core::IonEnsemble& ensemble);
     
     /**
      * @brief Log timestep snapshot (SoA variant - Phase 5)
@@ -126,7 +108,7 @@ public:
      * Direct SoA→HDF5 writing without to_legacy() conversion.
      * Appends snapshot to buffer. Same trigger logic as log_step().
      */
-    void log_step_soa(double t, const core::IonEnsemble& ensemble);
+    void log_step(double t, const core::IonEnsemble& ensemble);
     
     /**
      * @brief Log progress message (to text log only)
@@ -172,27 +154,11 @@ public:
     void flush();
     
     /**
-     * @brief Finalize output (write remaining data, close files)
-     * @param t_final Final simulation time [s]
-     * @param final_ions Final ion states
-     * 
-     * Performs:
-     * 1. Flush remaining HDF5 buffers
-     * 2. Write completion metadata to HDF5 (success flag, active ions count)
-     * 3. Write text log completion summary (if enabled)
-     * 
-     * Should be called at end of simulation (after last log_step()).
-     */
-    void finalize(double t_final, const std::vector<IonState>& final_ions);
-    
-    /**
-     * @brief Finalize and close output files (SoA variant - Phase 5)
+     * @brief Finalize and close output files (SoA variant)
      * @param t_final Final simulation time [s]
      * @param final_ensemble Final ion ensemble states
-     * 
-     * Direct SoA finalization without conversion.
      */
-    void finalize_soa(double t_final, const core::IonEnsemble& final_ensemble);
+    void finalize(double t_final, const core::IonEnsemble& final_ensemble);
     
     /**
      * @brief Get HDF5 filename
@@ -223,9 +189,7 @@ private:
     
     // HDF5 buffers
     std::vector<double> times_buffer_;
-    std::vector<std::vector<IonState>> trajectory_buffer_;
     std::vector<core::IonEnsemble> trajectory_buffer_soa_;
-    bool soa_mode_ = false;
     
     // Text logging (optional)
     std::string log_filename_;

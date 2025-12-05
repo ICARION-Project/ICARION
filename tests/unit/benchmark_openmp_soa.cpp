@@ -119,7 +119,8 @@ static double benchmark_aos_threads(size_t n_ions, int n_threads) {
     SimulationEngine engine(config, force_registries, integrator);
     
     auto start = std::chrono::high_resolution_clock::now();
-    auto result = engine.run(ions);
+    auto ensemble = IonEnsemble::from_legacy(ions);
+    auto result = engine.run(ensemble);
     auto end = std::chrono::high_resolution_clock::now();
     
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

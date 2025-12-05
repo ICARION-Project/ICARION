@@ -109,6 +109,14 @@ private:
     
     // Cached E-fields (updated once per timestep, indexed by ion position in all_ions)
     mutable std::vector<Vec3> cached_E_fields_;  ///< E-field at each ion position [V/m]
+
+    /**
+     * @brief Ensure the GPU solver and cache are updated for the given timestep
+     */
+    void update_fields_if_needed(
+        const core::IonEnsemble& ensemble,
+        double t
+    ) const;
 };
 
 }  // namespace ICARION::physics

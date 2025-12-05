@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "core/types/IonState.h"
 #include "core/types/IonEnsemble.h"  // For IonReactionData view
 #include "core/config/types/ReactionConfig.h"
 #include "core/config/types/SpeciesConfig.h"
@@ -39,8 +38,9 @@ struct ReactionStats {
  * @code
  * auto handler = ReactionHandlerFactory::create(config.physics);
  * 
+ * auto view = ensemble.reaction_data(i);  // SoA view
  * bool reaction_occurred = handler->handle_reaction(
- *     ion, dt, rng,
+ *     view, dt, rng,
  *     config.reaction_db,    // Direct reference (SSOT!)
  *     config.species_db,     // Direct reference (SSOT!)
  *     domain.environment     // Contains temperature_K, particle_density_m_3
@@ -55,34 +55,7 @@ public:
     virtual ~IReactionHandler() = default;
     
     /**
-     * @brief Handle reactions for single timestep
-     * 
-     * @param ion Ion state (species_id/mass/charge modified if reaction occurs)
-     * @param dt Timestep [s]
-     * @param rng Random number generator
-     * @param reaction_db Reaction database (SSOT - direct reference!)
-     * @param species_db Species database (SSOT - direct reference!)
-     * @param env Environment config (contains temperature, density, etc.)
-     * 
-     * @return true if reaction occurred, false otherwise
-     * 
-     * **Thread Safety:** Not thread-safe (designed for single-threaded integration loop).
-     * For parallel execution, create one handler per thread.
-     */
-    virtual bool handle_reaction(
-        IonState& ion,
-        double dt,
-        PhysicsRng& rng,
-        const config::ReactionDatabase& reaction_db,
-        const config::SpeciesDatabase& species_db,
-        const config::EnvironmentConfig& env
-    ) = 0;
-    
-    /**
-     * @brief Handle reactions using SoA view (Phase 3 - cache-optimized)
-     * 
-     * Zero-copy access to ion data via view struct.
-     * Default implementation converts to IonState and calls handle_reaction().
+     * @brief Handle reactions using SoA view (cache-optimized hot path)
      * 
      * @param[in,out] view Ion reaction data view (species may be modified)
      * @param[in,out] cold_data Cold data arrays (CCS, mobility) for species updates
@@ -93,40 +66,15 @@ public:
      * @param[in] env Environment configuration
      * 
      * @return true if reaction occurred, false otherwise
-     * 
-     * @note Override for optimal SoA performance. Default wrapper provided for compatibility.
      */
-    virtual bool handle_reaction_soa(
+    virtual bool handle_reaction(
         core::IonReactionData& view,
-        double* CCS_array,
-        double* mobility_array,
         double dt,
         PhysicsRng& rng,
         const config::ReactionDatabase& reaction_db,
         const config::SpeciesDatabase& species_db,
         const config::EnvironmentConfig& env
-    ) {
-        // Default: convert to IonState and call legacy method
-        IonState ion;
-        ion.pos = view.kin.pos();
-        ion.vel = view.kin.vel();
-        ion.mass_kg = view.kin.get_mass();
-        ion.ion_charge_C = view.kin.get_charge();
-        ion.species_id = view.species_id();
-        ion.CCS_m2 = CCS_array[view.kin.index];
-        ion.reduced_mobility_cm2_Vs = mobility_array[view.kin.index];
-        
-        bool result = handle_reaction(ion, dt, rng, reaction_db, species_db, env);
-        
-        // Write back modified data
-        view.kin.set_vel(ion.vel);
-        view.kin.set_pos(ion.pos);
-        // Note: species_id update requires ensemble method (handled by caller)
-        CCS_array[view.kin.index] = ion.CCS_m2;
-        mobility_array[view.kin.index] = ion.reduced_mobility_cm2_Vs;
-        
-        return result;
-    }
+    ) = 0;
     
     /**
      * @brief Get handler name

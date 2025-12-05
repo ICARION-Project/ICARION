@@ -15,13 +15,22 @@ StochasticReactionHandler::StochasticReactionHandler(bool enable_logging)
 {}
 
 bool StochasticReactionHandler::handle_reaction(
-    IonState& ion,
+    core::IonReactionData& view,
     double dt,
     PhysicsRng& rng,
     const config::ReactionDatabase& reaction_db,
     const config::SpeciesDatabase& species_db,
     const config::EnvironmentConfig& env
 ) {
+    IonState ion;
+    ion.pos = view.kin.pos();
+    ion.vel = view.kin.vel();
+    ion.mass_kg = view.kin.get_mass();
+    ion.ion_charge_C = view.kin.get_charge();
+    ion.species_id = view.species_id();
+    ion.CCS_m2 = view.get_CCS();
+    ion.reduced_mobility_cm2_Vs = view.get_mobility();
+    
     // SSOT: Read temperature/density directly from EnvironmentConfig
     const double T_K = env.temperature_K;
     const double n_m3 = env.particle_density_m_3;
@@ -99,7 +108,14 @@ bool StochasticReactionHandler::handle_reaction(
             
             // SSOT: Update ion from SpeciesDatabase
             update_ion_species(ion, selected_reaction->product, species_db);
-            
+            view.set_species_id(ion.species_id);
+            view.kin.set_mass(ion.mass_kg);
+            view.kin.set_charge(ion.ion_charge_C);
+            view.kin.set_pos(ion.pos);
+            view.kin.set_vel(ion.vel);
+            view.set_CCS(ion.CCS_m2);
+            view.set_mobility(ion.reduced_mobility_cm2_Vs);
+
             stats_.total_reactions++;
             return true;
         }
@@ -109,56 +125,14 @@ bool StochasticReactionHandler::handle_reaction(
     // But if we do due to floating-point errors, select last channel
     const auto* last_reaction = applicable_reactions.back();
     update_ion_species(ion, last_reaction->product, species_db);
-    stats_.total_reactions++;
-    return true;
-}
-
-bool StochasticReactionHandler::handle_reaction_soa(
-    core::IonReactionData& view,
-    double* CCS_array,
-    double* mobility_array,
-    double dt,
-    PhysicsRng& rng,
-    const config::ReactionDatabase& reaction_db,
-    const config::SpeciesDatabase& species_db,
-    const config::EnvironmentConfig& env
-) {
-    // Build lightweight IonState for reuse of scalar logic
-    IonState ion;
-    ion.pos = view.kin.pos();
-    ion.vel = view.kin.vel();
-    ion.mass_kg = view.kin.get_mass();
-    ion.ion_charge_C = view.kin.get_charge();
-    ion.species_id = view.species_id();
-    ion.CCS_m2 = CCS_array[view.kin.index];
-    ion.reduced_mobility_cm2_Vs = mobility_array[view.kin.index];
-    
-    bool occurred = handle_reaction(ion, dt, rng, reaction_db, species_db, env);
-    if (!occurred) {
-        return false;
-    }
-    
-    // Write back modified state to SoA buffers
-    view.kin.set_pos(ion.pos);
-    view.kin.set_vel(ion.vel);
+    view.set_species_id(ion.species_id);
     view.kin.set_mass(ion.mass_kg);
     view.kin.set_charge(ion.ion_charge_C);
-    CCS_array[view.kin.index] = ion.CCS_m2;
-    mobility_array[view.kin.index] = ion.reduced_mobility_cm2_Vs;
-    
-    // Update species index if present in pool; otherwise keep old species
-    const auto& pool = *view.species_pool;
-    auto it = std::find(pool.begin(), pool.end(), ion.species_id);
-    if (it != pool.end()) {
-        uint32_t idx = static_cast<uint32_t>(std::distance(pool.begin(), it));
-        view.set_species_index(idx);
-    } else {
-        log::debug_log(
-            "[StochasticReactionHandler] Product species '" + ion.species_id + 
-            "' not found in species pool (SoA) - keeping previous index"
-        );
-    }
-    
+    view.kin.set_pos(ion.pos);
+    view.kin.set_vel(ion.vel);
+    view.set_CCS(ion.CCS_m2);
+    view.set_mobility(ion.reduced_mobility_cm2_Vs);
+    stats_.total_reactions++;
     return true;
 }
 

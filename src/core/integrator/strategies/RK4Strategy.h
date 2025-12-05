@@ -43,45 +43,12 @@ public:
     RK4Strategy() = default;
     
     /**
-     * @brief Advance ion by one timestep using RK4
-     * 
-     * @param ion Ion state (updated in-place)
-     * @param t Current time [s]
-     * @param dt Timestep [s]
-     * @param force_registry Force computation engine
-     * @param domain Domain configuration (SSOT!)
-     * @param all_ions All ions (for space charge)
-     * 
-     * **Implementation Details:**
-     * - Computes 4 intermediate stages (k1, k2, k3, k4)
-     * - Each stage requires force evaluation at different (t, y)
-     * - Final update uses weighted average of stages
-     * 
-     * **Numerical Stability:**
-     * - Stable for dt < 2.78/|λ_max| (linear systems)
-     * - For nonlinear systems, empirical testing required
-     * - Typical safe choice: dt ~ T_oscillation / 20
-     * 
-     * **Thread Safety:**
-     * - Read-only access to force_registry, all_ions
-     * - Modifies only `ion` parameter
-     * - Can parallelize over multiple ions (no shared state)
-     */
-    void step(
-        IonState& ion,
-        double t,
-        double dt,
-        const physics::ForceRegistry& force_registry,
-        const std::vector<IonState>& all_ions
-    ) override;
-    
-    /**
-     * @brief RK4 integration using SoA (Phase 3B - optimized)
+     * @brief RK4 integration using SoA layout
      * 
      * Direct array access for cache efficiency.
      * No IonState construction overhead.
      */
-    void step_soa(
+    void step(
         core::IonEnsemble& ensemble,
         size_t ion_idx,
         double t,

@@ -48,6 +48,7 @@ FullConfig create_benchmark_config() {
     cfg.domains.push_back(domain);
     
     cfg.output.folder = "/tmp/test_soa_bench";
+    std::filesystem::create_directories(cfg.output.folder);
     cfg.output.trajectory_file = "bench_trajectory.h5";
     cfg.output.print_progress = false;
     
@@ -89,13 +90,15 @@ TEST_CASE("SoA Performance Benchmark - 100 ions", "[.benchmark][soa]") {
     
     BENCHMARK("AoS (baseline)") {
         SimulationEngine engine(config, registries, integrator);
-        auto res = engine.run(IonEnsemble::from_legacy(ions_aos));
+        auto ions_copy = IonEnsemble::from_legacy(ions_aos);
+        auto res = engine.run(ions_copy);
         return res.size();
     };
     
     BENCHMARK("SoA (Phase 3 optimized)") {
         SimulationEngine engine(config, registries, integrator);
-        auto res = engine.run(ensemble);
+        auto ensemble_copy = ensemble;
+        auto res = engine.run(ensemble_copy);
         return res.size();
     };
 }
@@ -113,13 +116,15 @@ TEST_CASE("SoA Performance Benchmark - 1000 ions", "[.benchmark][soa]") {
     
     BENCHMARK("AoS (baseline)") {
         SimulationEngine engine(config, registries, integrator);
-        auto res = engine.run(IonEnsemble::from_legacy(ions_aos));
+        auto ions_copy = IonEnsemble::from_legacy(ions_aos);
+        auto res = engine.run(ions_copy);
         return res.size();
     };
     
     BENCHMARK("SoA (Phase 3 optimized)") {
         SimulationEngine engine(config, registries, integrator);
-        auto res = engine.run(ensemble);
+        auto ensemble_copy = ensemble;
+        auto res = engine.run(ensemble_copy);
         return res.size();
     };
 }
@@ -141,7 +146,8 @@ TEST_CASE("Manual Performance Test", "[soa][performance]") {
         auto start_aos = std::chrono::high_resolution_clock::now();
         {
             SimulationEngine engine(config, registries, integrator);
-            auto result = engine.run(ions_aos);
+            auto ions_copy = IonEnsemble::from_legacy(ions_aos);
+            auto result = engine.run(ions_copy);
         }
         auto end_aos = std::chrono::high_resolution_clock::now();
         auto duration_aos = std::chrono::duration_cast<std::chrono::milliseconds>(end_aos - start_aos);
@@ -150,7 +156,8 @@ TEST_CASE("Manual Performance Test", "[soa][performance]") {
         auto start_soa = std::chrono::high_resolution_clock::now();
         {
             SimulationEngine engine(config, registries, integrator);
-            auto result = engine.run(ensemble);
+            auto ensemble_copy = ensemble;
+            auto result = engine.run(ensemble_copy);
         }
         auto end_soa = std::chrono::high_resolution_clock::now();
         auto duration_soa = std::chrono::duration_cast<std::chrono::milliseconds>(end_soa - start_soa);

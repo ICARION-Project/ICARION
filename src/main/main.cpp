@@ -17,6 +17,8 @@
 #include "core/config/loader/ConfigLoader.h"
 #include "core/config/utils/ConfigOverride.h"
 #include "core/integrator/SimulationEngine.h"
+#include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/log/Logger.h"
 #include "core/utils/startupBanner.h"
 #include "core/utils/Profiler.h"
@@ -384,12 +386,13 @@ int main(int argc, char* argv[]) {
             ions = config.generate_ions(rng);
         }
         log::Logger::main()->info("✓ {} ions generated", ions.size());
+        core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
         
         // === 5. Create physics dependencies ===
         setup::PhysicsModules physics;
         {
             PROFILE_SCOPE("Physics Module Setup");
-            physics = setup::PhysicsSetup::initialize(config, ions);
+            physics = setup::PhysicsSetup::initialize(config, ensemble);
         }
         
         // === 6. Create SimulationEngine ===
@@ -412,25 +415,29 @@ int main(int argc, char* argv[]) {
         
         auto start = std::chrono::high_resolution_clock::now();
         
-        std::vector<IonState> final_ions;
+        core::IonEnsemble final_ensemble;
         {
             PROFILE_SCOPE("Simulation Run");
-            final_ions = engine.run(ions);
+            final_ensemble = engine.run(ensemble);
         }
         
         auto end = std::chrono::high_resolution_clock::now();
         double elapsed_s = std::chrono::duration<double>(end - start).count();
         
         // === 8. Report results ===
-        size_t active_count = std::count_if(
-            final_ions.begin(), final_ions.end(),
-            [](const auto& ion) { return ion.active; }
-        );
+        size_t active_count = 0;
+        const auto* active_ptr = final_ensemble.active_data();
+        const auto* born_ptr = final_ensemble.born_data();
+        for (size_t i = 0; i < final_ensemble.size(); ++i) {
+            if (active_ptr[i] && born_ptr[i]) {
+                ++active_count;
+            }
+        }
         
         log::Logger::main()->info("");
         log::Logger::main()->info("=== Simulation Complete ===");
         log::Logger::main()->info("CPU time:     {:.3f} s", elapsed_s);
-        log::Logger::main()->info("Active ions:  {}/{}", active_count, final_ions.size());
+        log::Logger::main()->info("Active ions:  {}/{}", active_count, final_ensemble.size());
         log::Logger::main()->info("Output file:  {}", config.output.trajectory_file);
         log::Logger::main()->info("===========================");
         

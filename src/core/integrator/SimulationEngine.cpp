@@ -107,9 +107,9 @@ SimulationEngine::SimulationEngine(
 
 
 
-void SimulationEngine::initialize_soa(const core::IonEnsemble& ensemble) {
+void SimulationEngine::initialize(const core::IonEnsemble& ensemble) {
     // Initialize output system without per-step AoS conversions
-    output_manager_->initialize_soa(config_, ensemble);
+    output_manager_->initialize(config_, ensemble);
     
     output_manager_->log_progress("Simulation engine initialized (SoA)");
     
@@ -406,7 +406,7 @@ void SimulationEngine::log_progress(double t) {
 core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     
     // 1. Initialize subsystems
-    initialize_soa(ensemble);
+    initialize(ensemble);
     
     // 2. Main time loop using SoA
     const double dt = config_.simulation.dt_s;
@@ -436,12 +436,12 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     
     while (should_continue_soa()) {
         // Process one timestep using SoA
-        process_timestep_soa(ensemble, dt);
+        process_timestep(ensemble, dt);
         
         // Log trajectory snapshot (write every write_interval steps)
         if (current_step_ % config_.simulation.write_interval == 0) {
             PROFILE_SCOPE_IF_ENABLED("Output Writing");
-            output_manager_->log_step_soa(current_time_, ensemble);
+            output_manager_->log_step(current_time_, ensemble);
         }
         
         // Update time and step counter
@@ -471,7 +471,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     output_manager_->log_progress(msg.str());
     
     // Direct SoA finalization (no conversion overhead)
-    output_manager_->finalize_soa(current_time_, ensemble);
+    output_manager_->finalize(current_time_, ensemble);
     
     // Safety report
     if (config_.simulation.enable_safety_logging) {
@@ -493,7 +493,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     return ensemble;
 }
 
-void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double dt) {
+void SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt) {
     // Direct SoA processing (no conversions!)
     const int n_ions = static_cast<int>(ensemble.size());
     
@@ -566,10 +566,8 @@ void SimulationEngine::process_timestep_soa(core::IonEnsemble& ensemble, double 
             if (reaction_handler_ && !config_.reaction_db.reactions.empty()) {
                 PROFILE_SCOPE_IF_ENABLED("Reaction Handling");
                 auto reaction_view = ensemble.reaction_data(i);
-                auto* CCS_arr = ensemble.CCS_data();
-                auto* mobility_arr = ensemble.mobility_data();
                 
-                reaction_handler_->handle_reaction_soa(reaction_view, CCS_arr, mobility_arr,
+                reaction_handler_->handle_reaction(reaction_view,
                     dt, ion_rng, config_.reaction_db, config_.species_db,
                     domain_config.environment);
             }

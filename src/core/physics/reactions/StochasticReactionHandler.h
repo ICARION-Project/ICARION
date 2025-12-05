@@ -49,37 +49,10 @@ public:
     explicit StochasticReactionHandler(bool enable_logging = false);
     
     /**
-     * @brief Handle reaction for single timestep
-     * 
-     * Algorithm:
-     * 1. Find applicable reactions (reactant == ion.species_id)
-     * 2. For each reaction:
-     *    a. Compute k_eff from rate constant and concentrations (SSOT!)
-     *    b. Compute reaction probability: P = 1 - exp(-k_eff × dt)
-     *    c. Sample random number: if U < P → reaction occurs
-     * 3. Update ion species from SpeciesDatabase (SSOT!)
-     * 
-     * @param ion Ion state (modified in-place if reaction occurs)
-     * @param dt Timestep [s]
-     * @param rng Random number generator
-     * @param reaction_db Reaction database (SSOT)
-     * @param species_db Species database (SSOT)
-     * @param env Environment config (SSOT - contains T, n)
-     * @return true if reaction occurred
+     * @brief Handle reaction for single timestep (SoA)
      */
     bool handle_reaction(
-        IonState& ion,
-        double dt,
-        PhysicsRng& rng,
-        const config::ReactionDatabase& reaction_db,
-        const config::SpeciesDatabase& species_db,
-        const config::EnvironmentConfig& env
-    ) override;
-    
-    bool handle_reaction_soa(
         core::IonReactionData& view,
-        double* CCS_array,
-        double* mobility_array,
         double dt,
         PhysicsRng& rng,
         const config::ReactionDatabase& reaction_db,

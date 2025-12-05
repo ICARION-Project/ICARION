@@ -6,8 +6,8 @@
       "mobility_cm2Vs": 24.1,
       "CCS_A2": 24.9,
       "CCS_HSS": {
-        "He": 24.9,
-        "N2": 104.0
+        "He": 25.56,
+        "N2": 104.02
       },
       "CCS_reference_gas": "He",
       "name": "Hydronium ion",

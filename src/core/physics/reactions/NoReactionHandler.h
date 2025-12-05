@@ -32,12 +32,12 @@ namespace physics {
 class NoReactionHandler : public IReactionHandler {
 public:
     bool handle_reaction(
-        IonState& ion,
-        double dt,
-        PhysicsRng& rng,
-        const config::ReactionDatabase& reaction_db,
-        const config::SpeciesDatabase& species_db,
-        const config::EnvironmentConfig& env
+        core::IonReactionData&,
+        double,
+        PhysicsRng&,
+        const config::ReactionDatabase&,
+        const config::SpeciesDatabase&,
+        const config::EnvironmentConfig&
     ) override {
         // No-op: reactions disabled
         return false;

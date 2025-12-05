@@ -5,7 +5,7 @@
 **Highlights**
 - Core SimulationEngine (AoS/SoA) with multi-domain support and OutputManager
 - GPU acceleration: RK4/RK45/Boris batch integrators; HSS/EHSS collision helper (active-ion threshold default 5000)
-- SoA (`IonEnsemble`) path and integrator `step_soa` hooks
+- SoA (`IonEnsemble`) path and integrator `process_timestep` hooks
 - HDF5 output with selected config/system metadata, species/reaction subsets, waveform library (v1.1 addition)
 - Comprehensive CLI (`icarion_main`): validation, schema dumps, profiling/benchmark flags
 - Validated collision models: Friction (deterministic friction force), HSS (isotropic collisions), EHSS (structure-aware, mobility bias noted)

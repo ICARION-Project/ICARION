@@ -12,6 +12,7 @@
 
 #include "core/config/types/FullConfig.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/integrator/strategies/IIntegrationStrategy.h"
 #include "core/physics/collisions/ICollisionHandler.h"
@@ -76,7 +77,7 @@ public:
      */
     static PhysicsModules initialize(
         const config::FullConfig& config,
-        const std::vector<core::IonState>& ions
+        const core::IonEnsemble& ions
     );
 
 private:
@@ -111,7 +112,7 @@ private:
     static void add_space_charge_forces(
         std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
         const config::FullConfig& config,
-        const std::vector<core::IonState>& ions
+        const core::IonEnsemble& ions
     );
     
     /**

@@ -3,6 +3,7 @@
 
 #include "RK45Strategy.h"
 #include "core/physics/forces/ForceContext.h"
+#include "core/types/IonEnsemble.h"
 #include <cmath>
 #include <algorithm>
 #include <stdexcept>
@@ -132,6 +133,30 @@ void RK45Strategy::compute_acceleration(
     az = a.z;
 }
 
+void RK45Strategy::compute_acceleration_soa(
+    double& ax, double& ay, double& az,
+    const core::IonEnsemble& ensemble,
+    size_t ion_idx,
+    double t,
+    const physics::ForceRegistry& force_registry
+) {
+    physics::ForceContext ctx;
+    ctx.domain = force_registry.domain();
+    ctx.all_ions = nullptr;
+    ctx.field_provider = nullptr;
+    ctx.field_model = force_registry.field_model();
+    ctx.ion_ensemble = &ensemble;
+    ctx.ion_index = ion_idx;
+
+    Vec3 F = force_registry.compute_total_force_soa(ensemble, ion_idx, t, ctx);
+    const double inv_mass = 1.0 / ensemble.mass_data()[ion_idx];
+    Vec3 a = F * inv_mass;
+
+    ax = a.x;
+    ay = a.y;
+    az = a.z;
+}
+
 double RK45Strategy::estimate_error(
     const IonState& y4,
     const IonState& y5,
@@ -218,6 +243,156 @@ void RK45Strategy::step(
     double dt_variable = dt;
     step_adaptive(ion, t, dt_variable, force_registry, all_ions);
     // Note: dt_variable may change, but we ignore it for fixed-step interface
+}
+
+void RK45Strategy::step_soa(
+    core::IonEnsemble& ensemble,
+    size_t ion_idx,
+    double t,
+    double dt,
+    const physics::ForceRegistry& force_registry
+) {
+    double dt_variable = dt;
+
+    // Build AoS view for this ion (metadata needed for applies_to)
+    IonState ion;
+    ion.pos = ensemble.get_pos(ion_idx);
+    ion.vel = ensemble.get_vel(ion_idx);
+    ion.mass_kg = ensemble.mass_data()[ion_idx];
+    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
+    ion.active = ensemble.active_data()[ion_idx] != 0;
+    ion.born = ensemble.born_data()[ion_idx] != 0;
+    ion.current_domain_index = ensemble.domain_index(ion_idx);
+    ion.CCS_m2 = ensemble.CCS(ion_idx);
+    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+    ion.species_id = ensemble.species_id(ion_idx);
+    ion.birth_time_s = ensemble.birth_time(ion_idx);
+
+    // Run adaptive step using SoA acceleration path; ignore dt update (fixed-step interface)
+    const double dt_initial = dt_variable;
+    const config::DomainConfig* domain = force_registry.domain();
+    if (!domain) {
+        throw std::runtime_error("RK45Strategy: ForceRegistry has no domain configured");
+    }
+    const double dt_min = dt_initial * config_.min_step_factor;
+    const double dt_max = dt_initial * config_.max_step_factor;
+
+    double dt_work = dt_variable;
+    bool step_accepted = false;
+    int attempts = 0;
+    IonState y0 = ion;
+
+    while (!step_accepted && attempts < MAX_REJECT_ATTEMPTS) {
+        Vec3 k1_v, k1_a;
+        Vec3 k2_v, k2_a;
+        Vec3 k3_v, k3_a;
+        Vec3 k4_v, k4_a;
+        Vec3 k5_v, k5_a;
+        Vec3 k6_v, k6_a;
+        Vec3 k7_v, k7_a;
+
+        k1_v = y0.vel;
+        if (fsal_available_) {
+            k1_a = Vec3{k1_stored_.ax, k1_stored_.ay, k1_stored_.az};
+        } else {
+            double ax, ay, az;
+            compute_acceleration_soa(ax, ay, az, ensemble, ion_idx, t, force_registry);
+            k1_a = Vec3{ax, ay, az};
+        }
+
+        IonState y2 = y0;
+        y2.pos += k1_v * (dt_work * a21);
+        y2.vel += k1_a * (dt_work * a21);
+        k2_v = y2.vel;
+        double ax2, ay2, az2;
+        compute_acceleration_soa(ax2, ay2, az2, ensemble, ion_idx, t + c2*dt_work, force_registry);
+        k2_a = Vec3{ax2, ay2, az2};
+
+        IonState y3 = y0;
+        y3.pos += (k1_v * a31 + k2_v * a32) * dt_work;
+        y3.vel += (k1_a * a31 + k2_a * a32) * dt_work;
+        k3_v = y3.vel;
+        double ax3, ay3, az3;
+        compute_acceleration_soa(ax3, ay3, az3, ensemble, ion_idx, t + c3*dt_work, force_registry);
+        k3_a = Vec3{ax3, ay3, az3};
+
+        IonState y4_temp = y0;
+        y4_temp.pos += (k1_v * a41 + k2_v * a42 + k3_v * a43) * dt_work;
+        y4_temp.vel += (k1_a * a41 + k2_a * a42 + k3_a * a43) * dt_work;
+        k4_v = y4_temp.vel;
+        double ax4, ay4, az4;
+        compute_acceleration_soa(ax4, ay4, az4, ensemble, ion_idx, t + c4*dt_work, force_registry);
+        k4_a = Vec3{ax4, ay4, az4};
+
+        IonState y5_temp = y0;
+        y5_temp.pos += (k1_v * a51 + k2_v * a52 + k3_v * a53 + k4_v * a54) * dt_work;
+        y5_temp.vel += (k1_a * a51 + k2_a * a52 + k3_a * a53 + k4_a * a54) * dt_work;
+        k5_v = y5_temp.vel;
+        double ax5, ay5, az5;
+        compute_acceleration_soa(ax5, ay5, az5, ensemble, ion_idx, t + c5*dt_work, force_registry);
+        k5_a = Vec3{ax5, ay5, az5};
+
+        IonState y6 = y0;
+        y6.pos += (k1_v * a61 + k2_v * a62 + k3_v * a63 + k4_v * a64 + k5_v * a65) * dt_work;
+        y6.vel += (k1_a * a61 + k2_a * a62 + k3_a * a63 + k4_a * a64 + k5_a * a65) * dt_work;
+        k6_v = y6.vel;
+        double ax6, ay6, az6;
+        compute_acceleration_soa(ax6, ay6, az6, ensemble, ion_idx, t + c6*dt_work, force_registry);
+        k6_a = Vec3{ax6, ay6, az6};
+
+        IonState y7 = y0;
+        y7.pos += (k1_v * a71 + k2_v * a72 + k3_v * a73 + k4_v * a74 + k5_v * a75 + k6_v * a76) * dt_work;
+        y7.vel += (k1_a * a71 + k2_a * a72 + k3_a * a73 + k4_a * a74 + k5_a * a75 + k6_a * a76) * dt_work;
+        k7_v = y7.vel;
+        double ax7, ay7, az7;
+        compute_acceleration_soa(ax7, ay7, az7, ensemble, ion_idx, t + c7*dt_work, force_registry);
+        k7_a = Vec3{ax7, ay7, az7};
+
+        IonState y4 = y7;  // FSAL property
+
+        IonState y5 = y0;
+        y5.pos += (k1_v * b51 + k2_v * b52 + k3_v * b53 + k4_v * b54 + k5_v * b55 + k6_v * b56 + k7_v * b57) * dt_work;
+        y5.vel += (k1_a * b51 + k2_a * b52 + k3_a * b53 + k4_a * b54 + k5_a * b55 + k6_a * b56 + k7_a * b57) * dt_work;
+
+        double error = estimate_error(y4, y5, y0);
+
+        if (error <= ERROR_ACCEPTANCE_THRESHOLD || dt_work <= dt_min * DT_MIN_TOLERANCE) {
+            ion = y4;
+            step_accepted = true;
+
+            k1_stored_.ax = k7_a.x;
+            k1_stored_.ay = k7_a.y;
+            k1_stored_.az = k7_a.z;
+            fsal_available_ = true;
+
+            stats_.accepted_steps++;
+            stats_.min_step_used = std::min(stats_.min_step_used, dt_work);
+            stats_.max_step_used = std::max(stats_.max_step_used, dt_work);
+            stats_.avg_error = (stats_.avg_error * (stats_.accepted_steps - 1) + error)
+                             / stats_.accepted_steps;
+
+            double dt_next = compute_new_step(dt_work, error, dt_min, dt_max);
+            dt_variable = dt_next;
+            last_error_ = error;
+        } else {
+            stats_.rejected_steps++;
+            double dt_next = compute_new_step(dt_work, error, dt_min, dt_max);
+            dt_work = dt_next;
+            attempts++;
+            fsal_available_ = false;
+        }
+    }
+
+    if (!step_accepted) {
+        throw std::runtime_error(
+            "RK45Strategy: Failed to converge after "
+            + std::to_string(MAX_REJECT_ATTEMPTS) + " attempts"
+        );
+    }
+
+    // Write back to SoA
+    ensemble.set_pos(ion_idx, ion.pos);
+    ensemble.set_vel(ion_idx, ion.vel);
 }
 
 void RK45Strategy::step_adaptive(

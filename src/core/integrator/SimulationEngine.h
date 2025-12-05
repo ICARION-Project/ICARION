@@ -121,13 +121,12 @@ public:
      * 
      * **Performance Notes:**
      * - SoA loop is used internally for per-timestep work.
-     * - Current entry/exit still convert to AoS for initialization/output; end-to-end
-     *   speedup depends on overriding step_soa() without AoS copies.
+     * - Entry from legacy AoS calls converts once and reuses SoA thereafter.
      * - OpenMP friendliness remains (no false sharing in the hot arrays).
      * 
      * **Note:** Uses process_timestep_soa() internally for bulk operations
      */
-    std::vector<IonState> run_soa(core::IonEnsemble& ensemble);
+    std::vector<IonState> run(core::IonEnsemble& ensemble);
     
     /**
      * @brief Get simulation configuration
@@ -188,6 +187,11 @@ private:
      * Creates DomainManager and OutputManager, writes initial HDF5 metadata.
      */
     void initialize(const std::vector<IonState>& ions);
+
+    /**
+     * @brief Initialize simulation subsystems from SoA ensemble
+     */
+    void initialize_soa(const core::IonEnsemble& ensemble);
     
     /**
      * @brief Initialize OpenMP thread settings and NUMA awareness

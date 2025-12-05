@@ -8,6 +8,7 @@
 #include "IForce.h"
 #include "ForceContext.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/types/IonEnsemble.h"
 
 namespace ICARION::config {
     class IFieldModel;
@@ -86,6 +87,19 @@ public:
      */
     Vec3 compute_total_force(
         const IonState& ion,
+        double t,
+        const ForceContext& context = {}
+    ) const;
+
+    /**
+     * @brief Compute total force using SoA ensemble data
+     *
+     * Calls `compute_soa` on all registered forces. Forces that do not override
+     * `compute_soa` will transparently fall back to AoS reconstruction.
+     */
+    Vec3 compute_total_force_soa(
+        const core::IonEnsemble& ensemble,
+        size_t ion_idx,
         double t,
         const ForceContext& context = {}
     ) const;

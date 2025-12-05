@@ -24,6 +24,7 @@
 
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/gpu/core/GPUContext.h"
 #include <vector>
 #include <memory>
@@ -132,6 +133,14 @@ public:
      */
     bool compute_space_charge_field(
         const std::vector<IonState>& ions,
+        std::vector<Vec3>& E_field_out
+    );
+
+    /**
+     * @brief SoA wrapper for space charge field computation
+     */
+    bool compute_space_charge_field(
+        const core::IonEnsemble& ions,
         std::vector<Vec3>& E_field_out
     );
     

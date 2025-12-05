@@ -97,7 +97,7 @@ static double benchmark_soa_threads(size_t n_ions, int n_threads) {
     SimulationEngine engine(config, force_registries, integrator);
     
     auto start = std::chrono::high_resolution_clock::now();
-    auto result = engine.run_soa(ensemble);
+    auto result = engine.run(ensemble);
     auto end = std::chrono::high_resolution_clock::now();
     
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

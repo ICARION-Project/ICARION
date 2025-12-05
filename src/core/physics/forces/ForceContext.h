@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <vector>
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
@@ -16,12 +17,19 @@ namespace ICARION::config {
     class IFieldModel;
 }
 
+// Forward declare IonEnsemble (SoA container)
+namespace ICARION::core {
+    class IonEnsemble;
+}
+
 namespace ICARION::physics {
 
 /**
  * @brief Context for force computation (no ownership)
  * 
- * Holds optional pointers to shared data used by force implementations. Callers fill\n+ * what they need; nullptr means “not available”. Environment/geometry lives in the\n+ * DomainConfig referenced here.
+ * Holds optional pointers to shared data used by force implementations. Callers fill
+ * what they need; nullptr means “not available”. Environment/geometry lives in the
+ * DomainConfig referenced here.
  */
 struct ForceContext {
     // =========================================================================
@@ -75,6 +83,25 @@ struct ForceContext {
      * @note For space charge: exclude self-interaction (ion == current ion)
      */
     const std::vector<IonState>* all_ions = nullptr;
+
+    /**
+     * @brief Optional SoA ensemble view for N-body forces in SoA path
+     *
+     * Used by space-charge forces to avoid AoS reconstruction in SoA integrators.
+     * @code
+     * ctx.ion_ensemble = &ensemble;
+     * ctx.ion_index    = i;
+     * @endcode
+     */
+    const ::ICARION::core::IonEnsemble* ion_ensemble = nullptr;
+
+    /**
+     * @brief Index of the current ion in ion_ensemble (SoA)
+     *
+     * Use together with `ion_ensemble` to identify the active ion in
+     * space-charge computations. Ignored if `ion_ensemble` is null.
+     */
+    size_t ion_index = static_cast<size_t>(-1);
     
     // =========================================================================
     // SSOT Compliance Note

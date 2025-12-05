@@ -69,6 +69,61 @@ bool SpaceChargeDirect::applies_to(const IonState& ion) const {
     return true;
 }
 
+Vec3 SpaceChargeDirect::compute_soa(
+    const core::IonEnsemble& ensemble,
+    size_t ion_idx,
+    double t,
+    const ForceContext& ctx
+) const {
+    (void)t;
+
+    const auto* pos_x = ensemble.pos_x_data();
+    const auto* pos_y = ensemble.pos_y_data();
+    const auto* pos_z = ensemble.pos_z_data();
+    const auto* charge = ensemble.charge_data();
+    const auto* active = ensemble.active_data();
+
+    const size_t n = ensemble.size();
+    if (n <= 1) {
+        return Vec3{0.0, 0.0, 0.0};
+    }
+
+    // Self parameters
+    const double q_self = charge[ion_idx];
+    const double x_self = pos_x[ion_idx];
+    const double y_self = pos_y[ion_idx];
+    const double z_self = pos_z[ion_idx];
+
+    Vec3 total{0.0, 0.0, 0.0};
+    const double epsilon_sq = softening_m_ * softening_m_;
+    const double min_distance_sq = std::max(softening_m_ * softening_m_ * 1e-4, 1e-30);
+
+    for (size_t j = 0; j < n; ++j) {
+        if (j == ion_idx || active[j] == 0) {
+            continue;
+        }
+
+        const double dx = x_self - pos_x[j];
+        const double dy = y_self - pos_y[j];
+        const double dz = z_self - pos_z[j];
+        const double r_sq = dx * dx + dy * dy + dz * dz;
+        if (r_sq < min_distance_sq) {
+            continue;
+        }
+
+        const double r = std::sqrt(r_sq);
+        const double r_eff_sq = r_sq + epsilon_sq;
+        const double force_mag = COULOMB_CONST * q_self * charge[j] / r_eff_sq;
+        const double inv_r = 1.0 / r;
+        const double scale = force_mag * inv_r;
+        total.x += dx * scale;
+        total.y += dy * scale;
+        total.z += dz * scale;
+    }
+
+    return total;
+}
+
 std::string SpaceChargeDirect::name() const {
     return "SpaceChargeDirect";
 }

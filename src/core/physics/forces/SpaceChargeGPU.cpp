@@ -37,13 +37,12 @@ Vec3 SpaceChargeGPU::compute(
         return {0, 0, 0};
     }
     
-    // Validate context (need all_ions for GPU update)
-    if (!ctx.all_ions || ctx.all_ions->empty()) {
+    // Validate context (need ion ensemble for GPU update)
+    if ((!ctx.all_ions || ctx.all_ions->empty()) && !ctx.ion_ensemble) {
         return {0, 0, 0};
     }
     
-    const auto& all_ions = *ctx.all_ions;
-    const size_t N = all_ions.size();
+    const size_t N = ctx.ion_ensemble ? ctx.ion_ensemble->size() : ctx.all_ions->size();
     
     // Update solver once per timestep (time-based deduplication)
     // Use epsilon comparison for floating-point time
@@ -63,7 +62,9 @@ Vec3 SpaceChargeGPU::compute(
                 }
                 
                 // Call GPU solver: Computes E-field for ALL ions at once
-                bool success = solver_->compute_space_charge_field(all_ions, cached_E_fields_);
+                bool success = ctx.ion_ensemble
+                    ? solver_->compute_space_charge_field(*ctx.ion_ensemble, cached_E_fields_)
+                    : solver_->compute_space_charge_field(*ctx.all_ions, cached_E_fields_);
                 
                 if (!success) {
                     // GPU solver failed - zero out fields
@@ -76,25 +77,53 @@ Vec3 SpaceChargeGPU::compute(
         }
     }
     
-    // Find ion index in all_ions (linear search - assume small overhead vs GPU computation)
-    // Alternative: Pass ion_index via ForceContext (requires API change)
-    size_t ion_idx = 0;
-    for (; ion_idx < N; ++ion_idx) {
-        if (&all_ions[ion_idx] == &ion) {
-            break;
+    // Use provided ion_index when available (SoA path)
+    size_t ion_idx = (ctx.ion_index != static_cast<size_t>(-1)) ? ctx.ion_index : 0;
+
+    if (ctx.ion_index == static_cast<size_t>(-1) && ctx.all_ions) {
+        // Linear search fallback (AoS path)
+        for (; ion_idx < N; ++ion_idx) {
+            if (&(*ctx.all_ions)[ion_idx] == &ion) {
+                break;
+            }
         }
     }
-    
-    // Fallback: If ion not found, use zero field (should never happen)
+
     if (ion_idx >= N || ion_idx >= cached_E_fields_.size()) {
         return {0, 0, 0};
     }
-    
+
     // Retrieve precomputed E-field from cache
     Vec3 E_sc = cached_E_fields_[ion_idx];
     
     // Compute force: F = q·E
     return E_sc * ion.ion_charge_C;
+}
+
+Vec3 SpaceChargeGPU::compute_soa(
+    const core::IonEnsemble& ensemble,
+    size_t ion_idx,
+    double t,
+    const ForceContext& ctx
+) const {
+    // Build minimal IonState for AoS API reuse
+    IonState ion;
+    ion.pos = ensemble.get_pos(ion_idx);
+    ion.vel = ensemble.get_vel(ion_idx);
+    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
+    ion.mass_kg = ensemble.mass_data()[ion_idx];
+    ion.active = ensemble.active_data()[ion_idx] != 0;
+    ion.born = ensemble.born_data()[ion_idx] != 0;
+    ion.current_domain_index = ensemble.domain_index(ion_idx);
+    ion.species_id = ensemble.species_id(ion_idx);
+    ion.CCS_m2 = ensemble.CCS(ion_idx);
+    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+    ion.birth_time_s = ensemble.birth_time(ion_idx);
+
+    ForceContext ctx_with = ctx;
+    ctx_with.ion_ensemble = &ensemble;
+    ctx_with.ion_index = ion_idx;
+    return compute(ion, t, ctx_with);
 }
 
 bool SpaceChargeGPU::applies_to(const IonState& ion) const {

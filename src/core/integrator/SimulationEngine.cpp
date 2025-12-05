@@ -128,6 +128,12 @@ void SimulationEngine::initialize(const std::vector<IonState>& ions) {
 #endif
 }
 
+void SimulationEngine::initialize_soa(const core::IonEnsemble& ensemble) {
+    // Single conversion at startup for metadata/output initialization
+    auto ions_legacy = ensemble.to_legacy();
+    initialize(ions_legacy);
+}
+
 void SimulationEngine::initialize_openmp_settings() {
 #ifdef _OPENMP
     if (!config_.simulation.enable_openmp) {
@@ -635,20 +641,13 @@ void SimulationEngine::log_progress(double t) {
 std::vector<IonState> SimulationEngine::run(std::vector<IonState>& ions) {
     // Thin wrapper: convert AoS to SoA, run SoA path, return AoS
     core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
-    return run_soa(ensemble);
+    return run(ensemble);
 }
 
-// ============================================================================
-// SoA (Structure of Arrays) Implementation 
-// ============================================================================
-
-std::vector<IonState> SimulationEngine::run_soa(core::IonEnsemble& ensemble) {
-    
-    // Convert to legacy format for initialization only
-    std::vector<IonState> ions_legacy = ensemble.to_legacy();
+std::vector<IonState> SimulationEngine::run(core::IonEnsemble& ensemble) {
     
     // 1. Initialize subsystems
-    initialize(ions_legacy);
+    initialize_soa(ensemble);
     
     // 2. Main time loop using SoA
     const double dt = config_.simulation.dt_s;

@@ -3,6 +3,7 @@
 
 #pragma once
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/Grid3D.h"
 #include "utils/constants.h"
 #include <vector>
@@ -59,4 +60,10 @@
  * @throws std::runtime_error if grid size is insufficient for ion distribution
  */
 std::vector<double> deposit_charge(const std::vector<IonState>& ions,
+                                   const Grid3D& grid);
+
+/**
+ * @brief Deposit ion charges onto 3D grid (SoA path)
+ */
+std::vector<double> deposit_charge(const ICARION::core::IonEnsemble& ions,
                                    const Grid3D& grid);

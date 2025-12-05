@@ -5,6 +5,7 @@
 
 #include <string>
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/Vec3.h"
 
 namespace ICARION::physics {
@@ -56,6 +57,34 @@ public:
         double t,
         const ForceContext& context
     ) const = 0;
+
+    /**
+     * @brief Compute force contribution in SoA path
+     *
+     * Default implementation reconstructs an IonState and calls `compute()`.
+     * Forces can override this for SoA-specialized implementations (e.g.,
+     * space charge) to avoid AoS reconstruction and improve cache locality.
+     */
+    virtual Vec3 compute_soa(
+        const core::IonEnsemble& ensemble,
+        size_t ion_idx,
+        double t,
+        const ForceContext& context
+    ) const {
+        IonState ion;
+        ion.pos = ensemble.get_pos(ion_idx);
+        ion.vel = ensemble.get_vel(ion_idx);
+        ion.mass_kg = ensemble.mass_data()[ion_idx];
+        ion.ion_charge_C = ensemble.charge_data()[ion_idx];
+        ion.active = ensemble.active_data()[ion_idx] != 0;
+        ion.born = ensemble.born_data()[ion_idx] != 0;
+        ion.current_domain_index = ensemble.domain_index(ion_idx);
+        ion.CCS_m2 = ensemble.CCS(ion_idx);
+        ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+        ion.species_id = ensemble.species_id(ion_idx);
+        ion.birth_time_s = ensemble.birth_time(ion_idx);
+        return compute(ion, t, context);
+    }
     
     /**
      * @brief Check if this force applies to given ion

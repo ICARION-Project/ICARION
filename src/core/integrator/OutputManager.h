@@ -100,6 +100,12 @@ public:
      */
     void initialize(const config::FullConfig& config, 
                     const std::vector<IonState>& ions);
+
+    /**
+     * @brief Initialize output system (SoA)
+     */
+    void initialize_soa(const config::FullConfig& config,
+                        const core::IonEnsemble& ensemble);
     
     /**
      * @brief Log timestep snapshot (legacy AoS variant)
@@ -218,6 +224,8 @@ private:
     // HDF5 buffers
     std::vector<double> times_buffer_;
     std::vector<std::vector<IonState>> trajectory_buffer_;
+    std::vector<core::IonEnsemble> trajectory_buffer_soa_;
+    bool soa_mode_ = false;
     
     // Text logging (optional)
     std::string log_filename_;

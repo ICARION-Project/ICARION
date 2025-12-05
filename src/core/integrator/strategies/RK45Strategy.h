@@ -146,6 +146,17 @@ public:
         const physics::ForceRegistry& force_registry,
         const std::vector<IonState>& all_ions
     );
+
+    /**
+     * @brief SoA-aware step wrapper (uses compute_total_force_soa)
+     */
+    void step_soa(
+        core::IonEnsemble& ensemble,
+        size_t ion_idx,
+        double t,
+        double dt,
+        const physics::ForceRegistry& force_registry
+    ) override;
     
     /**
      * @brief Get method name
@@ -198,6 +209,14 @@ private:
         double t,
         const physics::ForceRegistry& force_registry,
         const std::vector<IonState>& all_ions
+    );
+
+    void compute_acceleration_soa(
+        double& ax, double& ay, double& az,
+        const core::IonEnsemble& ensemble,
+        size_t ion_idx,
+        double t,
+        const physics::ForceRegistry& force_registry
     );
     
     /**

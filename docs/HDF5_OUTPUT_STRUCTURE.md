@@ -2,7 +2,8 @@
 
 **Version:** 1.0  
 **Last Updated:** December 2025  
-**Status:** Implemented (v1.0); waveform library stored (v1.1); full config JSON not embedded (config snapshot written separately alongside output)
+**Status:** Implemented (v1.0); waveform library stored (v1.1); full config JSON not embedded (config snapshot written separately alongside output).  
+**Implementation:** Writer is SoA-native (IonEnsemble) in v1.0; legacy AoS calls still accepted for compatibility.
 
 ---
 

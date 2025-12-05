@@ -67,7 +67,7 @@ tools/                 # Developer tools and scripts
 
 ### Simulation Engine
 
-`SimulationEngine` is the central orchestrator. The legacy AoS entry point (`run`) now converts once to `IonEnsemble` and delegates to the SoA core (`run_soa`); both share identical control flow:
+`SimulationEngine` is the central orchestrator. The legacy AoS entry point (`run`) now converts once to `IonEnsemble` and delegates to the SoA core (`run` overload taking `IonEnsemble&`); both share identical control flow:
 
 1. Initialize `DomainManager` and `OutputManager`, log metadata (AoS init uses a temporary conversion in the SoA path).
 2. Optionally initialize GPU helpers (integration/collisions; space charge/boundary helpers exist but are not yet dispatched).

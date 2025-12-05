@@ -94,6 +94,17 @@ public:
         const physics::ForceRegistry& force_registry,
         const std::vector<IonState>& all_ions
     ) override;
+
+    /**
+     * @brief SoA-aware Boris step (avoids AoS reconstruction)
+     */
+    void step_soa(
+        core::IonEnsemble& ensemble,
+        size_t ion_idx,
+        double t,
+        double dt,
+        const physics::ForceRegistry& force_registry
+    ) override;
     
     std::string name() const override { return "Boris"; }
     bool is_adaptive() const override { return false; }

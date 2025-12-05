@@ -56,6 +56,16 @@ public:
         double t,
         const ForceContext& ctx
     ) const override;
+
+    /**
+     * @brief SoA-aware computation (uses ctx.ion_ensemble if provided)
+     */
+    Vec3 compute_soa(
+        const core::IonEnsemble& ensemble,
+        size_t ion_idx,
+        double t,
+        const ForceContext& ctx
+    ) const override;
     
     /**
      * @brief Check if force applies to this ion

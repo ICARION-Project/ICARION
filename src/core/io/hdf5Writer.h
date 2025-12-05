@@ -15,6 +15,7 @@
 
 #include "core/config/types/FullConfig.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include <H5Cpp.h>
 #include <vector>
 #include <string>
@@ -51,6 +52,15 @@ public:
         const std::string& git_hash,
         const std::string& build_info
     );
+
+    // SoA overload
+    static void create_file(
+        const std::string& filename,
+        const config::FullConfig& config,
+        const core::IonEnsemble& ions,
+        const std::string& git_hash,
+        const std::string& build_info
+    );
     
     /**
      * @brief Append trajectory snapshot
@@ -67,6 +77,12 @@ public:
         const std::string& filename,
         double time,
         const std::vector<IonState>& ions
+    );
+
+    static void append_trajectory(
+        const std::string& filename,
+        double time,
+        const core::IonEnsemble& ions
     );
     
     /**
@@ -85,6 +101,12 @@ public:
         const std::vector<double>& times,
         const std::vector<std::vector<IonState>>& trajectories
     );
+
+    static void append_trajectory_batch(
+        const std::string& filename,
+        const std::vector<double>& times,
+        const std::vector<core::IonEnsemble>& trajectories
+    );
     
     /**
      * @brief Update death_time_s dataset with final ion states
@@ -99,6 +121,11 @@ public:
     static void update_death_times(
         const std::string& filename,
         const std::vector<IonState>& final_ions
+    );
+
+    static void update_death_times(
+        const std::string& filename,
+        const core::IonEnsemble& final_ensemble
     );
     
     /**

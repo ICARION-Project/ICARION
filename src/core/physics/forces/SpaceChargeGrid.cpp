@@ -35,8 +35,8 @@ Vec3 SpaceChargeGrid::compute(
         return {0, 0, 0};
     }
     
-    // Validate context (need all_ions for grid update)
-    if (!ctx.all_ions || ctx.all_ions->empty()) {
+    // Validate context (need ion ensemble for grid update)
+    if (!ctx.all_ions && !ctx.ion_ensemble) {
         return {0, 0, 0};
     }
     
@@ -52,7 +52,11 @@ Vec3 SpaceChargeGrid::compute(
         {
             // Double-check inside critical section (other thread might have updated)
             if (std::abs(t - last_update_time_) > TIME_EPSILON) {
-                solver_->update(*ctx.all_ions);
+                if (ctx.ion_ensemble) {
+                    solver_->update(*ctx.ion_ensemble);
+                } else {
+                    solver_->update(*ctx.all_ions);
+                }
                 last_update_time_ = t;
                 solver_updated_this_step_ = true;
             }
@@ -64,6 +68,38 @@ Vec3 SpaceChargeGrid::compute(
     
     // Compute force: F = q·E
     return E_sc * ion.ion_charge_C;
+}
+
+Vec3 SpaceChargeGrid::compute_soa(
+    const core::IonEnsemble& ensemble,
+    size_t ion_idx,
+    double t,
+    const ForceContext& ctx
+) const {
+    ForceContext ctx_with = ctx;
+    ctx_with.ion_ensemble = &ensemble;
+    ctx_with.ion_index = ion_idx;
+
+    // Use SoA update path
+    if (!ctx_with.all_ions && !ctx_with.ion_ensemble) {
+        ctx_with.ion_ensemble = &ensemble;
+    }
+
+    // Build minimal IonState for interpolation point
+    IonState ion;
+    ion.pos = ensemble.get_pos(ion_idx);
+    ion.vel = ensemble.get_vel(ion_idx);
+    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
+    ion.mass_kg = ensemble.mass_data()[ion_idx];
+    ion.active = ensemble.active_data()[ion_idx] != 0;
+    ion.born = ensemble.born_data()[ion_idx] != 0;
+    ion.current_domain_index = ensemble.domain_index(ion_idx);
+    ion.species_id = ensemble.species_id(ion_idx);
+    ion.CCS_m2 = ensemble.CCS(ion_idx);
+    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+    ion.birth_time_s = ensemble.birth_time(ion_idx);
+
+    return compute(ion, t, ctx_with);
 }
 
 bool SpaceChargeGrid::applies_to(const IonState& ion) const {

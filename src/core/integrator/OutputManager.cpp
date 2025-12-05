@@ -121,20 +121,63 @@ void OutputManager::initialize(
     next_write_time_ = write_interval_dt_;
 }
 
+void OutputManager::initialize_soa(
+    const config::FullConfig& config,
+    const core::IonEnsemble& ensemble
+) {
+    if (initialized_) {
+        throw std::runtime_error("OutputManager: Already initialized");
+    }
+    
+    // 1. Create HDF5 file with metadata using HDF5Writer (SoA)
+    try {
+        io::HDF5Writer::create_file(
+            hdf5_filename_,
+            config,
+            ensemble,
+            GIT_HASH,
+            BUILD_TYPE
+        );
+    } catch (const std::exception& e) {
+        throw std::runtime_error("OutputManager: Failed to create HDF5 file (SoA): " + 
+                                 std::string(e.what()));
+    }
+    
+    // 2. Initialize text logger (if enabled)
+    if (!log_filename_.empty()) {
+        std::lock_guard<std::mutex> lock(text_log_mutex_);
+        text_log_file_.open(log_filename_, std::ios::out | std::ios::trunc);
+        if (!text_log_file_.is_open()) {
+            throw std::runtime_error("Failed to create text log: " + log_filename_);
+        }
+        
+        text_log_file_ << "============================================================\n";
+        text_log_file_ << "       ICARION Ion Collision And Reaction IntegratiON       \n";
+        text_log_file_ << "============================================================\n";
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::tm tm = *std::localtime(&now_c);
+        text_log_file_ << "Simulation started: ";
+        text_log_file_ << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << "\n\n";
+        text_log_file_.flush();
+    }
+    
+    initialized_ = true;
+    next_write_time_ = write_interval_dt_;
+    soa_mode_ = true;
+}
+
 void OutputManager::log_step(double t, const std::vector<IonState>& ions) {
     if (!initialized_) {
         throw std::runtime_error("OutputManager: Not initialized (call initialize() first)");
     }
     
-    // Track last time for incomplete metadata (if simulation crashes)
     last_time_ = t;
     
-    // Check if flush needed BEFORE adding (allows buffer to fill to buffer_max)
     if (should_write_before_add(t)) {
         flush();
     }
     
-    // Buffer snapshot
     times_buffer_.push_back(t);
     trajectory_buffer_.push_back(ions);
 }
@@ -155,13 +198,9 @@ void OutputManager::log_step_soa(double t, const core::IonEnsemble& ensemble) {
         flush();
     }
     
-    // Convert to legacy format for now (Phase 5 optimization: direct SoA write)
-    // TODO: Implement direct SoA→HDF5 writing to avoid this conversion
-    std::vector<IonState> ions_snapshot = ensemble.to_legacy();
-    
-    // Buffer snapshot (same as legacy path)
+    // Buffer snapshot (SoA)
     times_buffer_.push_back(t);
-    trajectory_buffer_.push_back(std::move(ions_snapshot));
+    trajectory_buffer_soa_.push_back(ensemble);
 }
 
 void OutputManager::log_progress(const std::string& message) {
@@ -199,15 +238,24 @@ void OutputManager::flush() {
         // Write all buffered snapshots in ONE batch operation
         // This is much faster than individual append_trajectory() calls
         // because it opens/closes the file only once
-        io::HDF5Writer::append_trajectory_batch(
-            hdf5_filename_,
-            times_buffer_,
-            trajectory_buffer_
-        );
+        if (soa_mode_) {
+            io::HDF5Writer::append_trajectory_batch(
+                hdf5_filename_,
+                times_buffer_,
+                trajectory_buffer_soa_
+            );
+        } else {
+            io::HDF5Writer::append_trajectory_batch(
+                hdf5_filename_,
+                times_buffer_,
+                trajectory_buffer_
+            );
+        }
         
         // Clear buffers
         times_buffer_.clear();
         trajectory_buffer_.clear();
+        trajectory_buffer_soa_.clear();
         
         // Update next write time (avoid drift with adaptive timesteps)
         // Use last flushed time as anchor, not incremental addition
@@ -319,12 +367,77 @@ void OutputManager::finalize(double t_final, const std::vector<IonState>& final_
 }
 
 void OutputManager::finalize_soa(double t_final, const core::IonEnsemble& final_ensemble) {
-    // Convert to legacy format for now (Phase 5 optimization: direct SoA finalization)
-    // TODO: Implement direct SoA finalization to avoid this conversion
-    std::vector<IonState> final_ions = final_ensemble.to_legacy();
-    
-    // Use legacy finalize method
-    finalize(t_final, final_ions);
+    if (!initialized_) {
+        return;
+    }
+
+    // Ensure last snapshot present
+    if (times_buffer_.empty() || times_buffer_.back() < t_final) {
+        times_buffer_.push_back(t_final);
+        trajectory_buffer_soa_.push_back(final_ensemble);
+    }
+
+    // Flush remaining data
+    if (!times_buffer_.empty()) {
+        flush();
+    }
+
+    // Update death times (uses single conversion inside writer)
+    try {
+        io::HDF5Writer::update_death_times(hdf5_filename_, final_ensemble);
+    } catch (const std::exception& e) {
+        std::cerr << "Warning: Failed to update death times in HDF5 file: " 
+                  << e.what() << std::endl;
+    }
+
+    // Finalize HDF5
+    try {
+        size_t active_count = 0;
+        const auto* active = final_ensemble.active_data();
+        const auto* born = final_ensemble.born_data();
+        for (size_t i = 0; i < final_ensemble.size(); ++i) {
+            if (active[i] && born[i]) {
+                ++active_count;
+            }
+        }
+
+        io::HDF5Writer::finalize(
+            hdf5_filename_,
+            true,
+            t_final,
+            active_count
+        );
+    } catch (const std::exception& e) {
+        std::cerr << "Warning: Failed to finalize HDF5 file: " 
+                  << e.what() << std::endl;
+    }
+
+    // Text log completion summary
+    {
+        std::lock_guard<std::mutex> lock(text_log_mutex_);
+        if (text_log_file_.is_open()) {
+            size_t total = final_ensemble.size();
+            size_t active = 0;
+            const auto* active_ptr = final_ensemble.active_data();
+            const auto* born_ptr = final_ensemble.born_data();
+            for (size_t i = 0; i < total; ++i) {
+                if (active_ptr[i] && born_ptr[i]) active++;
+            }
+            size_t lost = total - active;
+            
+            text_log_file_ << "============================================================\n";
+            text_log_file_ << "Simulation completed successfully\n";
+            text_log_file_ << "Final time: " << t_final << " s\n";
+            text_log_file_ << "Active ions: " << active << " / " << total << "\n";
+            text_log_file_ << "Lost ions:   " << lost << "\n";
+            text_log_file_ << "============================================================\n";
+            
+            text_log_file_.close();
+        }
+    }
+
+    finalized_ = true;
+    initialized_ = false;
 }
 
 }  // namespace integrator

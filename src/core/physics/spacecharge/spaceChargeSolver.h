@@ -7,6 +7,7 @@
 #include "core/physics/spacecharge/depositCharge.h"
 #include "core/io/fieldArrayLoader.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include <vector>
 
 /**
@@ -56,6 +57,11 @@ public:
     void update(const std::vector<IonState>& ions);
 
     /**
+     * @brief Update electric field using SoA ensemble
+     */
+    void update(const ICARION::core::IonEnsemble& ions);
+
+    /**
      * @brief Interpolate space-charge field at given position
      * @param pos Position [m] in simulation domain
      * @return Electric field [V/m] from space charge
@@ -88,6 +94,7 @@ public:
      * Useful for adaptive timestep schemes and sparse update strategies.
      */
     bool needsUpdate(const std::vector<IonState>& ions) const;
+    bool needsUpdate(const ICARION::core::IonEnsemble& ions) const;
 
     // --- Expose PoissonSolver wrappers for external use ---
     

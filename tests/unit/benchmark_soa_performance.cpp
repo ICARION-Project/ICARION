@@ -95,7 +95,7 @@ TEST_CASE("SoA Performance Benchmark - 100 ions", "[.benchmark][soa]") {
     
     BENCHMARK("SoA (Phase 3 optimized)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run_soa(ensemble);
+        auto result = engine.run(ensemble);
         return result.size();
     };
 }
@@ -119,7 +119,7 @@ TEST_CASE("SoA Performance Benchmark - 1000 ions", "[.benchmark][soa]") {
     
     BENCHMARK("SoA (Phase 3 optimized)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run_soa(ensemble);
+        auto result = engine.run(ensemble);
         return result.size();
     };
 }
@@ -150,7 +150,7 @@ TEST_CASE("Manual Performance Test", "[soa][performance]") {
         auto start_soa = std::chrono::high_resolution_clock::now();
         {
             SimulationEngine engine(config, registries, integrator);
-            auto result = engine.run_soa(ensemble);
+            auto result = engine.run(ensemble);
         }
         auto end_soa = std::chrono::high_resolution_clock::now();
         auto duration_soa = std::chrono::duration_cast<std::chrono::milliseconds>(end_soa - start_soa);

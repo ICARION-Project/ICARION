@@ -108,9 +108,11 @@ void RK4Strategy::step_soa(
     // Create force context (domain from ForceRegistry)
     physics::ForceContext ctx;
     ctx.domain = force_registry.domain();
-    ctx.all_ions = nullptr;  // Space charge AoS only in default path
+    ctx.all_ions = nullptr;  // AoS-only fallback
     ctx.field_provider = nullptr;  // No field provider hookup in RK4
     ctx.field_model = force_registry.field_model();
+    ctx.ion_ensemble = &ensemble;
+    ctx.ion_index = i;
     
     // Temporary IonState for force evaluation (minimal overhead)
     IonState ion_temp;
@@ -123,7 +125,7 @@ void RK4Strategy::step_soa(
     ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]);
     ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]);
     
-    Vec3 F1 = force_registry.compute_total_force(ion_temp, t, ctx);
+    Vec3 F1 = force_registry.compute_total_force_soa(ensemble, i, t, ctx);
     Vec3 a1 = F1 * inv_mass;
     
     Vec3 k1_vel = ion_temp.vel;
@@ -135,7 +137,7 @@ void RK4Strategy::step_soa(
     ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]) + k1_vel * (dt * 0.5);
     ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]) + k1_acc * (dt * 0.5);
     
-    Vec3 F2 = force_registry.compute_total_force(ion_temp, t + dt * 0.5, ctx);
+    Vec3 F2 = force_registry.compute_total_force_soa(ensemble, i, t + dt * 0.5, ctx);
     Vec3 a2 = F2 * inv_mass;
     
     Vec3 k2_vel = ion_temp.vel;
@@ -147,7 +149,7 @@ void RK4Strategy::step_soa(
     ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]) + k2_vel * (dt * 0.5);
     ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]) + k2_acc * (dt * 0.5);
     
-    Vec3 F3 = force_registry.compute_total_force(ion_temp, t + dt * 0.5, ctx);
+    Vec3 F3 = force_registry.compute_total_force_soa(ensemble, i, t + dt * 0.5, ctx);
     Vec3 a3 = F3 * inv_mass;
     
     Vec3 k3_vel = ion_temp.vel;
@@ -159,7 +161,7 @@ void RK4Strategy::step_soa(
     ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]) + k3_vel * dt;
     ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]) + k3_acc * dt;
     
-    Vec3 F4 = force_registry.compute_total_force(ion_temp, t + dt, ctx);
+    Vec3 F4 = force_registry.compute_total_force_soa(ensemble, i, t + dt, ctx);
     Vec3 a4 = F4 * inv_mass;
     
     Vec3 k4_vel = ion_temp.vel;

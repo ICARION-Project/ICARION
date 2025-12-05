@@ -189,6 +189,15 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
     return true;
 }
 
+bool GPUSpaceChargeP3M::compute_space_charge_field(
+    const core::IonEnsemble& ions,
+    std::vector<Vec3>& E_field_out
+) {
+    // Minimal AoS conversion for now; keeps interface SoA-compatible
+    auto legacy = ions.to_legacy();
+    return compute_space_charge_field(legacy, E_field_out);
+}
+
 } // namespace gpu
 } // namespace icarion
 

@@ -52,6 +52,16 @@ public:
         double t,
         const ForceContext& ctx
     ) const override;
+
+    /**
+     * @brief SoA-aware space-charge computation (avoids AoS reconstruction)
+     */
+    Vec3 compute_soa(
+        const core::IonEnsemble& ensemble,
+        size_t ion_idx,
+        double t,
+        const ForceContext& ctx
+    ) const override;
     
     /**
      * @brief Check if space charge applies

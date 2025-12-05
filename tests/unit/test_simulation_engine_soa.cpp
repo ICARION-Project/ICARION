@@ -101,16 +101,18 @@ TEST_CASE("SimulationEngine SoA - Basic construction and run", "[soa][integratio
         auto ions_aos = create_test_ions(10);
         auto ions_soa_init = create_test_ions(10);  // Fresh copy for SoA test
         
-        // Run with AoS (first engine instance)
-        auto result_aos = engine.run(ions_aos);
+        // Run using SoA conversion (legacy AoS input converted once)
+        auto ensemble_aos = IonEnsemble::from_legacy(ions_aos);
+        auto result_aos_ens = engine.run(ensemble_aos);
+        auto result_aos = result_aos_ens.to_legacy();
         
         // Create fresh engine for SoA test to avoid OutputManager finalize issue
         SimulationEngine engine_soa(config, force_registries, integrator);
         
         // Convert to SoA and run
         auto ensemble = IonEnsemble::from_legacy(ions_soa_init);
-    auto result_soa_ens = engine_soa.run(ensemble);
-    auto result_soa = result_soa_ens.to_legacy();
+        auto result_soa_ens = engine_soa.run(ensemble);
+        auto result_soa = result_soa_ens.to_legacy();
         
         // Results should be identical (Phase 2 uses same underlying code)
         REQUIRE(result_aos.size() == result_soa.size());

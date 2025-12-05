@@ -30,6 +30,14 @@ using namespace ICARION::integrator;
 using namespace ICARION::physics;
 using namespace ICARION::config;
 
+namespace {
+std::vector<IonState> run_engine_aos(SimulationEngine& engine, std::vector<IonState> ions) {
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
+    auto result_ens = engine.run(ensemble);
+    return result_ens.to_legacy();
+}
+}
+
 // ============================================================================
 // Test Helpers
 // ============================================================================
@@ -150,7 +158,7 @@ TEST_CASE("SimulationEngine: Single-domain free-flight trajectory", "[simulation
         ions[0].vel = Vec3{0, 0, 1000.0};  // 1 km/s
         double initial_z = ions[0].pos.z;
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         REQUIRE(result.size() == 1);
         
@@ -171,7 +179,7 @@ TEST_CASE("SimulationEngine: Single-domain free-flight trajectory", "[simulation
         ions[0].pos = Vec3{0, 0, 0.09};  // Near exit (z=90mm, length=100mm)
         ions[0].vel = Vec3{0, 0, 10000.0};  // Fast enough to exit in 1μs
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         // Ion should be inactive (exited domain)
         REQUIRE(!result[0].active);
@@ -182,7 +190,7 @@ TEST_CASE("SimulationEngine: Single-domain free-flight trajectory", "[simulation
         ions[0].pos = Vec3{0.009, 0, 0.05};  // r=9mm (near wall at r=10mm)
         ions[0].vel = Vec3{1000.0, 0, 100.0};  // Radial velocity toward wall
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         // Ion should be inactive (hit wall)
         REQUIRE(!result[0].active);
@@ -202,7 +210,7 @@ TEST_CASE("SimulationEngine: AoS vs SoA parity", "[simulation][engine][parity]")
 
     // AoS path (wraps SoA internally)
     SimulationEngine engine_aos(cfg, {force_registry}, integrator);
-    auto aos_result = engine_aos.run(ions);
+    auto aos_result = run_engine_aos(engine_aos, ions);
 
     // SoA path directly (fresh engine/output to avoid finalize conflicts)
     SimulationEngine engine_soa(cfg, {force_registry}, integrator);
@@ -236,7 +244,7 @@ TEST_CASE("SimulationEngine: Ion birth timing", "[simulation][engine]") {
             ions[i].active = false;
         }
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         // All ions should have been born and moved
         for (const auto& ion : result) {
@@ -269,7 +277,7 @@ TEST_CASE("SimulationEngine: Multiple ions", "[simulation][engine]") {
             ions.push_back(ion);
         }
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         REQUIRE(result.size() == N);
         
@@ -316,7 +324,7 @@ TEST_CASE("SimulationEngine: Multi-domain transition", "[simulation][engine][dom
         ions[0].pos = Vec3{0, 0, 0.095};  // Near domain1 exit
         ions[0].vel = Vec3{0, 0, 10000.0};  // Fast enough to reach domain2
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         // Ion should have moved forward from starting position
         REQUIRE(result[0].pos.z > 0.095);
@@ -353,7 +361,7 @@ TEST_CASE("SimulationEngine: Collision handler integration", "[simulation][engin
         std::vector<IonState> ions = {create_test_ion()};
         ions[0].vel = Vec3{0, 0, 1000.0};
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         // Velocity should be unchanged (no collisions)
         REQUIRE_THAT(result[0].vel.z, Catch::Matchers::WithinRel(1000.0, 1e-6));
@@ -380,7 +388,7 @@ TEST_CASE("SimulationEngine: Reaction handler integration", "[simulation][engine
         std::vector<IonState> ions = {create_test_ion()};
         std::string original_species = ions[0].species_id;
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         // Species should be unchanged
         REQUIRE(result[0].species_id == original_species);
@@ -411,7 +419,7 @@ TEST_CASE("SimulationEngine: Edge cases", "[simulation][engine][edge]") {
             ion.active = false;
         }
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         // All should remain inactive
         for (const auto& ion : result) {
@@ -423,7 +431,7 @@ TEST_CASE("SimulationEngine: Edge cases", "[simulation][engine][edge]") {
         std::vector<IonState> ions = {create_test_ion()};
         ions[0].pos = Vec3{0, 0, -0.01};  // Before domain entrance
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         // Ion should be deactivated (outside domain)
         REQUIRE(!result[0].active);
@@ -444,7 +452,7 @@ TEST_CASE("SimulationEngine: Numerical safety", "[simulation][engine][safety]") 
         std::vector<IonState> ions = {create_test_ion()};
         ions[0].vel = Vec3{0, 0, 1e10};  // Unrealistically high
         
-        auto result = engine.run(ions);
+        auto result = run_engine_aos(engine, ions);
         
         // Should either exit domain or be deactivated safely (no NaN)
         REQUIRE(std::isfinite(result[0].pos.z));
@@ -476,11 +484,11 @@ TEST_CASE("SimulationEngine: RNG thread safety", "[simulation][engine][openmp]")
             ions2.push_back(create_test_ion());
         }
         
-        auto result1 = engine.run(ions1);
+        auto result1 = run_engine_aos(engine, ions1);
         
         // Create new engine with same seed
         SimulationEngine engine2(cfg, {force_registry}, integrator);
-        auto result2 = engine2.run(ions2);
+        auto result2 = run_engine_aos(engine2, ions2);
         
         // Results should be identical (deterministic with fixed seed)
         for (int i = 0; i < N; ++i) {
@@ -528,7 +536,7 @@ TEST_CASE("SimulationEngine: RNG state persists across timesteps", "[simulation]
         std::vector<IonState> ions1 = {create_test_ion()};
         ions1[0].vel = Vec3{0, 0, 10.0};  // Slow -> stays in domain
         
-        auto result1 = engine.run(ions1);
+        auto result1 = run_engine_aos(engine, ions1);
         
         // Now create engine with SHORTER simulation time
         auto cfg_short = cfg;
@@ -541,7 +549,7 @@ TEST_CASE("SimulationEngine: RNG state persists across timesteps", "[simulation]
         std::vector<IonState> ions_short = {create_test_ion()};
         ions_short[0].vel = Vec3{0, 0, 10.0};
         
-        auto result_short = engine_short.run(ions_short);
+        auto result_short = run_engine_aos(engine_short, ions_short);
         
         // If RNG persists correctly:
         // - After 500 steps, ion should be at intermediate position
@@ -558,12 +566,12 @@ TEST_CASE("SimulationEngine: RNG state persists across timesteps", "[simulation]
             ions2.push_back(create_test_ion());
         }
         
-        auto result1 = engine.run(ions1);
+        auto result1 = run_engine_aos(engine, ions1);
         
         // New engine with SAME seed
         auto collision_handler2 = std::make_shared<HSSCollisionHandler>();
         SimulationEngine engine2(cfg, {force_registry}, integrator, collision_handler2);
-        auto result2 = engine2.run(ions2);
+        auto result2 = run_engine_aos(engine2, ions2);
         
         // Results must be IDENTICAL (deterministic RNG)
         for (int i = 0; i < 3; ++i) {
@@ -590,7 +598,7 @@ TEST_CASE("SimulationEngine: RNG state persists across timesteps", "[simulation]
         std::vector<IonState> ions1 = {create_test_ion()};
         ions1[0].vel = Vec3{0, 0, 500.0};  
         
-        auto result1 = engine.run(ions1);
+        auto result1 = run_engine_aos(engine, ions1);
         
         // New engine with DIFFERENT seed
         auto cfg2 = cfg;
@@ -600,7 +608,7 @@ TEST_CASE("SimulationEngine: RNG state persists across timesteps", "[simulation]
         
         std::vector<IonState> ions2 = {create_test_ion()};
         ions2[0].vel = Vec3{0, 0, 500.0};
-        auto result2 = engine2.run(ions2);
+        auto result2 = run_engine_aos(engine2, ions2);
         
         // NOTE: This test may produce identical results if:
         // - No collisions occur (pressure too low or time too short)

@@ -89,14 +89,14 @@ TEST_CASE("SoA Performance Benchmark - 100 ions", "[.benchmark][soa]") {
     
     BENCHMARK("AoS (baseline)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run(ions_aos);
-        return result.size();
+        auto res = engine.run(IonEnsemble::from_legacy(ions_aos));
+        return res.size();
     };
     
     BENCHMARK("SoA (Phase 3 optimized)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run(ensemble);
-        return result.size();
+        auto res = engine.run(ensemble);
+        return res.size();
     };
 }
 
@@ -113,14 +113,14 @@ TEST_CASE("SoA Performance Benchmark - 1000 ions", "[.benchmark][soa]") {
     
     BENCHMARK("AoS (baseline)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run(ions_aos);
-        return result.size();
+        auto res = engine.run(IonEnsemble::from_legacy(ions_aos));
+        return res.size();
     };
     
     BENCHMARK("SoA (Phase 3 optimized)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run(ensemble);
-        return result.size();
+        auto res = engine.run(ensemble);
+        return res.size();
     };
 }
 

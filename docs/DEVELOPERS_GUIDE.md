@@ -533,9 +533,9 @@ domain.geometry.radius_m = 0.5;                     // Wide radius to prevent ra
 
 ### Overview
 
-Instrument-specific electric field calculations live in FieldModels and are consumed by `ElectricFieldForce`. Analytical formulas are implemented in `AnalyticalFieldModel`; grid/BEM/FEM fields use `FieldProviderModel` (wraps `IFieldProvider`).
+Instrument-specific electric field calculations live in FieldModels and are consumed by `ElectricFieldForce`. Analytical formulas are implemented in `AnalyticalFieldModel`; grid/BEM/FEM fields use `FieldProviderModel` (wraps `IFieldProvider`). Field models are injected via `PhysicsSetup` into `ForceRegistry` (SSOT); `ElectricFieldForce` falls back only if none is provided.
 
-Multi-domain geometry handling lives in `IDomainGeometry` strategies (e.g., `CylindricalGeometry`, `OrbitrapGeometry`) used by `DomainManager` and `DomainContext` for transforms and boundary checks.
+Multi-domain geometry handling lives in `IDomainGeometry` strategies (e.g., `CylindricalGeometry`, `OrbitrapGeometry`) used by `DomainManager` and `DomainContext` for transforms and boundary checks. DomainManager now only orchestrates these strategies (no AoS boundary helpers); geometry classes encapsulate containment/intersection logic.
 
 ### Step-by-Step Guide
 

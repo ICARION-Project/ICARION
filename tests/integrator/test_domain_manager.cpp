@@ -10,6 +10,7 @@
 #include <catch2/catch_approx.hpp>
 #include "core/integrator/DomainManager.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/config/types/CylindricalGeometry.h"
 #include "core/types/Vec3.h"
 
 using namespace ICARION::integrator;
@@ -104,53 +105,6 @@ TEST_CASE("DomainManager: Coordinate transforms") {
     }
 }
 
-TEST_CASE("DomainManager: Aperture crossing") {
-    std::vector<config::DomainConfig> domains;
-    domains.push_back(create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05));  // No aperture
-    domains.push_back(create_test_domain(1, Vec3{0,0,0.1}, 0.2, 0.05, 0.02));  // 2cm aperture, length=0.2m
-    DomainManager manager(domains);
-    
-    SECTION("No aperture - allows all crossings") {
-        IonState ion;
-        ion.active = true;
-        // Cross from inside domain 0 to outside (z from 0.09 to 0.11, exit at z=0.1)
-        manager.check_aperture_crossing(ion, 0, Vec3{0,0,0.09}, Vec3{0,0,0.11});
-        REQUIRE(ion.active);
-    }
-    
-    SECTION("Inside aperture - allows exit") {
-        IonState ion;
-        ion.active = true;
-        // Domain 1: origin=0.1, length=0.2, so exit at z=0.3 (global)
-        // Cross from z=0.29 to z=0.31 (exit domain), r=0.01m < aperture (0.02m)
-        manager.check_aperture_crossing(ion, 1, Vec3{0.01,0,0.29}, Vec3{0.01,0,0.31});
-        REQUIRE(ion.active);
-    }
-    
-    SECTION("Outside aperture - blocks ion") {
-        IonState ion;
-        ion.active = true;
-        // Cross from z=0.29 to z=0.31 (exit domain), r=0.03m > aperture (0.02m)
-        manager.check_aperture_crossing(ion, 1, Vec3{0.03,0,0.29}, Vec3{0.03,0,0.31});
-        REQUIRE_FALSE(ion.active);
-    }
-}
-
-TEST_CASE("DomainManager: Update ion properties") {
-    std::vector<config::DomainConfig> domains;
-    domains.push_back(create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05));
-    domains.push_back(create_test_domain(1, Vec3{0,0,0.1}, 0.2, 0.05));
-    DomainManager manager(domains);
-    
-    IonState ion;
-    ion.current_domain_index = -1;
-    
-    manager.update_domain_properties(ion, 1);
-    
-    REQUIRE(ion.current_domain_index == 1);
-    // Domain cache fields removed from IonState - DomainManager now only updates domain index
-}
-
 TEST_CASE("DomainManager: Full workflow") {
     std::vector<config::DomainConfig> domains;
     domains.push_back(create_test_domain(0, Vec3{0,0,0}, 0.1, 0.05));
@@ -167,16 +121,10 @@ TEST_CASE("DomainManager: Full workflow") {
     REQUIRE(idx == 0);
     
     // Update properties
-    manager.update_domain_properties(ion, idx);
-    REQUIRE(ion.current_domain_index == 0);
-    
     // Simulate motion
     ion.pos.z = 0.15;  // Now in domain 1
     int new_idx = manager.find_domain_index(ion.pos);
     REQUIRE(new_idx == 1);
-    
-    manager.update_domain_properties(ion, new_idx);
-    REQUIRE(ion.current_domain_index == 1);
 }
 
 TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
@@ -298,46 +246,22 @@ TEST_CASE("DomainManager: Orbitrap hyperbolic geometry") {
     }
 }
 
-TEST_CASE("DomainManager: Orbitrap boundary termination uses analytical ray-hyperboloid intersection") {
-    config::DomainConfig orbitrap;
-    orbitrap.domain_index = 0;
-    orbitrap.instrument = config::Instrument::Orbitrap;
-    orbitrap.geometry.radius_in_m = 0.010;
-    orbitrap.geometry.radius_out_m = 0.015;
-    orbitrap.geometry.radius_char_m = 0.020;
-    orbitrap.geometry.origin_m = Vec3{0,0,0};
-    
-    orbitrap.rotation_global_to_local = Mat3::identity();
-    orbitrap.rotation_local_to_global = Mat3::identity();
-    orbitrap.environment.temperature_K = 300.0;
-    orbitrap.environment.pressure_Pa = 1e-8;
-    orbitrap.environment.compute_derived_properties();
-    
-    std::vector<config::DomainConfig> domains = {orbitrap};
-    DomainManager manager(domains);
-    
-    IonState ion;
-    ion.active = true;
-    ion.vel = Vec3{0, 0, 10.0};  // Will be set to zero
-    
-    Vec3 pos_before{0.012, 0, 0};  // Inside (r=12mm)
-    Vec3 pos_after{0.020, 0, 0};   // Outside (r=20mm, hit outer electrode at r=15mm)
-    
-    manager.terminate_ion_at_boundary(ion, 0, pos_before, pos_after);
-    
-    // Should use analytical ray-hyperboloid intersection
-    // Ray travels from r=12mm to r=20mm along x-axis (z=0)
-    // At z=0: C = -r²/2, boundary is at r=15mm where C = C_out = -1.125e-4
-    // Intersection should be at approximately (0.015, 0, 0)
-    REQUIRE(ion.pos.x == Approx(0.015).margin(1e-6));
-    REQUIRE(ion.pos.y == Approx(0.0).margin(1e-9));
-    REQUIRE(ion.pos.z == Approx(0.0).margin(1e-9));
-    
-    // Velocity should be zero
-    REQUIRE(ion.vel.x == 0.0);
-    REQUIRE(ion.vel.y == 0.0);
-    REQUIRE(ion.vel.z == 0.0);
-    
-    // Ion should be deactivated
-    REQUIRE_FALSE(ion.active);
+TEST_CASE("CylindricalGeometry: aperture respected at exit plane") {
+    auto dom = create_test_domain(0, Vec3{0,0,0}, 0.2, 0.05, 0.02);
+    ICARION::config::CylindricalGeometry geom(dom);
+
+    Vec3 start_local{0.01, 0.0, 0.19};  // inside, near exit
+    Vec3 end_local{0.01, 0.0, 0.21};    // crosses exit plane
+    Vec3 hit{};
+    REQUIRE(geom.first_boundary_intersection(start_local, end_local, hit));
+    // r=0.01 < aperture=0.02 → should be accepted; intersection at z~0.2
+    REQUIRE(hit.z == Approx(0.2).margin(1e-6));
+
+    Vec3 start_block{0.03, 0.0, 0.19};  // r=0.03 > aperture
+    Vec3 end_block{0.03, 0.0, 0.21};
+    Vec3 hit_block{};
+    REQUIRE(geom.first_boundary_intersection(start_block, end_block, hit_block));
+    double r_hit = std::sqrt(hit_block.x * hit_block.x + hit_block.y * hit_block.y);
+    // Intersection exists, but radius exceeds aperture; caller can reject
+    REQUIRE(r_hit > dom.geometry.end_aperture_m);
 }

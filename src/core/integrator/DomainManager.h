@@ -146,42 +146,6 @@ public:
     Vec3 local_to_global_vel(const Vec3& vel_local, int domain_idx) const;
     
     /**
-     * @brief Check if ion crossed aperture when exiting domain
-     * @param ion Ion state (ion.active set to false if blocked)
-     * @param domain_idx Current domain index
-     * @param pos_before Local position before integration step [m]
-     * @param pos_after Local position after integration step [m]
-     * 
-     * Detects if ion crossed the end plane (z = domain.length_m).
-     * If crossing occurred, interpolates crossing point and checks radial distance.
-     * If r_cross > end_aperture_m, ion is blocked (ion.active = false).
-     * 
-     * Called when ion exits a domain to enforce aperture constraints.
-     */
-    void check_aperture_crossing(IonState& ion, int domain_idx,
-                                  const Vec3& pos_before, const Vec3& pos_after) const;
-    
-    /**
-     * @brief Update ion domain-specific properties
-     * @param ion Ion state (modified)
-     * @param domain_idx New domain index
-     * 
-     * Updates:
-     * - domain_neutral_mass_kg
-     * - domain_temperature_K
-     * - domain_particle_density_m3
-     * - domain_gas_velocity_m_s
-     * - current_domain_index
-     * 
-     * Called when ion transitions from one domain to another.
-     */
-    void update_domain_properties(IonState& ion, int domain_idx) const;
-    
-    void terminate_ion_at_boundary(IonState& ion, int domain_idx,
-                                    const Vec3& pos_before_local,
-                                    const Vec3& pos_after_local) const;
-    
-    /**
      * @brief Get number of domains
      */
     size_t num_domains() const { return domains_.size(); }
@@ -193,31 +157,12 @@ public:
      */
     const config::IFieldModel* field_model(int idx) const;
 
-    /**
-     * @brief Check if position is inside domain (internal helper)
-     * @param dom Domain to check (SSOT: config::DomainConfig)
-     * @param pos Global position [m]
-     * @return true if inside domain boundaries
-     * 
-     * Handles cylindrical geometry (most instruments) and hyperbolic (Orbitrap).
-     * Replaces legacy isInsideDomain() from paramUtils.cpp.
-     */
-    bool is_inside_domain(const config::DomainConfig& dom, const Vec3& pos) const;
-    
 private:
     const std::vector<config::DomainConfig>& domains_;  ///< Reference to domain list (not owned, SSOT)
     std::vector<std::unique_ptr<BoundaryAction>> boundary_actions_;  ///< Boundary actions per domain
     std::vector<std::unique_ptr<config::IFieldModel>> field_models_; ///< Field models per domain (analytical fallback)
     std::vector<std::unique_ptr<config::IDomainGeometry>> geometries_; ///< Geometry strategy per domain
     std::mt19937 rng_;  ///< Random number generator for boundary actions
-    
-    /**
-     * @brief Compute surface normal at boundary intersection
-     * @param pos_local Position in local coordinates [m]
-     * @param domain_idx Domain index
-     * @return Unit normal vector pointing inward
-     */
-    Vec3 compute_surface_normal(const Vec3& pos_local, int domain_idx) const;
     
 };
 

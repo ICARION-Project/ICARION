@@ -97,7 +97,7 @@ public:
 ```
 
 **Built-in Forces:**
-- `ElectricFieldForce` - E-field via `IFieldModel` (analytical or grid-backed); provider fallback legacy only
+- `ElectricFieldForce` - E-field via `IFieldModel` (analytical or grid-backed); SSOT: PhysicsSetup injects `FieldProviderModel` when grid data exist, otherwise `AnalyticalFieldModel` fallback
 - `MagneticFieldForce` - B-field (Boris integrator compatible)
 - `SpaceChargeDirect` - Ion-ion Coulomb interactions
 - `DampingForce` - Drag depending on chosen deterministic collision model

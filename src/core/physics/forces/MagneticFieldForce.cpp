@@ -66,6 +66,23 @@ Vec3 MagneticFieldForce::compute(const IonState& ion, double t, const ForceConte
     return v_cross_B * ion.ion_charge_C;
 }
 
+Vec3 MagneticFieldForce::compute_soa(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                                     const ForceContext& ctx) const {
+    IonState ion;
+    ion.pos = ensemble.get_pos(ion_idx);
+    ion.vel = ensemble.get_vel(ion_idx);
+    ion.mass_kg = ensemble.mass_data()[ion_idx];
+    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
+    ion.active = ensemble.active_data()[ion_idx] != 0;
+    ion.born = ensemble.born_data()[ion_idx] != 0;
+    ion.current_domain_index = ensemble.domain_index(ion_idx);
+    ion.CCS_m2 = ensemble.CCS(ion_idx);
+    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+    ion.species_id = ensemble.species_id(ion_idx);
+    ion.birth_time_s = ensemble.birth_time(ion_idx);
+    return compute(ion, t, ctx);
+}
+
 std::string MagneticFieldForce::name() const {
     if (use_field_provider_) {
         return "MagneticField(FieldProvider)";

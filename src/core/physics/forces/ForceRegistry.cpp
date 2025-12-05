@@ -34,7 +34,7 @@ Vec3 ForceRegistry::compute_total_force(
     return total_force;
 }
 
-Vec3 ForceRegistry::compute_total_force_soa(
+Vec3 ForceRegistry::compute_total_force(
     const core::IonEnsemble& ensemble,
     size_t ion_idx,
     double t,

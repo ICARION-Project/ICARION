@@ -148,7 +148,7 @@ void RK45Strategy::compute_acceleration_soa(
     ctx.ion_ensemble = &ensemble;
     ctx.ion_index = ion_idx;
 
-    Vec3 F = force_registry.compute_total_force_soa(ensemble, ion_idx, t, ctx);
+    Vec3 F = force_registry.compute_total_force(ensemble, ion_idx, t, ctx);
     const double inv_mass = 1.0 / ensemble.mass_data()[ion_idx];
     Vec3 a = F * inv_mass;
 
@@ -233,19 +233,6 @@ double RK45Strategy::compute_new_step(
 }
 
 void RK45Strategy::step(
-    IonState& ion,
-    double t,
-    double dt,
-    const physics::ForceRegistry& force_registry,
-    const std::vector<IonState>& all_ions
-) {
-    // Non-adaptive interface: use fixed dt
-    double dt_variable = dt;
-    step_adaptive(ion, t, dt_variable, force_registry, all_ions);
-    // Note: dt_variable may change, but we ignore it for fixed-step interface
-}
-
-void RK45Strategy::step_soa(
     core::IonEnsemble& ensemble,
     size_t ion_idx,
     double t,

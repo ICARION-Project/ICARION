@@ -16,6 +16,7 @@
 #include "ForceContext.h"
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 
 #include <memory>
 
@@ -92,6 +93,8 @@ public:
      * Uses field provider if available, otherwise analytical formula.
      */
     Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
+    Vec3 compute_soa(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                     const ForceContext& ctx) const override;
     
     /**
      * @brief Get force name

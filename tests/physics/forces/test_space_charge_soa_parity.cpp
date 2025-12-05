@@ -51,7 +51,7 @@ TEST_CASE("SpaceChargeDirect SoA matches AoS", "[forces][soa]") {
     for (size_t i = 0; i < ions.size(); ++i) {
         ctx_soa.ion_index = i;
         Vec3 F_aos = registry.compute_total_force(ions[i], /*t=*/0.0, ctx_aos);
-        Vec3 F_soa = registry.compute_total_force_soa(ensemble, i, /*t=*/0.0, ctx_soa);
+        Vec3 F_soa = registry.compute_total_force(ensemble, i, /*t=*/0.0, ctx_soa);
 
         REQUIRE(F_soa.x == Approx(F_aos.x).margin(1e-12));
         REQUIRE(F_soa.y == Approx(F_aos.y).margin(1e-12));

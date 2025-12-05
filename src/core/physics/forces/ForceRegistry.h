@@ -94,10 +94,9 @@ public:
     /**
      * @brief Compute total force using SoA ensemble data
      *
-     * Calls `compute_soa` on all registered forces. Forces that do not override
-     * `compute_soa` will transparently fall back to AoS reconstruction.
+     * Calls `compute_soa` on all registered forces (SoA-only path).
      */
-    Vec3 compute_total_force_soa(
+    Vec3 compute_total_force(
         const core::IonEnsemble& ensemble,
         size_t ion_idx,
         double t,

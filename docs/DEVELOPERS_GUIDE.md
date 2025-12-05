@@ -650,18 +650,20 @@ Add to class docstring or separate documentation:
 ## GPU Development Guide
 
 **Added:** November 2025 (v1.0)
-**Status:** Core features implemented; some helpers not yet wired into main loop
+**Status:** Integration/space-charge/collision paths wired via factories; boundary helper remains experimental.
 
 ### Overview
 
 ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
 
 **Current GPU Features (v1.0):**
-- RK4/RK45/Boris batch integrators (automatic dispatch; Boris threshold ~half of default 5000)
+- RK4/RK45/Boris batch integrators via `GPUIntegrationStrategy` (factory-selected wrapper; automatic fallback + grid/E-field checks)
 - HSS/EHSS collision helper (active-ion threshold default 5000; EHSS geometry upload TODO)
 - Field-provider upload for integration when ElectricFieldForce is present
 - Space charge P³M helper wired through `SpaceChargeGPUModel` (opt-in via `physics.enable_space_charge_gpu`, CPU fallback guaranteed)
 - Boundary check helper supports absorption/cylindrical only and is not wired into the main loop
+
+`IntegrationStrategyFactory` emits the GPU wrapper automatically whenever `simulation.enable_gpu` is true (and CUDA is available); the wrapper calls `IIntegrationStrategy::step_batch()` internally and falls back to the CPU strategy if the batch conditions are not met.
 
 **Note:** GPU features require CUDA toolkit and `enable_gpu: true` in config. Automatic CPU fallback on errors or below-threshold counts.
 
@@ -778,73 +780,37 @@ void collision_batch(
 } // namespace icarion
 ```
 
-**Step 2: Create Header (`src/core/gpu/collision_batch.cuh`)**
+**Collision Path Wiring (as implemented)**
+
+- `ICollisionHandler` exposes optional batch hooks:
+  - `supports_batch()` advertises accelerator support.
+  - `handle_batch(...)` receives the SoA ensemble plus an index list for the current domain and either processes the entire batch (returning `true`) or requests CPU fallback (`false`).
+- `GPUCollisionHandler` wraps an EHSS/HSS CPU handler, wires up `GPUCollisionHelper`, and implements the batch hook. It logs and falls back automatically if CUDA prerequisites are not met or if the batch is below the configured threshold.
+- `SimulationEngine::perform_collisions(...)` groups indices per-domain after birth/domain detection, then:
+  1. Calls `handle_batch(...)` when the handler advertises support.
+  2. Falls back to `handle_collisions_cpu(...)` (per-ion RNG, SoA views) whenever the batch hook returns `false` or is unavailable.
 
 ```cpp
-#ifndef ICARION_COLLISION_BATCH_CUH
-#define ICARION_COLLISION_BATCH_CUH
-
-#include "utils/IonState_GPU.h"
-#include <cuda_runtime.h>
-
-namespace icarion {
-namespace gpu {
-
-/**
- * @brief Batch collision processing on GPU
- * 
- * @param ions_in Input ion states
- * @param ions_out Output ion states (velocities modified)
- * @param ... Collision model parameters
- * @param stream CUDA stream for async execution
- */
-void collision_batch(
-    const IonStateGPU& ions_in,
-    IonStateGPU& ions_out,
-    /* params */,
-    cudaStream_t stream = 0
-);
-
-} // namespace gpu
-} // namespace icarion
-
-#endif
-```
-
-**Step 3: Create Helper Class (`src/core/gpu/GPUCollisionHelper.h/cpp`)**
-
-Follow the pattern from `GPUIntegrationHelper`:
-
-```cpp
-class GPUCollisionHelper {
-public:
-    static std::unique_ptr<GPUCollisionHelper> create(
-        const GPUContext& context,
-        size_t threshold = 10000  // GPU for N >= 10k
-    );
-    
-    bool process_collisions_batch(
-        std::vector<IonState>& ions,
-        /* params */
-    );
-};
-```
-
-**Step 4: Integrate into SimulationEngine**
-
-```cpp
-// In SimulationEngine::process_timestep()
-#ifdef ICARION_USE_GPU
-    if (gpu_collision_helper_ && ions.size() >= threshold) {
-        if (gpu_collision_helper_->process_collisions_batch(ions, params)) {
-            return;  // GPU success
+void SimulationEngine::perform_collisions(IonEnsemble& ensemble,
+                                          double dt,
+                                          const std::vector<int>& domains) {
+    if (!collision_handler_) return;
+    const bool has_batch = collision_handler_->supports_batch();
+    for (size_t dom = 0; dom < config_.domains.size(); ++dom) {
+        auto& indices = domain_buckets[dom];
+        if (indices.empty()) continue;
+        const auto& env = config_.domains[dom].environment;
+        bool handled = has_batch &&
+            collision_handler_->handle_batch(ensemble, indices, dt,
+                                             env, rng_by_ion_);
+        if (!handled) {
+            handle_collisions_cpu(ensemble, dt, indices, env);
         }
     }
-#endif
-
-    // CPU fallback
-    collision_handler_->process_collisions(ions, dt, t);
+}
 ```
+
+This keeps the SimulationEngine agnostic of GPU specifics—the handler encapsulates accelerator logic, and SoA data never round-trips through temporary AoS buffers.
 
 ### GPU Development Best Practices
 
@@ -963,6 +929,8 @@ TEST(GPUContext, Creation) {
     EXPECT_GT(context->get_properties().total_memory, 0);
 }
 ```
+
+`GPUIntegrationStrategy` exercises the helper indirectly inside the main loop, but the helper can still be unit-tested in isolation:
 
 **Test kernel correctness:**
 ```cpp

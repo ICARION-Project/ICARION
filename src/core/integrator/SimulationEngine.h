@@ -38,7 +38,6 @@
 
 #ifdef ICARION_USE_GPU
 #include "core/gpu/core/GPUContext.h"
-#include "core/gpu/core/GPUIntegrationHelper.h"
 #include "core/gpu/spacecharge/GPUSpaceChargeP3M.h"
 #include "core/gpu/collisions/GPUCollisionHelper.h"
 #endif
@@ -160,17 +159,10 @@ private:
 #ifdef ICARION_USE_GPU
     // GPU acceleration (optional)
     std::unique_ptr<icarion::gpu::GPUContext> gpu_context_;
-    std::unique_ptr<icarion::gpu::GPUIntegrationHelper> gpu_helper_;
     std::unique_ptr<icarion::gpu::GPUCollisionHelper> gpu_collision_helper_;
     std::unique_ptr<icarion::gpu::GPUSpaceChargeP3M> gpu_space_charge_;  ///< P³M space charge solver
-    size_t gpu_threshold_ = 5000;  ///< Minimum ions for GPU dispatch
     size_t gpu_collision_threshold_ = 5000;  ///< Minimum ions for GPU collision dispatch
     size_t gpu_space_charge_threshold_ = 1000;  ///< Minimum ions for GPU space charge
-    
-    // GPU dispatch cache (avoid repeated dynamic_cast)
-    enum class IntegratorType { RK4, RK45, Boris, Unknown };
-    IntegratorType integrator_type_ = IntegratorType::Unknown;
-    bool integrator_type_cached_ = false;
 #endif
     
     /**
@@ -198,51 +190,10 @@ private:
      * @brief Initialize GPU acceleration (if available and enabled)
      * @param enable_gpu Whether GPU is enabled in config
      * 
-     * Attempts to create GPUContext and GPUIntegrationHelper.
-     * If GPU unavailable, disabled, or initialization fails, continues with CPU-only.
-     * 
-     * Called automatically during initialize().
+     * Attempts to create GPUContext and helper components. If GPU unavailable,
+     * disabled, or initialization fails, continues with CPU-only.
      */
     void initialize_gpu(bool enable_gpu);
-    
-    /**
-     * @brief Extract field provider from force registry
-     * @param domain_id Domain index
-     * @return Pointer to field provider or nullptr if not available
-     * 
-     * Searches force registry for ElectricFieldForce and extracts its field provider.
-     * Used by GPU integration to upload fields to texture memory.
-     */
-    const ::IFieldProvider* extract_field_provider(int domain_id) const;
-    
-    /**
-     * @brief Try GPU batch boundary checking (conditional on domain config)
-     * @param ensemble Ion ensemble (SoA)
-     * @param domain_idx Domain index
-     * @return true if GPU boundary check succeeded, false if CPU fallback needed
-     * 
-     * **Conditional Dispatch:**
-     * - GPU boundary check only used if:
-     *   1. Boundary type is Absorption (GPU doesn't support reflections yet)
-     *   2. Instrument is NOT Orbitrap (GPU doesn't support hyperlogarithmic boundaries)
-     * - Falls back to CPU for:
-     *   - Specular/Diffuse/Thermal Reflection (requires surface normals + RNG)
-     *   - Orbitrap (requires bisection-based intersection)
-     * 
-     * **GPU Limitations (Phase 11):**
-     * - Geometry: Cylindrical only (no Orbitrap hyperlogarithmic surface)
-     * - Action: Absorption only (no reflection, no thermal accommodation)
-     * - Future: Phase 12 will add reflection + Orbitrap support
-     * - Note: Helper is defined but not wired into the timestep loop yet.
-     */
-    bool try_gpu_boundary_check(core::IonEnsemble& ensemble, int domain_idx);
-    
-    /**
-     * @brief Log GPU performance statistics
-     * 
-     * Called at simulation end to report GPU usage and speedup.
-     */
-    void finalize_gpu();
 #endif
 
     /**
@@ -267,6 +218,24 @@ private:
      * avoid AoS conversions; default wrappers may limit gains.
      */
     void process_timestep(core::IonEnsemble& ensemble, double dt);
+
+    void perform_integration(core::IonEnsemble& ensemble,
+                             double t,
+                             double dt,
+                             const std::vector<int>& domain_indices);
+
+    void perform_collisions(core::IonEnsemble& ensemble,
+                             double dt,
+                             const std::vector<int>& domain_indices);
+
+    void handle_collisions_cpu(core::IonEnsemble& ensemble,
+                               double dt,
+                               const std::vector<size_t>& indices,
+                               const config::EnvironmentConfig& env);
+
+    void perform_reactions(core::IonEnsemble& ensemble,
+                           double dt,
+                           const std::vector<int>& domain_indices);
     
     /**
      * @brief Log progress message (every 10%)

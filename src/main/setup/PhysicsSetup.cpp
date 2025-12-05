@@ -6,9 +6,7 @@
 #include "core/physics/forces/MagneticFieldForce.h"
 #include "core/physics/forces/DampingForce.h"
 #include "core/physics/spacecharge/SpaceChargeModelFactory.h"
-#include "core/integrator/strategies/RK4Strategy.h"
-#include "core/integrator/strategies/RK45Strategy.h"
-#include "core/integrator/strategies/BorisStrategy.h"
+#include "core/integrator/strategies/IntegrationStrategyFactory.h"
 #include "core/physics/collisions/CollisionHandlerFactory.h"
 #include "core/physics/collisions/geometryUtils.h"
 #include "core/physics/reactions/ReactionHandlerFactory.h"
@@ -18,6 +16,7 @@
 #include "core/log/Logger.h"
 #include "core/types/IonEnsemble.h"
 #include <algorithm>
+#include <cctype>
 #include <unordered_set>
 
 namespace ICARION::setup {
@@ -267,22 +266,24 @@ void PhysicsSetup::add_space_charge_forces(
 std::shared_ptr<integrator::IIntegrationStrategy> PhysicsSetup::create_integrator(
     const config::FullConfig& config
 ) {
-    std::shared_ptr<integrator::IIntegrationStrategy> integrator;
-    
-    if (config.simulation.integrator == "RK4" || config.simulation.integrator == "rk4") {
-        integrator = std::make_shared<integrator::RK4Strategy>();
-        log::Logger::main()->info("Using RK4 integrator");
-    } else if (config.simulation.integrator == "RK45" || config.simulation.integrator == "rk45") {
-        integrator = std::make_shared<integrator::RK45Strategy>();
-        log::Logger::main()->info("Using RK45 integrator");
-    } else if (config.simulation.integrator == "Boris" || config.simulation.integrator == "boris") {
-        integrator = std::make_shared<integrator::BorisStrategy>();
-        log::Logger::main()->info("Using Boris integrator");
-    } else {
-        log::Logger::main()->warn("Unknown integrator '{}', defaulting to RK45", config.simulation.integrator);
-        integrator = std::make_shared<integrator::RK45Strategy>();
+    std::string name = config.simulation.integrator;
+    if (name.empty()) {
+        name = "RK45";
     }
-    
+    std::transform(name.begin(), name.end(), name.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    std::shared_ptr<integrator::IIntegrationStrategy> integrator;
+    try {
+        auto ptr = integrator::IntegrationStrategyFactory::create(name, &config);
+        integrator = std::shared_ptr<integrator::IIntegrationStrategy>(std::move(ptr));
+    } catch (const std::exception& e) {
+        log::Logger::main()->warn("Integrator '{}' invalid ({}); falling back to RK45",
+                                  config.simulation.integrator, e.what());
+        auto fallback = integrator::IntegrationStrategyFactory::create("RK45", &config);
+        integrator = std::shared_ptr<integrator::IIntegrationStrategy>(std::move(fallback));
+    }
+
+    log::Logger::main()->info("Using {} integrator", integrator->name());
     return integrator;
 }
 
@@ -321,7 +322,10 @@ std::shared_ptr<physics::ICollisionHandler> PhysicsSetup::create_collision_handl
         geometry_map,
         gamma_for_ou,
         false,  // enable_logging
-        &config.species_db
+        &config.species_db,
+        config.simulation.enable_gpu,
+        static_cast<unsigned long long>(config.simulation.rng_seed),
+        5000
     );
 }
 

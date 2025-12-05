@@ -43,6 +43,7 @@
 #include "EHSSCollisionHandler.h"
 #include "HSSCollisionHandler.h"
 #include "OUCollisionHandler.h"
+#include "GPUCollisionHandler.h"
 #include "core/config/types/PhysicsConfig.h"
 #include "core/config/types/SpeciesConfig.h"
 #include <memory>
@@ -84,7 +85,10 @@ public:
         const GeometryMap* geometry_map = nullptr,
         double gamma_for_ou = 0.0,
         bool enable_logging = false,
-        const config::SpeciesDatabase* species_db = nullptr
+        const config::SpeciesDatabase* species_db = nullptr,
+        bool enable_gpu = false,
+        unsigned long long gpu_seed = 42,
+        size_t gpu_threshold = 5000
     );
 
 private:

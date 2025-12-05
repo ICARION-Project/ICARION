@@ -44,6 +44,16 @@ public:
      * @note Used for output and testing; no scheduled removal.
      */
     std::vector<IonState> to_legacy() const;
+
+    /**
+     * @brief Retrieve a single legacy IonState snapshot.
+     */
+    IonState ion_state(size_t idx) const;
+
+    /**
+     * @brief Apply a legacy IonState back to the SoA storage.
+     */
+    void apply_ion_state(size_t idx, const IonState& ion);
     
     // === Size management ===
     size_t size() const { return hot_.pos_x.size(); }

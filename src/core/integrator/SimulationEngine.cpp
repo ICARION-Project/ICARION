@@ -2,15 +2,13 @@
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "SimulationEngine.h"
-#include "core/integrator/strategies/RK4Strategy.h"
-#include "core/integrator/strategies/RK45Strategy.h"
-#include "core/integrator/strategies/BorisStrategy.h"
 #include "core/utils/safety/numericalSafetyGuards.h"
 #include "core/utils/safety/numericalSafetyLogger.h"
 #include "core/utils/Profiler.h"
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/types/IonEnsemble.h"
 #include <algorithm>
+#include <vector>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -188,18 +186,6 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
                 << ", " << props.total_memory / (1024*1024) << " MB)";
         output_manager_->log_progress(gpu_msg.str());
         
-        // Create GPU integration helper
-        gpu_helper_ = icarion::gpu::GPUIntegrationHelper::create(*gpu_context_, gpu_threshold_);
-        if (!gpu_helper_) {
-            output_manager_->log_progress("GPU: Failed to create integration helper, using CPU-only");
-            gpu_context_.reset();
-            return;
-        }
-        
-        std::ostringstream threshold_msg;
-        threshold_msg << "GPU: Integration enabled for N >= " << gpu_threshold_ << " ions";
-        output_manager_->log_progress(threshold_msg.str());
-        
         // Create GPU collision helper (if collision handler exists)
         if (collision_handler_) {
             // Determine collision model from config
@@ -249,142 +235,10 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         output_manager_->log_progress(std::string("GPU: Initialization failed: ") + e.what());
         gpu_space_charge_.reset();
         gpu_collision_helper_.reset();
-        gpu_helper_.reset();
         gpu_context_.reset();
     }
 }
 
-const IFieldProvider* SimulationEngine::extract_field_provider(int domain_id) const {
-    // Validate domain_id
-    if (domain_id < 0 || domain_id >= static_cast<int>(force_registries_.size())) {
-        return nullptr;
-    }
-    
-    const auto& registry = force_registries_[domain_id];
-    if (!registry) {
-        return nullptr;
-    }
-    
-    // Search for ElectricFieldForce in registry
-    for (const auto& force : registry->forces()) {
-        if (auto* e_force = dynamic_cast<const physics::ElectricFieldForce*>(force.get())) {
-            return e_force->get_field_provider();
-        }
-    }
-    
-    return nullptr;  // No field provider found
-}
-
-
-
-
-
-bool SimulationEngine::try_gpu_boundary_check(core::IonEnsemble& ensemble, int domain_idx) {
-    // Early exit: GPU not available
-    if (!gpu_helper_) {
-        return false;
-    }
-    
-    // NOTE: This GPU path is currently unused by the main timestep loop.
-    // Keep logic in sync if/when batch boundary checks are dispatched.
-    
-    const auto& domain_config = config_.domains[domain_idx];
-    
-    // =========================================================================
-    // Conditional GPU Dispatch: Check domain config compatibility
-    // =========================================================================
-    // GPU boundary check is limited to:
-    // - Absorption only (no reflections yet)
-    // - Cylindrical geometry only (no Orbitrap hyperlogarithmic)
-    // 
-    // If domain requires unsupported features → fallback to CPU
-    // =========================================================================
-    
-    // Check 1: Boundary action must be Absorption
-    if (domain_config.boundary.type != config::BoundaryActionType::Absorption) {
-        // Reflections require: surface normals, RNG, thermal accommodation
-        // GPU doesn't support these yet → CPU fallback
-        return false;
-    }
-    
-    // Check 2: Instrument must NOT be Orbitrap
-    if (domain_config.instrument == config::Instrument::Orbitrap) {
-        // Orbitrap uses hyperlogarithmic surface with bisection-based intersection
-        // GPU doesn't support this geometry yet → CPU fallback
-        return false;
-    }
-    
-    // =========================================================================
-    // GPU-compatible configuration! Dispatch to GPU kernel
-    // =========================================================================
-    
-    // Build temporary IonState vector for GPU upload
-    // NOTE: GPU API still uses vector<IonState>, will migrate to SoA later
-    size_t n_ions = ensemble.size();
-    std::vector<IonState> ions(n_ions);
-    
-    auto* pos_x = ensemble.pos_x_data();
-    auto* pos_y = ensemble.pos_y_data();
-    auto* pos_z = ensemble.pos_z_data();
-    auto* vel_x = ensemble.vel_x_data();
-    auto* vel_y = ensemble.vel_y_data();
-    auto* vel_z = ensemble.vel_z_data();
-    auto* mass = ensemble.mass_data();
-    auto* charge = ensemble.charge_data();
-    auto* active = ensemble.active_data();
-    
-    for (size_t i = 0; i < n_ions; ++i) {
-        ions[i].pos = {pos_x[i], pos_y[i], pos_z[i]};
-        ions[i].vel = {vel_x[i], vel_y[i], vel_z[i]};
-        ions[i].mass_kg = mass[i];
-        ions[i].ion_charge_C = charge[i];
-        ions[i].active = static_cast<bool>(active[i]);
-    }
-    
-    // Call GPU batch boundary check
-    bool gpu_success = gpu_helper_->check_boundaries_batch(
-        ions,
-        domain_config.geometry.length_m,
-        domain_config.geometry.radius_m,
-        domain_idx == static_cast<int>(config_.domains.size()) - 1  // is_last_domain
-    );
-    
-    if (!gpu_success) {
-        return false;  // GPU error → CPU fallback
-    }
-    
-    // Sync active flags back to IonEnsemble
-    for (size_t i = 0; i < n_ions; ++i) {
-        active[i] = static_cast<uint8_t>(ions[i].active);
-    }
-    
-    return true;  // GPU boundary check succeeded
-}
-
-
-
-void SimulationEngine::finalize_gpu() {
-    if (!gpu_helper_) {
-        return;  // GPU not initialized
-    }
-    
-    const auto& stats = gpu_helper_->get_stats();
-    
-    if (stats.gpu_integrations == 0) {
-        output_manager_->log_progress("GPU: No batches processed (all below threshold)");
-        return;
-    }
-    
-    // Log GPU statistics
-    std::ostringstream msg;
-    msg << "GPU Statistics:\n"
-        << "  Batches:      " << stats.gpu_integrations << "\n"
-        << "  Total ions:   " << stats.total_ions_gpu << "\n"
-        << "  Total time:   " << stats.total_time_ms << " ms\n"
-        << "  Avg/batch:    " << (stats.total_time_ms / stats.gpu_integrations) << " ms";
-    
-    output_manager_->log_progress(msg.str());
-}
 #endif
 
 void SimulationEngine::log_progress(double t) {
@@ -511,137 +365,244 @@ void SimulationEngine::update_space_charge_models(core::IonEnsemble& ensemble) {
 }
 
 void SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt) {
-    // Direct SoA processing (no conversions!)
-    const int n_ions = static_cast<int>(ensemble.size());
-    
-    // Initialize per-ion RNGs on first call
+    const size_t n_ions = ensemble.size();
+
     if (rng_by_ion_.empty()) {
         PROFILE_SCOPE_IF_ENABLED("RNG Initialization");
         rng_by_ion_.reserve(n_ions);
-        for (int i = 0; i < n_ions; ++i) {
+        for (size_t i = 0; i < n_ions; ++i) {
             uint64_t ion_seed = config_.simulation.rng_seed + static_cast<uint64_t>(i);
             rng_by_ion_.emplace_back(ion_seed);
         }
     }
-    
+
     update_space_charge_models(ensemble);
 
-    // Get raw array pointers for cache-friendly iteration
     auto* pos_x = ensemble.pos_x_data();
     auto* pos_y = ensemble.pos_y_data();
     auto* pos_z = ensemble.pos_z_data();
     auto* active = ensemble.active_data();
     auto* born = ensemble.born_data();
-    
-    // Parallel ion processing (OpenMP if enabled)
+
+    std::vector<int> integration_domains(n_ions, -1);
+
     #pragma omp parallel if(config_.simulation.enable_openmp)
     {
         #pragma omp for schedule(static, 256)
-        for (int i = 0; i < n_ions; ++i) {
+        for (int i = 0; i < static_cast<int>(n_ions); ++i) {
             PhysicsRng& ion_rng = rng_by_ion_[i];
-            
-            // Birth logic (delayed emission)
+
             if (!born[i] && current_time_ >= ensemble.birth_time(i)) {
                 born[i] = 1;
                 active[i] = 1;
             }
-            
-            // Skip ions that are not active/born
+
             if (!active[i] || !born[i]) {
                 continue;
             }
-            
-            // 1. Find current domain
+
             Vec3 pos(pos_x[i], pos_y[i], pos_z[i]);
-            int domain_idx;
+            int domain_idx = -1;
             {
                 PROFILE_SCOPE_IF_ENABLED("Domain Finding");
                 domain_idx = domain_manager_->find_domain_index(pos);
-                if (domain_idx < 0) {
-                    active[i] = false;
-                    ensemble.set_death_time(i, current_time_);
-                    continue;
-                }
             }
-            
+            if (domain_idx < 0) {
+                active[i] = 0;
+                ensemble.set_death_time(i, current_time_);
+                integration_domains[i] = -1;
+                continue;
+            }
+
+            integration_domains[i] = domain_idx;
             const auto& domain_config = config_.domains[domain_idx];
-            
-            // 2. Update domain cache if domain changed
+
             if (ensemble.domain_index(i) != domain_idx) {
                 ensemble.update_domain_cache(i, domain_idx,
                     domain_config.environment.temperature_K,
                     domain_config.environment.particle_density_m_3,
                     domain_config.environment.gas_mass_kg);
             }
-            
-            // 3-5. Collision/Reaction handling using SoA views
-            if (collision_handler_) {
-                PROFILE_SCOPE_IF_ENABLED("Collision Handling");
-                auto collision_view = ensemble.collision_data(i);
-                collision_handler_->handle_collision(collision_view, dt, ion_rng, 
-                                                      domain_config.environment);
+        }
+    }
+
+    perform_collisions(ensemble, dt, integration_domains);
+    perform_reactions(ensemble, dt, integration_domains);
+
+    perform_integration(ensemble, current_time_, dt, integration_domains);
+
+    #pragma omp parallel if(config_.simulation.enable_openmp)
+    {
+        #pragma omp for schedule(static, 256)
+        for (int i = 0; i < static_cast<int>(n_ions); ++i) {
+            if (!active[i] || !born[i]) {
+                continue;
             }
-            
-            if (reaction_handler_ && !config_.reaction_db.reactions.empty()) {
-                PROFILE_SCOPE_IF_ENABLED("Reaction Handling");
-                auto reaction_view = ensemble.reaction_data(i);
-                
-                reaction_handler_->handle_reaction(reaction_view,
-                    dt, ion_rng, config_.reaction_db, config_.species_db,
-                    domain_config.environment);
-            }
-            
-            // 6-7. Integration 
-            {
-                PROFILE_SCOPE_IF_ENABLED("Integration");
-                
-                // Get force registry for this domain
-                const auto& force_registry = force_registries_[domain_idx];
-                
-                // Integrate directly using SoA (no conversion!)
-                integrator_->step(ensemble, i, current_time_, dt, *force_registry);
-            }
-            
-            // 8. Boundary checks via geometry strategy (CPU)
+
+            Vec3 pos_after(pos_x[i], pos_y[i], pos_z[i]);
+            int new_domain_idx;
             {
                 PROFILE_SCOPE_IF_ENABLED("Boundary Checks");
-                Vec3 pos_after(pos_x[i], pos_y[i], pos_z[i]);
-                int new_domain_idx = domain_manager_->find_domain_index(pos_after);
-                if (new_domain_idx < 0) {
-                    active[i] = false;
-                    ensemble.set_death_time(i, current_time_);
-                    continue;
-                }
-                if (new_domain_idx != domain_idx) {
-                    const auto& new_dom = config_.domains[new_domain_idx];
-                    ensemble.update_domain_cache(i, new_domain_idx,
-                        new_dom.environment.temperature_K,
-                        new_dom.environment.particle_density_m_3,
-                        new_dom.environment.gas_mass_kg);
-                }
+                new_domain_idx = domain_manager_->find_domain_index(pos_after);
             }
-            
-            // 9. Update time
-            ensemble.set_time(i, ensemble.time(i) + dt);
-            
-            // 10. Numerical safety checks
-            Vec3 pos_check(pos_x[i], pos_y[i], pos_z[i]);
-            Vec3 vel_check = ensemble.get_vel(i);
-            
-            bool position_valid = ICARION::safety::is_finite(pos_check);
-            bool velocity_valid = ICARION::safety::is_finite(vel_check);
-            
-            if (!position_valid || !velocity_valid) {
-                active[i] = false;
+            if (new_domain_idx < 0) {
+                active[i] = 0;
                 ensemble.set_death_time(i, current_time_);
-                
+                continue;
+            }
+            if (new_domain_idx != ensemble.domain_index(i)) {
+                const auto& new_dom = config_.domains[new_domain_idx];
+                ensemble.update_domain_cache(i, new_domain_idx,
+                    new_dom.environment.temperature_K,
+                    new_dom.environment.particle_density_m_3,
+                    new_dom.environment.gas_mass_kg);
+            }
+
+            ensemble.set_time(i, ensemble.time(i) + dt);
+
+            Vec3 vel_check = ensemble.get_vel(i);
+            bool position_valid = ICARION::safety::is_finite(pos_after);
+            bool velocity_valid = ICARION::safety::is_finite(vel_check);
+
+            if (!position_valid || !velocity_valid) {
+                active[i] = 0;
+                ensemble.set_death_time(i, current_time_);
+
                 if (!config_.simulation.enable_safety_logging) {
-                    std::cerr << "Warning: Ion " << i << " has invalid state at t = " 
+                    std::cerr << "Warning: Ion " << i << " has invalid state at t = "
                               << ensemble.time(i) << " s, deactivating" << std::endl;
                 }
             }
-        }  // End parallel for
-    }  // End parallel region
+        }
+    }
+}
+
+void SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
+                                           double t,
+                                           double dt,
+                                           const std::vector<int>& domain_indices) {
+    if (integrator_->step_batch(ensemble, t, dt, force_registries_, domain_indices)) {
+        return;
+    }
+
+    const size_t n = ensemble.size();
+    for (size_t i = 0; i < n; ++i) {
+        if (domain_indices[i] < 0 || !ensemble.is_active(i)) {
+            continue;
+        }
+        const int dom = domain_indices[i];
+        if (dom < 0 || dom >= static_cast<int>(force_registries_.size())) {
+            continue;
+        }
+        const auto& registry = force_registries_[dom];
+        if (!registry) {
+            continue;
+        }
+        integrator_->step(ensemble, i, t, dt, *registry);
+    }
+}
+
+void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
+                                          double dt,
+                                          const std::vector<int>& domain_indices) {
+    if (!collision_handler_ || domain_indices.empty()) {
+        return;
+    }
+
+    PROFILE_SCOPE_IF_ENABLED("Collision Handling");
+
+    const size_t n = ensemble.size();
+    const auto* active = ensemble.active_data();
+    const auto* born = ensemble.born_data();
+
+    const bool has_batch = collision_handler_->supports_batch();
+    const size_t domain_count = config_.domains.size();
+    std::vector<std::vector<size_t>> per_domain(domain_count);
+    for (size_t i = 0; i < n; ++i) {
+        int dom = domain_indices[i];
+        if (dom < 0 || !active[i] || !born[i]) {
+            continue;
+        }
+        per_domain[static_cast<size_t>(dom)].push_back(i);
+    }
+
+    for (size_t dom = 0; dom < domain_count; ++dom) {
+        auto& indices = per_domain[dom];
+        if (indices.empty()) {
+            continue;
+        }
+        const auto& env = config_.domains[dom].environment;
+        bool handled = false;
+        if (has_batch) {
+            handled = collision_handler_->handle_batch(
+                ensemble, indices, dt, env, rng_by_ion_);
+        }
+        if (!handled) {
+            handle_collisions_cpu(ensemble, dt, indices, env);
+        }
+    }
+}
+
+void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
+                                             double dt,
+                                             const std::vector<size_t>& indices,
+                                             const config::EnvironmentConfig& env) {
+    if (!collision_handler_ || indices.empty()) {
+        return;
+    }
+
+    const auto* active = ensemble.active_data();
+    const auto* born = ensemble.born_data();
+
+    #pragma omp parallel if(config_.simulation.enable_openmp)
+    {
+        #pragma omp for schedule(static, 256)
+        for (int k = 0; k < static_cast<int>(indices.size()); ++k) {
+            size_t ion_idx = indices[static_cast<size_t>(k)];
+            if (!active[ion_idx] || !born[ion_idx]) {
+                continue;
+            }
+            auto view = ensemble.collision_data(ion_idx);
+            collision_handler_->handle_collision(
+                view, dt, rng_by_ion_[ion_idx], env);
+        }
+    }
+}
+
+void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
+                                         double dt,
+                                         const std::vector<int>& domain_indices) {
+    if (!reaction_handler_ || config_.reaction_db.reactions.empty()) {
+        return;
+    }
+
+    PROFILE_SCOPE_IF_ENABLED("Reaction Handling");
+
+    const size_t n = ensemble.size();
+    const auto* active = ensemble.active_data();
+    const auto* born = ensemble.born_data();
+
+    #pragma omp parallel if(config_.simulation.enable_openmp)
+    {
+        #pragma omp for schedule(static, 256)
+        for (int i = 0; i < static_cast<int>(n); ++i) {
+            if (!active[i] || !born[i]) {
+                continue;
+            }
+            const int dom = domain_indices[static_cast<size_t>(i)];
+            if (dom < 0) {
+                continue;
+            }
+            auto reaction_view = ensemble.reaction_data(i);
+            reaction_handler_->handle_reaction(
+                reaction_view,
+                dt,
+                rng_by_ion_[static_cast<size_t>(i)],
+                config_.reaction_db,
+                config_.species_db,
+                config_.domains[static_cast<size_t>(dom)].environment);
+        }
+    }
 }
 
 }  // namespace integrator

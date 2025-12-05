@@ -17,6 +17,7 @@
 #include "core/types/CollisionTypes.h"  // PhysicsRng
 #include <string>
 #include <cstddef>
+#include <vector>
 
 namespace ICARION::physics {
 
@@ -89,6 +90,36 @@ public:
      * @brief Reset statistics counters
      */
     virtual void reset_stats() {}
+
+    /**
+     * @brief Whether this handler exposes a batch path (e.g., GPU).
+     */
+    virtual bool supports_batch() const { return false; }
+
+    /**
+     * @brief Optional batch API for accelerators.
+     *
+     * @param ensemble Ion ensemble (SoA) to mutate.
+     * @param ion_indices Indices participating in this batch (typically same domain).
+     * @param dt Timestep.
+     * @param env Domain environment.
+     * @param rng_pool Per-ion RNGs for CPU fallback (GPU implementations may ignore).
+     * @return true if the handler processed the batch (GPU, etc.), false to request CPU fallback.
+     */
+    virtual bool handle_batch(
+        core::IonEnsemble& ensemble,
+        const std::vector<size_t>& ion_indices,
+        double dt,
+        const config::EnvironmentConfig& env,
+        std::vector<physics::PhysicsRng>& rng_pool
+    ) {
+        (void)ensemble;
+        (void)ion_indices;
+        (void)dt;
+        (void)env;
+        (void)rng_pool;
+        return false;
+    }
 };
 
 } // namespace ICARION::physics

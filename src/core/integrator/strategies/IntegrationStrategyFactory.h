@@ -6,87 +6,62 @@
 #include <memory>
 #include <string>
 #include <stdexcept>
+#include <vector>
 
 #include "IIntegrationStrategy.h"
 #include "RK4Strategy.h"
 #include "RK45Strategy.h"
 #include "BorisStrategy.h"
+#include "core/config/types/FullConfig.h"
+#include "GPUIntegrationStrategy.h"
 
 namespace ICARION {
 namespace integrator {
 
-/**
- * @brief Factory for creating integration strategies
- * 
- * **Supported Strategies:**
- * - "RK4" (default): 4th-order Runge-Kutta (fixed timestep)
- * - "RK45": Dormand-Prince (adaptive timestep)
- * - "Boris": Boris pusher (magnetic fields)
- * 
- * **Example Usage:**
- * ```cpp
- * // Create from string identifier
- * auto strategy = IntegrationStrategyFactory::create("RK4");
- * 
- * // Use in simulation
- * strategy->step(ion, t, dt, force_registry, domain, all_ions);
- * ```
- */
 class IntegrationStrategyFactory {
 public:
-    /**
-     * @brief Create integration strategy from identifier
-     * 
-     * @param strategy_name Strategy identifier ("RK4", "RK45", "Boris")
-     * @return Unique pointer to strategy instance
-     * @throws std::invalid_argument if strategy_name unknown
-     * 
-     * **SSOT Compliance:**
-     * - Reads strategy_name from config.simulation.integrator
-     * - No hardcoded defaults (caller must specify)
-     * 
-     * **Supported Values:**
-     * - "RK4": Classic 4th-order Runge-Kutta
-     * - "RK45": Adaptive Dormand-Prince
-     * - "Boris": Boris pusher for magnetic fields
-     * 
-     * **Thread Safety:**
-     * - Stateless factory (thread-safe)
-     * - Returns new instance per call (no sharing)
-     */
     static std::unique_ptr<IIntegrationStrategy> create(const std::string& strategy_name) {
+        return create(strategy_name, nullptr);
+    }
+
+    static std::unique_ptr<IIntegrationStrategy> create(
+        const std::string& strategy_name,
+        const config::FullConfig* config) {
+        auto cpu_strategy = create_cpu(strategy_name);
+
+        if (!config || !config->simulation.enable_gpu) {
+            return cpu_strategy;
+        }
+
+#ifdef ICARION_USE_GPU
+        GPUIntegrationStrategy::Kind kind = GPUIntegrationStrategy::Kind::RK4;
+        if (strategy_name == "RK45") {
+            kind = GPUIntegrationStrategy::Kind::RK45;
+        } else if (strategy_name == "Boris") {
+            kind = GPUIntegrationStrategy::Kind::Boris;
+        }
+        return std::make_unique<GPUIntegrationStrategy>(kind, std::move(cpu_strategy));
+#else
+        return cpu_strategy;
+#endif
+    }
+
+    static std::vector<std::string> supported_strategies() {
+        return {"RK4", "RK45", "Boris"};
+    }
+
+private:
+    static std::unique_ptr<IIntegrationStrategy> create_cpu(const std::string& strategy_name) {
         if (strategy_name == "RK4") {
             return std::make_unique<RK4Strategy>();
-        }
-        else if (strategy_name == "RK45") {
-            // Adaptive Dormand-Prince with default config
+        } else if (strategy_name == "RK45") {
             return std::make_unique<RK45Strategy>();
-        }
-        else if (strategy_name == "Boris") {
-            // Boris pusher for magnetic fields
+        } else if (strategy_name == "Boris") {
             return std::make_unique<BorisStrategy>();
         }
-        else {
-            throw std::invalid_argument(
-                "IntegrationStrategyFactory: Unknown strategy '" + strategy_name + "'. "
-                "Supported: 'RK4', 'RK45', 'Boris'."
-            );
-        }
-    }
-    
-    /**
-     * @brief Get list of supported strategies
-     * 
-     * @return Vector of strategy identifiers
-     * 
-     * Useful for validation and CLI help text.
-     */
-    static std::vector<std::string> supported_strategies() {
-        return {
-            "RK4",     // Classic 4th-order Runge-Kutta
-            "RK45",    // Adaptive Dormand-Prince
-            "Boris"    // Boris pusher
-        };
+        throw std::invalid_argument(
+            "IntegrationStrategyFactory: Unknown strategy '" + strategy_name +
+            "'. Supported: 'RK4', 'RK45', 'Boris'.");
     }
 };
 

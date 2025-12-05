@@ -118,16 +118,18 @@ Forces implement `IForce` and register with `ForceRegistry`. The SoA path is pri
 
 **Architecture Pattern:** Strategy + Factory
 
-Integration strategies implement `IIntegrationStrategy::step(IonEnsemble&, size_t ion_idx, ...)` on the SoA container.
+Integration strategies implement `IIntegrationStrategy::step(...)` on the SoA container and may optionally expose a `step_batch(...)` hook. GPU-enabled strategies wrap the CPU implementation and dispatch batches when the entire ion set for a timestep satisfies domain/E-field constraints.
 
 **Available Strategies:**
-- `RK4Strategy` - 4th order Runge-Kutta (default, stable, fixed step size)
-- `RK45Strategy` - Runge-Kutta-Fehlberg (adaptive step size) with Dormand-Prince coefficients
-- `BorisStrategy` - Boris pusher (for strong magnetic fields)
+- `RK4Strategy` – 4th order Runge-Kutta (fixed step)
+- `RK45Strategy` – Dormand-Prince (adaptive)
+- `BorisStrategy` – Boris pusher
+- `GPUIntegrationStrategy` – wrapper that delegates to RK4/RK45/Boris and hands off batches to the CUDA helper when possible (auto CPU fallback)
 
 **Key Files:**
-- `src/core/integrator/strategies/IntegrationStrategyFactory.h` - Factory
-- `src/core/integrator/strategies/*Strategy.{h,cpp}` - Implementations
+- `src/core/integrator/strategies/IntegrationStrategyFactory.h`
+- `src/core/integrator/strategies/GPUIntegrationStrategy.{h,cpp}`
+- `src/core/integrator/strategies/*Strategy.{h,cpp}` (CPU implementations)
 
 ### GPU Acceleration
 
@@ -138,18 +140,19 @@ GPU acceleration uses threshold-based dispatch (default integration/collisions: 
 - N ≥ threshold → GPU integration helper (RK4/RK45/Boris) and optional GPU collision helper (HSS/EHSS).
 
 **GPU Features (current state):**
-- Integration: RK4/RK45/Boris batch kernels
-- Collisions: HSS/EHSS batch helper with CPU fallback
+- Integration: `GPUIntegrationStrategy` uses `GPUIntegrationHelper` to run RK4/RK45/Boris batches when one domain + grid-backed E-field is active; otherwise it falls back to the CPU strategy transparently
+- Collisions: `GPUCollisionHandler` wraps EHSS/HSS CPU models, advertises `supports_batch()`, and `SimulationEngine::perform_collisions()` groups ions per domain before invoking the GPU helper with automatic CPU fallback
 - Space charge: P³M helper exposed through `SpaceChargeGPUModel`; enabled when `physics.enable_space_charge_gpu=true` and `ICARION_USE_GPU` is defined (falls back to Grid/Direct otherwise)
 - Boundary checks: Helper exists for absorption/cylindrical only, not wired into the loop
 - Automatic CPU fallback on errors or below-threshold counts
 
-**Key Files:**
-- `src/core/gpu/core/GPUContext.{h,cpp}` - CUDA context management
-- `src/core/gpu/core/GPUIntegrationHelper.{h,cpp}` - GPU integration dispatch
-- `src/core/gpu/collisions/GPUCollisionHelper.{h,cpp}` - GPU collision processing
-- `src/core/gpu/spacecharge/GPUSpaceChargeP3M.{h,cpp}` - GPU space charge helper
-- `src/core/gpu/*.cu` - CUDA kernels
+- **Key Files:**
+  - `src/core/integrator/strategies/GPUIntegrationStrategy.{h,cpp}` - Integration wrapper
+  - `src/core/gpu/core/GPUIntegrationHelper.{h,cpp}` - CUDA kernels/dispatch
+  - `src/core/gpu/core/GPUContext.{h,cpp}` - CUDA context management
+  - `src/core/gpu/collisions/GPUCollisionHelper.{h,cpp}`
+  - `src/core/gpu/spacecharge/GPUSpaceChargeP3M.{h,cpp}`
+  - `src/core/gpu/*.cu`
 
 ### Configuration System
 

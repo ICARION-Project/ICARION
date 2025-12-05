@@ -62,35 +62,63 @@ std::vector<IonState> IonEnsemble::to_legacy() const {
     ions.reserve(n);
     
     for (size_t i = 0; i < n; ++i) {
-        IonState ion;
-        
-        // Hot data
-        ion.pos = {hot_.pos_x[i], hot_.pos_y[i], hot_.pos_z[i]};
-        ion.vel = {hot_.vel_x[i], hot_.vel_y[i], hot_.vel_z[i]};
-        ion.mass_kg = hot_.mass[i];
-        ion.ion_charge_C = hot_.charge[i];
-        ion.active = (hot_.active[i] != 0);
-        ion.born = (hot_.born[i] != 0);
-        
-        // Cold data
-        ion.CCS_m2 = cold_.CCS[i];
-        ion.reduced_mobility_cm2_Vs = cold_.mobility[i];
-        ion.birth_time_s = cold_.birth_time[i];
-        ion.death_time_s = cold_.death_time[i];
-        ion.species_id = cold_.species_pool[cold_.species_id[i]];
-        
-        // Domain cache
-        ion.current_domain_index = domain_.domain_index[i];
-        
-        // Output data
-        ion.history_index = output_.history_index[i];
-        ion.t = output_.t[i];
-        ion.dt = 0.0;  // Not stored in SoA
-        
-        ions.push_back(ion);
+        ions.push_back(ion_state(i));
     }
     
     return ions;
+}
+
+IonState IonEnsemble::ion_state(size_t i) const {
+    IonState ion;
+
+    // Hot data
+    ion.pos = {hot_.pos_x[i], hot_.pos_y[i], hot_.pos_z[i]};
+    ion.vel = {hot_.vel_x[i], hot_.vel_y[i], hot_.vel_z[i]};
+    ion.mass_kg = hot_.mass[i];
+    ion.ion_charge_C = hot_.charge[i];
+    ion.active = (hot_.active[i] != 0);
+    ion.born = (hot_.born[i] != 0);
+
+    // Cold data
+    ion.CCS_m2 = cold_.CCS[i];
+    ion.reduced_mobility_cm2_Vs = cold_.mobility[i];
+    ion.birth_time_s = cold_.birth_time[i];
+    ion.death_time_s = cold_.death_time[i];
+    ion.species_id = cold_.species_pool[cold_.species_id[i]];
+
+    // Domain cache
+    ion.current_domain_index = domain_.domain_index[i];
+
+    // Output data
+    ion.history_index = output_.history_index[i];
+    ion.t = output_.t[i];
+    ion.dt = 0.0;  // Not stored in SoA
+
+    return ion;
+}
+
+void IonEnsemble::apply_ion_state(size_t i, const IonState& ion) {
+    hot_.pos_x[i] = ion.pos.x;
+    hot_.pos_y[i] = ion.pos.y;
+    hot_.pos_z[i] = ion.pos.z;
+    hot_.vel_x[i] = ion.vel.x;
+    hot_.vel_y[i] = ion.vel.y;
+    hot_.vel_z[i] = ion.vel.z;
+    hot_.mass[i] = ion.mass_kg;
+    hot_.charge[i] = ion.ion_charge_C;
+    hot_.active[i] = ion.active ? 1 : 0;
+    hot_.born[i] = ion.born ? 1 : 0;
+
+    cold_.CCS[i] = ion.CCS_m2;
+    cold_.mobility[i] = ion.reduced_mobility_cm2_Vs;
+    cold_.birth_time[i] = ion.birth_time_s;
+    cold_.death_time[i] = ion.death_time_s;
+    cold_.species_id[i] = get_species_index(ion.species_id);
+
+    domain_.domain_index[i] = ion.current_domain_index;
+
+    output_.history_index[i] = ion.history_index;
+    output_.t[i] = ion.t;
 }
 
 // === Size management ===

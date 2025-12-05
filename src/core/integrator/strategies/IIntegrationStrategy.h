@@ -4,6 +4,8 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include <memory>
 
 #include "core/types/IonEnsemble.h"
 #include "core/config/types/DomainConfig.h"
@@ -93,6 +95,41 @@ public:
      * to provide error estimation and timestep control.
      */
     virtual bool is_adaptive() const = 0;
+
+    /**
+     * @brief Whether the strategy provides a batch integration shortcut.
+     *
+     * Default implementation returns false and signals that SimulationEngine
+     * should call `step` for every ion. GPU-backed strategies override this
+     * to run a domain-aware batch.
+     */
+    virtual bool supports_batch() const { return false; }
+
+    /**
+     * @brief Optional batch integration hook.
+     *
+     * @param ensemble Ion ensemble (SoA) to integrate in-place.
+     * @param t Current time.
+     * @param dt Timestep.
+     * @param registries Force registries (per domain).
+     * @param domain_indices Cached domain index per ion (-1 for skipped ions).
+     * @return true when the batch path ran (GPU, etc.), false if the caller
+     *         should fall back to per-ion integration.
+     */
+    virtual bool step_batch(
+        core::IonEnsemble& ensemble,
+        double t,
+        double dt,
+        const std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
+        const std::vector<int>& domain_indices
+    ) {
+        (void)ensemble;
+        (void)t;
+        (void)dt;
+        (void)registries;
+        (void)domain_indices;
+        return false;
+    }
 };
 
 } // namespace integrator

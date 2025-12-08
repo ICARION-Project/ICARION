@@ -39,6 +39,11 @@
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/26DTBPH+.json"
     },
+    "26DTBP": {
+      "mass_amu": 191.0,
+      "charge": 0,
+      "name": "2,6-di-tert-butylphenol"
+    },
     "CaffeineH+": {
       "mass_amu": 195.08,
       "charge": 1,

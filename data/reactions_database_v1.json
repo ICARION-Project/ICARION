@@ -1,17 +1,66 @@
 {
   "reactions": [
     {
-      "id": "rxn_001_h3o_to_pentanalH+",
+      "id": "rxn_eq_forward_h3o_to_pentanal",
       "reactant": "H3O+",
       "product": "PentanalH+",
-      "rate_constant": 3e-9,
+      "rate_constant": 1800.0
+    },
+    {
+      "id": "rxn_eq_reverse_pentanal_to_h3o",
+      "reactant": "PentanalH+",
+      "product": "H3O+",
+      "rate_constant": 600.0
+    },
+    {
+      "id": "rxn_decay_reference_h3o_to_pentanal",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 5000.0
+    },
+    {
+      "id": "rxn_chain_step1_h3o_to_pentanal",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 1200.0
+    },
+    {
+      "id": "rxn_chain_step2_pentanal_to_caffeine",
+      "reactant": "PentanalH+",
+      "product": "CaffeineH+",
+      "rate_constant": 800.0
+    },
+    {
+      "id": "rxn_competition_pentanal_channel",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 3.0e-15,
       "order": [
         {
           "species": "Pentanal",
-          "exponent": 1,
-          "concentration_m3": 2.5e19
+          "exponent": 1
         }
       ]
+    },
+    {
+      "id": "rxn_competition_helium_channel",
+      "reactant": "H3O+",
+      "product": "26DTBP",
+      "rate_constant": 3.0e-15,
+      "order": [
+        {
+          "species": "He",
+          "exponent": 1
+        }
+      ]
+    },
+    {
+      "id": "rxn_arrhenius_h3o_to_pentanal",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 200000.0,
+      "rate_model": "Arrhenius",
+      "activation_energy_eV": 0.08
     }
   ]
 }

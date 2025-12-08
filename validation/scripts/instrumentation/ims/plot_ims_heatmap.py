@@ -126,7 +126,7 @@ def create_heatmap(results_dir, output_file, csv_output):
         
         try:
             data = analyze_single_file(str(h5_file))
-            if data and 10 <= data['E_N_Td'] <= 50:  # Only 10-50 Td
+            if data and 0 <= data['E_N_Td'] <= 10:  # Only 10-50 Td
                 csv_rows.append({
                     'filename': h5_file.name,
                     'collision_model': model,
@@ -143,8 +143,8 @@ def create_heatmap(results_dir, output_file, csv_output):
                     'K0_(cm2/Vs)': data['K0_cm2Vs']
                 })
                 
-                # Round E/N to nearest 10 Td (10, 20, 30, 40, 50)
-                en_rounded = round(data['E_N_Td'] / 10) * 10
+                # Round E/N to nearest 1 Td
+                en_rounded = round(data['E_N_Td']) 
                 p_rounded = round(data['P_Pa'])
                 
                 # Update data with rounded values
@@ -174,22 +174,23 @@ def create_heatmap(results_dir, output_file, csv_output):
         # Get unique E/N and pressure values
         en_values = sorted(set(d['E_N_Td'] for d in results[model]))
         p_values = sorted(set(d['P_Pa'] for d in results[model]))
-        
-        # Create grid - use absolute error for coloring
-        error_grid = np.full((len(en_values), len(p_values)), np.nan)
-        error_grid_raw = np.full((len(en_values), len(p_values)), np.nan)
+        # Instead of plotting error, we want to plot mobilities now
+        # Create grid - use mobility values
+        mobility_grid = np.full((len(en_values), len(p_values)), np.nan)
+        mobility_grid_raw = np.full((len(en_values), len(p_values)), np.nan)
         
         for d in results[model]:
             en_idx = en_values.index(d['E_N_Td'])
             p_idx = p_values.index(d['P_Pa'])
-            error_grid[en_idx, p_idx] = abs(d['error_pct'])  # Absolute value for color
-            error_grid_raw[en_idx, p_idx] = d['error_pct']  # Keep raw for annotation
+            mobility_grid[en_idx, p_idx] = abs(d['K0_cm2Vs'])  # Absolute value for color
+            mobility_grid_raw[en_idx, p_idx] = d['K0_cm2Vs']  # Keep raw for annotation
         
         # Plot heatmap with sequential colormap (green=good, red=bad)
-        vmax = min(np.nanmax(error_grid), 100)  # Cap at 100%
+        vmax = np.nanmax(mobility_grid)  
+        vmin = np.nanmin(mobility_grid)
         
-        im = ax.imshow(error_grid, aspect='auto', cmap='RdYlGn_r',
-                      vmin=0, vmax=vmax,
+        im = ax.imshow(mobility_grid, aspect='auto', cmap='RdYlGn_r',
+                      vmin=vmin, vmax=vmax,
                       origin='lower', interpolation='nearest')
         
         # Set ticks
@@ -201,11 +202,12 @@ def create_heatmap(results_dir, output_file, csv_output):
         # Add text annotations with signed values
         for i in range(len(en_values)):
             for j in range(len(p_values)):
-                val_abs = error_grid[i, j]
-                val_raw = error_grid_raw[i, j]
+                val_abs = mobility_grid[i, j]
+                val_raw = mobility_grid_raw[i, j]
                 if not np.isnan(val_abs):
                     color = 'white' if val_abs > 40 else 'black'
-                    ax.text(j, i, f'{val_raw:+.0f}%', ha='center', va='center',
+                    # plot the raw value without unit or sign and with 1 decimal place
+                    ax.text(j, i, f'{val_raw:.1f}', ha='center', va='center',
                            color=color, fontsize=9, weight='bold')
         
         ax.set_xlabel('Pressure (Pa)', fontsize=12)
@@ -214,10 +216,14 @@ def create_heatmap(results_dir, output_file, csv_output):
         
         # Add colorbar
         cbar = plt.colorbar(im, ax=ax)
-        cbar.set_label('Relative Error (%)', fontsize=10)
+        cbar.set_label('Reduced Mobility (cm²/Vs)', fontsize=10)
+        # scale colorbar axis limits to match data range from 10 to 25
+        cbar_ticks = np.linspace(10, 25, num=6)
+        cbar.set_ticks(cbar_ticks)
+        cbar.set_ticklabels([f'{tick:.1f}' for tick in cbar_ticks])
     
-    plt.suptitle('IMS Drift Velocity Validation: Relative Error vs E/N and Pressure\n' +
-                 'H3O⁺ in He, 300K, with T_eff correction',
+    plt.suptitle('IMS Drift Velocity Validation: Reduced Mobility vs E/N and Pressure\n' +
+                 'H3O⁺ in He, 300K',
                  fontsize=16, weight='bold', y=1.02)
     
     plt.tight_layout()

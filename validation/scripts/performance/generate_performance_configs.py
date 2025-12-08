@@ -14,7 +14,9 @@ import numpy as np
 from pathlib import Path
 
 # Output directory
-OUT_DIR = Path("../configs/performance")
+SCRIPT_DIR = Path(__file__).resolve().parent
+VALIDATION_ROOT = SCRIPT_DIR.parent.parent
+OUT_DIR = VALIDATION_ROOT / "configs" / "performance"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Benchmark parameters
@@ -24,6 +26,12 @@ WRITE_INTERVAL = 10000  # Minimal I/O overhead
 
 TEMPERATURE_K = 300.0
 PRESSURE_PA = 1000.0  # 1 kPa for collision benchmarks
+VACUUM_PRESSURE_PA = 1e-6  # Positive floor to satisfy validators
+SPACE_CHARGE_PRESSURE_PA = 1e-6
+DEFAULT_INSTRUMENT = "NoFixedInstrument"
+MIXED_PHYSICS_PRESSURE_PA = 100.0
+LONG_DURATION_TIME_S = 100e-6  # 100 µs sustained runs
+MIXED_PHYSICS_TIME_S = 50e-6  # 50 µs for coupled physics tests
 
 print("\n" + "="*80)
 print("Performance Benchmark Suite Generator")
@@ -70,12 +78,12 @@ for n_ions in ION_COUNTS:
                     "species_id": "H3O+",
                     "count": n_ions,
                     "position": {
-                        "type": "uniform",
+                        "type": "uniform_box",
                         "min": [0.0, 0.0, 0.0],
                         "max": [0.01, 0.01, 0.01]
                     },
                     "velocity": {
-                        "type": "maxwell",
+                        "type": "thermal",
                         "temperature_K": TEMPERATURE_K
                     }
                 }
@@ -84,7 +92,7 @@ for n_ions in ION_COUNTS:
         "domains": [{
             "domain_index": 0,
             "name": f"Baseline scaling (N={n_ions})",
-            "instrument": "Generic",
+            "instrument": DEFAULT_INSTRUMENT,
             "geometry": {
                 "type": "box",
                 "dimensions": [0.01, 0.01, 0.01],
@@ -93,7 +101,7 @@ for n_ions in ION_COUNTS:
             "env": {
                 "gas_species": "He",
                 "temperature_K": TEMPERATURE_K,
-                "pressure_Pa": 0.0,
+                "pressure_Pa": VACUUM_PRESSURE_PA,
                 "gas_velocity_m_s": [0.0, 0.0, 0.0]
             },
             "fields": {}
@@ -150,12 +158,12 @@ for model in COLLISION_MODELS:
                     "species_id": "H3O+" if model != "EHSS" else "PentanalH+",
                     "count": N_IONS_COLLISION,
                     "position": {
-                        "type": "uniform",
+                        "type": "uniform_box",
                         "min": [0.0, 0.0, 0.0],
                         "max": [0.01, 0.01, 0.01]
                     },
                     "velocity": {
-                        "type": "maxwell",
+                        "type": "thermal",
                         "temperature_K": TEMPERATURE_K
                     }
                 }
@@ -164,7 +172,7 @@ for model in COLLISION_MODELS:
         "domains": [{
             "domain_index": 0,
             "name": f"Collision overhead ({model})",
-            "instrument": "Generic",
+            "instrument": DEFAULT_INSTRUMENT,
             "geometry": {
                 "type": "box",
                 "dimensions": [0.01, 0.01, 0.01],
@@ -173,7 +181,7 @@ for model in COLLISION_MODELS:
             "env": {
                 "gas_species": "He",
                 "temperature_K": TEMPERATURE_K,
-                "pressure_Pa": PRESSURE_PA if model != "None" else 0.0,
+                "pressure_Pa": PRESSURE_PA if model != "None" else VACUUM_PRESSURE_PA,
                 "gas_velocity_m_s": [0.0, 0.0, 0.0]
             },
             "fields": {}
@@ -240,12 +248,12 @@ for n_ions in N_DIRECT + N_GRID:
                         "species_id": "H3O+",
                         "count": n_ions,
                         "position": {
-                            "type": "uniform",
+                            "type": "uniform_box",
                             "min": [0.0, 0.0, 0.0],
                             "max": [0.01, 0.01, 0.01]
                         },
                         "velocity": {
-                            "type": "maxwell",
+                            "type": "thermal",
                             "temperature_K": TEMPERATURE_K
                         }
                     }
@@ -254,7 +262,7 @@ for n_ions in N_DIRECT + N_GRID:
             "domains": [{
                 "domain_index": 0,
                 "name": f"Space charge {'ON' if sc_enabled else 'OFF'} (N={n_ions})",
-                "instrument": "Generic",
+                "instrument": DEFAULT_INSTRUMENT,
                 "geometry": {
                     "type": "box",
                     "dimensions": [0.01, 0.01, 0.01],
@@ -263,7 +271,7 @@ for n_ions in N_DIRECT + N_GRID:
                 "env": {
                     "gas_species": "He",
                     "temperature_K": TEMPERATURE_K,
-                    "pressure_Pa": 0.0,
+                    "pressure_Pa": SPACE_CHARGE_PRESSURE_PA,
                     "gas_velocity_m_s": [0.0, 0.0, 0.0]
                 },
                 "fields": {}
@@ -283,6 +291,160 @@ print(f"   Expected: O(N log N) overhead")
 
 print(f"\nGenerated {2*(len(N_DIRECT) + len(N_GRID))} space charge configs")
 
+# ============================================================================
+# BENCHMARK 4: Long-duration Baseline Scaling
+# ============================================================================
+
+print("\n" + "="*80)
+print("BENCHMARK 4: Long-duration Baseline Scaling")
+print("-" * 60)
+
+LONG_ION_COUNTS = [10000, 50000, 100000]
+
+for n_ions in LONG_ION_COUNTS:
+    config = {
+        "simulation": {
+            "total_time_s": LONG_DURATION_TIME_S,
+            "dt_s": DT_S,
+            "write_interval": WRITE_INTERVAL,
+            "integrator": "RK4",
+            "enable_gpu": False,
+            "enable_openmp": True,
+            "rng_seed": 42
+        },
+        "physics": {
+            "collision_model": "None",
+            "enable_space_charge": False,
+            "enable_reactions": False
+        },
+        "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+        "output": {
+            "folder": "validation/results/v1.0_test/performance",
+            "trajectory_file": f"scaling_longrun_N{n_ions}.h5",
+            "print_progress": True
+        },
+        "ions": {
+            "species": [
+                {
+                    "species_id": "H3O+",
+                    "count": n_ions,
+                    "position": {
+                        "type": "uniform_box",
+                        "min": [0.0, 0.0, 0.0],
+                        "max": [0.01, 0.01, 0.01]
+                    },
+                    "velocity": {
+                        "type": "thermal",
+                        "temperature_K": TEMPERATURE_K
+                    }
+                }
+            ]
+        },
+        "domains": [{
+            "domain_index": 0,
+            "name": f"Long baseline scaling (N={n_ions})",
+            "instrument": DEFAULT_INSTRUMENT,
+            "geometry": {
+                "type": "box",
+                "dimensions": [0.01, 0.01, 0.01],
+                "origin_m": [0.0, 0.0, 0.0]
+            },
+            "env": {
+                "gas_species": "He",
+                "temperature_K": TEMPERATURE_K,
+                "pressure_Pa": VACUUM_PRESSURE_PA,
+                "gas_velocity_m_s": [0.0, 0.0, 0.0]
+            },
+            "fields": {}
+        }]
+    }
+
+    out_file = OUT_DIR / f"scaling_longrun_N{n_ions}.json"
+    with open(out_file, 'w') as f:
+        json.dump(config, f, indent=2)
+
+    configs_generated += 1
+    print(f"✅ Long baseline N={n_ions}")
+
+print(f"Generated {len(LONG_ION_COUNTS)} long-duration configs")
+
+# ============================================================================
+# BENCHMARK 5: Mixed Physics Scaling (Collisions + Space Charge)
+# ============================================================================
+
+print("\n" + "="*80)
+print("BENCHMARK 5: Mixed Physics Scaling (HSS + Space Charge)")
+print("-" * 60)
+
+MIXED_ION_COUNTS = [5000, 20000, 100000]
+
+for n_ions in MIXED_ION_COUNTS:
+    config = {
+        "simulation": {
+            "total_time_s": MIXED_PHYSICS_TIME_S,
+            "dt_s": DT_S,
+            "write_interval": WRITE_INTERVAL,
+            "integrator": "RK4",
+            "enable_gpu": False,
+            "enable_openmp": True,
+            "rng_seed": 42
+        },
+        "physics": {
+            "collision_model": "HSS",
+            "enable_space_charge": True,
+            "enable_reactions": False
+        },
+        "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+        "output": {
+            "folder": "validation/results/v1.0_test/performance",
+            "trajectory_file": f"scaling_mixedphysics_N{n_ions}.h5",
+            "print_progress": True
+        },
+        "ions": {
+            "species": [
+                {
+                    "species_id": "H3O+",
+                    "count": n_ions,
+                    "position": {
+                        "type": "uniform_box",
+                        "min": [0.0, 0.0, 0.0],
+                        "max": [0.01, 0.01, 0.01]
+                    },
+                    "velocity": {
+                        "type": "thermal",
+                        "temperature_K": TEMPERATURE_K
+                    }
+                }
+            ]
+        },
+        "domains": [{
+            "domain_index": 0,
+            "name": f"Mixed physics scaling (N={n_ions})",
+            "instrument": DEFAULT_INSTRUMENT,
+            "geometry": {
+                "type": "box",
+                "dimensions": [0.01, 0.01, 0.01],
+                "origin_m": [0.0, 0.0, 0.0]
+            },
+            "env": {
+                "gas_species": "He",
+                "temperature_K": TEMPERATURE_K,
+                "pressure_Pa": MIXED_PHYSICS_PRESSURE_PA,
+                "gas_velocity_m_s": [0.0, 0.0, 0.0]
+            },
+            "fields": {}
+        }]
+    }
+
+    out_file = OUT_DIR / f"scaling_mixedphysics_N{n_ions}.json"
+    with open(out_file, 'w') as f:
+        json.dump(config, f, indent=2)
+
+    configs_generated += 1
+    print(f"✅ Mixed physics N={n_ions}")
+
+print(f"Generated {len(MIXED_ION_COUNTS)} mixed-physics configs")
+
 print("\n" + "="*80)
 print(f"Total configurations: {configs_generated}")
 print(f"Output: {OUT_DIR}")
@@ -290,12 +452,16 @@ print("\nBenchmark categories:")
 print("  1. Ion count scaling (4 configs) - O(N) baseline")
 print("  2. Collision overhead (4 configs) - HSS ~10%, EHSS ~800%")
 print("  3. Space charge overhead (10 configs) - Direct O(N²), Grid O(N log N)")
+print("  4. Long-duration baseline (3 configs) - sustained throughput")
+print("  5. Mixed physics (3 configs) - HSS collisions + space charge")
 print("\nExpected timings (approximate):")
 print("  Baseline (N=10k, 10µs): ~0.1 s")
 print("  HSS collision: ~0.11 s (+10%)")
 print("  EHSS collision: ~0.8 s (+800%)")
 print("  Space charge Direct (N=500): ~0.5 s")
 print("  Space charge Grid (N=10k): ~0.3 s")
+print("  Long baseline (N=100k, 100µs): ~12 s")
+print("  Mixed physics (N=100k, 50µs): ~8 s")
 print("\nNext steps:")
 print("  1. Run: for cfg in configs/performance/*.json; do")
 print("             time icarion_main $cfg; done")

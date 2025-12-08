@@ -9,7 +9,8 @@ if [ -z "$CONFIG" ]; then
     exit 1
 fi
 
-ICARION_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ICARION_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 ICARION_BIN="$ICARION_ROOT/build/src/icarion_main"
 
 mkdir -p "$RESULTS_DIR"
@@ -46,7 +47,7 @@ for THREADS in 1 2 4 8 16 32; do
     EXIT_CODE=$?
     
     # Extract CPU time from log
-    CPU_TIME=$(grep "CPU time:" "$LOG_FILE" | awk '{print $3}')
+    CPU_TIME=$(sed -n 's/.*CPU time:[[:space:]]*\([0-9.eE+-]\+\).*/\1/p' "$LOG_FILE" | tail -1)
     
     # Extract real/user/sys time from time command
     REAL_TIME=$(grep "Elapsed" "$LOG_FILE" | tail -1 | awk '{print $NF}')

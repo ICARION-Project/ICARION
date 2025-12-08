@@ -21,8 +21,17 @@ def read_trajectory_stats(trajectory_file):
     Returns: (times, mean_positions, std_positions)
     """
     with h5py.File(trajectory_file, 'r') as f:
-        times = f['/trajectory/times'][:]
-        positions = f['/trajectory/positions'][:]  # [time, ions, xyz]
+        traj_group = f['/trajectory']
+        if 'times' in traj_group:
+            # Legacy outputs wrote `/trajectory/times`
+            times = traj_group['times'][:]
+        elif 'time' in traj_group:
+            # Current simulator writes `/trajectory/time`
+            times = traj_group['time'][:]
+        else:
+            raise KeyError("trajectory group missing 'time(s)' dataset")
+
+        positions = traj_group['positions'][:]  # [time, ions, xyz]
         
         # Compute mean and std at each timestep
         mean_pos = np.mean(positions, axis=1)  # [time, xyz]
@@ -192,91 +201,151 @@ def compare_direct_grid(results_dir):
     print(f"Tested configurations: {len(results)}")
     print(f"  Direct solver: {sum(1 for r in results if r['solver'] == 'direct')}")
     print(f"  Grid solver: {sum(1 for r in results if r['solver'] == 'grid')}")
-    
-    # Check if expansion rate consistent
-    A_mean = np.mean(A_list)
-    A_std = np.std(A_list)
-    print(f"\nExpansion rate A:")
-    print(f"  Mean: {A_mean:.4e} m/√s")
-    print(f"  Std:  {A_std:.4e} m/√s")
-    print(f"  Variation: {A_std/A_mean*100:.1f}%")
-    
-    if A_std/A_mean < 0.3:
-        print("\n✅ GOOD: Expansion rates consistent across solvers (<30% variation)")
-    else:
-        print("\n⚠️  WARNING: Large variation in expansion rates (>30%)")
-    
+
+    print("\nExpansion rate σ(t) = A·√t consistency:")
+
+    def summarize_solver(solver_name):
+        subset = [r for r in results if r['solver'] == solver_name]
+        if not subset:
+            print(f"  - {solver_name.title()}: no results")
+            return
+
+        A_values = np.array([r['A_fit'] for r in subset])
+        n_values = np.array([r['n_ions'] for r in subset], dtype=float)
+        A_norm = A_values / np.sqrt(n_values)
+
+        mean_norm = np.mean(A_norm)
+        std_norm = np.std(A_norm)
+        variation = std_norm / mean_norm if mean_norm > 0 else np.nan
+
+        print(f"  - {solver_name.title()}:")
+        print(f"      raw A mean={np.mean(A_values):.4e} m/√s")
+        print(f"      normalized A/√N mean={mean_norm:.4e} m/√(s·ion)")
+        print(f"      variation={variation*100:.1f}%")
+
+        if np.isfinite(variation) and variation < 0.3:
+            print("      ✅ stable scaling across sampled N")
+        else:
+            print("      ⚠️ variation exceeds 30% — check solver settings")
+
+    summarize_solver('direct')
+    summarize_solver('grid')
+
     print("="*80 + "\n")
 
 def analyze_ims_spacecharge(results_dir):
-    """Compare IMS with/without space charge"""
+    """Compare IMS with/without space charge for multiple ion counts"""
     results_dir = Path(results_dir)
-    
+
     print("\n" + "="*80)
     print("IMS SPACE CHARGE EFFECTS")
     print("="*80)
-    
-    n_ions = 5000
-    
-    results_sc = {}
-    for sc_enabled in [False, True]:
-        sc_label = 'on' if sc_enabled else 'off'
-        traj_file = results_dir / f"ims_spacecharge_{sc_label}_N{n_ions}.h5"
-        
-        if not traj_file.exists():
-            print(f"❌ File not found: {traj_file}")
-            continue
-        
-        try:
-            times, mean_pos, std_pos, radial_std = read_trajectory_stats(traj_file)
-            
-            # Drift velocity (z-component)
-            z_mean = mean_pos[:, 2]
-            
-            # Find arrival time (when z > 0.045 m, 90% of drift length)
-            arrival_idx = np.where(z_mean > 0.045)[0]
-            if len(arrival_idx) > 0:
-                arrival_time = times[arrival_idx[0]]
+
+    variants = [
+        {"label": "15k ions", "file_tag": "N15000", "count": 15000},
+        {"label": "50k ions", "file_tag": "N10000", "count": 50000},
+    ]
+
+    summaries = []
+
+    for variant in variants:
+        print(f"\n--- {variant['label']} ---")
+        results_sc = {}
+
+        for sc_enabled in [False, True]:
+            sc_label = 'on' if sc_enabled else 'off'
+            traj_file = results_dir / f"ims_spacecharge_{sc_label}_{variant['file_tag']}.h5"
+
+            if not traj_file.exists():
+                print(f"❌ File not found: {traj_file}")
+                continue
+
+            try:
+                times, mean_pos, std_pos, radial_std = read_trajectory_stats(traj_file)
+
+                with h5py.File(traj_file, 'r') as f_meta:
+                    origin = f_meta['/domains/domain_0/geometry/origin_m'][:]
+                    length = f_meta['/domains/domain_0/geometry/length_m'][()]
+
+                z_mean = mean_pos[:, 2]
+                z_std = std_pos[:, 2]
+                target_z = origin[2] + 0.9 * length
+
+                fit_start = 10 if len(times) > 20 else max(0, len(times) - 5)
+                if len(times) - fit_start >= 2:
+                    slope, intercept = np.polyfit(times[fit_start:], z_mean[fit_start:], 1)
+                else:
+                    slope, intercept = (0.0, z_mean[-1])
+
+                if slope > 0:
+                    arrival_time = max(times[0], (target_z - intercept) / slope)
+                else:
+                    arrival_time = np.inf
+
+                peak_width = z_std[-1] * 1e3  # mm
+
+                results_sc[sc_label] = {
+                    'times': times,
+                    'z_mean': z_mean,
+                    'z_std': z_std,
+                    'arrival_time': arrival_time,
+                    'drift_velocity': slope,
+                    'peak_width': peak_width,
+                    'final_z': z_mean[-1]
+                }
+
+                print(f"\nSpace Charge {sc_label.upper()}:")
+                if np.isfinite(arrival_time):
+                    print(f"  Extrapolated arrival (90% length): {arrival_time*1e3:.1f} ms")
+                else:
+                    print("  Extrapolated arrival (90% length): --")
+                print(f"  Drift velocity: {slope:.3e} m/s")
+                print(f"  Mean z @ final step: {z_mean[-1]*1e3:.3f} mm")
+                print(f"  Peak width (z): {peak_width:.3f} mm")
+
+            except Exception as e:
+                print(f"  ❌ Error: {e}")
+
+        if len(results_sc) == 2:
+            t_off = results_sc['off']['arrival_time']
+            t_on = results_sc['on']['arrival_time']
+            v_off = results_sc['off']['drift_velocity']
+            v_on = results_sc['on']['drift_velocity']
+            delay = (t_on - t_off) / t_off * 100 if np.isfinite(t_off) and t_off > 0 else np.nan
+            drift_delta = (v_on - v_off) / v_off * 100 if v_off else np.nan
+
+            w_off = results_sc['off']['peak_width']
+            w_on = results_sc['on']['peak_width']
+            broadening = (w_on - w_off) / w_off * 100
+
+            print(f"\nSpace Charge Effects ({variant['label']}):")
+            if np.isfinite(delay):
+                print(f"  Drift time delay (extrapolated): {delay:+.1f}%")
             else:
-                arrival_time = times[-1]
-            
-            # Peak width at arrival
-            peak_width = std_pos[-1, 2] * 1e3  # mm
-            
-            results_sc[sc_label] = {
-                'times': times,
-                'z_mean': z_mean,
-                'z_std': std_pos[:, 2],
-                'arrival_time': arrival_time,
-                'peak_width': peak_width
-            }
-            
-            print(f"\nSpace Charge {sc_label.upper()}:")
-            print(f"  Arrival time: {arrival_time*1e3:.2f} ms")
-            print(f"  Peak width (z): {peak_width:.3f} mm")
-            
-        except Exception as e:
-            print(f"  ❌ Error: {e}")
-    
-    if len(results_sc) == 2:
-        # Compare
-        t_off = results_sc['off']['arrival_time']
-        t_on = results_sc['on']['arrival_time']
-        delay = (t_on - t_off) / t_off * 100
-        
-        w_off = results_sc['off']['peak_width']
-        w_on = results_sc['on']['peak_width']
-        broadening = (w_on - w_off) / w_off * 100
-        
-        print(f"\nSpace Charge Effects:")
-        print(f"  Drift time delay: {delay:+.1f}%")
-        print(f"  Peak broadening: {broadening:+.1f}%")
-        
-        if delay > 5:
-            print("  ✅ Space charge causes drift delay (expected)")
-        if broadening > 10:
-            print("  ✅ Space charge causes peak broadening (expected)")
-    
+                print("  Drift time delay (extrapolated): --")
+            if np.isfinite(drift_delta):
+                print(f"  Drift velocity change: {drift_delta:+.1f}%")
+            print(f"  Peak broadening: {broadening:+.1f}%")
+
+            summaries.append({
+                'label': variant['label'],
+                'delay': delay,
+                'drift_delta': drift_delta,
+                'broadening': broadening
+            })
+
+            if np.isfinite(delay) and delay > 5:
+                print("  ✅ Space charge causes drift delay (expected)")
+            if broadening > 10:
+                print("  ✅ Space charge causes peak broadening (expected)")
+
+    if summaries:
+        print("\nVariant summary:")
+        for summary in summaries:
+            delay_text = f"{summary['delay']:+.1f}%" if np.isfinite(summary['delay']) else "--"
+            drift_text = f"{summary['drift_delta']:+.1f}%" if np.isfinite(summary['drift_delta']) else "--"
+            print(f"  {summary['label']}: delay={delay_text}, drift={drift_text}, broadening={summary['broadening']:+.1f}%")
+
     print("="*80 + "\n")
 
 def analyze_all_spacecharge(results_dir):

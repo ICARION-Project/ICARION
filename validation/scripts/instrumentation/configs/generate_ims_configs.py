@@ -27,8 +27,8 @@ DRIFT_LENGTH_M = 0.06  # 5 cm drift tube
 DRIFT_TUBE_RADIUS_M = 0.05  # 5 cm radius (large to minimize wall losses)
 
 # Parameter sweeps using EN_Td (reduced field) - detailed E/N mapping
-EN_TD_VALUES = [10.0, 20.0, 30.0, 40.0, 50.0]  # Td - detailed E/N mapping for validation
-PRESSURES_PA = [10.0, 20.0, 100.0, 1000.0]  # Pa - including 20 Pa for better resolution
+EN_TD_VALUES = [1.0, 2.0, 3.0, 5.0, 7.0, 10.0]  # Td - detailed E/N mapping for validation
+PRESSURES_PA = [100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0]  # Pa - including 20 Pa for better resolution
 ION_SPECIES = "H3O+"
 
 # Collision models depend on pressure regime:
@@ -38,7 +38,7 @@ ION_SPECIES = "H3O+"
 #   (stochastic models become computationally intractable and less accurate)
 def get_models_for_pressure(pressure_Pa):
     """Return appropriate collision models for given pressure"""
-    if pressure_Pa >= 5000:  # High pressure regime (>50 mbar)
+    if pressure_Pa >= 10000:  # High pressure regime (>50 mbar)
         return ["Friction"]  # Only deterministic damping
     elif pressure_Pa <= 20:  # Very low pressure (molecular flow regime)
         return ["HSS", "EHSS"]  # Only stochastic - Friction not valid

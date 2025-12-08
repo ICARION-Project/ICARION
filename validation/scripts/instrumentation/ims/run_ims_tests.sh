@@ -5,7 +5,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="$SCRIPT_DIR/../../configs/instruments/ims"
 RESULTS_DIR="$SCRIPT_DIR/../../results/ims_session_$(date +%Y%m%d_%H%M%S)"
-ICARION_BIN="$SCRIPT_DIR/../../../build/src/icarion_main"
+ICARION_BIN="$SCRIPT_DIR/../../../../build/src/icarion_main"
 
 echo "=============================================="
 echo "ICARION Validation Suite - Session 2"

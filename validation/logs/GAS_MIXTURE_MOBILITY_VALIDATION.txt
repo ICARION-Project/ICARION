@@ -1,14 +1,14 @@
 ================================================================================
 GAS MIXTURE MOBILITY VALIDATION: Blanc's Law
 ================================================================================
-Start time: 2025-12-05 17:51:12
+Start time: 2025-12-06 07:45:30
 
 Purpose: Validate HSS collision model for gas mixtures
 Theory: Blanc's Law - 1/K_mix = Σ(x_i / K_i)
 
 Test Species: H3O+
 Gas Mixture: He/N2 (5 ratios: 100/0, 75/25, 50/50, 25/75, 0/100)
-Conditions: P=1000.0 Pa, T=300.0 K, E=5000.0 V/m
+Conditions: P=1000.0 Pa, T=300.0 K, E=1000.0 V/m
 Reference Mobilities (K0 at 273K, 101325 Pa):
   - H3O+ in He: 24.100 cm²/(V·s)
   - H3O+ in N2: 3.200 cm²/(V·s)
@@ -20,7 +20,7 @@ Composition: He=100%, N2=0%
 
 Theory (Blanc's Law):
   K_mix:      2681.969 cm²/(V·s)
-  v_drift:    1341.0 m/s
+  v_drift:    268.2 m/s
 
 ▶ Running simulation: config_100He_0N2.json
   Config: /home/chsch95/ICARION/validation/results/gas_mixture_mobility/config_100He_0N2.json
@@ -29,11 +29,11 @@ Theory (Blanc's Law):
 
 📊 Analyzing: drift_100He_0N2.h5
   Ions: 500/500 active
-  Drift velocity (fit):        1124.9 m/s  ← PRIMARY
-  Drift velocity (instant):    1123.9 ±   21.7 m/s  (noisy)
+  Drift velocity (fit):         266.4 m/s  ← PRIMARY
+  Drift velocity (instant):     266.0 ±   16.0 m/s  (noisy)
   R² (fit quality):          1.0000
-  Expected:     1341.0 m/s
-  Error:       -16.1%  ⚠️
+  Expected:      268.2 m/s
+  Error:        -0.7%  ✅
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 75He_25N2
@@ -42,7 +42,7 @@ Composition: He=75%, N2=25%
 
 Theory (Blanc's Law):
   K_mix:      1018.671 cm²/(V·s)
-  v_drift:    509.3 m/s
+  v_drift:    101.9 m/s
 
 ▶ Running simulation: config_75He_25N2.json
   Config: /home/chsch95/ICARION/validation/results/gas_mixture_mobility/config_75He_25N2.json
@@ -51,11 +51,11 @@ Theory (Blanc's Law):
 
 📊 Analyzing: drift_75He_25N2.h5
   Ions: 500/500 active
-  Drift velocity (fit):         434.8 m/s  ← PRIMARY
-  Drift velocity (instant):     434.7 ±   18.9 m/s  (noisy)
+  Drift velocity (fit):         101.4 m/s  ← PRIMARY
+  Drift velocity (instant):     101.5 ±   15.1 m/s  (noisy)
   R² (fit quality):          1.0000
-  Expected:      509.3 m/s
-  Error:       -14.6%  ⚠️
+  Expected:      101.9 m/s
+  Error:        -0.5%  ✅
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 50He_50N2
@@ -64,7 +64,7 @@ Composition: He=50%, N2=50%
 
 Theory (Blanc's Law):
   K_mix:      628.740 cm²/(V·s)
-  v_drift:    314.4 m/s
+  v_drift:    62.9 m/s
 
 ▶ Running simulation: config_50He_50N2.json
   Config: /home/chsch95/ICARION/validation/results/gas_mixture_mobility/config_50He_50N2.json
@@ -73,11 +73,11 @@ Theory (Blanc's Law):
 
 📊 Analyzing: drift_50He_50N2.h5
   Ions: 500/500 active
-  Drift velocity (fit):         285.9 m/s  ← PRIMARY
-  Drift velocity (instant):     285.9 ±   16.6 m/s  (noisy)
+  Drift velocity (fit):          63.9 m/s  ← PRIMARY
+  Drift velocity (instant):      63.8 ±   14.4 m/s  (noisy)
   R² (fit quality):          1.0000
-  Expected:      314.4 m/s
-  Error:        -9.0%  ✅
+  Expected:       62.9 m/s
+  Error:         1.6%  ✅
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 25He_75N2
@@ -86,8 +86,60 @@ Composition: He=25%, N2=75%
 
 Theory (Blanc's Law):
   K_mix:      454.691 cm²/(V·s)
-  v_drift:    227.3 m/s
+  v_drift:    45.5 m/s
 
 ▶ Running simulation: config_25He_75N2.json
   Config: /home/chsch95/ICARION/validation/results/gas_mixture_mobility/config_25He_75N2.json
   ✓ Running: /home/chsch95/ICARION/build/src/icarion_main /home/chsch95/ICARION/validation/results/gas_mixture_mobility/config_25He_75N2.json
+  ✓ Simulation complete
+
+📊 Analyzing: drift_25He_75N2.h5
+  Ions: 500/500 active
+  Drift velocity (fit):          46.9 m/s  ← PRIMARY
+  Drift velocity (instant):      47.0 ±   13.9 m/s  (noisy)
+  R² (fit quality):          1.0000
+  Expected:       45.5 m/s
+  Error:         3.2%  ✅
+
+────────────────────────────────────────────────────────────────────────────────
+TEST: 0He_100N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=0%, N2=100%
+
+Theory (Blanc's Law):
+  K_mix:      356.112 cm²/(V·s)
+  v_drift:    35.6 m/s
+
+▶ Running simulation: config_0He_100N2.json
+  Config: /home/chsch95/ICARION/validation/results/gas_mixture_mobility/config_0He_100N2.json
+  ✓ Running: /home/chsch95/ICARION/build/src/icarion_main /home/chsch95/ICARION/validation/results/gas_mixture_mobility/config_0He_100N2.json
+  ✓ Simulation complete
+
+📊 Analyzing: drift_0He_100N2.h5
+  Ions: 500/500 active
+  Drift velocity (fit):          37.1 m/s  ← PRIMARY
+  Drift velocity (instant):      37.0 ±   13.3 m/s  (noisy)
+  R² (fit quality):          1.0000
+  Expected:       35.6 m/s
+  Error:         4.1%  ✅
+
+================================================================================
+VALIDATION SUMMARY
+================================================================================
+  100He_0N2      : ✅   -0.7% error
+  75He_25N2      : ✅   -0.5% error
+  50He_50N2      : ✅    1.6% error
+  25He_75N2      : ✅    3.2% error
+  0He_100N2      : ✅    4.1% error
+
+✅ ALL VALIDATIONS PASSED (5/5)
+
+📈 Creating validation plot...
+  ✓ Saved: /home/chsch95/ICARION/validation/figures/gas_mixture_mobility_validation.png
+
+================================================================================
+End time: 2025-12-06 08:31:08
+Duration: 2738.3 seconds
+Log file: /home/chsch95/ICARION/validation/logs/GAS_MIXTURE_MOBILITY_VALIDATION.txt
+Figures:  /home/chsch95/ICARION/validation/figures/gas_mixture_mobility_validation.png
+================================================================================

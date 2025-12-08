@@ -2,9 +2,10 @@
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 // Quick test to verify HSS physics fix
+#include <iostream>
+
 #ifdef ICARION_USE_GPU
 
-#include <iostream>
 #include <cmath>
 #include "core/gpu/core/GPUContext.h"
 #include "core/gpu/collisions/GPUCollisionHelper.h"

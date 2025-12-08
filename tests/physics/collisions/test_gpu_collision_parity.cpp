@@ -31,18 +31,24 @@
 
 using namespace ICARION;
 using namespace ICARION::config;
+using ICARION::core::IonEnsemble;
+using ICARION::core::IonState;
+using ICARION::core::Vec3;
+using ICARION::physics::HSSCollisionHandler;
+using ICARION::physics::PhysicsRng;
 using icarion::gpu::GPUContext;
 using icarion::gpu::GPUCollisionHelper;
 
-static void run_cpu_collision(physics::HSSCollisionHandler& handler,
-                              physics::IonState& ion,
+static void run_cpu_collision(HSSCollisionHandler& handler,
+                              IonState& ion,
                               double dt,
-                              physics::PhysicsRng& rng,
+                              PhysicsRng& rng,
                               const EnvironmentConfig& env) {
-    auto ens = core::IonEnsemble::from_legacy({ion});
+    std::vector<IonState> tmp{ion};
+    auto ens = IonEnsemble::from_legacy(tmp);
     auto view = ens.collision_data(0);
     handler.handle_collision(view, dt, rng, env);
-    ion.vel = view.kin.vel();
+    ion = ens.ion_state(0);
 }
 
 // =============================================================================

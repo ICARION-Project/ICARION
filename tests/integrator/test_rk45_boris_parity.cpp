@@ -21,6 +21,7 @@
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/config/types/DomainConfig.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/Vec3.h"
 
 #include <vector>
@@ -31,6 +32,9 @@ using namespace ICARION::integrator;
 using namespace ICARION::physics;
 using namespace ICARION::config;
 using Catch::Matchers::WithinAbs;
+using ICARION::core::IonEnsemble;
+using ICARION::core::IonState;
+using ICARION::core::Vec3;
 
 // =============================================================================
 // HELPER: Create identical ion sets
@@ -61,6 +65,27 @@ IonBatch create_identical_ions(size_t count, Vec3 pos0, Vec3 vel0, double mass =
     }
     
     return batch;
+}
+
+// Helper to run CPU RK45 for entire ensemble
+static void rk45_cpu_step_batch(RK45Strategy& strategy,
+                                IonEnsemble& ensemble,
+                                double t,
+                                double dt,
+                                const ForceRegistry& forces) {
+    for (size_t idx = 0; idx < ensemble.size(); ++idx) {
+        strategy.step(ensemble, idx, t, dt, forces);
+    }
+}
+
+static void boris_cpu_step_batch(BorisStrategy& strategy,
+                                 IonEnsemble& ensemble,
+                                 double t,
+                                 double dt,
+                                 const ForceRegistry& forces) {
+    for (size_t idx = 0; idx < ensemble.size(); ++idx) {
+        strategy.step(ensemble, idx, t, dt, forces);
+    }
 }
 
 // =============================================================================
@@ -95,7 +120,6 @@ TEST_CASE("RK45: CPU/GPU parity - Free particle", "[rk45][parity][gpu]") {
     DomainConfig domain;
     domain.solver = SolverType::RK45;
     ForceRegistry forces(domain);  // Pass domain in constructor
-    std::vector<IonState> all_ions_dummy;  // Empty for force evaluation
     
     // Test parameters
     const size_t N = 1000;
@@ -105,10 +129,9 @@ TEST_CASE("RK45: CPU/GPU parity - Free particle", "[rk45][parity][gpu]") {
     
     auto batch = create_identical_ions(N, pos0, vel0);
     
-    // CPU integration (single step, no forces → free particle)
-    for (auto& ion : batch.cpu_ions) {
-        rk45_cpu->step(ion, 0.0, dt, forces, all_ions_dummy);
-    }
+    auto cpu_ensemble = IonEnsemble::from_legacy(batch.cpu_ions);
+    rk45_cpu_step_batch(*rk45_cpu, cpu_ensemble, 0.0, dt, forces);
+    batch.cpu_ions = cpu_ensemble.to_legacy();
     
     // GPU integration (batch)
     bool success = gpu_helper->integrate_batch_rk45(batch.gpu_ions, dt, 0.0, nullptr);
@@ -132,7 +155,6 @@ TEST_CASE("RK45: CPU/GPU parity - Multi-step trajectory", "[rk45][parity][gpu]")
     DomainConfig domain;
     domain.solver = SolverType::RK45;
     ForceRegistry forces(domain);
-    std::vector<IonState> all_ions_dummy;
     
     const size_t N = 500;
     const double dt = 1e-6;
@@ -142,19 +164,21 @@ TEST_CASE("RK45: CPU/GPU parity - Multi-step trajectory", "[rk45][parity][gpu]")
     
     auto batch = create_identical_ions(N, pos0, vel0);
     
+    auto cpu_ensemble = IonEnsemble::from_legacy(batch.cpu_ions);
+    
     // Multi-step integration
     for (int step = 0; step < steps; ++step) {
         double t = step * dt;
         
         // CPU
-        for (auto& ion : batch.cpu_ions) {
-            rk45_cpu->step(ion, t, dt, forces, all_ions_dummy);
-        }
+        rk45_cpu_step_batch(*rk45_cpu, cpu_ensemble, t, dt, forces);
         
         // GPU
         bool success = gpu_helper->integrate_batch_rk45(batch.gpu_ions, dt, t, nullptr);
         REQUIRE(success);
     }
+    
+    batch.cpu_ions = cpu_ensemble.to_legacy();
     
     // Compare final states
     INFO("Comparing after " << steps << " timesteps");
@@ -175,16 +199,14 @@ TEST_CASE("RK45: CPU/GPU parity - Various initial conditions", "[rk45][parity][g
     DomainConfig domain;
     domain.solver = SolverType::RK45;
     ForceRegistry forces(domain);
-    std::vector<IonState> all_ions_dummy;
     
     const double dt = 1e-6;
     
     SECTION("Zero velocity") {
         auto batch = create_identical_ions(500, Vec3{0.001, 0.0, 0.0}, Vec3{0.0, 0.0, 0.0});
-        
-        for (auto& ion : batch.cpu_ions) {
-            rk45_cpu->step(ion, 0.0, dt, forces, all_ions_dummy);
-        }
+        auto cpu_ensemble = IonEnsemble::from_legacy(batch.cpu_ions);
+        rk45_cpu_step_batch(*rk45_cpu, cpu_ensemble, 0.0, dt, forces);
+        batch.cpu_ions = cpu_ensemble.to_legacy();
         
         bool success = gpu_helper->integrate_batch_rk45(batch.gpu_ions, dt, 0.0, nullptr);
         REQUIRE(success);
@@ -196,10 +218,9 @@ TEST_CASE("RK45: CPU/GPU parity - Various initial conditions", "[rk45][parity][g
     
     SECTION("High velocity") {
         auto batch = create_identical_ions(500, Vec3{0.0, 0.0, 0.0}, Vec3{1e6, 5e5, 2e5});
-        
-        for (auto& ion : batch.cpu_ions) {
-            rk45_cpu->step(ion, 0.0, dt, forces, all_ions_dummy);
-        }
+        auto cpu_ensemble = IonEnsemble::from_legacy(batch.cpu_ions);
+        rk45_cpu_step_batch(*rk45_cpu, cpu_ensemble, 0.0, dt, forces);
+        batch.cpu_ions = cpu_ensemble.to_legacy();
         
         bool success = gpu_helper->integrate_batch_rk45(batch.gpu_ions, dt, 0.0, nullptr);
         REQUIRE(success);
@@ -215,10 +236,9 @@ TEST_CASE("RK45: CPU/GPU parity - Various initial conditions", "[rk45][parity][g
         for (double mass : masses) {
             INFO("Testing mass: " << mass << " kg");
             auto batch = create_identical_ions(200, Vec3{0.0, 0.0, 0.0}, Vec3{1000.0, 0.0, 0.0}, mass);
-            
-            for (auto& ion : batch.cpu_ions) {
-                rk45_cpu->step(ion, 0.0, dt, forces, all_ions_dummy);
-            }
+            auto cpu_ensemble = IonEnsemble::from_legacy(batch.cpu_ions);
+            rk45_cpu_step_batch(*rk45_cpu, cpu_ensemble, 0.0, dt, forces);
+            batch.cpu_ions = cpu_ensemble.to_legacy();
             
             bool success = gpu_helper->integrate_batch_rk45(batch.gpu_ions, dt, 0.0, nullptr);
             REQUIRE(success);
@@ -244,7 +264,6 @@ TEST_CASE("Boris: CPU/GPU parity - Free particle", "[boris][parity][gpu]") {
     DomainConfig domain;
     domain.solver = SolverType::Boris;
     ForceRegistry forces(domain);
-    std::vector<IonState> all_ions_dummy;
     
     const size_t N = 1000;
     const double dt = 1e-7;  // 100 ns (smaller for Boris)
@@ -253,10 +272,9 @@ TEST_CASE("Boris: CPU/GPU parity - Free particle", "[boris][parity][gpu]") {
     
     auto batch = create_identical_ions(N, pos0, vel0);
     
-    // CPU integration
-    for (auto& ion : batch.cpu_ions) {
-        boris_cpu->step(ion, 0.0, dt, forces, all_ions_dummy);
-    }
+    auto cpu_ensemble = IonEnsemble::from_legacy(batch.cpu_ions);
+    boris_cpu_step_batch(*boris_cpu, cpu_ensemble, 0.0, dt, forces);
+    batch.cpu_ions = cpu_ensemble.to_legacy();
     
     // GPU integration
     bool success = gpu_helper->integrate_batch_boris(batch.gpu_ions, dt, 0.0, nullptr);
@@ -279,7 +297,6 @@ TEST_CASE("Boris: CPU/GPU parity - Multi-step trajectory", "[boris][parity][gpu]
     DomainConfig domain;
     domain.solver = SolverType::Boris;
     ForceRegistry forces(domain);
-    std::vector<IonState> all_ions_dummy;
     
     const size_t N = 500;
     const double dt = 1e-7;
@@ -289,19 +306,19 @@ TEST_CASE("Boris: CPU/GPU parity - Multi-step trajectory", "[boris][parity][gpu]
     
     auto batch = create_identical_ions(N, pos0, vel0);
     
+    auto cpu_ensemble = IonEnsemble::from_legacy(batch.cpu_ions);
+    
     // Multi-step integration
     for (int step = 0; step < steps; ++step) {
         double t = step * dt;
-        
-        // CPU
-        for (auto& ion : batch.cpu_ions) {
-            boris_cpu->step(ion, t, dt, forces, all_ions_dummy);
-        }
+        boris_cpu_step_batch(*boris_cpu, cpu_ensemble, t, dt, forces);
         
         // GPU
         bool success = gpu_helper->integrate_batch_boris(batch.gpu_ions, dt, t, nullptr);
         REQUIRE(success);
     }
+    
+    batch.cpu_ions = cpu_ensemble.to_legacy();
     
     // Compare final states
     INFO("Comparing after " << steps << " timesteps");
@@ -321,7 +338,6 @@ TEST_CASE("Boris: CPU/GPU parity - Energy conservation", "[boris][parity][gpu]")
     DomainConfig domain;
     domain.solver = SolverType::Boris;
     ForceRegistry forces(domain);
-    std::vector<IonState> all_ions_dummy;
     
     const size_t N = 500;
     const double dt = 1e-7;
@@ -335,17 +351,18 @@ TEST_CASE("Boris: CPU/GPU parity - Energy conservation", "[boris][parity][gpu]")
     // Initial energy
     double E0_cpu = 0.5 * mass * (vel0.x*vel0.x + vel0.y*vel0.y + vel0.z*vel0.z);
     
+    auto cpu_ensemble = IonEnsemble::from_legacy(batch.cpu_ions);
+    
     // Multi-step integration
     for (int step = 0; step < steps; ++step) {
         double t = step * dt;
-        
-        for (auto& ion : batch.cpu_ions) {
-            boris_cpu->step(ion, t, dt, forces, all_ions_dummy);
-        }
+        boris_cpu_step_batch(*boris_cpu, cpu_ensemble, t, dt, forces);
         
         bool success = gpu_helper->integrate_batch_boris(batch.gpu_ions, dt, t, nullptr);
         REQUIRE(success);
     }
+    
+    batch.cpu_ions = cpu_ensemble.to_legacy();
     
     // Check energy conservation for both CPU and GPU
     auto& ion_cpu = batch.cpu_ions[0];
@@ -380,7 +397,6 @@ TEST_CASE("Boris: CPU/GPU parity - Timestep variation", "[boris][parity][gpu]") 
     DomainConfig domain;
     domain.solver = SolverType::Boris;
     ForceRegistry forces(domain);
-    std::vector<IonState> all_ions_dummy;
     
     std::vector<double> timesteps = {1e-8, 5e-8, 1e-7, 5e-7, 1e-6};
     
@@ -388,10 +404,9 @@ TEST_CASE("Boris: CPU/GPU parity - Timestep variation", "[boris][parity][gpu]") 
         INFO("Testing timestep: " << dt << " s");
         
         auto batch = create_identical_ions(300, Vec3{0.0, 0.0, 0.0}, Vec3{1000.0, 0.0, 0.0});
-        
-        for (auto& ion : batch.cpu_ions) {
-            boris_cpu->step(ion, 0.0, dt, forces, all_ions_dummy);
-        }
+        auto cpu_ensemble = IonEnsemble::from_legacy(batch.cpu_ions);
+        boris_cpu_step_batch(*boris_cpu, cpu_ensemble, 0.0, dt, forces);
+        batch.cpu_ions = cpu_ensemble.to_legacy();
         
         bool success = gpu_helper->integrate_batch_boris(batch.gpu_ions, dt, 0.0, nullptr);
         REQUIRE(success);

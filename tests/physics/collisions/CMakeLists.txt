@@ -209,6 +209,17 @@ if(ICARION_USE_GPU)
         ${CMAKE_SOURCE_DIR}/include
     )
     add_test(NAME GPUCollisionParity COMMAND test_gpu_collision_parity)
+
+    add_executable(test_gpu_multi_gas_parity test_gpu_multi_gas_parity.cpp)
+    target_link_libraries(test_gpu_multi_gas_parity PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+    )
+    target_include_directories(test_gpu_multi_gas_parity PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+    add_test(NAME GPUMultiGasParity COMMAND test_gpu_multi_gas_parity)
     
     # Quick standalone physics test
     add_executable(test_hss_physics_parity test_hss_physics_parity.cpp)

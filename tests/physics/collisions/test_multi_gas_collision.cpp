@@ -166,7 +166,7 @@ TEST_CASE("HSS uses gas-specific CCS map in mixture", "[collision][multigas]") {
     };
     env.compute_derived_properties();
 
-    const int trials = 2000;
+    const int trials = 20000;
     int collisions = 0;
     for (int i = 0; i < trials; ++i) {
         IonState ion_copy = ion;
@@ -233,13 +233,25 @@ TEST_CASE("HSS mixture thermalization proxy via collision counts", "[collision][
     env_mix.gas_mixture = {{"N2", 0.5, 1.0e-18, -1.0}, {"O2", 0.5, 2.0e-18, -1.0}};
     env_mix.compute_derived_properties();
 
-    const int trials = 2000;
+    const int trials = 20000;
     const double dt = 1e-8;
     size_t c_n2 = count_collisions(handler, env_n2, trials, 1, dt);
     size_t c_o2 = count_collisions(handler, env_o2, trials, 2, dt);
+
+    handler.reset_stats();
     size_t c_mix = count_collisions(handler, env_mix, trials, 3, dt);
+    auto stats_map = handler.collisions_by_species();
+    const double mix_n2 = static_cast<double>(stats_map["N2"]);
+    const double mix_o2 = static_cast<double>(stats_map["O2"]);
+    const double mix_total = mix_n2 + mix_o2;
+
+    INFO("c_n2=" << c_n2 << ", c_o2=" << c_o2 << ", c_mix=" << c_mix
+                 << ", mix_N2=" << mix_n2 << ", mix_O2=" << mix_o2);
 
     REQUIRE(c_o2 > c_n2);
-    REQUIRE(c_mix > c_n2);
-    REQUIRE(c_mix < c_o2);
+    REQUIRE(c_mix > 0);
+    REQUIRE(mix_total == Approx(static_cast<double>(c_mix)).margin(0.1 * c_mix));
+    REQUIRE(mix_o2 > mix_n2);
+    const double frac_o2 = mix_o2 / mix_total;
+    REQUIRE(frac_o2 == Approx(2.0 / 3.0).margin(0.15));
 }

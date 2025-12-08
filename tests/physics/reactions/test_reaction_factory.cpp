@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "core/physics/reactions/ReactionHandlerFactory.h"
 #include "core/physics/reactions/StochasticReactionHandler.h"
+#include "core/physics/reactions/IReactionHandler.h"
 #include "core/config/types/PhysicsConfig.h"
 
 using namespace ICARION;
@@ -76,4 +77,24 @@ TEST_CASE("ReactionHandlerFactory: SSOT compliance", "[reaction][factory][ssot]"
     
     // Handler still valid (created from previous config state)
     REQUIRE(handler->name() == "Stochastic");
+}
+
+TEST_CASE("ReactionHandlerFactory: GPU request without CUDA falls back", "[reaction][factory][gpu]") {
+    PhysicsConfig config;
+    config.enable_reactions = true;
+
+    auto handler = ReactionHandlerFactory::create(
+        config,
+        false,
+        true,   // enable_gpu
+        42,
+        16
+    );
+
+    REQUIRE(handler != nullptr);
+#ifdef ICARION_USE_GPU
+    CHECK(handler->supports_batch());
+#else
+    CHECK_FALSE(handler->supports_batch());
+#endif
 }

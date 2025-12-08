@@ -163,84 +163,171 @@ __global__ void hss_collision_kernel(
     double dt,
     int n_ions
 ) {
-    // Grid-stride loop
+    constexpr int MAX_COMPONENTS = icarion::gpu::MAX_GPU_GAS_COMPONENTS;
+
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
-    
-    // Get thread-local RNG state
     curandState local_state = curand_states[tid];
     
     for (int i = tid; i < n_ions; i += stride) {
-        // Skip inactive ions
         if (!active[i]) continue;
         
-        // Read ion state
         double vx = vx_inout[i];
         double vy = vy_inout[i];
         double vz = vz_inout[i];
         double m_ion = mass[i];
         double sigma = ccs[i];
+
+        if (env.num_components <= 0) {
+            double vn_x = env.gas_velocity_x + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            double vn_y = env.gas_velocity_y + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            double vn_z = env.gas_velocity_z + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            
+            double vrel_x = vx - vn_x;
+            double vrel_y = vy - vn_y;
+            double vrel_z = vz - vn_z;
+            double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+            if (vrel_mag < MIN_VELOCITY_MAG) continue;
+            
+            double number_density = env.pressure_Pa / (BOLTZMANN_CONSTANT * env.temperature_K);
+            double collision_rate = vrel_mag * sigma * number_density;
+            double collision_prob = 1.0 - exp(-collision_rate * dt);
+            
+            double u = curand_uniform_double(&local_state);
+            if (u >= collision_prob) continue;
+            
+            double m_neutral = env.neutral_mass_kg;
+            double m_total = m_ion + m_neutral;
+            double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
+            double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
+            double vcm_z = (m_ion * vz + m_neutral * vn_z) / m_total;
+            
+            double nx, ny, nz;
+            sample_isotropic_direction(&local_state, nx, ny, nz);
+            
+            double vrel_scattered_x = nx * vrel_mag;
+            double vrel_scattered_y = ny * vrel_mag;
+            double vrel_scattered_z = nz * vrel_mag;
+            
+            double reduced_mass_factor = m_neutral / m_total;
+            vx = vcm_x + vrel_scattered_x * reduced_mass_factor;
+            vy = vcm_y + vrel_scattered_y * reduced_mass_factor;
+            vz = vcm_z + vrel_scattered_z * reduced_mass_factor;
+            
+            vx_inout[i] = vx;
+            vy_inout[i] = vy;
+            vz_inout[i] = vz;
+            continue;
+        }
+
+        double rates[MAX_COMPONENTS] = {0.0};
+        double vn_x_arr[MAX_COMPONENTS] = {0.0};
+        double vn_y_arr[MAX_COMPONENTS] = {0.0};
+        double vn_z_arr[MAX_COMPONENTS] = {0.0};
+        double mass_arr[MAX_COMPONENTS] = {0.0};
+        int num_components = env.num_components;
+        if (num_components > MAX_COMPONENTS) {
+            num_components = MAX_COMPONENTS;
+        }
+        double total_rate = 0.0;
         
-        // Sample neutral velocity from Maxwell-Boltzmann
-        double vn_x = env.gas_velocity_x + sample_maxwell_boltzmann_component(
-            &local_state, env.temperature_K, env.neutral_mass_kg);
-        double vn_y = env.gas_velocity_y + sample_maxwell_boltzmann_component(
-            &local_state, env.temperature_K, env.neutral_mass_kg);
-        double vn_z = env.gas_velocity_z + sample_maxwell_boltzmann_component(
-            &local_state, env.temperature_K, env.neutral_mass_kg);
+        for (int c = 0; c < num_components; ++c) {
+            double density = env.component_density_m3[c];
+            if (density <= 0.0) {
+                continue;
+            }
+            double neutral_mass = env.component_mass_kg[c] > 0.0
+                ? env.component_mass_kg[c]
+                : env.neutral_mass_kg;
+            double sigma_comp = env.component_cross_section_m2[c] > 0.0
+                ? env.component_cross_section_m2[c]
+                : sigma;
+            
+            double vn_x = env.gas_velocity_x + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, neutral_mass);
+            double vn_y = env.gas_velocity_y + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, neutral_mass);
+            double vn_z = env.gas_velocity_z + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, neutral_mass);
+            
+            double vrel_x = vx - vn_x;
+            double vrel_y = vy - vn_y;
+            double vrel_z = vz - vn_z;
+            double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+            if (vrel_mag < MIN_VELOCITY_MAG) {
+                continue;
+            }
+            
+            double rate = density * sigma_comp * vrel_mag;
+            rates[c] = rate;
+            vn_x_arr[c] = vn_x;
+            vn_y_arr[c] = vn_y;
+            vn_z_arr[c] = vn_z;
+            mass_arr[c] = neutral_mass;
+            total_rate += rate;
+        }
         
-        // Relative velocity
+        if (total_rate <= 0.0) {
+            continue;
+        }
+        
+        double collision_prob = (total_rate * dt <= 50.0)
+            ? 1.0 - exp(-total_rate * dt)
+            : 1.0;
+        double u_total = curand_uniform_double(&local_state);
+        if (u_total >= collision_prob) {
+            continue;
+        }
+        
+        double r = curand_uniform_double(&local_state) * total_rate;
+        double cumulative = 0.0;
+        int chosen = 0;
+        for (int c = 0; c < num_components; ++c) {
+            cumulative += rates[c];
+            if (r <= cumulative) {
+                chosen = c;
+                break;
+            }
+        }
+        
+        double vn_x = vn_x_arr[chosen];
+        double vn_y = vn_y_arr[chosen];
+        double vn_z = vn_z_arr[chosen];
+        double m_neutral = mass_arr[chosen] > 0.0 ? mass_arr[chosen] : env.neutral_mass_kg;
+        
         double vrel_x = vx - vn_x;
         double vrel_y = vy - vn_y;
         double vrel_z = vz - vn_z;
         double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+        if (vrel_mag < MIN_VELOCITY_MAG) {
+            continue;
+        }
         
-        if (vrel_mag < MIN_VELOCITY_MAG) continue;
-        
-        // Collision probability: P = 1 - exp(-n * σ * v_rel * dt)
-        // where n = P / (kT) is number density
-        double number_density = env.pressure_Pa / (BOLTZMANN_CONSTANT * env.temperature_K);
-        double collision_rate = vrel_mag * sigma * number_density;
-        double collision_prob = 1.0 - exp(-collision_rate * dt);
-        
-        // Check if collision occurs
-        double u = curand_uniform_double(&local_state);
-        if (u >= collision_prob) continue;
-        
-        // ====== COLLISION OCCURS ======
-        
-        // Compute center-of-mass velocity
-        double m_neutral = env.neutral_mass_kg;
         double m_total = m_ion + m_neutral;
         double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
         double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
         double vcm_z = (m_ion * vz + m_neutral * vn_z) / m_total;
         
-        // Relative velocity (already computed above as vrel_x, vrel_y, vrel_z)
-        // vrel_mag already computed
-        
-        // Sample isotropic scattering direction (uniform sphere)
         double nx, ny, nz;
         sample_isotropic_direction(&local_state, nx, ny, nz);
         
-        // Preserve relative speed magnitude, change direction
         double vrel_scattered_x = nx * vrel_mag;
         double vrel_scattered_y = ny * vrel_mag;
         double vrel_scattered_z = nz * vrel_mag;
         
-        // Transform back to lab frame (reduced mass factor)
         double reduced_mass_factor = m_neutral / m_total;
         vx = vcm_x + vrel_scattered_x * reduced_mass_factor;
         vy = vcm_y + vrel_scattered_y * reduced_mass_factor;
         vz = vcm_z + vrel_scattered_z * reduced_mass_factor;
         
-        // Write back
         vx_inout[i] = vx;
         vy_inout[i] = vy;
         vz_inout[i] = vz;
     }
     
-    // Save RNG state
     curand_states[tid] = local_state;
 }
 
@@ -258,7 +345,8 @@ __global__ void ehss_collision_kernel(
     double dt,
     int n_ions
 ) {
-    // Grid-stride loop
+    constexpr int MAX_COMPONENTS = icarion::gpu::MAX_GPU_GAS_COMPONENTS;
+
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
     
@@ -275,36 +363,132 @@ __global__ void ehss_collision_kernel(
         double sigma = ccs[i];
         int species_idx = species_indices[i];
         
-        // Sample neutral velocity
-        double vn_x = env.gas_velocity_x + sample_maxwell_boltzmann_component(
-            &local_state, env.temperature_K, env.neutral_mass_kg);
-        double vn_y = env.gas_velocity_y + sample_maxwell_boltzmann_component(
-            &local_state, env.temperature_K, env.neutral_mass_kg);
-        double vn_z = env.gas_velocity_z + sample_maxwell_boltzmann_component(
-            &local_state, env.temperature_K, env.neutral_mass_kg);
+        double vn_x = 0.0;
+        double vn_y = 0.0;
+        double vn_z = 0.0;
+        double m_neutral = env.neutral_mass_kg;
+        double neutral_radius = env.neutral_radius_m;
+        bool collision_selected = false;
+
+        if (env.num_components <= 0) {
+            vn_x = env.gas_velocity_x + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            vn_y = env.gas_velocity_y + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            vn_z = env.gas_velocity_z + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            
+            double vrel_x = vx - vn_x;
+            double vrel_y = vy - vn_y;
+            double vrel_z = vz - vn_z;
+            double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+            if (vrel_mag < MIN_VELOCITY_MAG) continue;
+            
+            double number_density = env.pressure_Pa / (BOLTZMANN_CONSTANT * env.temperature_K);
+            double collision_rate = vrel_mag * sigma * number_density;
+            double collision_prob = 1.0 - exp(-collision_rate * dt);
+            double u = curand_uniform_double(&local_state);
+            if (u >= collision_prob) {
+                continue;
+            }
+            collision_selected = true;
+        } else {
+            double rates[MAX_COMPONENTS] = {0.0};
+            double vn_x_arr[MAX_COMPONENTS] = {0.0};
+            double vn_y_arr[MAX_COMPONENTS] = {0.0};
+            double vn_z_arr[MAX_COMPONENTS] = {0.0};
+            double mass_arr[MAX_COMPONENTS] = {0.0};
+            double radius_arr[MAX_COMPONENTS] = {0.0};
+            int num_components = env.num_components;
+            if (num_components > MAX_COMPONENTS) {
+                num_components = MAX_COMPONENTS;
+            }
+            double total_rate = 0.0;
+            
+            for (int c = 0; c < num_components; ++c) {
+                double density = env.component_density_m3[c];
+                if (density <= 0.0) {
+                    continue;
+                }
+                double neutral_mass = env.component_mass_kg[c] > 0.0
+                    ? env.component_mass_kg[c]
+                    : env.neutral_mass_kg;
+                double neutral_rad = env.component_radius_m[c] > 0.0
+                    ? env.component_radius_m[c]
+                    : env.neutral_radius_m;
+                double sigma_comp = env.component_cross_section_m2[c] > 0.0
+                    ? env.component_cross_section_m2[c]
+                    : sigma;
+                
+                double vn_x_c = env.gas_velocity_x + sample_maxwell_boltzmann_component(
+                    &local_state, env.temperature_K, neutral_mass);
+                double vn_y_c = env.gas_velocity_y + sample_maxwell_boltzmann_component(
+                    &local_state, env.temperature_K, neutral_mass);
+                double vn_z_c = env.gas_velocity_z + sample_maxwell_boltzmann_component(
+                    &local_state, env.temperature_K, neutral_mass);
+                
+                double vrel_x = vx - vn_x_c;
+                double vrel_y = vy - vn_y_c;
+                double vrel_z = vz - vn_z_c;
+                double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+                if (vrel_mag < MIN_VELOCITY_MAG) {
+                    continue;
+                }
+                
+                double rate = density * sigma_comp * vrel_mag;
+                rates[c] = rate;
+                vn_x_arr[c] = vn_x_c;
+                vn_y_arr[c] = vn_y_c;
+                vn_z_arr[c] = vn_z_c;
+                mass_arr[c] = neutral_mass;
+                radius_arr[c] = neutral_rad;
+                total_rate += rate;
+            }
+            
+            if (total_rate <= 0.0) {
+                continue;
+            }
+            
+            double collision_prob = (total_rate * dt <= 50.0)
+                ? 1.0 - exp(-total_rate * dt)
+                : 1.0;
+            double u_total = curand_uniform_double(&local_state);
+            if (u_total >= collision_prob) {
+                continue;
+            }
+            
+            double r = curand_uniform_double(&local_state) * total_rate;
+            double cumulative = 0.0;
+            int chosen = 0;
+            for (int c = 0; c < num_components; ++c) {
+                cumulative += rates[c];
+                if (r <= cumulative) {
+                    chosen = c;
+                    break;
+                }
+            }
+            
+            vn_x = vn_x_arr[chosen];
+            vn_y = vn_y_arr[chosen];
+            vn_z = vn_z_arr[chosen];
+            m_neutral = mass_arr[chosen] > 0.0 ? mass_arr[chosen] : env.neutral_mass_kg;
+            neutral_radius = radius_arr[chosen] > 0.0 ? radius_arr[chosen] : env.neutral_radius_m;
+            collision_selected = true;
+        }
         
-        // Relative velocity
+        if (!collision_selected) {
+            continue;
+        }
+        
         double vrel_x = vx - vn_x;
         double vrel_y = vy - vn_y;
         double vrel_z = vz - vn_z;
         double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
-        
         if (vrel_mag < MIN_VELOCITY_MAG) continue;
-        
-        // Collision probability
-        double number_density = env.pressure_Pa / (BOLTZMANN_CONSTANT * env.temperature_K);
-        double collision_rate = vrel_mag * sigma * number_density;  // No 0.25 factor!
-        double collision_prob = 1.0 - exp(-collision_rate * dt);
-        
-        double u = curand_uniform_double(&local_state);
-        if (u >= collision_prob) continue;
-        
-        // ====== COLLISION WITH GEOMETRY ======
         
         // Look up geometry for this species
         if (species_idx < 0 || species_idx >= geometry.num_species) {
             // Fallback to HSS if no geometry (use same correct formula as HSS kernel)
-            double m_neutral = env.neutral_mass_kg;
             double m_total = m_ion + m_neutral;
             double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
             double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
@@ -401,13 +585,13 @@ __global__ void ehss_collision_kernel(
                 double dy = ay_rot - impact_y;
                 double dz = az_rot - impact_z;
                 
-                double dist_sq = dx * dx + dy * dy + dz * dz;
-                double sum_radii = ar + env.neutral_radius_m;  // Assume ion radius ~ neutral radius
-                
-                if (dist_sq < sum_radii * sum_radii) {
-                    collision_detected = true;
-                    contact_x = ax_rot;
-                    contact_y = ay_rot;
+            double dist_sq = dx * dx + dy * dy + dz * dz;
+            double sum_radii = ar + neutral_radius;
+            
+            if (dist_sq < sum_radii * sum_radii) {
+                collision_detected = true;
+                contact_x = ax_rot;
+                contact_y = ay_rot;
                     contact_z = az_rot;
                     break;
                 }
@@ -428,7 +612,6 @@ __global__ void ehss_collision_kernel(
             normalize(normal_x, normal_y, normal_z);
             
             // Transform to COM frame
-            double m_neutral = env.neutral_mass_kg;
             double m_total = m_ion + m_neutral;
             double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
             double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
@@ -450,7 +633,6 @@ __global__ void ehss_collision_kernel(
             vz = vion_cm_z + vcm_z;
         } else {
             // Fallback to isotropic scattering if geometry collision fails
-            double m_neutral = env.neutral_mass_kg;
             double m_total = m_ion + m_neutral;
             double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
             double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;

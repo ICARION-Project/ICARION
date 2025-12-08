@@ -140,7 +140,7 @@ public:
      * @brief SoA wrapper for space charge field computation
      */
     bool compute_space_charge_field(
-        const core::IonEnsemble& ions,
+        const ICARION::core::IonEnsemble& ions,
         std::vector<Vec3>& E_field_out
     );
 
@@ -151,6 +151,7 @@ private:
         std::vector<Vec3>& E_field_out
     );
 
+public:
     /**
      * @brief Performance statistics
      */
@@ -176,6 +177,7 @@ private:
      */
     const Stats& get_stats() const { return stats_; }
     
+private:
     /**
      * @brief Reset performance counters
      */

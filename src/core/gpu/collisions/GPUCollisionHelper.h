@@ -200,6 +200,7 @@ private:
     size_t threshold_;
     std::string collision_model_;  // "HSS" or "EHSS"
     unsigned long long rng_seed_;
+    bool warned_mixture_limit_ = false;
     
     // cuRAND states (persistent across timesteps)
     curandState* d_curand_states_ = nullptr;

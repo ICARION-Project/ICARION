@@ -6,8 +6,10 @@
 #include "core/types/IonEnsemble.h"  // For IonReactionData view
 #include "core/config/types/ReactionConfig.h"
 #include "core/config/types/SpeciesConfig.h"
+#include "core/config/types/DomainConfig.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/types/CollisionTypes.h"  // PhysicsRng
+#include <vector>
 #include <string>
 
 namespace ICARION {
@@ -92,6 +94,31 @@ public:
      * @brief Reset statistics
      */
     virtual void reset_stats() {}
+
+    /**
+     * @brief Indicates whether the handler supports batch execution.
+     */
+    virtual bool supports_batch() const { return false; }
+
+    /**
+     * @brief Batch hook for GPU/accelerated handlers.
+     *
+     * @return true if the handler processed the batch; false to trigger CPU fallback.
+     */
+    virtual bool handle_batch(core::IonEnsemble& ensemble,
+                              const std::vector<int>& domain_indices,
+                              double dt,
+                              const config::ReactionDatabase& reaction_db,
+                              const config::SpeciesDatabase& species_db,
+                              const std::vector<config::DomainConfig>& domains) {
+        (void)ensemble;
+        (void)domain_indices;
+        (void)dt;
+        (void)reaction_db;
+        (void)species_db;
+        (void)domains;
+        return false;
+    }
 };
 
 } // namespace physics

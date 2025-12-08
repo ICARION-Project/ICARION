@@ -73,7 +73,7 @@ tools/                 # Developer tools and scripts
 - Geometry/fields: `IDomainGeometry` + `IFieldModel` (wired by DomainManager)
 - Forces: `IForce` implementations aggregated by `ForceRegistry`
 - Collisions: `ICollisionHandler` selected by factory
-- Reactions: `IReactionHandler` selected by factory
+- Reactions: `IReactionHandler` selected by factory (CPU stochastic handler or GPU wrapper, depending on config)
 - Integrators: `IIntegrationStrategy` selected by factory
 Swapping a strategy/factory changes behavior without touching the loop.
 
@@ -141,7 +141,7 @@ GPU acceleration uses threshold-based dispatch (default integration/collisions: 
 
 **GPU Features (current state):**
 - Integration: `GPUIntegrationStrategy` uses `GPUIntegrationHelper` to run RK4/RK45/Boris batches when one domain + grid-backed E-field is active; otherwise it falls back to the CPU strategy transparently
-- Collisions: `GPUCollisionHandler` wraps EHSS/HSS CPU models, advertises `supports_batch()`, and `SimulationEngine::perform_collisions()` groups ions per domain before invoking the GPU helper with automatic CPU fallback
+- Collisions: `GPUCollisionHandler` wraps EHSS/HSS CPU models, advertises `supports_batch()`, and `SimulationEngine::perform_collisions()` groups ions per domain before invoking the GPU helper with automatic CPU fallback. Multi-gas mixtures are supported (up to 8 components per domain; additional entries are truncated with a warning)
 - Space charge: P³M helper exposed through `SpaceChargeGPUModel`; enabled when `physics.enable_space_charge_gpu=true` and `ICARION_USE_GPU` is defined (falls back to Grid/Direct otherwise)
 - Boundary checks: Helper exists for absorption/cylindrical only, not wired into the loop
 - Automatic CPU fallback on errors or below-threshold counts

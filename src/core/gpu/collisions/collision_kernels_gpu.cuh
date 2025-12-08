@@ -42,18 +42,31 @@ namespace icarion {
 namespace gpu {
 
 /**
+ * @brief Maximum mixture components supported in GPU path
+ *
+ * GPU kernels keep component data in fixed-size arrays for cache friendliness.
+ * Raise this limit if future instruments routinely exceed it.
+ */
+constexpr int MAX_GPU_GAS_COMPONENTS = 8;
+
+/**
  * @brief GPU-friendly environment parameters
  */
 struct EnvironmentParams_GPU {
-    double temperature_K;
-    double pressure_Pa;
-    double neutral_mass_kg;
-    double neutral_radius_m;
-    double gas_velocity_x;
-    double gas_velocity_y;
-    double gas_velocity_z;
-    double mean_free_path_m;
-    double thermal_velocity_m_s;
+    double temperature_K = 0.0;
+    double pressure_Pa = 0.0;
+    double neutral_mass_kg = 0.0;
+    double neutral_radius_m = 0.0;
+    double gas_velocity_x = 0.0;
+    double gas_velocity_y = 0.0;
+    double gas_velocity_z = 0.0;
+    double mean_free_path_m = 0.0;
+    double thermal_velocity_m_s = 0.0;
+    int num_components = 0;
+    double component_density_m3[MAX_GPU_GAS_COMPONENTS] = {0.0};
+    double component_mass_kg[MAX_GPU_GAS_COMPONENTS] = {0.0};
+    double component_radius_m[MAX_GPU_GAS_COMPONENTS] = {0.0};
+    double component_cross_section_m2[MAX_GPU_GAS_COMPONENTS] = {0.0};
 };
 
 /**

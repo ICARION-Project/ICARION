@@ -198,7 +198,7 @@ bool GPUSpaceChargeP3M::compute_space_charge_field(
 }
 
 bool GPUSpaceChargeP3M::compute_space_charge_field(
-    const core::IonEnsemble& ions,
+    const ICARION::core::IonEnsemble& ions,
     std::vector<Vec3>& E_field_out
 ) {
     const size_t n = ions.size();

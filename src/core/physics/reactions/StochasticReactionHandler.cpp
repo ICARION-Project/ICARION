@@ -158,13 +158,13 @@ double StochasticReactionHandler::compute_effective_rate(
     double particle_density,
     const std::unordered_map<std::string, double>& concentrations
 ) const {
-    // ✅ STEP 1: Compute temperature-dependent rate constant k(T)
+    // STEP 1: Compute temperature-dependent rate constant k(T)
     // Models: Constant, Arrhenius, Modified Arrhenius
     double k_T = reaction.compute_rate_constant(temperature);
     
-    // ✅ STEP 2: Apply order terms (concentration dependencies)
+    // STEP 2: Apply order terms (concentration dependencies)
     // Optimization 3: Dimensional consistency check
-    // ⚠️ IMPORTANT: rate_constant must have correct dimensions!
+    // IMPORTANT: rate_constant must have correct dimensions!
     // - 1st order (exponent=1): k [m³/s]   → k_eff = k(T) * [X]    [s⁻¹]
     // - 2nd order (exponent=2): k [m⁶/s]   → k_eff = k(T) * [X]²   [s⁻¹]
     // User is responsible for providing k with correct dimensional units!

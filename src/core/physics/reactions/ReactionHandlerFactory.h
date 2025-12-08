@@ -40,21 +40,23 @@ class ReactionHandlerFactory {
 public:
     /**
      * @brief Create reaction handler from config
-     * 
+     *
      * @param config Physics configuration (contains enable_reactions flag)
      * @param enable_logging Enable debug logging (optional)
-     * 
-     * @return Reaction handler instance (nullptr if reactions disabled)
-     * 
+     * @param enable_gpu Request GPU backend (requires CUDA build)
+     * @param gpu_seed RNG seed for GPU helper
+     * @param gpu_threshold Minimum ensemble size for GPU dispatch
+     *
+     * @return Reaction handler instance (NoReactionHandler if disabled)
+     *
      * **SSOT:** Reads `config.enable_reactions` directly (no conversion!).
-     * 
- * **Behavior:**
- * - If `enable_reactions == false`: returns nullptr
- * - If `enable_reactions == true`: returns StochasticReactionHandler
      */
     static std::unique_ptr<IReactionHandler> create(
         const config::PhysicsConfig& config,
-        bool enable_logging = false
+        bool enable_logging = false,
+        bool enable_gpu = false,
+        unsigned long long gpu_seed = 0,
+        size_t gpu_threshold = 2000
     );
 };
 

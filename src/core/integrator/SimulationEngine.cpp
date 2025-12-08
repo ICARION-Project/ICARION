@@ -270,7 +270,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     output_manager_->log_progress("Starting main simulation loop (SoA)");
     
     // Helper to check if we should continue
-    auto should_continue_soa = [&]() -> bool {
+    auto should_continue = [&]() -> bool {
         if (current_time_ >= config_.simulation.total_time_s) {
             return false;
         }
@@ -288,7 +288,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
         return false;
     };
     
-    while (should_continue_soa()) {
+    while (should_continue()) {
         // Process one timestep using SoA
         process_timestep(ensemble, dt);
         
@@ -577,6 +577,20 @@ void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
     }
 
     PROFILE_SCOPE_IF_ENABLED("Reaction Handling");
+
+    if (reaction_handler_->supports_batch()) {
+        const bool handled = reaction_handler_->handle_batch(
+            ensemble,
+            domain_indices,
+            dt,
+            config_.reaction_db,
+            config_.species_db,
+            config_.domains
+        );
+        if (handled) {
+            return;
+        }
+    }
 
     const size_t n = ensemble.size();
     const auto* active = ensemble.active_data();

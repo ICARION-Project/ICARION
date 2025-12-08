@@ -214,8 +214,6 @@ private:
      * - Reduced cache misses (hot data packed together)
      * - Compatibility layer: converts to IonState for collision/reaction handlers
      * 
-     * **Performance:** Gains materialize when integrators override step_soa() and
-     * avoid AoS conversions; default wrappers may limit gains.
      */
     void process_timestep(core::IonEnsemble& ensemble, double dt);
 

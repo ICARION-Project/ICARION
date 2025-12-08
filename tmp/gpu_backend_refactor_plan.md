@@ -55,9 +55,42 @@ Current GPU features (integrators, collisions, space charge) are partly wired th
 - [ ] Ensure `ElectricFieldForce` remains agnostic (receives a field model that can answer `E(pos, t)` even when running inside GPU strategies).
 - [ ] Tests: parity between CPU and GPU interpolation for a sample field array; stub test for CPU-only builds.
 
-## Phase 4 – Optional: Reaction Handler & Output
-- [ ] Evaluate if reactions need GPU analog (currently CPU only; might remain so until demand arises).
-- [ ] Consider output manager GPU path (not required for v1.0; keep on roadmap).
+## Phase 4 – Reaction Handler Parity (new)
+
+### Requirements *(status: scaffolded in code)*
+- Preserve SSOT: reaction logic reads `ReactionDatabase`, `SpeciesDatabase`, and `EnvironmentConfig` directly, just like the CPU `StochasticReactionHandler`.
+- Reuse the existing `IReactionHandler` interface so `SimulationEngine` remains agnostic; we simply plug in a GPU-backed implementation.
+- Deterministic logging and fallback: if GPU is unavailable, disabled, or the handler encounters an unsupported feature, control must fall back to the CPU handler with a single warning.
+
+### Architecture
+1. **GPUReactionBackend (new helper)**
+   - Mirrors `GPUCollisionHelper`: owns device buffers for ion properties relevant to reactions (species ids, charge state, cached coefficients) and manages cuRAND streams.
+   - Provides a batch API `process_reactions(core::IonEnsemble&, const ReactionDatabase&, const SpeciesDatabase&, const EnvironmentConfig&, double dt)`.
+   - Threshold-aware to avoid GPU launches for tiny ensembles.
+
+2. **GPUReactionHandler (Strategy)**
+   - Implements `IReactionHandler`.
+   - Internally owns a `GPUReactionBackend` and a CPU fallback pointer.
+   - `handle_reaction(...)` simply marks ions for GPU processing; actual batch execution happens in the same integration loop phase as CPU reactions to keep behavior identical.
+
+3. **ReactionHandlerFactory Changes**
+   - Accepts `FullConfig`, GPU enable flags, and optional thresholds.
+   - Logs the chosen backend (CPU vs GPU) at creation time, mirroring Collision/Integration factories.
+   - Returns `GPUReactionHandler` when:
+     * `physics.enable_reactions` is true,
+     * GPU support is enabled,
+     * the selected reaction model is supported on GPU (initially stochastic MC),
+     * GPUContext creation succeeds.
+   - Otherwise returns the existing CPU handler.
+
+4. **SimulationEngine Flow** *(implemented)* 
+   - Unchanged from the caller perspective; engine still holds an `IReactionHandler`.
+   - Batch execution order remains: collisions → reactions → forces. GPU handler will upload/download as needed but must expose identical semantics.
+
+### Testing & Docs
+- Extend `tests/physics/reactions` with a GPU parity suite (e.g., thermalization or product branching comparisons) gated by `ICARION_USE_GPU`. *(pending real backend)*
+- Updated `docs/ARCHITECTURE.md` and `docs/DEVELOPERS_GUIDE.md` with the new wrapper details. `tests/README.md` entry to follow once parity tests exist.
+- Add release note entry once the GPU backend does real work.
 
 ## Phase 4 – Documentation & Tooling
 - [ ] Update docs/ARCHITECTURE.md and docs/DEVELOPERS_GUIDE.md with new factory diagrams (Integration, Collision).

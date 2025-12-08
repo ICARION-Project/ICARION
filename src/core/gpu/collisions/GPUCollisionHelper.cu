@@ -17,6 +17,9 @@
  */
 
 #include "GPUCollisionHelper.h"
+#ifndef __CUDACC__
+#include "core/log/Logger.h"
+#endif
 #include "collision_kernels_gpu.cuh"
 #include "utils/constants.h"
 #include <cuda_runtime.h>
@@ -171,43 +174,63 @@ void GPUCollisionHelper::upload_geometry_to_gpu() {
 static EnvironmentParams_GPU convert_environment_params(
     const ICARION::config::EnvironmentConfig& env
 ) {
-    EnvironmentParams_GPU params;
+    EnvironmentParams_GPU params{};
     params.temperature_K = env.temperature_K;
     params.pressure_Pa = env.pressure_Pa;
-    
-    // Use first gas component (TODO: support mixtures)
-    if (!env.gas_mixture.empty()) {
-        // Compute weighted average mass
-        double total_mass = 0.0;
-        double total_fraction = 0.0;
-        for (const auto& gas : env.gas_mixture) {
-            total_mass += gas.mass_kg * gas.mole_fraction;
-            total_fraction += gas.mole_fraction;
-        }
-        params.neutral_mass_kg = total_mass / total_fraction;
-        
-        // Use first gas radius (simplification)
-        params.neutral_radius_m = env.gas_mixture[0].radius_m;
-    } else {
-        // Fallback to environment-level properties
-        params.neutral_mass_kg = 28.0 * AMU_TO_KG;  // N2 default
-        params.neutral_radius_m = 1.85e-10;  // N2 default
-    }
-    
     params.gas_velocity_x = env.gas_velocity_m_s.x;
     params.gas_velocity_y = env.gas_velocity_m_s.y;
     params.gas_velocity_z = env.gas_velocity_m_s.z;
-    
-    // Compute derived quantities
+
+    if (!env.gas_mixture.empty()) {
+        double density_sum = 0.0;
+        double mass_sum = 0.0;
+        double radius_sum = 0.0;
+        int count = 0;
+
+        for (const auto& gas : env.gas_mixture) {
+            if (!gas.participates_in_collisions || gas.density_m3 <= 0.0) {
+                continue;
+            }
+
+            density_sum += gas.density_m3;
+            mass_sum += gas.mass_kg * gas.density_m3;
+            radius_sum += gas.radius_m * gas.density_m3;
+
+            if (count < MAX_GPU_GAS_COMPONENTS) {
+                params.component_density_m3[count] = gas.density_m3;
+                params.component_mass_kg[count] = gas.mass_kg;
+                params.component_radius_m[count] = gas.radius_m;
+                params.component_cross_section_m2[count] = gas.cross_section_m2;
+                ++count;
+            }
+        }
+
+        params.num_components = count;
+
+        if (density_sum > 0.0) {
+            params.neutral_mass_kg = mass_sum / density_sum;
+            params.neutral_radius_m = radius_sum / density_sum;
+        }
+    }
+
+    if (params.neutral_mass_kg <= 0.0) {
+        if (env.gas_mass_kg > 0.0) {
+            params.neutral_mass_kg = env.gas_mass_kg;
+            params.neutral_radius_m = env.gas_radius_m;
+        } else {
+            params.neutral_mass_kg = 28.0 * AMU_TO_KG;
+            params.neutral_radius_m = 1.85e-10;
+        }
+    }
+
     params.thermal_velocity_m_s = std::sqrt(
         8.0 * BOLTZMANN_CONSTANT * env.temperature_K / (M_PI * params.neutral_mass_kg)
     );
-    
-    // Mean free path (simplified)
+
     double number_density = env.pressure_Pa / (BOLTZMANN_CONSTANT * env.temperature_K);
     double sigma_gas = M_PI * params.neutral_radius_m * params.neutral_radius_m;
     params.mean_free_path_m = 1.0 / (1.414 * sigma_gas * number_density);
-    
+
     return params;
 }
 
@@ -225,6 +248,18 @@ bool GPUCollisionHelper::process_collisions_batch(
     const ICARION::config::EnvironmentConfig& env
 ) {
     size_t n_ions = ions.size();
+
+    if (!warned_mixture_limit_ &&
+        !env.gas_mixture.empty() &&
+        env.gas_mixture.size() > MAX_GPU_GAS_COMPONENTS) {
+#ifndef __CUDACC__
+        ICARION::log::Logger::main()->warn(
+            "GPUCollisionHandler: Truncating gas mixture to {} components ({} configured)",
+            MAX_GPU_GAS_COMPONENTS,
+            env.gas_mixture.size());
+#endif
+        warned_mixture_limit_ = true;
+    }
     
     // Check threshold
     if (n_ions < threshold_) {

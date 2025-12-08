@@ -332,7 +332,14 @@ std::shared_ptr<physics::ICollisionHandler> PhysicsSetup::create_collision_handl
 std::shared_ptr<physics::IReactionHandler> PhysicsSetup::create_reaction_handler(
     const config::FullConfig& config
 ) {
-    return physics::ReactionHandlerFactory::create(config.physics);
+    auto handler = physics::ReactionHandlerFactory::create(
+        config.physics,
+        false,
+        config.simulation.enable_gpu,
+        static_cast<unsigned long long>(config.simulation.rng_seed),
+        2000
+    );
+    return std::shared_ptr<physics::IReactionHandler>(std::move(handler));
 }
 
 }  // namespace ICARION::setup

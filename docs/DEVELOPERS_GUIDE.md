@@ -790,6 +790,8 @@ void collision_batch(
   1. Calls `handle_batch(...)` when the handler advertises support.
   2. Falls back to `handle_collisions_cpu(...)` (per-ion RNG, SoA views) whenever the batch hook returns `false` or is unavailable.
 
+
+- **Multi-gas support:** The CUDA kernels now sample neutral velocities per mixture component (matching the CPU algorithm), accumulate component-specific collision rates, and select the actual collision partner using the same Monte-Carlo scheme. For cache efficiency the device struct keeps a fixed-size mixture buffer (`MAX_GPU_GAS_COMPONENTS = 8`); additional components are truncated with a runtime warning.
 ```cpp
 void SimulationEngine::perform_collisions(IonEnsemble& ensemble,
                                           double dt,
@@ -1562,6 +1564,7 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 - **Reaction System Handlers**:
   - IReactionHandler interface with factory
   - StochasticReactionHandler implementation (SoA override implemented)
+  - GPUReactionHandler wrapper + `GPUReactionBackend` stub (factory returns the wrapper when `simulation.enable_gpu` is true; currently logs and falls back to CPU until kernels land)
   - SoA parity: `tests/physics/reactions/test_reaction_soa_parity.cpp`
   - Database-driven reaction loading
 

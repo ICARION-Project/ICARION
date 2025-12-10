@@ -260,8 +260,8 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
         // At t=0: U_eff = U_RF * cos(0) = 1000 V
         // E_x = 2*x*U_eff/r0^2, E_y = -2*y*U_eff/r0^2
         double r0_sq = domain.geometry.radius_m * domain.geometry.radius_m;
-        double E_x = 2.0 * ion.pos.x * 1000.0 / r0_sq;
-        double E_y = -2.0 * ion.pos.y * 1000.0 / r0_sq;
+        double E_x = -2.0 * ion.pos.x * 1000.0 / r0_sq;
+        double E_y = 2.0 * ion.pos.y * 1000.0 / r0_sq;
         
         REQUIRE(F.x == Approx(ELEM_CHARGE_C * E_x));
         REQUIRE(F.y == Approx(ELEM_CHARGE_C * E_y));
@@ -301,7 +301,7 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
         Vec3 F = compute_force(force_dc, ion, ctx);
         
         double r0_sq = domain_dc.geometry.radius_m * domain_dc.geometry.radius_m;
-        double E_x = 2.0 * ion.pos.x * 1100.0 / r0_sq;
+        double E_x = -2.0 * ion.pos.x * 1100.0 / r0_sq;
         
         REQUIRE(F.x == Approx(ELEM_CHARGE_C * E_x));
     }

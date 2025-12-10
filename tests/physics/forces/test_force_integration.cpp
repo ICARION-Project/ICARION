@@ -15,7 +15,6 @@
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/physics/forces/MagneticFieldForce.h"
 #include "core/physics/forces/DampingForce.h"
-#include "core/physics/forces/SpaceChargeDirect.h"
 #include "core/types/IonState.h"
 #include "core/config/types/InstrumentTypes.h"
 #include "core/config/types/DomainConfig.h"
@@ -126,9 +125,6 @@ TEST_CASE("Integration: All forces (Electric + Magnetic + Damping + SpaceCharge)
     env.temperature_K = 300.0;
     env.compute_derived_properties();
     registry.add_force(std::make_unique<DampingForce>(env, DampingModel::Friction));
-    
-    registry.add_force(std::make_unique<SpaceChargeDirect>(1e-10));
-    
     // Create two ions
     IonState ion1, ion2;
     ion1.pos = Vec3{0, 0, 0.02};

@@ -41,7 +41,7 @@ tests/
 
 - **Instruments:** `test_instrument_basic.cpp`, `test_ims_drift.cpp`, `test_lqit_stability.cpp`, `test_orbitrap_frequency.cpp`, `test_quadrupole_filter.cpp`, `test_tof_flight_time.cpp`, `test_fticr_cyclotron.cpp`, `test_domain_transition.cpp`
 - **Physics – Collisions:** `test_collision_energy_conservation.cpp`, `test_hss_collision_handler.cpp`, `test_ehss_collision_handler.cpp`, `test_ou_collision_handler.cpp`, `test_temperature_scaling.cpp`, `test_multi_gas_collision.cpp`, CPU SoA parity (`test_collision_soa_parity.cpp`), GPU parity/thermalization (`test_gpu_collision_parity.cpp`, `test_gpu_thermalization.cpp`, `test_gpu_ehss_thermalization.cpp`)
-- **Physics – Forces:** `test_electric_field_force.cpp`, `test_field_model_parity.cpp`, `test_field_model_provider.cpp`, `test_magnetic_damping_forces.cpp`, `test_force_registry.cpp`, `test_space_charge_force.cpp`, SoA parity for direct SC (`test_space_charge_soa_parity.cpp`)
+- **Physics – Forces:** `test_electric_field_force.cpp`, `test_field_model_parity.cpp`, `test_field_model_provider.cpp`, `test_magnetic_damping_forces.cpp`, `test_force_registry.cpp`
 - **Physics – Reactions:** `test_reaction_factory.cpp`, `test_stochastic_reaction_handler.cpp`, `test_multi_gas_reaction.cpp`, SoA parity (`test_reaction_soa_parity.cpp`)
 - **Physics – Reactions (GPU):** `test_gpu_reaction_parity.cpp` (GPU vs CPU stochastic parity for constant/Arrhenius/modified rates incl. multi-gas; requires `USE_GPU_ACCEL=ON`, uses pooled GPU buffers)
 - **Physics – Space Charge:** `test_poisson_solver.cpp`, `test_charge_deposition.cpp`, `test_space_charge_integration.cpp`, `test_space_charge_model_direct.cpp`, `test_space_charge_model_parity.cpp`, `test_space_charge_gpu_model.cpp`

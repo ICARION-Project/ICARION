@@ -114,49 +114,6 @@ set_tests_properties(MagneticAndDampingForces PROPERTIES
 )
 
 # Test: SpaceChargeForce
-add_executable(test_space_charge_force
-    test_space_charge_force.cpp
-)
-
-target_link_libraries(test_space_charge_force
-    PRIVATE
-        icarion_core
-        Catch2::Catch2WithMain
-)
-
-target_include_directories(test_space_charge_force
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-add_test(NAME SpaceChargeForce COMMAND test_space_charge_force)
-set_tests_properties(SpaceChargeForce PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
-# Test: SpaceChargeDirect SoA parity
-add_executable(test_space_charge_soa_parity
-    test_space_charge_soa_parity.cpp
-)
-
-target_link_libraries(test_space_charge_soa_parity
-    PRIVATE
-        icarion_core
-        Catch2::Catch2WithMain
-)
-
-target_include_directories(test_space_charge_soa_parity
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-add_test(NAME SpaceChargeSOAParity COMMAND test_space_charge_soa_parity)
-set_tests_properties(SpaceChargeSOAParity PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
 # Test: Force Integration (all forces combined)
 add_executable(test_force_integration
     test_force_integration.cpp

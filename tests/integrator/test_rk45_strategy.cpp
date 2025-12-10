@@ -35,8 +35,8 @@ public:
         return Vec3{0, 0, -ion.mass_kg * g_};
     }
 
-    Vec3 compute_soa(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                     const ForceContext& ctx) const override {
+    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                       const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         const double m = ensemble.mass_data()[ion_idx];
         return Vec3{0, 0, -m * g_};
@@ -57,8 +57,8 @@ public:
         return ion.pos * (-k_);  // F = -k*x
     }
 
-    Vec3 compute_soa(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                     const ForceContext& ctx) const override {
+    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                       const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         Vec3 pos = ensemble.get_pos(ion_idx);
         return pos * (-k_);
@@ -79,8 +79,8 @@ public:
         return ion.vel * (-gamma_ * ion.mass_kg);  // F = -γ*m*v
     }
 
-    Vec3 compute_soa(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                     const ForceContext& ctx) const override {
+    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                       const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         Vec3 vel = ensemble.get_vel(ion_idx);
         double mass = ensemble.mass_data()[ion_idx];

@@ -55,8 +55,8 @@ Vec3 DampingForce::compute(const IonState& ion, double t, const ForceContext& ct
     return ion.vel * (-gamma * ion.mass_kg);
 }
 
-Vec3 DampingForce::compute_soa(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
-                               const ForceContext& ctx) const {
+Vec3 DampingForce::compute_batch(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                                 const ForceContext& ctx) const {
     IonState ion;
     ion.pos = ensemble.get_pos(ion_idx);
     ion.vel = ensemble.get_vel(ion_idx);

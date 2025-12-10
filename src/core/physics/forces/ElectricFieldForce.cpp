@@ -55,8 +55,8 @@ Vec3 ElectricFieldForce::compute(const IonState& ion, double t, const ForceConte
     return E_field * ion.ion_charge_C;
 }
 
-Vec3 ElectricFieldForce::compute_soa(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
-                                     const ForceContext& ctx) const {
+Vec3 ElectricFieldForce::compute_batch(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                                       const ForceContext& ctx) const {
     IonState ion;
     ion.pos = ensemble.get_pos(ion_idx);
     ion.vel = ensemble.get_vel(ion_idx);

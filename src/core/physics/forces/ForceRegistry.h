@@ -95,7 +95,7 @@ public:
     /**
      * @brief Compute total force using SoA ensemble data
      *
-     * Calls `compute_soa` on all registered forces (SoA-only path).
+     * Calls the batch/SoA path on all registered forces (SoA-only path).
      */
     Vec3 compute_total_force(
         const core::IonEnsemble& ensemble,

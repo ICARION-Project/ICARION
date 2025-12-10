@@ -66,8 +66,8 @@ Vec3 MagneticFieldForce::compute(const IonState& ion, double t, const ForceConte
     return v_cross_B * ion.ion_charge_C;
 }
 
-Vec3 MagneticFieldForce::compute_soa(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
-                                     const ForceContext& ctx) const {
+Vec3 MagneticFieldForce::compute_batch(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                                       const ForceContext& ctx) const {
     IonState ion;
     ion.pos = ensemble.get_pos(ion_idx);
     ion.vel = ensemble.get_vel(ion_idx);

@@ -68,7 +68,7 @@ Vec3 ForceRegistry::compute_total_force(
 
         for (const auto& force : forces_) {
             if (force->applies_to(ion)) {
-                total_force += force->compute_soa(ensemble, ion_idx, t, context);
+                total_force += force->compute_batch(ensemble, ion_idx, t, context);
             }
         }
     }

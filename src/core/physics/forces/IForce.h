@@ -59,13 +59,11 @@ public:
     ) const = 0;
 
     /**
-     * @brief Compute force contribution in SoA path
+     * @brief Compute force contribution in SoA path (primary)
      *
-     * Default implementation reconstructs an IonState and calls `compute()`.
-     * Forces can override this for SoA-specialized implementations (e.g.,
-     * space charge) to avoid AoS reconstruction and improve cache locality.
+     * Forces should implement this method; AoS helpers may forward here.
      */
-    virtual Vec3 compute_soa(
+    virtual Vec3 compute_batch(
         const core::IonEnsemble& ensemble,
         size_t ion_idx,
         double t,

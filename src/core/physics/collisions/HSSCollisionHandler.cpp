@@ -7,6 +7,7 @@
 #include "utils/constants.h"
 #include "core/log/Logger.h"
 #include <cmath>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -110,7 +111,11 @@ bool HSSCollisionHandler::handle_collision(
                 }
             }
             
-            if (sigma_i <= 0.0) continue;
+            if (sigma_i <= 0.0) {
+                throw std::runtime_error(
+                    "[HSS] Missing CCS for ion '" + ion.species_id +
+                    "' and gas '" + comp.species + "'; set ion.CCS_m2 or gas cross_section_m2");
+            }
             
             // Sample neutral velocity for this component
             const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(

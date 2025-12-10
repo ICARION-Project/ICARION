@@ -659,6 +659,7 @@ ICARION's GPU acceleration is designed for **easy extensibility**. This guide sh
 **Current GPU Features (v1.0):**
 - RK4/RK45/Boris batch integrators via `GPUIntegrationStrategy` (factory-selected wrapper; automatic fallback + grid/E-field checks)
 - HSS/EHSS collision helper (active-ion threshold default 5000; EHSS geometry upload TODO)
+- Reactions via `GPUReactionBackend` (constant / Arrhenius / modified Arrhenius, mixtures). Flattens per-domain tables, launches XORWOW kernel, updates SoA species/mass/charge/CCS/mobility. Device buffers are pooled (RNG, species/domain/flags/reaction tables); CPU stochastic handler is the fallback.
 - Field-provider upload for integration when ElectricFieldForce is present
 - Space charge P³M helper wired through `SpaceChargeGPUModel` (opt-in via `physics.enable_space_charge_gpu`, CPU fallback guaranteed)
 - Boundary check helper supports absorption/cylindrical only and is not wired into the main loop

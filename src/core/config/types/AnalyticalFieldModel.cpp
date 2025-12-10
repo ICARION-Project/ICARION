@@ -175,8 +175,8 @@ Vec3 AnalyticalFieldModel::compute_quadrupole_rf_field(const Vec3& pos, double t
         const double r0_sq = geom.radius_m * geom.radius_m;
         const double omega = 2.0 * M_PI * rf_freq;
         const double U_eff = dc_quad + rf_voltage * std::cos(omega * t);
-        E_total.x =  2.0 * pos.x * U_eff / r0_sq;
-        E_total.y = -2.0 * pos.y * U_eff / r0_sq;
+        E_total.x = -2.0 * pos.x * U_eff / r0_sq;
+        E_total.y = 2.0 * pos.y * U_eff / r0_sq;
     }
 
     if (std::fabs(dc_axial) > MIN_VOLTAGE_THRESHOLD) {

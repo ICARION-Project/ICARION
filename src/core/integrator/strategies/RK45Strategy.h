@@ -184,14 +184,6 @@ private:
      * 
      * Wrapper for ForceRegistry to match RK interface.
      */
-    void compute_acceleration(
-        double& ax, double& ay, double& az,
-        const IonState& ion,
-        double t,
-        const physics::ForceRegistry& force_registry,
-        const std::vector<IonState>& all_ions
-    );
-
     void compute_acceleration_batch(
         double& ax, double& ay, double& az,
         const core::IonEnsemble& ensemble,

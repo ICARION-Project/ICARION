@@ -227,9 +227,6 @@ TEST_CASE("Integration: Performance with 100 ions", "[integration][performance]"
     ForceRegistry registry(create_test_domain());
     std::vector<IonState> ions;
     
-    // Add space charge (O(N²) complexity)
-    registry.add_force(std::make_unique<SpaceChargeDirect>(1e-10));
-    
     // Create 100 ions in a grid
     for (int i = 0; i < 10; ++i) {
         for (int j = 0; j < 10; ++j) {

@@ -12,6 +12,49 @@ namespace ICARION {
 namespace integrator {
 
 namespace {
+IonState make_state_from_ensemble(const core::IonEnsemble& ensemble, size_t i) {
+    IonState s;
+    s.pos = ensemble.get_pos(i);
+    s.vel = ensemble.get_vel(i);
+    s.mass_kg = ensemble.mass_data()[i];
+    s.ion_charge_C = ensemble.charge_data()[i];
+    s.active = ensemble.active_data()[i] != 0;
+    s.born = ensemble.born_data()[i] != 0;
+    s.birth_time_s = ensemble.birth_time(i);
+    s.death_time_s = ensemble.death_time(i);
+    s.t = ensemble.time(i);
+    s.CCS_m2 = ensemble.CCS(i);
+    s.reduced_mobility_cm2_Vs = ensemble.mobility(i);
+    s.current_domain_index = ensemble.domain_index(i);
+    s.species_id = ensemble.species_id(i);
+    return s;
+}
+
+void write_state_to_scratch(const IonState& state,
+                            double temperature,
+                            double gas_density,
+                            double neutral_mass,
+                            core::IonEnsemble& scratch) {
+    scratch.resize(1);
+    scratch.set_pos(0, state.pos);
+    scratch.set_vel(0, state.vel);
+    scratch.mass_data()[0] = state.mass_kg;
+    scratch.charge_data()[0] = state.ion_charge_C;
+    scratch.active_data()[0] = state.active ? 1 : 0;
+    scratch.born_data()[0] = state.born ? 1 : 0;
+    scratch.birth_time_data()[0] = state.birth_time_s;
+    scratch.death_time_data()[0] = state.death_time_s;
+    scratch.time_data()[0] = state.t;
+    scratch.CCS_data()[0] = state.CCS_m2;
+    scratch.mobility_data()[0] = state.reduced_mobility_cm2_Vs;
+    scratch.update_species(0, state.species_id, state.mass_kg, state.ion_charge_C,
+                           state.CCS_m2, state.reduced_mobility_cm2_Vs);
+    scratch.domain_index_data()[0] = state.current_domain_index;
+    scratch.temperature_data()[0] = temperature;
+    scratch.gas_density_data()[0] = gas_density;
+    scratch.neutral_mass_data()[0] = neutral_mass;
+}
+
     // Dormand-Prince 5(4) Butcher tableau coefficients
     // Reference: Hairer, Norsett, Wanner (1993) "Solving Ordinary Differential Equations I"
     
@@ -124,14 +167,15 @@ void RK45Strategy::compute_acceleration(
     ctx.all_ions = &all_ions;  // retained for applies_to checks
     ctx.field_provider = nullptr;
     ctx.field_model = force_registry.field_model();
-    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy({ion});
-    ctx.ion_ensemble = &ensemble;
+    core::IonEnsemble scratch;
+    write_state_to_scratch(ion, 0.0, 0.0, 0.0, scratch);
+    ctx.ion_ensemble = &scratch;
     ctx.ion_index = 0;
-    
-    Vec3 F = force_registry.compute_total_force(ensemble, 0, t, ctx);
+
+    Vec3 F = force_registry.compute_total_force(scratch, 0, t, ctx);
     const double inv_mass = 1.0 / ion.mass_kg;
     Vec3 a = F * inv_mass;
-    
+
     ax = a.x;
     ay = a.y;
     az = a.z;
@@ -172,11 +216,13 @@ void RK45Strategy::compute_acceleration_state(
     ctx.all_ions = nullptr;
     ctx.field_provider = nullptr;
     ctx.field_model = force_registry.field_model();
-    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy({state});
-    ctx.ion_ensemble = &ensemble;
+    core::IonEnsemble scratch;
+    // Domain cache is filled with zeros here; RK stages do not depend on it.
+    write_state_to_scratch(state, 0.0, 0.0, 0.0, scratch);
+    ctx.ion_ensemble = &scratch;
     ctx.ion_index = 0;
 
-    Vec3 F = force_registry.compute_total_force(ensemble, 0, t, ctx);
+    Vec3 F = force_registry.compute_total_force(scratch, 0, t, ctx);
     const double inv_mass = 1.0 / state.mass_kg;
     Vec3 a = F * inv_mass;
 
@@ -269,19 +315,7 @@ void RK45Strategy::step(
 ) {
     double dt_variable = dt;
 
-    // Build AoS view for this ion (metadata needed for applies_to)
-    IonState ion;
-    ion.pos = ensemble.get_pos(ion_idx);
-    ion.vel = ensemble.get_vel(ion_idx);
-    ion.mass_kg = ensemble.mass_data()[ion_idx];
-    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
-    ion.active = ensemble.active_data()[ion_idx] != 0;
-    ion.born = ensemble.born_data()[ion_idx] != 0;
-    ion.current_domain_index = ensemble.domain_index(ion_idx);
-    ion.CCS_m2 = ensemble.CCS(ion_idx);
-    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
-    ion.species_id = ensemble.species_id(ion_idx);
-    ion.birth_time_s = ensemble.birth_time(ion_idx);
+    IonState ion = make_state_from_ensemble(ensemble, ion_idx);
 
     // Run adaptive step using SoA acceleration path; ignore dt update (fixed-step interface)
     const double dt_initial = dt_variable;

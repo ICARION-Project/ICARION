@@ -242,12 +242,10 @@ TEST_CASE("Integration: Performance with 100 ions", "[integration][performance]"
     ForceContext ctx;
     ctx.all_ions = &ions;
     
-    // Compute force on first ion (should interact with all 99 others)
+    // Compute force on first ion (space charge legacy removed; only field/damping/mag here)
     Vec3 F = registry.compute_total_force(ions[0], 0.0, ctx);
     
-    // Should have repulsive force from neighbors
+    // Should be finite (may be zero without space charge in this test)
     REQUIRE(std::isfinite(F.x));
     REQUIRE(std::isfinite(F.y));
-    double F_mag = std::sqrt(F.x*F.x + F.y*F.y);
-    REQUIRE(F_mag > 1e-20);  // Non-zero repulsion
 }

@@ -12,6 +12,49 @@ namespace ICARION {
 namespace integrator {
 
 namespace {
+IonState make_state_from_ensemble(const core::IonEnsemble& ensemble, size_t i) {
+    IonState s;
+    s.pos = ensemble.get_pos(i);
+    s.vel = ensemble.get_vel(i);
+    s.mass_kg = ensemble.mass_data()[i];
+    s.ion_charge_C = ensemble.charge_data()[i];
+    s.active = ensemble.active_data()[i] != 0;
+    s.born = ensemble.born_data()[i] != 0;
+    s.birth_time_s = ensemble.birth_time(i);
+    s.death_time_s = ensemble.death_time(i);
+    s.t = ensemble.time(i);
+    s.CCS_m2 = ensemble.CCS(i);
+    s.reduced_mobility_cm2_Vs = ensemble.mobility(i);
+    s.current_domain_index = ensemble.domain_index(i);
+    s.species_id = ensemble.species_id(i);
+    return s;
+}
+
+void write_state_to_scratch(const IonState& state,
+                            double temperature,
+                            double gas_density,
+                            double neutral_mass,
+                            core::IonEnsemble& scratch) {
+    scratch.resize(1);
+    scratch.set_pos(0, state.pos);
+    scratch.set_vel(0, state.vel);
+    scratch.mass_data()[0] = state.mass_kg;
+    scratch.charge_data()[0] = state.ion_charge_C;
+    scratch.active_data()[0] = state.active ? 1 : 0;
+    scratch.born_data()[0] = state.born ? 1 : 0;
+    scratch.birth_time_data()[0] = state.birth_time_s;
+    scratch.death_time_data()[0] = state.death_time_s;
+    scratch.time_data()[0] = state.t;
+    scratch.CCS_data()[0] = state.CCS_m2;
+    scratch.mobility_data()[0] = state.reduced_mobility_cm2_Vs;
+    scratch.update_species(0, state.species_id, state.mass_kg, state.ion_charge_C,
+                           state.CCS_m2, state.reduced_mobility_cm2_Vs);
+    scratch.domain_index_data()[0] = state.current_domain_index;
+    scratch.temperature_data()[0] = temperature;
+    scratch.gas_density_data()[0] = gas_density;
+    scratch.neutral_mass_data()[0] = neutral_mass;
+}
+
     // Dormand-Prince 5(4) Butcher tableau coefficients
     // Reference: Hairer, Norsett, Wanner (1993) "Solving Ordinary Differential Equations I"
     
@@ -112,27 +155,6 @@ RK45Strategy::RK45Strategy(const AdaptiveConfig& config)
     }
 }
 
-void RK45Strategy::compute_acceleration(
-    double& ax, double& ay, double& az,
-    const IonState& ion,
-    double t,
-    const physics::ForceRegistry& force_registry,
-    const std::vector<IonState>& all_ions
-) {
-    physics::ForceContext ctx;
-    ctx.domain = force_registry.domain();  // Get domain from registry
-    ctx.all_ions = &all_ions;
-    ctx.field_provider = nullptr;
-    ctx.field_model = force_registry.field_model();
-    
-    Vec3 F = force_registry.compute_total_force(ion, t, ctx);
-    Vec3 a = F / ion.mass_kg;
-    
-    ax = a.x;
-    ay = a.y;
-    az = a.z;
-}
-
 void RK45Strategy::compute_acceleration_batch(
     double& ax, double& ay, double& az,
     const core::IonEnsemble& ensemble,
@@ -168,10 +190,13 @@ void RK45Strategy::compute_acceleration_state(
     ctx.all_ions = nullptr;
     ctx.field_provider = nullptr;
     ctx.field_model = force_registry.field_model();
-    ctx.ion_ensemble = nullptr;
+    core::IonEnsemble scratch;
+    // Domain cache is filled with zeros here; RK stages do not depend on it.
+    write_state_to_scratch(state, 0.0, 0.0, 0.0, scratch);
+    ctx.ion_ensemble = &scratch;
     ctx.ion_index = 0;
 
-    Vec3 F = force_registry.compute_total_force(state, t, ctx);
+    Vec3 F = force_registry.compute_total_force(scratch, 0, t, ctx);
     const double inv_mass = 1.0 / state.mass_kg;
     Vec3 a = F * inv_mass;
 
@@ -264,19 +289,7 @@ void RK45Strategy::step(
 ) {
     double dt_variable = dt;
 
-    // Build AoS view for this ion (metadata needed for applies_to)
-    IonState ion;
-    ion.pos = ensemble.get_pos(ion_idx);
-    ion.vel = ensemble.get_vel(ion_idx);
-    ion.mass_kg = ensemble.mass_data()[ion_idx];
-    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
-    ion.active = ensemble.active_data()[ion_idx] != 0;
-    ion.born = ensemble.born_data()[ion_idx] != 0;
-    ion.current_domain_index = ensemble.domain_index(ion_idx);
-    ion.CCS_m2 = ensemble.CCS(ion_idx);
-    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
-    ion.species_id = ensemble.species_id(ion_idx);
-    ion.birth_time_s = ensemble.birth_time(ion_idx);
+    IonState ion = make_state_from_ensemble(ensemble, ion_idx);
 
     // Run adaptive step using SoA acceleration path; ignore dt update (fixed-step interface)
     const double dt_initial = dt_variable;
@@ -453,7 +466,7 @@ void RK45Strategy::step_adaptive(
             k1_a.z = k1_stored_.az;
         } else {
             double ax, ay, az;
-            compute_acceleration(ax, ay, az, y0, t, force_registry, all_ions);
+            compute_acceleration_state(ax, ay, az, y0, t, force_registry);
             k1_a = Vec3{ax, ay, az};  // dv/dt = a
         }
         
@@ -463,7 +476,7 @@ void RK45Strategy::step_adaptive(
         y2.vel += k1_a * (dt * a21);  // v + a*dt*a21
         k2_v = y2.vel;
         double ax2, ay2, az2;
-        compute_acceleration(ax2, ay2, az2, y2, t + c2*dt, force_registry, all_ions);
+        compute_acceleration_state(ax2, ay2, az2, y2, t + c2*dt, force_registry);
         k2_a = Vec3{ax2, ay2, az2};
         
         // Stage 3: k3 = f(t + c3*dt, y + dt*(a31*k1 + a32*k2))
@@ -472,7 +485,7 @@ void RK45Strategy::step_adaptive(
         y3.vel += (k1_a * a31 + k2_a * a32) * dt;
         k3_v = y3.vel;
         double ax3, ay3, az3;
-        compute_acceleration(ax3, ay3, az3, y3, t + c3*dt, force_registry, all_ions);
+        compute_acceleration_state(ax3, ay3, az3, y3, t + c3*dt, force_registry);
         k3_a = Vec3{ax3, ay3, az3};
         
         // Stage 4: k4 = f(t + c4*dt, y + dt*(a41*k1 + a42*k2 + a43*k3))
@@ -481,7 +494,7 @@ void RK45Strategy::step_adaptive(
         y4_temp.vel += (k1_a * a41 + k2_a * a42 + k3_a * a43) * dt;
         k4_v = y4_temp.vel;
         double ax4, ay4, az4;
-        compute_acceleration(ax4, ay4, az4, y4_temp, t + c4*dt, force_registry, all_ions);
+        compute_acceleration_state(ax4, ay4, az4, y4_temp, t + c4*dt, force_registry);
         k4_a = Vec3{ax4, ay4, az4};
         
         // Stage 5: k5 = f(t + c5*dt, y + dt*(a51*k1 + ... + a54*k4))
@@ -490,7 +503,7 @@ void RK45Strategy::step_adaptive(
         y5_temp.vel += (k1_a * a51 + k2_a * a52 + k3_a * a53 + k4_a * a54) * dt;
         k5_v = y5_temp.vel;
         double ax5, ay5, az5;
-        compute_acceleration(ax5, ay5, az5, y5_temp, t + c5*dt, force_registry, all_ions);
+        compute_acceleration_state(ax5, ay5, az5, y5_temp, t + c5*dt, force_registry);
         k5_a = Vec3{ax5, ay5, az5};
         
         // Stage 6: k6 = f(t + c6*dt, y + dt*(a61*k1 + ... + a65*k5))
@@ -499,7 +512,7 @@ void RK45Strategy::step_adaptive(
         y6.vel += (k1_a * a61 + k2_a * a62 + k3_a * a63 + k4_a * a64 + k5_a * a65) * dt;
         k6_v = y6.vel;
         double ax6, ay6, az6;
-        compute_acceleration(ax6, ay6, az6, y6, t + c6*dt, force_registry, all_ions);
+        compute_acceleration_state(ax6, ay6, az6, y6, t + c6*dt, force_registry);
         k6_a = Vec3{ax6, ay6, az6};
         
         // Stage 7: k7 = f(t + dt, y + dt*(a71*k1 + ... + a76*k6))
@@ -509,7 +522,7 @@ void RK45Strategy::step_adaptive(
         y7.vel += (k1_a * a71 + k2_a * a72 + k3_a * a73 + k4_a * a74 + k5_a * a75 + k6_a * a76) * dt;
         k7_v = y7.vel;
         double ax7, ay7, az7;
-        compute_acceleration(ax7, ay7, az7, y7, t + c7*dt, force_registry, all_ions);
+        compute_acceleration_state(ax7, ay7, az7, y7, t + c7*dt, force_registry);
         k7_a = Vec3{ax7, ay7, az7};
         
         // =====================================================================

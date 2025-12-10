@@ -5,6 +5,7 @@
 #include "core/config/types/FieldProviderModel.h"
 #include <catch2/catch_approx.hpp>
 #include "core/physics/forces/ElectricFieldForce.h"
+#include "core/types/IonEnsemble.h"
 #include "core/config/types/DomainConfig.h"
 #include "core/config/types/InstrumentTypes.h"
 #include "core/utils/mathUtils.h"
@@ -64,7 +65,10 @@ TEST_CASE("FieldProviderModel feeds ElectricFieldForce", "[field][provider]") {
     ctx.field_model = &model;   // prefer model path
     ctx.domain = &dom;
 
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F = force.compute(ens, 0, 0.0, ctx);
     // Force = q * E, q=1
     REQUIRE(F.x == Approx(E_const.x));
     REQUIRE(F.y == Approx(E_const.y));

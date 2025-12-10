@@ -36,20 +36,6 @@ void BorisStrategy::step(
     auto* mass = ensemble.mass_data();
     auto* charge = ensemble.charge_data();
 
-    // Prepare minimal IonState for force evaluation (applies_to etc.)
-    IonState ion;
-    ion.pos = {pos_x[ion_idx], pos_y[ion_idx], pos_z[ion_idx]};
-    ion.vel = {vel_x[ion_idx], vel_y[ion_idx], vel_z[ion_idx]};
-    ion.mass_kg = mass[ion_idx];
-    ion.ion_charge_C = charge[ion_idx];
-    ion.active = ensemble.active_data()[ion_idx] != 0;
-    ion.born = ensemble.born_data()[ion_idx] != 0;
-    ion.current_domain_index = ensemble.domain_index(ion_idx);
-    ion.CCS_m2 = ensemble.CCS(ion_idx);
-    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
-    ion.species_id = ensemble.species_id(ion_idx);
-    ion.birth_time_s = ensemble.birth_time(ion_idx);
-
     const double qm = charge[ion_idx] / mass[ion_idx];
 
     physics::ForceContext ctx;
@@ -61,14 +47,15 @@ void BorisStrategy::step(
     ctx.ion_index = ion_idx;
 
     Vec3 F_electric = force_registry.compute_total_force(ensemble, ion_idx, t, ctx);
-    Vec3 a_electric = F_electric / ion.mass_kg;
+    Vec3 a_electric = F_electric / mass[ion_idx];
 
     Vec3 B{0, 0, 0};
     if (domain->fields.magnetic.enabled) {
         B = domain->fields.magnetic.field_strength_T;
     }
 
-    Vec3 v_minus = ion.vel + a_electric * (dt * 0.5);
+    Vec3 v_minus{vel_x[ion_idx], vel_y[ion_idx], vel_z[ion_idx]};
+    v_minus += a_electric * (dt * 0.5);
 
     Vec3 t_vec = B * (qm * dt * HALF_TIMESTEP);
     double t_mag_sq = t_vec.x * t_vec.x + t_vec.y * t_vec.y + t_vec.z * t_vec.z;
@@ -89,7 +76,8 @@ void BorisStrategy::step(
     };
     Vec3 v_plus = v_minus + v_prime_cross_s;
 
-    Vec3 pos_new = ion.pos + v_plus * dt;
+    Vec3 pos_new{pos_x[ion_idx], pos_y[ion_idx], pos_z[ion_idx]};
+    pos_new += v_plus * dt;
     Vec3 v_new = v_plus + a_electric * (dt * 0.5);
 
     pos_x[ion_idx] = pos_new.x;

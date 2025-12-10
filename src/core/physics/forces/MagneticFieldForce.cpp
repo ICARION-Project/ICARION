@@ -39,7 +39,8 @@ MagneticFieldForce::MagneticFieldForce(std::shared_ptr<::IFieldProvider> field_p
 // IForce Interface Implementation
 // ============================================================================
 
-Vec3 MagneticFieldForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
+Vec3 MagneticFieldForce::compute(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                                 const ForceContext& ctx) const {
     (void)t;  // Magnetic field is time-independent (for now)
     
     // Check if force is enabled (SSOT: read from config)
@@ -47,40 +48,27 @@ Vec3 MagneticFieldForce::compute(const IonState& ion, double t, const ForceConte
         return Vec3{0.0, 0.0, 0.0};
     }
     
+    const Vec3 pos = ensemble.get_pos(ion_idx);
+    const Vec3 vel = ensemble.get_vel(ion_idx);
+    const double q = ensemble.charge_data()[ion_idx];
+    
     // Get B-field
     Vec3 B_field{0.0, 0.0, 0.0};
     
     // Priority: context field provider > constructor field provider > analytical
     if (ctx.field_provider) {
         // TODO: FieldProvider doesn't support magnetic fields yet
-        // B_field = ctx.field_provider->get_B(ion.pos);
+        // B_field = ctx.field_provider->get_B(pos);
     } else if (use_field_provider_ && field_provider_) {
         // TODO: FieldProvider doesn't support magnetic fields yet
-        // B_field = field_provider_->get_B(ion.pos);
+        // B_field = field_provider_->get_B(pos);
     } else {
-        B_field = compute_analytical_field(ion.pos);
+        B_field = compute_analytical_field(pos);
     }
     
     // F = q * (v × B) - Lorentz force
-    Vec3 v_cross_B = cross(ion.vel, B_field);
-    return v_cross_B * ion.ion_charge_C;
-}
-
-Vec3 MagneticFieldForce::compute_batch(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
-                                       const ForceContext& ctx) const {
-    IonState ion;
-    ion.pos = ensemble.get_pos(ion_idx);
-    ion.vel = ensemble.get_vel(ion_idx);
-    ion.mass_kg = ensemble.mass_data()[ion_idx];
-    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
-    ion.active = ensemble.active_data()[ion_idx] != 0;
-    ion.born = ensemble.born_data()[ion_idx] != 0;
-    ion.current_domain_index = ensemble.domain_index(ion_idx);
-    ion.CCS_m2 = ensemble.CCS(ion_idx);
-    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
-    ion.species_id = ensemble.species_id(ion_idx);
-    ion.birth_time_s = ensemble.birth_time(ion_idx);
-    return compute(ion, t, ctx);
+    Vec3 v_cross_B = cross(vel, B_field);
+    return v_cross_B * q;
 }
 
 std::string MagneticFieldForce::name() const {

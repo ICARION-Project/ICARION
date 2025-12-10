@@ -35,6 +35,14 @@ static DomainConfig create_test_domain() {
     return domain;
 }
 
+static Vec3 compute_force_aos_adapter(ForceRegistry& registry, IonState& ion, double t = 0.0, const ForceContext& ctx = {}) {
+    IonEnsemble ensemble = IonEnsemble::from_legacy({ion});
+    ForceContext ctx_local = ctx;
+    ctx_local.ion_ensemble = &ensemble;
+    ctx_local.ion_index = 0;
+    return registry.compute_total_force(ensemble, 0, t, ctx_local);
+}
+
 // ============================================================================
 // Mock Forces for Testing
 // ============================================================================
@@ -48,14 +56,9 @@ class ConstantForce : public IForce {
 public:
     ConstantForce(const Vec3& force_vector) : force_(force_vector) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)ion; (void)t; (void)ctx;  // Unused
-        return force_;
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
-        (void)t; (void)ctx;
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
+        (void)ensemble; (void)ion_idx; (void)t; (void)ctx;
         return force_;
     }
     
@@ -75,13 +78,8 @@ public:
     ConditionalForce(double target_charge, const Vec3& force_vector)
         : target_charge_(target_charge), force_(force_vector) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)ion; (void)t; (void)ctx;  // Unused
-        return force_;
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)ensemble; (void)ion_idx; (void)t; (void)ctx;
         return force_;
     }
@@ -106,13 +104,8 @@ class GravityForce : public IForce {
 public:
     GravityForce(double g = 9.81) : g_(g) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)t; (void)ctx;  // Unused
-        return Vec3{0, 0, -ion.mass_kg * g_};
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         double m = ensemble.mass_data()[ion_idx];
         return Vec3{0, 0, -m * g_};
@@ -136,7 +129,7 @@ TEST_CASE("ForceRegistry - Empty registry", "[forces][registry]") {
         ion.mass_kg = 1e-26;
         ion.ion_charge_C = 1.602e-19;
         
-        Vec3 force = registry.compute_total_force(ion, 0.0);
+        Vec3 force = compute_force_aos_adapter(registry, ion, 0.0);
         
         REQUIRE(force.x == Approx(0.0));
         REQUIRE(force.y == Approx(0.0));
@@ -167,7 +160,7 @@ TEST_CASE("ForceRegistry - Single force", "[forces][registry]") {
         ion.mass_kg = 1e-26;
         ion.ion_charge_C = 1.602e-19;
         
-        Vec3 force = registry.compute_total_force(ion, 0.0);
+        Vec3 force = compute_force_aos_adapter(registry, ion, 0.0);
         
         REQUIRE(force.x == Approx(1.0));
         REQUIRE(force.y == Approx(2.0));
@@ -178,9 +171,9 @@ TEST_CASE("ForceRegistry - Single force", "[forces][registry]") {
         IonState ion;
         ion.mass_kg = 1e-26;
         
-        Vec3 f1 = registry.compute_total_force(ion, 0.0);
-        Vec3 f2 = registry.compute_total_force(ion, 1.0);
-        Vec3 f3 = registry.compute_total_force(ion, 100.0);
+        Vec3 f1 = compute_force_aos_adapter(registry, ion, 0.0);
+        Vec3 f2 = compute_force_aos_adapter(registry, ion, 1.0);
+        Vec3 f3 = compute_force_aos_adapter(registry, ion, 100.0);
         
         REQUIRE(f1.x == f2.x);
         REQUIRE(f1.y == f2.y);
@@ -208,7 +201,7 @@ TEST_CASE("ForceRegistry - Multiple forces", "[forces][registry]") {
         IonState ion;
         ion.mass_kg = 1e-26;
         
-        Vec3 force = registry.compute_total_force(ion, 0.0);
+        Vec3 force = compute_force_aos_adapter(registry, ion, 0.0);
         
         // Should be (1, 2, 3) = sum of all forces
         REQUIRE(force.x == Approx(1.0));
@@ -232,7 +225,7 @@ TEST_CASE("ForceRegistry - Conditional force", "[forces][registry]") {
         ion.mass_kg = 1e-26;
         ion.ion_charge_C = target_charge;
         
-        Vec3 force = registry.compute_total_force(ion, 0.0);
+        Vec3 force = compute_force_aos_adapter(registry, ion, 0.0);
         
         REQUIRE(force.x == Approx(10.0));
         REQUIRE(force.y == Approx(0.0));
@@ -244,7 +237,7 @@ TEST_CASE("ForceRegistry - Conditional force", "[forces][registry]") {
         ion.mass_kg = 1e-26;
         ion.ion_charge_C = 3.204e-19;  // Different charge
         
-        Vec3 force = registry.compute_total_force(ion, 0.0);
+        Vec3 force = compute_force_aos_adapter(registry, ion, 0.0);
         
         REQUIRE(force.x == Approx(0.0));
         REQUIRE(force.y == Approx(0.0));
@@ -265,8 +258,8 @@ TEST_CASE("ForceRegistry - Realistic physics (gravity)", "[forces][registry]") {
         IonState ion2;
         ion2.mass_kg = 2.0;  // 2 kg
         
-        Vec3 f1 = registry.compute_total_force(ion1, 0.0);
-        Vec3 f2 = registry.compute_total_force(ion2, 0.0);
+        Vec3 f1 = compute_force_aos_adapter(registry, ion1, 0.0);
+        Vec3 f2 = compute_force_aos_adapter(registry, ion2, 0.0);
         
         // F = m * g, so F2 should be twice F1
         REQUIRE(f2.z == Approx(2.0 * f1.z));
@@ -276,7 +269,7 @@ TEST_CASE("ForceRegistry - Realistic physics (gravity)", "[forces][registry]") {
         IonState ion;
         ion.mass_kg = 1e-26;  // ~100 amu
         
-        Vec3 force = registry.compute_total_force(ion, 0.0);
+        Vec3 force = compute_force_aos_adapter(registry, ion, 0.0);
         
         REQUIRE(force.x == Approx(0.0));
         REQUIRE(force.y == Approx(0.0));
@@ -307,7 +300,7 @@ TEST_CASE("ForceRegistry - Clear functionality", "[forces][registry]") {
         IonState ion;
         ion.mass_kg = 1e-26;
         
-        Vec3 force = registry.compute_total_force(ion, 0.0);
+        Vec3 force = compute_force_aos_adapter(registry, ion, 0.0);
         
         REQUIRE(force.x == Approx(0.0));
         REQUIRE(force.y == Approx(0.0));
@@ -332,18 +325,8 @@ TEST_CASE("ForceRegistry - Force context (SSOT)", "[forces][registry]") {
     
     class ContextAwareForce : public IForce {
     public:
-        Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-            (void)ion; (void)t;  // Unused
-            
-            // SSOT: Read temperature from domain->environment
-            if (ctx.domain) {
-                return Vec3{ctx.domain->environment.temperature_K, 0, 0};
-            }
-            return Vec3{0, 0, 0};
-        }
-
-        Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                           const ForceContext& ctx) const override {
+        Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                     const ForceContext& ctx) const override {
             (void)ensemble; (void)ion_idx; (void)t;
             if (ctx.domain) {
                 return Vec3{ctx.domain->environment.temperature_K, 0, 0};
@@ -367,7 +350,7 @@ TEST_CASE("ForceRegistry - Force context (SSOT)", "[forces][registry]") {
         ForceContext ctx;
         ctx.domain = &domain;
         
-        Vec3 force = registry.compute_total_force(ion, 0.0, ctx);
+        Vec3 force = compute_force_aos_adapter(registry, ion, 0.0, ctx);
         
         REQUIRE(force.x == Approx(300.0));
     }
@@ -379,7 +362,7 @@ TEST_CASE("ForceRegistry - Force context (SSOT)", "[forces][registry]") {
         ForceContext ctx;
         ctx.domain = &domain;
         
-        Vec3 force = registry.compute_total_force(ion, 0.0, ctx);
+        Vec3 force = compute_force_aos_adapter(registry, ion, 0.0, ctx);
         
         REQUIRE(force.x == Approx(500.0));
     }

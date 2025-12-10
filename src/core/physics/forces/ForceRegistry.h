@@ -71,31 +71,7 @@ public:
     void add_force(std::unique_ptr<IForce> force);
     
     /**
-     * @brief Compute total force on ion (sum of all registered forces)
-     * 
-     * This is the hot-path method called every integration step.
-     * Optimized for performance:
-     * - Early exit if no forces registered
-     * - Skips forces that don't apply (via applies_to())
-     * - Inline-friendly design
-     * 
-     * @param ion Current ion state
-     * @param t Current simulation time [s]
-     * @param context Optional context for force computation
-     * @return Total force vector [N]
-     * 
-     * @note Thread-safe (const method, read-only access)
-     */
-    Vec3 compute_total_force(
-        const IonState& ion,
-        double t,
-        const ForceContext& context = {}
-    ) const;
-
-    /**
-     * @brief Compute total force using SoA ensemble data
-     *
-     * Calls the batch/SoA path on all registered forces (SoA-only path).
+     * @brief Compute total force using SoA ensemble data (primary)
      */
     Vec3 compute_total_force(
         const core::IonEnsemble& ensemble,

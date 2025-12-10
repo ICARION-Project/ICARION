@@ -20,6 +20,7 @@ using ICARION::physics::ElectricFieldForce;
 using ICARION::physics::ForceContext;
 using ICARION::core::IonState;
 using ICARION::core::Vec3;
+using ICARION::core::IonEnsemble;
 using Catch::Approx;
 
 namespace {
@@ -54,8 +55,14 @@ void require_parity(const DomainConfig& dom, const Vec3& pos, double t) {
     ctx_model.domain = &dom;
     ctx_model.field_model = &model;
 
-    Vec3 F_legacy = force.compute(ion, t, ctx_legacy);
-    Vec3 F_model = force.compute(ion, t, ctx_model);
+    IonEnsemble ens = IonEnsemble::from_legacy({ion});
+    ctx_legacy.ion_ensemble = &ens;
+    ctx_model.ion_ensemble = &ens;
+    ctx_legacy.ion_index = 0;
+    ctx_model.ion_index = 0;
+
+    Vec3 F_legacy = force.compute(ens, 0, t, ctx_legacy);
+    Vec3 F_model = force.compute(ens, 0, t, ctx_model);
 
     REQUIRE(F_model.x == Approx(F_legacy.x).margin(1e-9));
     REQUIRE(F_model.y == Approx(F_legacy.y).margin(1e-9));

@@ -34,29 +34,14 @@ DampingForce::DampingForce(
 // IForce Interface Implementation
 // ============================================================================
 
-Vec3 DampingForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
+Vec3 DampingForce::compute(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                           const ForceContext& ctx) const {
     (void)t;  // Time-independent (deterministic damping)
-    
+
     if (model_ == DampingModel::None) {
         return Vec3{0.0, 0.0, 0.0};
     }
-    
-    // Calculate damping coefficient γ [1/s]
-    double gamma = calculate_gamma(ion, ctx);
-    
-    if (gamma <= 0.0) {
-        return Vec3{0.0, 0.0, 0.0};
-    }
-    
-    // Damping force: F = -γ·m·v [N]
-    // For Friction: γ = q/(K·m) → F = -q/K·v (legacy-compatible)
-    // For HSS/Langevin: γ = collision_rate → F = -γ·m·v
-    // (Note: Force, not acceleration - will be divided by mass in integrator)
-    return ion.vel * (-gamma * ion.mass_kg);
-}
 
-Vec3 DampingForce::compute_batch(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
-                                 const ForceContext& ctx) const {
     IonState ion;
     ion.pos = ensemble.get_pos(ion_idx);
     ion.vel = ensemble.get_vel(ion_idx);
@@ -69,7 +54,14 @@ Vec3 DampingForce::compute_batch(const core::IonEnsemble& ensemble, size_t ion_i
     ion.born = ensemble.born_data()[ion_idx] != 0;
     ion.current_domain_index = ensemble.domain_index(ion_idx);
     ion.birth_time_s = ensemble.birth_time(ion_idx);
-    return compute(ion, t, ctx);
+
+    double gamma = calculate_gamma(ion, ctx);
+
+    if (gamma <= 0.0) {
+        return Vec3{0.0, 0.0, 0.0};
+    }
+
+    return ion.vel * (-gamma * ion.mass_kg);
 }
 
 std::string DampingForce::name() const {

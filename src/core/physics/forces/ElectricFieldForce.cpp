@@ -37,39 +37,26 @@ ElectricFieldForce::ElectricFieldForce(std::shared_ptr<::IFieldProvider> field_p
 // IForce Interface Implementation
 // ============================================================================
 
-Vec3 ElectricFieldForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
+Vec3 ElectricFieldForce::compute(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                                 const ForceContext& ctx) const {
     Vec3 E_field{0.0, 0.0, 0.0};
-    
+
+    const Vec3 pos = ensemble.get_pos(ion_idx);
+    const double q = ensemble.charge_data()[ion_idx];
+
     // Prefer SSOT field model; fall back to providers, then internal model.
     if (ctx.field_model) {
-        E_field = ctx.field_model->E(ion.pos, t);
+        E_field = ctx.field_model->E(pos, t);
     } else if (ctx.field_provider) {
-        E_field = ctx.field_provider->get_E(ion.pos, t);
+        E_field = ctx.field_provider->get_E(pos, t);
     } else if (use_field_provider_ && field_provider_) {
-        E_field = field_provider_->get_E(ion.pos, t);
+        E_field = field_provider_->get_E(pos, t);
     } else if (fallback_model_) {
-        E_field = fallback_model_->E(ion.pos, t);
+        E_field = fallback_model_->E(pos, t);
     }
-    
-    // F = q * E
-    return E_field * ion.ion_charge_C;
-}
 
-Vec3 ElectricFieldForce::compute_batch(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
-                                       const ForceContext& ctx) const {
-    IonState ion;
-    ion.pos = ensemble.get_pos(ion_idx);
-    ion.vel = ensemble.get_vel(ion_idx);
-    ion.mass_kg = ensemble.mass_data()[ion_idx];
-    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
-    ion.active = ensemble.active_data()[ion_idx] != 0;
-    ion.born = ensemble.born_data()[ion_idx] != 0;
-    ion.current_domain_index = ensemble.domain_index(ion_idx);
-    ion.CCS_m2 = ensemble.CCS(ion_idx);
-    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
-    ion.species_id = ensemble.species_id(ion_idx);
-    ion.birth_time_s = ensemble.birth_time(ion_idx);
-    return compute(ion, t, ctx);
+    // F = q * E
+    return E_field * q;
 }
 
 std::string ElectricFieldForce::name() const {

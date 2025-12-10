@@ -397,13 +397,11 @@ TEST_CASE("SpaceCharge Integration: Force symmetry", "[spacecharge][integration]
         ions[0].born = true;
         ions[1].born = true;
         
-        // Direct method (should be exact)
-        SpaceChargeDirect direct_force(1e-10);
-        ForceContext ctx;
-        ctx.all_ions = &ions;
-        
-        Vec3 F0 = direct_force.compute(ions[0], 0.0, ctx);
-        Vec3 F1 = direct_force.compute(ions[1], 0.0, ctx);
+        core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+        SpaceChargeDirectModel direct_model(1e-10);
+        direct_model.update_fields(ensemble, 0.0);
+        Vec3 F0 = direct_model.sample_electric_field(0) * ions[0].ion_charge_C;
+        Vec3 F1 = direct_model.sample_electric_field(1) * ions[1].ion_charge_C;
         
         // Forces should be equal and opposite
         REQUIRE_THAT(F0.x, WithinAbs(-F1.x, 1e-30));

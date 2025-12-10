@@ -189,7 +189,7 @@ private:
     
     // HDF5 buffers
     std::vector<double> times_buffer_;
-    std::vector<core::IonEnsemble> trajectory_buffer_soa_;
+    std::vector<core::IonEnsemble> trajectory_buffer_;
     
     // Text logging (optional)
     std::string log_filename_;

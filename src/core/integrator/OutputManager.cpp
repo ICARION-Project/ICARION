@@ -137,7 +137,7 @@ void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
     
     // Buffer snapshot (SoA)
     times_buffer_.push_back(t);
-    trajectory_buffer_soa_.push_back(ensemble);
+    trajectory_buffer_.push_back(ensemble);
 }
 
 void OutputManager::log_progress(const std::string& message) {
@@ -176,12 +176,12 @@ void OutputManager::flush() {
         io::HDF5Writer::append_trajectory_batch(
             hdf5_filename_,
             times_buffer_,
-            trajectory_buffer_soa_
+            trajectory_buffer_
         );
         
         // Clear buffers
         times_buffer_.clear();
-        trajectory_buffer_soa_.clear();
+        trajectory_buffer_.clear();
         
         // Update next write time (avoid drift with adaptive timesteps)
         // Use last flushed time as anchor, not incremental addition
@@ -202,7 +202,7 @@ void OutputManager::finalize(double t_final, const core::IonEnsemble& final_ense
     // Ensure last snapshot present
     if (times_buffer_.empty() || times_buffer_.back() < t_final) {
         times_buffer_.push_back(t_final);
-        trajectory_buffer_soa_.push_back(final_ensemble);
+        trajectory_buffer_.push_back(final_ensemble);
     }
 
     // Flush remaining data

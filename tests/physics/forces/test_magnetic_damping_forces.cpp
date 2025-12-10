@@ -159,12 +159,12 @@ TEST_CASE("MagneticFieldForce - Linear gradient field", "[forces][magnetic]") {
         // At z=0: B = 1 T
         IonState ion1 = make_ion(1000, 0, 0);
         ion1.pos.z = 0.0;
-        Vec3 F1 = force.compute(ion1, 0.0, ctx);
+        Vec3 F1 = compute_force(force, ion1, ctx);
         
         // At z=10m: B = 1 + 0.1*10 = 2 T
         IonState ion2 = make_ion(1000, 0, 0);
         ion2.pos.z = 10.0;
-        Vec3 F2 = force.compute(ion2, 0.0, ctx);
+        Vec3 F2 = compute_force(force, ion2, ctx);
         
         // Force should be twice as strong (F ∝ B)
         REQUIRE(F2.y == Approx(2.0 * F1.y));
@@ -180,7 +180,7 @@ TEST_CASE("MagneticFieldForce - Disabled force", "[forces][magnetic]") {
     ForceContext ctx;
     
     IonState ion = make_ion(1000, 0, 0);
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    Vec3 F = compute_force(force, ion, ctx);
     
     REQUIRE(F.x == Approx(0.0).margin(1e-25));
     REQUIRE(F.y == Approx(0.0).margin(1e-25));

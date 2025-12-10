@@ -32,7 +32,8 @@ IonState make_ion(double vx, double vy, double vz, double mass_amu = 100.0, doub
     return ion;
 }
 
-Vec3 compute_force(const MagneticFieldForce& force, const IonState& ion, ForceContext ctx, double t = 0.0) {
+template <typename ForceType>
+Vec3 compute_force(const ForceType& force, const IonState& ion, ForceContext ctx, double t = 0.0) {
     ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
     ctx.ion_ensemble = &ens;
     ctx.ion_index = 0;

@@ -48,14 +48,9 @@ class ConstantForce : public IForce {
 public:
     ConstantForce(const Vec3& force_vector) : force_(force_vector) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)ion; (void)t; (void)ctx;  // Unused
-        return force_;
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
-        (void)t; (void)ctx;
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
+        (void)ensemble; (void)ion_idx; (void)t; (void)ctx;
         return force_;
     }
     
@@ -75,13 +70,8 @@ public:
     ConditionalForce(double target_charge, const Vec3& force_vector)
         : target_charge_(target_charge), force_(force_vector) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)ion; (void)t; (void)ctx;  // Unused
-        return force_;
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)ensemble; (void)ion_idx; (void)t; (void)ctx;
         return force_;
     }
@@ -106,13 +96,8 @@ class GravityForce : public IForce {
 public:
     GravityForce(double g = 9.81) : g_(g) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)t; (void)ctx;  // Unused
-        return Vec3{0, 0, -ion.mass_kg * g_};
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         double m = ensemble.mass_data()[ion_idx];
         return Vec3{0, 0, -m * g_};
@@ -332,18 +317,8 @@ TEST_CASE("ForceRegistry - Force context (SSOT)", "[forces][registry]") {
     
     class ContextAwareForce : public IForce {
     public:
-        Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-            (void)ion; (void)t;  // Unused
-            
-            // SSOT: Read temperature from domain->environment
-            if (ctx.domain) {
-                return Vec3{ctx.domain->environment.temperature_K, 0, 0};
-            }
-            return Vec3{0, 0, 0};
-        }
-
-        Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                           const ForceContext& ctx) const override {
+        Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                     const ForceContext& ctx) const override {
             (void)ensemble; (void)ion_idx; (void)t;
             if (ctx.domain) {
                 return Vec3{ctx.domain->environment.temperature_K, 0, 0};

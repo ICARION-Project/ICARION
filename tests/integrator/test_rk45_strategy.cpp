@@ -30,13 +30,8 @@ class ConstantGravityForce : public IForce {
 public:
     explicit ConstantGravityForce(double g = 9.81) : g_(g) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)t; (void)ctx;
-        return Vec3{0, 0, -ion.mass_kg * g_};
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         const double m = ensemble.mass_data()[ion_idx];
         return Vec3{0, 0, -m * g_};
@@ -52,13 +47,8 @@ class HarmonicOscillatorForce : public IForce {
 public:
     explicit HarmonicOscillatorForce(double k = 1.0) : k_(k) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)t; (void)ctx;
-        return ion.pos * (-k_);  // F = -k*x
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         Vec3 pos = ensemble.get_pos(ion_idx);
         return pos * (-k_);
@@ -74,13 +64,8 @@ class ExponentialDampingForce : public IForce {
 public:
     explicit ExponentialDampingForce(double gamma = 1.0) : gamma_(gamma) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)t; (void)ctx;
-        return ion.vel * (-gamma_ * ion.mass_kg);  // F = -γ*m*v
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         Vec3 vel = ensemble.get_vel(ion_idx);
         double mass = ensemble.mass_data()[ion_idx];

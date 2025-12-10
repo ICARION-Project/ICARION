@@ -43,27 +43,14 @@ public:
     virtual ~IForce() = default;
     
     /**
-     * @brief Compute force contribution for single ion
+     * @brief Compute force contribution (SoA-only)
      * 
-     * @param ion Current ion state (position, velocity, charge, mass)
+     * @param ensemble Ion ensemble (SoA view)
+     * @param ion_idx Index of ion in ensemble
      * @param t Current simulation time [s]
-     * @param context Optional context for force computation (field provider, all ions, etc.)
-     * @return Force vector [N] in Cartesian coordinates
-     * 
-     * @note Should be thread-safe if used under OpenMP parallel loops
+     * @param context Optional context for force computation (field provider, domain, space charge, etc.)
      */
     virtual Vec3 compute(
-        const IonState& ion,
-        double t,
-        const ForceContext& context
-    ) const = 0;
-
-    /**
-     * @brief Compute force contribution in SoA path (primary)
-     *
-     * Forces should implement this method; AoS helpers may forward here.
-     */
-    virtual Vec3 compute_batch(
         const core::IonEnsemble& ensemble,
         size_t ion_idx,
         double t,
@@ -71,15 +58,7 @@ public:
     ) const = 0;
     
     /**
-     * @brief Check if this force applies to given ion
-     * 
-     * Allows conditional force application (e.g., magnetic force only if B-field enabled).
-     * Default implementation returns true (force always applies).
-     * 
-     * @param ion Ion to check
-     * @return true if force should be computed for this ion
-     * 
-     * @note This is called before compute() to avoid unnecessary calculations
+     * @brief Check if this force applies to given ion (AoS view for filtering only)
      */
     virtual bool applies_to(const IonState& ion) const {
         (void)ion;  // Unused parameter
@@ -88,8 +67,6 @@ public:
     
     /**
      * @brief Get force name for logging/debugging
-     * 
-     * @return Human-readable force name (e.g., "ElectricField", "MagneticField")
      */
     virtual std::string name() const = 0;
 };

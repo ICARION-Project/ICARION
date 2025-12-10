@@ -16,34 +16,6 @@ void ForceRegistry::set_space_charge_model(SpaceChargeModelPtr model) {
 }
 
 Vec3 ForceRegistry::compute_total_force(
-    const IonState& ion,
-    double t,
-    const ForceContext& context
-) const {
-    // Accumulate forces
-    Vec3 total_force{0, 0, 0};
-
-    if (!forces_.empty()) {
-        for (const auto& force : forces_) {
-            if (force->applies_to(ion)) {
-                total_force += force->compute(ion, t, context);
-            }
-        }
-    }
-
-    // Add space-charge contribution if available (requires SoA view)
-    if (space_charge_model_ && context.ion_ensemble &&
-        context.ion_index != static_cast<size_t>(-1) &&
-        context.ion_index < context.ion_ensemble->size()) {
-        const double charge = context.ion_ensemble->charge_data()[context.ion_index];
-        Vec3 E = space_charge_model_->sample_electric_field(context.ion_index);
-        total_force += E * charge;
-    }
-    
-    return total_force;
-}
-
-Vec3 ForceRegistry::compute_total_force(
     const core::IonEnsemble& ensemble,
     size_t ion_idx,
     double t,
@@ -68,7 +40,7 @@ Vec3 ForceRegistry::compute_total_force(
 
         for (const auto& force : forces_) {
             if (force->applies_to(ion)) {
-                total_force += force->compute_batch(ensemble, ion_idx, t, context);
+                total_force += force->compute(ensemble, ion_idx, t, context);
             }
         }
     }

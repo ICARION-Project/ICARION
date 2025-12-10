@@ -29,13 +29,8 @@ class ConstantElectricForce : public IForce {
 public:
     explicit ConstantElectricForce(const Vec3& E_field) : E_(E_field) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)t; (void)ctx;
-        return E_ * ion.ion_charge_C;  // F = q*E
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         double q = ensemble.charge_data()[ion_idx];
         return E_ * q;

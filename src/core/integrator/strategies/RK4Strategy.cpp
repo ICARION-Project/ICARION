@@ -47,7 +47,11 @@ void RK4Strategy::step(
     ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]);
     ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]);
     
-    Vec3 F1 = force_registry.compute_total_force(ion_temp, t, ctx);
+    // Stage 1
+    core::IonEnsemble ens1 = core::IonEnsemble::from_legacy({ion_temp});
+    ctx.ion_ensemble = &ens1;
+    ctx.ion_index = 0;
+    Vec3 F1 = force_registry.compute_total_force(ens1, 0, t, ctx);
     Vec3 a1 = F1 * inv_mass;
     
     Vec3 k1_vel = ion_temp.vel;
@@ -59,7 +63,9 @@ void RK4Strategy::step(
     ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]) + k1_vel * (dt * 0.5);
     ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]) + k1_acc * (dt * 0.5);
     
-    Vec3 F2 = force_registry.compute_total_force(ion_temp, t + dt * 0.5, ctx);
+    core::IonEnsemble ens2 = core::IonEnsemble::from_legacy({ion_temp});
+    ctx.ion_ensemble = &ens2;
+    Vec3 F2 = force_registry.compute_total_force(ens2, 0, t + dt * 0.5, ctx);
     Vec3 a2 = F2 * inv_mass;
     
     Vec3 k2_vel = ion_temp.vel;
@@ -71,7 +77,9 @@ void RK4Strategy::step(
     ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]) + k2_vel * (dt * 0.5);
     ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]) + k2_acc * (dt * 0.5);
     
-    Vec3 F3 = force_registry.compute_total_force(ion_temp, t + dt * 0.5, ctx);
+    core::IonEnsemble ens3 = core::IonEnsemble::from_legacy({ion_temp});
+    ctx.ion_ensemble = &ens3;
+    Vec3 F3 = force_registry.compute_total_force(ens3, 0, t + dt * 0.5, ctx);
     Vec3 a3 = F3 * inv_mass;
     
     Vec3 k3_vel = ion_temp.vel;
@@ -83,7 +91,9 @@ void RK4Strategy::step(
     ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]) + k3_vel * dt;
     ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]) + k3_acc * dt;
     
-    Vec3 F4 = force_registry.compute_total_force(ion_temp, t + dt, ctx);
+    core::IonEnsemble ens4 = core::IonEnsemble::from_legacy({ion_temp});
+    ctx.ion_ensemble = &ens4;
+    Vec3 F4 = force_registry.compute_total_force(ens4, 0, t + dt, ctx);
     Vec3 a4 = F4 * inv_mass;
     
     Vec3 k4_vel = ion_temp.vel;

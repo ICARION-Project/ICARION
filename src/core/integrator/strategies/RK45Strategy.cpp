@@ -121,12 +121,16 @@ void RK45Strategy::compute_acceleration(
 ) {
     physics::ForceContext ctx;
     ctx.domain = force_registry.domain();  // Get domain from registry
-    ctx.all_ions = &all_ions;
+    ctx.all_ions = &all_ions;  // retained for applies_to checks
     ctx.field_provider = nullptr;
     ctx.field_model = force_registry.field_model();
+    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ensemble;
+    ctx.ion_index = 0;
     
-    Vec3 F = force_registry.compute_total_force(ion, t, ctx);
-    Vec3 a = F / ion.mass_kg;
+    Vec3 F = force_registry.compute_total_force(ensemble, 0, t, ctx);
+    const double inv_mass = 1.0 / ion.mass_kg;
+    Vec3 a = F * inv_mass;
     
     ax = a.x;
     ay = a.y;
@@ -168,10 +172,11 @@ void RK45Strategy::compute_acceleration_state(
     ctx.all_ions = nullptr;
     ctx.field_provider = nullptr;
     ctx.field_model = force_registry.field_model();
-    ctx.ion_ensemble = nullptr;
+    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy({state});
+    ctx.ion_ensemble = &ensemble;
     ctx.ion_index = 0;
 
-    Vec3 F = force_registry.compute_total_force(state, t, ctx);
+    Vec3 F = force_registry.compute_total_force(ensemble, 0, t, ctx);
     const double inv_mass = 1.0 / state.mass_kg;
     Vec3 a = F * inv_mass;
 

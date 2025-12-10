@@ -29,13 +29,8 @@ class ConstantGravityForce : public IForce {
 public:
     explicit ConstantGravityForce(double g = 9.81) : g_(g) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)t; (void)ctx;  // Unused
-        return Vec3{0, 0, -ion.mass_kg * g_};  // Downward force
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         double m = ensemble.mass_data()[ion_idx];
         return Vec3{0, 0, -m * g_};
@@ -54,14 +49,8 @@ class HarmonicOscillatorForce : public IForce {
 public:
     explicit HarmonicOscillatorForce(double k = 1.0) : k_(k) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)t; (void)ctx;  // Unused
-        // F = -k*x (Hooke's law)
-        return ion.pos * (-k_);
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         Vec3 pos = ensemble.get_pos(ion_idx);
         return pos * (-k_);
@@ -80,14 +69,8 @@ class LinearDampingForce : public IForce {
 public:
     explicit LinearDampingForce(double gamma = 0.1) : gamma_(gamma) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
-        (void)t; (void)ctx;  // Unused
-        // F = -γ*m*v
-        return ion.vel * (-gamma_ * ion.mass_kg);
-    }
-
-    Vec3 compute_batch(const IonEnsemble& ensemble, size_t ion_idx, double t,
-                       const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
         Vec3 vel = ensemble.get_vel(ion_idx);
         double mass = ensemble.mass_data()[ion_idx];

@@ -110,13 +110,15 @@ public:
                               double dt,
                               const config::ReactionDatabase& reaction_db,
                               const config::SpeciesDatabase& species_db,
-                              const std::vector<config::DomainConfig>& domains) {
+                              const std::vector<config::DomainConfig>& domains,
+                              std::vector<PhysicsRng>& rng_pool) {
         (void)ensemble;
         (void)domain_indices;
         (void)dt;
         (void)reaction_db;
         (void)species_db;
         (void)domains;
+        (void)rng_pool;
         return false;
     }
 };

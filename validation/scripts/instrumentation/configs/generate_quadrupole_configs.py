@@ -22,6 +22,17 @@ import json
 import numpy as np
 from pathlib import Path
 
+
+def find_validation_dir() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == "validation":
+            return parent
+    raise RuntimeError("Unable to locate 'validation' directory relative to script")
+
+
+VALIDATION_DIR = find_validation_dir()
+CONFIG_DIR = VALIDATION_DIR / "configs" / "instruments" / "quadrupole"
+
 # Quadrupole geometry
 R0_M = 0.005  # 5 mm field radius (typical for analytical quad)
 LENGTH_M = 0.05  # 50 mm rod length
@@ -44,9 +55,6 @@ N_IONS = 100  # ions per test
 SIMULATION_TIME_S = 50e-6  # 50 µs (25 RF cycles at 2 MHz)
 DT_S = 1e-9  # 1 ns timestep
 WRITE_INTERVAL = 500  # every 500 steps
-
-# Output directory
-CONFIG_DIR = Path(__file__).parent.parent.parent / "configs" / "instruments" / "quadrupole"
 
 def calc_voltages_from_aq(a, q, m_amu, r0_m, omega):
     """Calculate U (DC) and V (RF) from Mathieu parameters a and q"""

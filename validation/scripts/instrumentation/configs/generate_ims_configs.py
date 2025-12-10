@@ -22,6 +22,18 @@ import json
 import os
 from pathlib import Path
 
+
+def find_validation_dir() -> Path:
+    """Locate the validation directory regardless of invocation cwd."""
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == "validation":
+            return parent
+    raise RuntimeError("Could not locate 'validation' directory relative to script.")
+
+
+VALIDATION_DIR = find_validation_dir()
+CONFIG_ROOT = VALIDATION_DIR / "configs"
+
 # IMS parameters
 DRIFT_LENGTH_M = 0.06  # 5 cm drift tube
 DRIFT_TUBE_RADIUS_M = 0.05  # 5 cm radius (large to minimize wall losses)
@@ -184,7 +196,7 @@ def generate_config(EN_Td, pressure_Pa, collision_model):
 def main():
     """Generate all IMS validation configs"""
     
-    output_dir = Path(__file__).parent.parent.parent / "configs" / "instruments" / "ims"
+    output_dir = CONFIG_ROOT / "instruments" / "ims"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"Generating IMS validation configs in {output_dir}")

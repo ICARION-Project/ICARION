@@ -585,7 +585,8 @@ void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
             dt,
             config_.reaction_db,
             config_.species_db,
-            config_.domains
+            config_.domains,
+            rng_by_ion_
         );
         if (handled) {
             return;

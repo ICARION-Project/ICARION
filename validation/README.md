@@ -318,6 +318,9 @@ RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evalu
 - `scripts/generate_lqit_stability_configs.py` - LQIT stability tests (10 configs)
 - `scripts/generate_lqit_mass_scan_configs.py` - LQIT mass scan suite (4 configs)
 - `scripts/generate_quadrupole_stability_map.py` - Quadrupole (a,q) map (135 configs)
+- `scripts/run_instrument_tests.sh` - Unified instrument runner; delegates to bespoke
+    scripts (IMS, Quadrupole) or executes a generic batch loop over
+    `validation/configs/instruments/<instrument>`.
 
 🚀 **GPU Performance (Session 7):**
 - `scripts/generate_gpu_performance_configs.py` - GPU benchmark suite (31 configs)
@@ -364,6 +367,11 @@ validation/
 └── README.md                   # This file
 ```
 
+**Config Policy:** All generators must emit JSON configs under
+`validation/configs/<category>/…`. The legacy `validation/scripts/configs`
+staging folders are deprecated—run scripts and tooling now expect configs in the
+canonical location.
+
 ---
 
 ## 📝 USAGE
@@ -381,7 +389,17 @@ python3 scripts/final_therm_check.py
 
 # Run full thermalization suite (90 configs)
 ./scripts/run_thermalization_tests.sh full
+
+# Run instrument validation through unified entrypoint
+./scripts/run_instrument_tests.sh ims        # Delegates to IMS runner
+./scripts/run_instrument_tests.sh quadrupole # Delegates to Quadrupole runner
+./scripts/run_instrument_tests.sh orbitrap   # Generic batch mode (no bespoke runner yet)
 ```
+
+`run_instrument_tests.sh` honors `-j/--jobs`, `-t/--threads`, `-b/--binary`,
+`-c/--config-dir`, and `-o/--output-root` when running in generic mode. Each
+session stores stdout/stderr under
+`validation/results/v1.0_test/instruments/<instrument>/run_logs/<timestamp>`.
 
 ### **Test Modes:**
 

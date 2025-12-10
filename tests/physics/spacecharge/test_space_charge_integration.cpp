@@ -163,6 +163,8 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
         // ----------------------------------------------------------------------
         // Method 1: Direct Coulomb (SpaceChargeDirectModel)
         // ----------------------------------------------------------------------
+        core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+
         SpaceChargeDirectModel direct_model(1e-10);  // 0.1nm softening
         direct_model.update_fields(ensemble, 0.0);
         Vec3 F_direct_ion0 = direct_model.sample_electric_field(0) * ions[0].ion_charge_C;
@@ -269,6 +271,8 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
             ions[i].born = true;
         }
         
+        core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+
         // Direct method (model)
         SpaceChargeDirectModel direct_model(1e-10);
         direct_model.update_fields(ensemble, 0.0);

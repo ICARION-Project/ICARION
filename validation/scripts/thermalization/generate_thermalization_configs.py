@@ -17,6 +17,17 @@ import os
 from pathlib import Path
 import math
 
+
+def find_validation_dir() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == "validation":
+            return parent
+    raise RuntimeError("Unable to locate 'validation' directory relative to script")
+
+
+VALIDATION_DIR = find_validation_dir()
+CONFIG_ROOT = VALIDATION_DIR / "configs"
+
 # Physical constants
 AMU_TO_KG = 1.66053906660e-27
 ELEM_CHARGE = 1.602176634e-19
@@ -166,7 +177,7 @@ def main():
     collision_models = ["HSS", "EHSS"]
     
     # Output directory
-    output_dir = Path(__file__).parent.parent / "configs" / "physics" / "thermalization"
+    output_dir = CONFIG_ROOT / "physics" / "thermalization"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Generate configs

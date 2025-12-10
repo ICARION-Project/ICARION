@@ -86,13 +86,8 @@ bool GPUReactionHandler::handle_batch(core::IonEnsemble& ensemble,
                                       double dt,
                                       const config::ReactionDatabase& reaction_db,
                                       const config::SpeciesDatabase& species_db,
-                                      const std::vector<config::DomainConfig>& domains) {
-    (void)ensemble;
-    (void)domain_indices;
-    (void)dt;
-    (void)reaction_db;
-    (void)species_db;
-    (void)domains;
+                                      const std::vector<config::DomainConfig>& domains,
+                                      std::vector<PhysicsRng>& rng_pool) {
 
 #ifdef ICARION_USE_GPU
     if (!gpu_backend_) {
@@ -102,7 +97,7 @@ bool GPUReactionHandler::handle_batch(core::IonEnsemble& ensemble,
         return false;
     }
     return gpu_backend_->process_batch(
-        ensemble, domain_indices, dt, reaction_db, species_db, domains);
+        ensemble, domain_indices, dt, reaction_db, species_db, domains, rng_pool);
 #else
     return false;
 #endif

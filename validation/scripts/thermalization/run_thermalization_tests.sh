@@ -4,7 +4,8 @@
 
 MODE="${1:-quick}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CONFIG_DIR="$SCRIPT_DIR/../configs/physics/thermalization"
+VALIDATION_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CONFIG_DIR="$VALIDATION_DIR/configs/physics/thermalization"
 RESULTS_DIR="$SCRIPT_DIR/../results/thermalization_session_$(date +%Y%m%d_%H%M%S)"
 
 echo "=============================================="

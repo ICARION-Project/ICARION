@@ -18,8 +18,16 @@ import json
 import numpy as np
 from pathlib import Path
 
-# Output directory
-OUT_DIR = Path("../configs/physics/transport")
+
+def find_validation_dir() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == "validation":
+            return parent
+    raise RuntimeError("Unable to locate 'validation' directory relative to script")
+
+
+VALIDATION_DIR = find_validation_dir()
+OUT_DIR = VALIDATION_DIR / "configs" / "physics" / "transport"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Test parameters

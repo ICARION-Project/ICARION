@@ -3,11 +3,11 @@
 Create 2D heatmap of relative error vs E/N and pressure for IMS validation
 """
 
+import argparse
 import csv
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.colors as colors
 from pathlib import Path
 import sys
 
@@ -68,6 +68,8 @@ def analyze_single_file(h5_file):
         'T_K': float(T_K),
         'N_m3': float(N_m3),
         'E_Vm': float(E_Vm),
+        'T_eff_K': float(T_eff),
+        'v_expected_ms': float(v_expected),
         'num_crossings': n_drifted,
         'mean_drift_time_us': float(mean_drift_time_us),
         'drift_velocity_ms': float(v_drift_mean),
@@ -85,8 +87,8 @@ def write_csv(rows, output_path):
     
     fieldnames = [
         'filename', 'collision_model', 'EN_Td', 'pressure_Pa', 'temperature_K', 'N_(1/m3)',
-        'E_(V/m)', 'num_crossings', 'mean_drift_time_us',
-        'drift_velocity_(m/s)', 'K_(m2/Vs)', 'K0_(m2/Vs)', 'K0_(cm2/Vs)'
+        'E_(V/m)', 'T_eff_K', 'drift_velocity_expected_(m/s)', 'num_crossings', 'mean_drift_time_us',
+        'drift_velocity_(m/s)', 'K_(m2/Vs)', 'K0_(m2/Vs)', 'K0_(cm2/Vs)', 'error_pct'
     ]
     
     output_path = Path(output_path)
@@ -102,7 +104,41 @@ def write_csv(rows, output_path):
     
     print(f"CSV results saved to: {output_path}")
 
-def create_heatmap(results_dir, output_file, csv_output):
+def write_summary_csv(results_by_model, output_path):
+    """Write per-model error summary for doc ingestion"""
+
+    rows = []
+    for model, data_list in results_by_model.items():
+        for data in data_list:
+            rows.append({
+                'collision_model': model,
+                'EN_Td': int(data['E_N_Td']),
+                'pressure_Pa': int(data['P_Pa']),
+                'T_eff_K': round(data['T_eff_K'], 2),
+                'drift_velocity_(m/s)': round(data['drift_velocity_ms'], 2),
+                'expected_velocity_(m/s)': round(data['v_expected_ms'], 2),
+                'error_pct': round(data['error_pct'], 2)
+            })
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with output_path.open('w', newline='') as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                'collision_model', 'EN_Td', 'pressure_Pa', 'T_eff_K',
+                'drift_velocity_(m/s)', 'expected_velocity_(m/s)', 'error_pct'
+            ]
+        )
+        writer.writeheader()
+        for row in sorted(rows, key=lambda r: (r['collision_model'], r['EN_Td'], r['pressure_Pa'])):
+            writer.writerow(row)
+
+    print(f"Summary CSV saved to: {output_path}")
+
+
+def create_heatmap(results_dir, output_file, csv_output, summary_csv):
     """Create 2D heatmap of error vs E/N and pressure"""
     
     results_path = Path(results_dir)
@@ -126,7 +162,7 @@ def create_heatmap(results_dir, output_file, csv_output):
         
         try:
             data = analyze_single_file(str(h5_file))
-            if data and 0 <= data['E_N_Td'] <= 10:  # Only 10-50 Td
+            if data and 0 <= data['E_N_Td'] <= 10:
                 csv_rows.append({
                     'filename': h5_file.name,
                     'collision_model': model,
@@ -135,12 +171,15 @@ def create_heatmap(results_dir, output_file, csv_output):
                     'temperature_K': data['T_K'],
                     'N_(1/m3)': data['N_m3'],
                     'E_(V/m)': data['E_Vm'],
+                    'T_eff_K': data['T_eff_K'],
+                    'drift_velocity_expected_(m/s)': data['v_expected_ms'],
                     'num_crossings': data['num_crossings'],
                     'mean_drift_time_us': data['mean_drift_time_us'],
                     'drift_velocity_(m/s)': data['drift_velocity_ms'],
                     'K_(m2/Vs)': data['K_m2Vs'],
                     'K0_(m2/Vs)': data['K0_m2Vs'],
-                    'K0_(cm2/Vs)': data['K0_cm2Vs']
+                    'K0_(cm2/Vs)': data['K0_cm2Vs'],
+                    'error_pct': data['error_pct']
                 })
                 
                 # Round E/N to nearest 1 Td
@@ -159,6 +198,7 @@ def create_heatmap(results_dir, output_file, csv_output):
             pass
     
     write_csv(csv_rows, csv_output)
+    write_summary_csv(results, summary_csv)
     
     # Create figure with 3 subplots
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
@@ -226,22 +266,37 @@ def create_heatmap(results_dir, output_file, csv_output):
                  'H3O⁺ in He, 300K',
                  fontsize=16, weight='bold', y=1.02)
     
+    output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     plt.tight_layout()
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Heatmap saved to: {output_file}")
     
     return fig
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: plot_ims_heatmap.py <results_dir>")
-        sys.exit(1)
-    
-    results_dir = sys.argv[1]
-    output_file = 'results/v1.0_test/instruments/ims/ims_EN_heatmap.png'
-    csv_output = Path(__file__).with_name('ims_results_ICARION.csv')
-    
-    create_heatmap(results_dir, output_file, csv_output)
+    parser = argparse.ArgumentParser(description="Generate IMS heatmap and rollups")
+    parser.add_argument("results_dir", help="Directory containing IMS HDF5 outputs")
+    parser.add_argument(
+        "--figure-path",
+        default="validation/figures/ims_EN_heatmap.png",
+        help="Destination for the heatmap figure"
+    )
+    parser.add_argument(
+        "--csv",
+        default="validation/results/v1.0_test/instruments/ims/ims_measurements.csv",
+        help="Path for detailed measurement CSV"
+    )
+    parser.add_argument(
+        "--summary-csv",
+        default="validation/results/v1.0_test/instruments/ims/ims_error_summary.csv",
+        help="Path for per-model error summary CSV"
+    )
+
+    args = parser.parse_args()
+
+    create_heatmap(args.results_dir, args.figure_path, args.csv, args.summary_csv)
     print("\nHeatmap Summary:")
     print("  Green: Good agreement (error near 0%)")
     print("  Yellow: Moderate error")

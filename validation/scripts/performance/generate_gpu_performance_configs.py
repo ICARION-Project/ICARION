@@ -13,11 +13,19 @@ import json
 import numpy as np
 from pathlib import Path
 
-# Output directory
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent
-OUT_DIR = PROJECT_ROOT / "validation" / "configs" / "performance" / "gpu"
-RESULTS_BASE = PROJECT_ROOT / "validation" / "results" / "performance" / "gpu"
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def find_validation_dir() -> Path:
+    for parent in SCRIPT_DIR.parents:
+        if parent.name == "validation":
+            return parent
+    raise RuntimeError("Unable to locate 'validation' directory relative to script")
+
+
+VALIDATION_DIR = find_validation_dir()
+OUT_DIR = VALIDATION_DIR / "configs" / "performance" / "gpu"
+RESULTS_BASE = VALIDATION_DIR / "results" / "performance" / "gpu"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Benchmark parameters

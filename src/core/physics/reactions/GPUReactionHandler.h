@@ -44,7 +44,8 @@ public:
                       double dt,
                       const config::ReactionDatabase& reaction_db,
                       const config::SpeciesDatabase& species_db,
-                      const std::vector<config::DomainConfig>& domains) override;
+                      const std::vector<config::DomainConfig>& domains,
+                      std::vector<PhysicsRng>& rng_pool) override;
 
 private:
     std::unique_ptr<IReactionHandler> cpu_handler_;

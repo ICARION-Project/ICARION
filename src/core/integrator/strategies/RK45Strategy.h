@@ -192,7 +192,7 @@ private:
         const std::vector<IonState>& all_ions
     );
 
-    void compute_acceleration_soa(
+    void compute_acceleration_batch(
         double& ax, double& ay, double& az,
         const core::IonEnsemble& ensemble,
         size_t ion_idx,

@@ -133,7 +133,7 @@ void RK45Strategy::compute_acceleration(
     az = a.z;
 }
 
-void RK45Strategy::compute_acceleration_soa(
+void RK45Strategy::compute_acceleration_batch(
     double& ax, double& ay, double& az,
     const core::IonEnsemble& ensemble,
     size_t ion_idx,

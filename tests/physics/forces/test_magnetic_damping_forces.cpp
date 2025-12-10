@@ -8,6 +8,7 @@
 #include "core/physics/forces/DampingForce.h"
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/Vec3.h"
 #include "core/config/types/FieldsConfig.h"
 #include "core/config/types/EnvironmentConfig.h"
@@ -29,6 +30,13 @@ IonState make_ion(double vx, double vy, double vz, double mass_amu = 100.0, doub
     ion.mass_kg = mass_amu * AMU_TO_KG;
     ion.ion_charge_C = charge_e * ELEM_CHARGE_C;
     return ion;
+}
+
+Vec3 compute_force(const MagneticFieldForce& force, const IonState& ion, ForceContext ctx, double t = 0.0) {
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    return force.compute(ens, 0, t, ctx);
 }
 
 // ============================================================================
@@ -66,7 +74,7 @@ TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]"
     
     SECTION("Stationary ion: zero force") {
         IonState ion = make_ion(0, 0, 0);
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         REQUIRE(F.x == Approx(0.0).margin(1e-25));
         REQUIRE(F.y == Approx(0.0).margin(1e-25));
@@ -75,7 +83,7 @@ TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]"
     
     SECTION("Velocity parallel to B-field: zero force") {
         IonState ion = make_ion(0, 0, 1000);  // v along z, B along z
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         REQUIRE(std::fabs(F.x) < 1e-20);
         REQUIRE(std::fabs(F.y) < 1e-20);
@@ -88,7 +96,7 @@ TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]"
         //     = (0*1 - 0*0, 0*0 - 1000*1, 1000*0 - 0*0) = (0, -1000, 0)
         // F = q·(v×B) = e·(0, -1000, 0)
         IonState ion = make_ion(1000, 0, 0);
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         double expected_F_y = -ELEM_CHARGE_C * 1000.0 * 1.0;  // q·v·B (negative!)
         
@@ -106,7 +114,7 @@ TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]"
         MagneticFieldForce force_y(config_y);
         
         IonState ion = make_ion(100, 0, 0);
-        Vec3 F = force_y.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force_y, ion, ctx);
         
         REQUIRE(F.z > 0.0);  // Force in +z direction
     }
@@ -125,7 +133,7 @@ TEST_CASE("MagneticFieldForce - Cyclotron motion", "[forces][magnetic]") {
     
     IonState ion = make_ion(1000, 0, 0, 100.0);  // 100 amu, v_x = 1 km/s
     
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    Vec3 F = compute_force(force, ion, ctx);
     
     // F should be perpendicular to v
     double F_dot_v = F.x * ion.vel.x + F.y * ion.vel.y + F.z * ion.vel.z;

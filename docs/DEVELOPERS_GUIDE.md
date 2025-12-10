@@ -25,7 +25,7 @@ This guide provides practical instructions for extending ICARION with new featur
 
 ### Overview
 
-ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement the SoA path `IForce::compute_soa()` (and optionally `compute()` for tests/legacy) and are managed by `ForceRegistry`.
+ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement a single SoA entry point `IForce::compute(...)` (ensemble + ion index + time + context) and are managed by `ForceRegistry`. AoS hooks have been removed from the hot path; tests wrap single ions into a scratch SoA when needed.
 
 **Version:** 1.0 uses **const config references** (Single Source of Truth pattern)
 
@@ -82,7 +82,7 @@ public:
     explicit YourForce(const config::DomainConfig& domain, double additional_param = 0.0);
     
 Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;  // AoS (tests)
-Vec3 compute_soa(const core::IonEnsemble& ensemble, size_t i, double t, const ForceContext& ctx) const override; // SoA hot path
+Vec3 compute(const core::IonEnsemble& ensemble, size_t i, double t, const ForceContext& ctx) const override; // SoA hot path
     
 private:
     const config::DomainConfig& domain_;  ///< Reference, not copy!
@@ -199,7 +199,7 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 
 **DO:**
 
-- Implement `compute_soa` (primary path); keep `compute` only if you need AoS tests/mocks.
+- Implement `compute` (SoA-only); tests may wrap single ions into a scratch ensemble if needed.
 - **Use const config references**, not parameter structs
 - **Store references as members**: `const config::DomainConfig& domain_;`
 - **Read config on-demand**: `double V = domain_.fields.dc.axial_V;`
@@ -1560,13 +1560,13 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
   - ICollisionHandler interface with factory
   - EHSS, HSS, OU collision handlers (SoA overrides implemented)
   - Energy conservation validation
-  - SoA parity: `tests/physics/collisions/test_collision_soa_parity.cpp`
+  - Parity check: `tests/physics/collisions/test_collision_soa_parity.cpp`
 
 - **Reaction System Handlers**:
   - IReactionHandler interface with factory
-  - StochasticReactionHandler implementation (SoA override implemented)
+  - StochasticReactionHandler implementation (SoA path implemented)
   - GPUReactionHandler wrapper + `GPUReactionBackend` stub (factory returns the wrapper when `simulation.enable_gpu` is true; currently logs and falls back to CPU until kernels land)
-  - SoA parity: `tests/physics/reactions/test_reaction_soa_parity.cpp`
+  - Parity check: `tests/physics/reactions/test_reaction_soa_parity.cpp`
   - Database-driven reaction loading
 
 - **Integration Strategies**:

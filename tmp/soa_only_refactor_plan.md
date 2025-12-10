@@ -12,8 +12,8 @@
    - ForceContext: ensure fields used are compatible with SoA-only (remove AoS expectations).
 
 2) **Integrators/Engine**
-   - RK4/RK45/Boris: rework stage evaluations to operate on `IonEnsemble` (no `IonState` copies). Use SoA helper for accelerations; remove AoS calls.
-   - SimulationEngine: ensure force evaluations go through SoA registry; remove AoS branches.
+   - RK4/RK45/Boris: rework stage evaluations to operate on `IonEnsemble` (no `IonState` copies). Use SoA helper for accelerations; remove AoS calls. *(RK4/RK45 done)*
+   - SimulationEngine: ensure force evaluations go through SoA registry; remove AoS branches. *(uses SoA dispatch already; no AoS paths remain in engine)*
    - GPU parity paths: align to new API.
 
 3) **Tests/Mocks**

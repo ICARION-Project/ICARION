@@ -93,9 +93,9 @@ Swapping a strategy/factory changes behavior without touching the loop.
 
 ### Force System
 
-**Architecture Pattern:** Registry + Strategy (SoA-first)
+**Architecture Pattern:** Registry + Strategy (SoA-only)
 
-Forces implement `IForce` and register with `ForceRegistry`. The SoA path is primary (`compute_soa(...)`), with `compute(...)` retained for tests and legacy hooks.
+Forces implement `IForce` and register with `ForceRegistry`. There is a single SoA interface (`compute(const IonEnsemble&, size_t, t, ForceContext)`). AoS hooks were removed from the hot path; tests wrap single ions into a scratch SoA when needed.
 
 **Built-in Forces:**
 - `ElectricFieldForce` - E-field via `IFieldModel` (analytical or grid-backed); SSOT: PhysicsSetup injects `FieldProviderModel` when grid data exist, otherwise `AnalyticalFieldModel` fallback

@@ -207,7 +207,7 @@ TEST_CASE("DampingForce - Friction model (mobility-based)", "[forces][damping]")
     SECTION("Force opposes velocity") {
         IonState ion = make_ion(1000, 0, 0);  // v_x = 1 km/s, m = 100 Da
         ion.reduced_mobility_cm2_Vs = 2.0;  // Need mobility for Friction model
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         // F = -γ·m·v [N] where γ = q/(K·m)
         // K = K₀ · (n/n₀) where n = gas_density, n₀ = LOSCHMIDT_CONSTANT
@@ -225,8 +225,8 @@ TEST_CASE("DampingForce - Friction model (mobility-based)", "[forces][damping]")
         IonState ion1 = make_ion(500, 0, 0);
         IonState ion2 = make_ion(1000, 0, 0);
         
-        Vec3 F1 = force.compute(ion1, 0.0, ctx);
-        Vec3 F2 = force.compute(ion2, 0.0, ctx);
+        Vec3 F1 = compute_force(force, ion1, ctx);
+        Vec3 F2 = compute_force(force, ion2, ctx);
         
         // F2 should be twice F1 (F = -γ·m·v, so F ∝ v)
         REQUIRE(F2.x == Approx(2.0 * F1.x));
@@ -234,7 +234,7 @@ TEST_CASE("DampingForce - Friction model (mobility-based)", "[forces][damping]")
     
     SECTION("Stationary ion: zero force") {
         IonState ion = make_ion(0, 0, 0);
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         REQUIRE(F.x == Approx(0.0).margin(1e-25));
         REQUIRE(F.y == Approx(0.0).margin(1e-25));
@@ -260,8 +260,8 @@ TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]"
     SECTION("Force opposes velocity (deterministic)") {
         IonState ion = make_ion(1000, 0, 0);  // v_x = 1 km/s
         ion.CCS_m2 = 1e-18;  // 100 Ų
-        
-        Vec3 F = force.compute(ion, 0.0, ctx);
+
+        Vec3 F = compute_force(force, ion, ctx);
         
         // F = -γ·m·v where γ = n·σ·v_th·m_reduced/m_ion
         // Should be negative (opposes motion) and deterministic
@@ -278,10 +278,10 @@ TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]"
         IonState ion = make_ion(500, 0, 0);
         ion.CCS_m2 = 1e-18;  // 100 Ų
         
-        Vec3 F1 = force.compute(ion, 0.0, ctx);
+        Vec3 F1 = compute_force(force, ion, ctx);
         
         ion.vel.x = 1000.0;  // Double velocity
-        Vec3 F2 = force.compute(ion, 0.0, ctx);
+        Vec3 F2 = compute_force(force, ion, ctx);
         
         // F ∝ v (F = -γ·m·v with constant γ)
         REQUIRE(F2.x == Approx(2.0 * F1.x));
@@ -301,7 +301,7 @@ TEST_CASE("DampingForce - No damping", "[forces][damping]") {
     
     SECTION("Always returns zero force") {
         IonState ion = make_ion(1000, 500, 250);
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         REQUIRE(F.x == Approx(0.0).margin(1e-25));
         REQUIRE(F.y == Approx(0.0).margin(1e-25));

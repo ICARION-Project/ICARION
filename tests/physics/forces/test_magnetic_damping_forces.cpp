@@ -270,7 +270,7 @@ TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]"
         REQUIRE(F.z == Approx(0.0).margin(1e-25));
         
         // Check determinism: repeated calls give same result
-        Vec3 F2 = force.compute(ion, 0.0, ctx);
+        Vec3 F2 = compute_force(force, ion, ctx);
         REQUIRE(F2.x == Approx(F.x));
     }
     
@@ -332,8 +332,8 @@ TEST_CASE("Combined Magnetic + Damping", "[forces][combined]") {
     IonState ion = make_ion(1000, 500, 0);  // Velocity in x-y plane
     ion.reduced_mobility_cm2_Vs = 2.0;  // Need mobility
     
-    Vec3 F_mag = mag_force.compute(ion, 0.0, ctx);
-    Vec3 F_damp = damp_force.compute(ion, 0.0, ctx);
+    Vec3 F_mag = compute_force(mag_force, ion, ctx);
+    Vec3 F_damp = compute_force(damp_force, ion, ctx);
     Vec3 F_total = F_mag + F_damp;
     
     SECTION("Magnetic force perpendicular to velocity") {

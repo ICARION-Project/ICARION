@@ -29,6 +29,7 @@
 #include "core/physics/forces/DampingForce.h"
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include <iostream>
 #include <iomanip>
@@ -58,7 +59,10 @@ void test_explicit_gamma_damping() {
     ion.mass_kg = 100 * 1.66e-27;  // 100 u
     ion.reduced_mobility_cm2_Vs = 2.0;  // 2 cm²/(V·s)
     
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F = force.compute(ens, 0, 0.0, ctx);
     
     // Expected: F = -γ·m·v where γ = q/(K₀·m)
     const double K0_SI = ion.reduced_mobility_cm2_Vs * 1e-4;  // Convert to m²/(V·s)
@@ -111,7 +115,10 @@ void test_hard_sphere_damping() {
     ion.mass_kg = 100 * 1.66e-27;
     ion.CCS_m2 = 100e-20;  // 100 Å²
     
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F = force.compute(ens, 0, 0.0, ctx);
     
     std::cout << std::scientific << std::setprecision(6);
     std::cout << "Gas density: n = " << env.particle_density_m_3 << " m⁻³\n";
@@ -161,7 +168,10 @@ void test_langevin_damping() {
     ion.ion_charge_C = 1.602e-19;
     ion.mass_kg = 100 * 1.66e-27;
     
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F = force.compute(ens, 0, 0.0, ctx);
     
     std::cout << std::scientific << std::setprecision(6);
     std::cout << "Gas density: n = " << env.particle_density_m_3 << " m⁻³\n";
@@ -206,11 +216,16 @@ void test_velocity_scaling() {
     
     // Test at v = 100 m/s
     ion.vel = Vec3{100, 0, 0};
-    Vec3 F1 = force.compute(ion, 0.0, ctx);
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F1 = force.compute(ens, 0, 0.0, ctx);
     
     // Test at v = 200 m/s (double velocity)
     ion.vel = Vec3{200, 0, 0};
-    Vec3 F2 = force.compute(ion, 0.0, ctx);
+    ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    Vec3 F2 = force.compute(ens, 0, 0.0, ctx);
     
     const double F1_mag = std::abs(F1.x);
     const double F2_mag = std::abs(F2.x);

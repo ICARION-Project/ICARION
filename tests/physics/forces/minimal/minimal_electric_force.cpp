@@ -29,6 +29,7 @@
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/config/types/DomainConfig.h"
 #include "core/config/types/FieldsConfig.h"
 #include "core/config/types/GeometryConfig.h"
@@ -59,7 +60,10 @@ void test_ims_drift_field() {
     ion.ion_charge_C = 1.602e-19;  // Elementary charge
     ion.mass_kg = 100 * 1.66e-27;
     
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F = force.compute(ens, 0, 0.0, ctx);
     
     // Expected: F_z = q·E = 1.602e-19 C × 400 V/m = 6.408e-17 N
     const double E_field = 400.0;  // V/m
@@ -106,13 +110,16 @@ void test_lqit_quadrupole() {
     
     // Compute force at t=0 (cos(ωt) = 1, RF at maximum)
     const double t = 0.0;
-    Vec3 F = force.compute(ion, t, ctx);
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F = force.compute(ens, 0, t, ctx);
     
     // Expected field at RF maximum:
     // E_x = 2U·x/r₀² = 2×100×0.002/(0.01²) = 4000 V/m
     // E_y = -2U·y/r₀² = -2×100×0.003/(0.01²) = -6000 V/m
-    const double r0_sq = params.radius_m * params.radius_m;
-    const double U_eff = params.rf_voltage_V;  // At t=0, cos(ωt)=1
+    const double r0_sq = domain.geometry.radius_m * domain.geometry.radius_m;
+    const double U_eff = domain.fields.rf.voltage_V.constant_value.value();  // At t=0, cos(ωt)=1
     const double E_x_expected = 2.0 * U_eff * ion.pos.x / r0_sq;
     const double E_y_expected = -2.0 * U_eff * ion.pos.y / r0_sq;
     const double F_x_expected = ion.ion_charge_C * E_x_expected;

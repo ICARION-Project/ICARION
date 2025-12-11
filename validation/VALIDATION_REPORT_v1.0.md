@@ -457,7 +457,7 @@ where $M_{gas}$ is the buffer gas mass (He: 4.003 amu). This accounts for ion he
 |-------|------------------------------------|-------------|-------|
 | **HSS** | ≥3 Td at ≥500 Pa | -9% to +4% | Within 10% of Mason-Schamp once enough collisions occur; expected -15 to -45% under-shoot at 100–200 Pa. |
 | **EHSS** | 1–10 Td (all pressures) | -55% to -9% | Systematically slower (as expected) but preserves the diagonal trend; acceptable for relative sweeps and low-field baselines. |
-| **Friction** | 1–10 Td at 100–5000 Pa | +800% to +19,100% | Mobility-based surrogate diverges catastrophically; kept only for debugging. |
+| **Friction** | 1–10 Td at 100–5000 Pa (diagnostic extension to 50 Td) | +4% to +15% (≤10 Td), +40% to +170% (>20 Td) | Mobility surrogate now matches Mason-Schamp in the low-field envelope but still explodes once E/N exceeds ≈20 Td; retained for regression only. |
 
 **Error Patterns:**
 
@@ -468,8 +468,8 @@ where $M_{gas}$ is the buffer gas mass (He: 4.003 amu). This accounts for ion he
    - ⚠️ Mild positive drift (<+5%) at the very top-right of the grid (10 Td @ 5000 Pa) from constant-CCS assumptions.
 
 2. **Friction Model:**
-   - ⚠️ Systematically too fast (+800% to +19,000%) since the mobility damper ignores reduced-mass scaling once the packet heats up.
-   - Error grows monotonically with both E/N and pressure; we retain a single regression point for debugging but the model is excluded from release recommendations.
+   - ⚠️ After the RK open-loop fixes, the surrogate now sits within +4% to +15% across the original 1–10 Td sweep, independent of pressure.
+   - ❌ Once E/N pushes past ~20 Td the damping term cannot keep pace with field heating, so errors balloon to +40% (20 Td) and as high as +170% (50 Td); we continue to track it for regression but do not recommend it for production.
 
 **"Good Region" Pattern:**
 The diagonal envelope remains, but now expressed over 1–10 Td:
@@ -509,12 +509,15 @@ The diagonal envelope remains, but now expressed over 1–10 Td:
 
 | E/N [Td] | P [Pa] | v_meas [m/s] | v_exp [m/s] | Error | Status |
 |----------|--------|--------------|-------------|-------|--------|
-| 1 | 100 | 1291.3 | 61.7 | +1992% | ❌ |
-| 2 | 1000 | 7312.9 | 123.0 | +5844% | ❌ |
-| 3 | 2000 | 13,042.1 | 183.5 | +7007% | ❌ |
-| 5 | 2000 | 16,989.8 | 300.6 | +5552% | ❌ |
-| 7 | 500 | 9,838.7 | 410.5 | +2297% | ❌ |
-| 10 | 5000 | 38,606.7 | 558.4 | +6814% | ❌ |
+| 1 | 100 | 63.9 | 61.7 | +3.6% | ✅ |
+| 5 | 5000 | 321.5 | 300.6 | +6.9% | ✅ |
+| 7 | 500 | 449.6 | 410.5 | +9.5% | ✅ |
+| 10 | 500 | 642.0 | 558.4 | +15.0% | ⚠️ |
+| 20 | 100 | 1262.2 | 897.2 | +40.7% | ❌ |
+| 40 | 1000 | 2564.9 | 1153.7 | +122.3% | ❌ |
+| 50 | 100 | 3093.4 | 1201.8 | +157.4% | ❌ |
+
+*Source: `validation/results/instruments/ims/20251211_friction/analysis.txt` (46 friction configs rerun after the RK/force fixes).*
 
 ### 2.6 Figures
 
@@ -530,7 +533,7 @@ The diagonal envelope remains, but now expressed over 1–10 Td:
  - At high E/N (7-10 Td): Requires stepping down to 200-5000 Pa depending on the field
  - **Friction**: Systematically over-predicts velocity across the entire 1–10 Td sweep
 
-*Assets:* Figure path `validation/figures/ims_EN_heatmap.png`; raw measurement rollups live in `validation/results/v1.0_test/instruments/ims/ims_measurements.csv` (per-config) and `validation/results/v1.0_test/instruments/ims/ims_error_summary.csv` (aggregated by E/N & pressure).
+*Assets:* Figure path `validation/figures/ims/ims_EN_heatmap.png`; raw measurement rollups live in `validation/results/v1.0_test/instruments/ims/ims_measurements.csv` (per-config) and `validation/results/v1.0_test/instruments/ims/ims_error_summary.csv` (aggregated by E/N & pressure).
 
 This pattern reveals **fundamental validity limits** of constant-CCS stochastic models and demonstrates where field-dependent cross sections or advanced collision theories are required.
 
@@ -575,7 +578,7 @@ Initial analysis without T_eff correction showed -49% to +137% errors. Adding pr
 At 10 Td with CCS = 24.9 Ų (300 K reference), HSS showed -12.9% error. When CCS adjusted to 22.3 Ų (E/N-dependent value from MobCal-MPI), error improved to -4.7%. This proves constant CCS is the limiting factor at high E/N.
 
 **3. Friction Model Breakdown:**
-Friction model systematically over-predicts velocity because it implements mobility-based damping without proper field heating compensation. Error scaling ranges from +800% (1 Td, 100 Pa) to +6,800% (10 Td, 5000 Pa). **Not recommended for IMS validation but retained as a regression diagnostic.**
+After the RK/open-loop fixes, the mobility surrogate now agrees with Mason-Schamp within +4–15% for the official 1–10 Td grid, but it still ignores the rapid T_eff growth once E/N exceeds ≈20 Td. Errors jump to +40% (20 Td) and crest at +170% (50 Td). **Still not release-ready—use only as a regression diagnostic until a mobility-table replacement ships.**
 
 **4. Pressure-Independence of T_eff:**
 Field heating (T_eff) depends only on E/N, not pressure. This is correct physics but leads to Mason-Schamp predicting same drift velocity for all pressures at fixed E/N. Real simulations show pressure-dependence, indicating model limitations beyond simple T_eff correction.
@@ -592,8 +595,8 @@ Field heating (T_eff) depends only on E/N, not pressure. This is correct physics
 - ⚠️ Use for relative sweeps or low-field baselines only; switch to HSS for absolute accuracy requirements.
 
 **Friction Model:**
-- ❌ Over-predicts by +800% to +6,800% across the entire grid.
-- ❌ Retained only for debugging and slated for replacement with a mobility table model.
+- ⚠️ Matches theory within +4–15% for 1–10 Td regardless of pressure.
+- ❌ Diverges quickly beyond 20 Td (up to +170%) because damping ignores field-heated mobility; still slated for replacement with a mobility-table model.
 
 **Overall IMS Validation Status:**
 ICARION v1.0 collision models show **good agreement with Mason-Schamp theory in their validity regions**, but exhibit systematic deviations indicating need for:
@@ -2271,7 +2274,7 @@ $ ./icarion_main config_E1000_1000Pa.json | grep CCS
 - **Ion count:** 500 per run, 0.5 ms duration, cold start at 0.1 K
 - **Outputs:**
    - Log: `validation/logs/GAS_MIXTURE_MOBILITY_VALIDATION.txt`
-   - Figure: `validation/figures/gas_mixture_mobility_validation.png`
+   - Figure: `validation/figures/physics/gas_mixture_mobility_validation.png`
    - Generated configs/data under `validation/results/gas_mixture_mobility/`
 
 **Why low field?** Initial attempts at E = 5000 V/m (E/N ≈ 21 Td) showed ~15% bias for He-rich mixtures because the constant-CCS model cannot capture field-heating–induced mobility reduction, while the reference K₀ values remained in the low-field limit. Dropping back to 1000 V/m keeps the simulation and the Blanc's Law references inside the same physical regime.
@@ -2298,9 +2301,9 @@ All mixtures fall within ±4.1% of Blanc's Law predictions, with perfect ion ret
 - `tests/physics/forces/test_gas_flow_transport.cpp` - CTest for CI/CD
 
 **Output:**
-- Figures: `validation/figures/gas_flow_transport_validation.png`
-- Figures: `validation/figures/combined_drift_validation.png`
-- Figures: `validation/figures/gas_mixture_mobility_validation.png`
+- Figures: `validation/figures/physics/gas_flow_transport_validation.png`
+- Figures: `validation/figures/physics/combined_drift_validation.png`
+- Figures: `validation/figures/physics/gas_mixture_mobility_validation.png`
 - Logs: `validation/logs/GAS_FLOW_TRANSPORT_VALIDATION.txt`
 - Logs: `validation/logs/COMBINED_DRIFT_VALIDATION.txt`
 - Logs: `validation/logs/GAS_MIXTURE_MOBILITY_VALIDATION.txt`

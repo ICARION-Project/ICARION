@@ -164,7 +164,7 @@ Theory (H3O+ in N2):
   Error (instant):  48.5%
 
 📈 Creating validation plot...
-  ✓ Saved: /home/chsch95/ICARION/validation/figures/combined_drift_validation.png
+  ✓ Saved: /home/chsch95/ICARION/validation/figures/physics/combined_drift_validation.png
 
 ================================================================================
 VALIDATION SUMMARY
@@ -180,5 +180,5 @@ VALIDATION SUMMARY
 
 End time: 2025-12-04 21:56:33
 Log file: /home/chsch95/ICARION/validation/logs/COMBINED_DRIFT_VALIDATION.txt
-Figures:  /home/chsch95/ICARION/validation/figures/combined_drift_validation.png
+Figures:  /home/chsch95/ICARION/validation/figures/physics/combined_drift_validation.png
 ================================================================================

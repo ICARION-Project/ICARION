@@ -372,6 +372,12 @@ validation/
 staging folders are deprecated—run scripts and tooling now expect configs in the
 canonical location.
 
+**Results Layout:**
+- `validation/results/instruments/<instrument>/<timestamp>_<tag>/` — instrument sweeps (logs, HDF5, analysis)
+- `validation/results/physics/<suite>/` — standalone physics studies (thermalization, gas flow, reactions, …)
+- `validation/results/performance/` — CPU/GPU benchmark captures
+- `validation/results/v1.0_test/` — frozen v1.0 baseline datasets (read-only)
+
 ---
 
 ## 📝 USAGE

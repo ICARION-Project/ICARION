@@ -207,7 +207,7 @@ def create_simple_tof_spectrum():
     
     plt.tight_layout()
     
-    output_path = Path('/home/chsch95/ICARION/validation/figures/tof_spectrum_corrected.png')
+    output_path = Path('/home/chsch95/ICARION/validation/figures/instruments/tof_spectrum_corrected.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"TOF spectrum saved: {output_path}")
     
@@ -398,7 +398,7 @@ def create_simple_orbitrap_spectrum():
     
     plt.tight_layout()
     
-    output_path = Path('/home/chsch95/ICARION/validation/figures/orbitrap_spectrum_corrected.png')
+    output_path = Path('/home/chsch95/ICARION/validation/figures/instruments/orbitrap_spectrum_corrected.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Orbitrap spectrum saved: {output_path}")
     
@@ -481,7 +481,7 @@ def create_simple_orbitrap_spectrum():
     
     plt.tight_layout()
     
-    output_path = Path('/home/chsch95/ICARION/validation/figures/orbitrap_spectrum_simple.png')
+    output_path = Path('/home/chsch95/ICARION/validation/figures/instruments/orbitrap_spectrum_simple.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Orbitrap spectrum saved: {output_path}")
     
@@ -589,7 +589,7 @@ def create_simple_fticr_spectrum():
     
     plt.tight_layout()
     
-    output_path = Path('/home/chsch95/ICARION/validation/figures/fticr_spectrum_simple.png')
+    output_path = Path('/home/chsch95/ICARION/validation/figures/instruments/fticr_spectrum_simple.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"FTICR spectrum saved: {output_path}")
     
@@ -612,9 +612,9 @@ def main():
         
         print("\n✅ All spectra generated successfully!")
         print("\nGenerated files:")
-        print("  📊 validation/figures/tof_spectrum_simple.png")
-        print("  📊 validation/figures/orbitrap_spectrum_simple.png")
-        print("  📊 validation/figures/fticr_spectrum_simple.png")
+        print("  📊 validation/figures/instruments/tof_spectrum_simple.png")
+        print("  📊 validation/figures/instruments/orbitrap_spectrum_simple.png")
+        print("  📊 validation/figures/instruments/fticr_spectrum_simple.png")
         
         return True
         

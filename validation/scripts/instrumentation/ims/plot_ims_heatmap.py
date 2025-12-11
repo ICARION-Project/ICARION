@@ -280,7 +280,7 @@ if __name__ == "__main__":
     parser.add_argument("results_dir", help="Directory containing IMS HDF5 outputs")
     parser.add_argument(
         "--figure-path",
-        default="validation/figures/ims_EN_heatmap.png",
+        default="validation/figures/ims/ims_EN_heatmap.png",
         help="Destination for the heatmap figure"
     )
     parser.add_argument(

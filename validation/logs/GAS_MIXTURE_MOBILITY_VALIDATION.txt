@@ -135,11 +135,11 @@ VALIDATION SUMMARY
 ✅ ALL VALIDATIONS PASSED (5/5)
 
 📈 Creating validation plot...
-  ✓ Saved: /home/chsch95/ICARION/validation/figures/gas_mixture_mobility_validation.png
+  ✓ Saved: /home/chsch95/ICARION/validation/figures/physics/gas_mixture_mobility_validation.png
 
 ================================================================================
 End time: 2025-12-06 08:31:08
 Duration: 2738.3 seconds
 Log file: /home/chsch95/ICARION/validation/logs/GAS_MIXTURE_MOBILITY_VALIDATION.txt
-Figures:  /home/chsch95/ICARION/validation/figures/gas_mixture_mobility_validation.png
+Figures:  /home/chsch95/ICARION/validation/figures/physics/gas_mixture_mobility_validation.png
 ================================================================================

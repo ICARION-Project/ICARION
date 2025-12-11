@@ -23,7 +23,7 @@ Validation Strategy:
     5. Generate publication-quality plots
 
 Output:
-    - validation/figures/gas_flow_transport_validation.png
+    - validation/figures/physics/gas_flow_transport_validation.png
     - validation/logs/GAS_FLOW_TRANSPORT_VALIDATION.txt
     - Quantitative metrics: mean velocities, standard deviations, convergence
 
@@ -52,13 +52,13 @@ AMU_TO_KG = 1.66053906660e-27    # kg
 # Paths
 REPO_ROOT = Path(__file__).resolve().parents[3]  # Go up 3 levels: physics/ -> scripts/ -> validation/ -> repo_root/
 VALIDATION_DIR = REPO_ROOT / "validation"
-FIGURES_DIR = VALIDATION_DIR / "figures"
+FIGURES_DIR = VALIDATION_DIR / "figures" / "physics"
 LOGS_DIR = VALIDATION_DIR / "logs"
 RESULTS_DIR = VALIDATION_DIR / "results" / "gas_flow_transport"
 ICARION_BIN = REPO_ROOT / "build" / "src" / "icarion_main"
 
 # Create directories
-FIGURES_DIR.mkdir(exist_ok=True)
+FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
 RESULTS_DIR.mkdir(exist_ok=True, parents=True)
 

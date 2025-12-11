@@ -90,7 +90,7 @@ Theory (H3O+ in N2):
   Error: 0.9%
 
 📈 Creating validation plot...
-  ✓ Saved: /home/chsch95/ICARION/validation/figures/gas_flow_transport_validation.png
+  ✓ Saved: /home/chsch95/ICARION/validation/figures/physics/gas_flow_transport_validation.png
 
 ================================================================================
 VALIDATION SUMMARY
@@ -103,5 +103,5 @@ VALIDATION SUMMARY
 
 End time: 2025-12-04 15:42:13
 Log file: /home/chsch95/ICARION/validation/logs/GAS_FLOW_TRANSPORT_VALIDATION.txt
-Figures:  /home/chsch95/ICARION/validation/figures/gas_flow_transport_validation.png
+Figures:  /home/chsch95/ICARION/validation/figures/physics/gas_flow_transport_validation.png
 ================================================================================

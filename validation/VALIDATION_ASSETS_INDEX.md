@@ -4,38 +4,39 @@
 **Status:** 7/9 Test Suites Complete (6 Full + 1 Partial)  
 **Total Assets:** 17 plots + 5 analysis logs  
 
-## 📊 Validation Figures (`validation/figures/`)
+## 📊 Validation Figures (`validation/figures/{ims, physics, instruments}`)
 
 ### Thermalization (Physics Section 5)
-- `temperature_error_heatmap.png` - Temperature accuracy across species and conditions
-- `thermalization_ehss_300K_20Pa.png` - EHSS collision model validation  
-- `thermalization_hss_300K_20Pa.png` - HSS collision model validation
-- `velocity_distributions_ehss_300K_20Pa.png` - Maxwell-Boltzmann distribution validation
+- `physics/temperature_error_heatmap.png` - Temperature accuracy across species and conditions
+- `physics/thermalization_ehss_300K_20Pa.png` - EHSS collision model validation  
+- `physics/thermalization_hss_300K_20Pa.png` - HSS collision model validation
+- `physics/velocity_distributions_ehss_300K_20Pa.png` - Maxwell-Boltzmann distribution validation
 
 ### Ion Mobility Spectrometry (Section 6.1)
-- `ims_EN_heatmap.png` - Mobility vs E/N field heatmap
-- `mobility_vs_EN.png` - Mobility scaling validation
+- `ims/ims_EN_heatmap.png` - Mobility vs E/N field heatmap
+- `ims/mobility_vs_EN.png` - Mobility scaling validation
 
 ### Quadrupole (Section 6.2) 
-- `quadrupole_scan_lines.png` - Mass scan line analysis
-- `quadrupole_stability_map.png` - Mathieu stability diagram
-- `stability_boundary_fit.png` - Stability boundary fitting
-- `stability_map.png` - Experimental stability validation
-- `stability_map_comparison.png` - Theory vs simulation comparison
+- `instruments/quadrupole_scan_lines.png` - Mass scan line analysis
+- `instruments/stability_map.png` - Experimental stability validation
+- `instruments/stability_map_comparison.png` - Theory vs simulation comparison
 
 ### Linear Quadrupole Ion Trap (Section 6.3)
-- `lqit_mass_scan.png` - Mass scan combined results *(moved from results)*
-- `lqit_rf_ramp_analysis.png` - RF ramp analysis *(moved from results)*
-- `lqit_rf_ramp_validation.png` - RF ramp accuracy validation *(new)*
+- `instruments/lqit_validation_comprehensive.png` - Mass scan combined results *(moved from results)*
+- `instruments/lqit_rf_ramp_validation.png` - RF ramp accuracy validation *(new)*
 
 ### Orbitrap (Section 6.4)
-- `orbitrap_frequency_validation.png` - Frequency accuracy and mass scaling *(new)*
+- `instruments/orbitrap_frequency_validation.png` - Frequency accuracy and mass scaling *(new)*
+- `instruments/orbitrap_spectrum_corrected.png` - Publication-ready orbitrap spectrum *(new)*
 
 ### Time-of-Flight (Section 6.5)
-- `tof_performance_validation.png` - Flight time accuracy and resolution *(new)*
+- `instruments/tof_spectrum_corrected.png` - Flight time accuracy and resolution *(new)*
+- `instruments/tof_spectrum_final.png` - Publication-ready TOF spectrum *(new)*
 
 ### FT-ICR (Section 7)
-- `fticr_cyclotron_validation.png` - Cyclotron frequency validation and mass scaling *(new)*
+- `instruments/fticr_cyclotron_validation.png` - Cyclotron frequency validation and mass scaling *(new)*
+- `instruments/fticr_spectrum_corrected.png` - FTICR spectrum with corrected m/z *(new)*
+- `instruments/fticr_spectrum_final.png` - Publication-ready FTICR spectrum *(new)*
 
 ## 📝 Analysis Logs (`validation/logs/`)
 

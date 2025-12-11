@@ -15,7 +15,7 @@ These are **NOT CTests** - they are long-running (up to 30 minutes), high-accura
   - Thermalization time: τ ∝ 1/P
 - **Ensemble**: 1000 ions per condition
 - **Output**: 
-  - `validation/figures/gas_flow_transport_validation.png`
+  - `validation/figures/physics/gas_flow_transport_validation.png`
   - `validation/logs/GAS_FLOW_TRANSPORT_VALIDATION.txt`
 
 ## Running Validations
@@ -42,8 +42,9 @@ python validation/scripts/physics/validate_gas_flow_transport.py
 
 ```
 validation/
-├── figures/                    # Publication-quality plots
-│   └── gas_flow_transport_validation.png
+├── figures/
+│   └── physics/
+│       └── gas_flow_transport_validation.png
 ├── logs/                       # Detailed validation logs
 │   └── GAS_FLOW_TRANSPORT_VALIDATION.txt
 └── results/                    # HDF5 trajectories

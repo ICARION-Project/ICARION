@@ -102,9 +102,9 @@ def main():
     if successful == total:
         print("\n🎉 All spectra generated! Publication-quality plots are ready.")
         print("\nGenerated files:")
-        print("  📊 validation/figures/tof_mass_spectrum_validation.png")
-        print("  📊 validation/figures/orbitrap_fft_spectrum_validation.png") 
-        print("  📊 validation/figures/fticr_cyclotron_spectrum_validation.png")
+        print("  📊 validation/figures/instruments/tof_mass_spectrum_validation.png")
+        print("  📊 validation/figures/instruments/orbitrap_fft_spectrum_validation.png") 
+        print("  📊 validation/figures/instruments/fticr_cyclotron_spectrum_validation.png")
         print("\nDetailed analysis logs:")
         print("  📋 validation/logs/TOF_SPECTRUM_ANALYSIS.txt")
         print("  📋 validation/logs/ORBITRAP_FFT_ANALYSIS.txt")

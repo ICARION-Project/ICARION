@@ -104,7 +104,7 @@ VALIDATION SUMMARY
 ✅ ALL VALIDATIONS PASSED (5/5)
 
 📈 Creating validation plot...
-  ✓ Saved: /home/chsch95/ICARION/validation/figures/mixture_thermalization_validation.png
+  ✓ Saved: /home/chsch95/ICARION/validation/figures/physics/mixture_thermalization_validation.png
 
 ================================================================================
 End time: 2025-12-05 16:11:16

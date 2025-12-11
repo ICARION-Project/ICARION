@@ -273,7 +273,7 @@ def create_fticr_spectrum():
     plt.tight_layout()
     
     # Save plot
-    output_path = Path('/home/chsch95/ICARION/validation/figures/fticr_cyclotron_spectrum_validation.png')
+    output_path = Path('/home/chsch95/ICARION/validation/figures/instruments/fticr_cyclotron_spectrum_validation.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"FTICR cyclotron spectrum saved to: {output_path}")
     

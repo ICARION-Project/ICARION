@@ -264,7 +264,7 @@ def create_orbitrap_spectrum():
     plt.tight_layout()
     
     # Save plot
-    output_path = Path('/home/chsch95/ICARION/validation/figures/orbitrap_fft_spectrum_validation.png')
+    output_path = Path('/home/chsch95/ICARION/validation/figures/instruments/orbitrap_fft_spectrum_validation.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Orbitrap FFT spectrum saved to: {output_path}")
     

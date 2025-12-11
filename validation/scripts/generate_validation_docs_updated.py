@@ -3,7 +3,7 @@
 Generate validation plots and analysis logs for all completed test suites.
 
 Creates:
-1. validation/figures/ - Publication-quality plots for validation report
+1. validation/figures/{ims, physics, instruments} - Publication-quality plots for validation report
 2. validation/logs/ - Detailed analysis logs with metrics and results
 
 Coverage:
@@ -563,6 +563,8 @@ def main():
     figures_dir = Path("validation/figures")
     logs_dir = Path("validation/logs")
     figures_dir.mkdir(exist_ok=True)
+    for sub in ("ims", "physics", "instruments"):
+        (figures_dir / sub).mkdir(parents=True, exist_ok=True)
     logs_dir.mkdir(exist_ok=True)
     
     # Setup matplotlib
@@ -583,8 +585,8 @@ def main():
     print("\n" + "=" * 80)
     print("VALIDATION DOCUMENTATION COMPLETE")
     print("=" * 80)
-    print("✓ Spectra saved to validation/figures/")
-    print("✓ Validation plots saved to validation/figures/")
+    print("✓ Spectra saved to validation/figures/instruments/")
+    print("✓ Validation plots saved to validation/figures/ims/ and validation/figures/physics/")
     print("✓ Analysis logs saved to validation/logs/")
     print("\nReady for integration into validation report!")
 

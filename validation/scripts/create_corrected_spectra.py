@@ -234,7 +234,7 @@ def create_corrected_tof_spectrum():
     
     plt.tight_layout()
     
-    output_path = Path('/home/chsch95/ICARION/validation/figures/tof_spectrum_corrected.png')
+    output_path = Path('/home/chsch95/ICARION/validation/figures/instruments/tof_spectrum_corrected.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Corrected TOF spectrum saved: {output_path}")
     
@@ -391,7 +391,7 @@ def create_corrected_orbitrap_spectrum():
     
     plt.tight_layout()
     
-    output_path = Path('/home/chsch95/ICARION/validation/figures/orbitrap_spectrum_corrected.png')
+    output_path = Path('/home/chsch95/ICARION/validation/figures/instruments/orbitrap_spectrum_corrected.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Corrected Orbitrap spectrum saved: {output_path}")
     
@@ -547,7 +547,7 @@ def create_corrected_fticr_spectrum():
     
     plt.tight_layout()
     
-    output_path = Path('/home/chsch95/ICARION/validation/figures/fticr_spectrum_corrected.png')
+    output_path = Path('/home/chsch95/ICARION/validation/figures/instruments/fticr_spectrum_corrected.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Corrected FTICR spectrum saved: {output_path}")
     
@@ -564,7 +564,7 @@ def main():
     print()
     
     # Ensure output directory exists
-    output_dir = Path('/home/chsch95/ICARION/validation/figures')
+    output_dir = Path('/home/chsch95/ICARION/validation/figures/instruments')
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Generate all spectra
@@ -578,7 +578,7 @@ def main():
     create_corrected_fticr_spectrum()
     
     print("\nAll corrected spectra generated successfully!")
-    print("Files saved with '_corrected.png' suffix in validation/figures/")
+    print("Files saved with '_corrected.png' suffix in validation/figures/instruments/")
 
 if __name__ == "__main__":
     main()

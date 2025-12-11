@@ -17,6 +17,7 @@ Requires:
 import sys
 import json
 import argparse
+import re
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
@@ -74,22 +75,27 @@ def parse_hdf5_timing(h5_file):
     
     return None
 
+TIME_PATTERNS = [
+    re.compile(r"CPU time:\s*([0-9.+\-Ee]+)"),
+    re.compile(r"Wall time:\s*([0-9.+\-Ee]+)"),
+    re.compile(r"Total time:\s*([0-9.+\-Ee]+)")
+]
+
 def parse_log_timing(log_file):
     """Extract timing information from log file"""
     try:
-        with open(log_file, 'r') as f:
-            for line in f:
-                # Look for timing information
-                if 'Total time:' in line or 'Wall time:' in line:
-                    # Parse time (format: "Total time: 1.234 s")
-                    parts = line.split(':')
-                    if len(parts) >= 2:
-                        time_str = parts[1].strip().split()[0]
-                        return float(time_str)
+        text = Path(log_file).read_text()
     except Exception as e:
-        print(f"⚠️  Error parsing log {log_file}: {e}")
+        print(f"⚠️  Error reading log {log_file}: {e}")
         return None
-    
+
+    for pattern in TIME_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                continue
     return None
 
 def parse_time_file(time_file):

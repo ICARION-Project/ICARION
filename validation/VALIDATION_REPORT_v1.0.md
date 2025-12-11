@@ -1957,7 +1957,7 @@ All performance characterization runs use the v1.0 release binary (`build/src/ic
 ### 10.9 Artifacts and Reproducibility
 
 - **Configs:** `validation/configs/performance/*.json` for CPU sweeps plus `validation/configs/performance/gpu/*.json` for the CUDA harness (all using supported instruments, distributions, and pressures).
-- **Harnesses:** `validation/scripts/performance/run_cpu_performance_suite.sh`, `run_gpu_performance_suite.sh`, `test_cpu_scaling.sh`, and `test_single_config.sh`.
+- **Harnesses:** `validation/scripts/performance/run_performance_suite.sh`, `test_cpu_scaling.sh`, and `test_single_config.sh`.
 - **Logs & CSVs:** `validation/results/v1.0_test/performance/logs/performance_timings.csv`, `thread_scaling_timings.csv`, and `validation/results/v1.0_test/performance/gpu_logs/gpu_performance_timings.csv` (individual stdout logs stored beside each CSV entry).
 
 ### 10.10 Next Steps Toward Release Benchmarks

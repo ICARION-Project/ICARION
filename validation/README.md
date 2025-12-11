@@ -325,6 +325,7 @@ RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evalu
 🚀 **GPU Performance (Session 7):**
 - `scripts/generate_gpu_performance_configs.py` - GPU benchmark suite (31 configs)
 - `scripts/performance/run_performance_suite.sh --gpu-only` - GPU test orchestration (skips automatically if `USE_GPU_ACCEL=OFF`)
+- `scripts/performance/run_performance_analysis.sh` - wraps the analyzers to regenerate CPU/GPU plots in one step
 - `scripts/analyze_gpu_performance.py` - Speedup analysis and plotting
 - `scripts/analyze_quadrupole_stability_map.py` - Stability map analysis
 - `scripts/generate_fticr_configs.py` - FT-ICR cyclotron frequency (5 configs)
@@ -341,6 +342,7 @@ RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evalu
 
 ⏳ **Performance (Session 6):**
 - `scripts/performance/run_performance_suite.sh` - Scaling and overhead benchmarks (CPU by default, GPU optional)
+- `scripts/performance/run_performance_analysis.sh` - Centralized CPU/GPU performance analysis runner
 
 ⏳ **Orchestration:**
 - `scripts/run_all_validation.sh` - Master script for full suite

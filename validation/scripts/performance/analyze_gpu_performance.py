@@ -31,9 +31,12 @@ except ImportError:
 
 # Configuration
 SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent
-RESULTS_BASE = PROJECT_ROOT / "validation" / "results" / "performance" / "gpu"
-OUTPUT_DIR = PROJECT_ROOT / "validation" / "results" / "performance" / "gpu_analysis"
+VALIDATION_ROOT = SCRIPT_DIR.parent.parent
+PROJECT_ROOT = VALIDATION_ROOT.parent
+RESULTS_ROOT = VALIDATION_ROOT / "results" / "v1.0_test" / "performance"
+CPU_RESULTS_DIR = RESULTS_ROOT / "logs"
+GPU_RESULTS_DIR = RESULTS_ROOT / "gpu_logs"
+OUTPUT_DIR = RESULTS_ROOT / "gpu_analysis"
 
 # Create output directory
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -41,7 +44,8 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 print("\n" + "="*80)
 print("GPU Performance Benchmark Analysis")
 print("="*80)
-print(f"Results directory: {RESULTS_BASE}")
+print(f"CPU logs: {CPU_RESULTS_DIR}")
+print(f"GPU logs: {GPU_RESULTS_DIR}")
 print(f"Output directory:  {OUTPUT_DIR}")
 print("="*80 + "\n")
 
@@ -88,7 +92,7 @@ def parse_log_timing(log_file):
     
     return None
 
-def extract_timing_data(pattern, results_dir=RESULTS_BASE):
+def extract_timing_data(pattern, results_dir=GPU_RESULTS_DIR):
     """Extract timing data for configs matching pattern"""
     timings = {}
     
@@ -115,14 +119,23 @@ cpu_times = []
 gpu_times = []
 speedups = []
 
+def resolve_log(base_name, prefer_gpu=False):
+    """Return Path to log file by checking GPU and CPU directories."""
+    search_dirs = [GPU_RESULTS_DIR, CPU_RESULTS_DIR] if prefer_gpu else [CPU_RESULTS_DIR, GPU_RESULTS_DIR]
+    for directory in search_dirs:
+        candidate = directory / f"{base_name}.log"
+        if candidate.exists():
+            return candidate
+    return None
+
 for n_ions in ION_COUNTS:
-    cpu_log = RESULTS_BASE / f"RK4_cpu_N{n_ions}.log"
-    gpu_log = RESULTS_BASE / f"RK4_gpu_N{n_ions}.log"
+    cpu_log = resolve_log(f"RK4_cpu_N{n_ions}")
+    gpu_log = resolve_log(f"RK4_gpu_N{n_ions}", prefer_gpu=True)
     
-    cpu_time = parse_log_timing(cpu_log) if cpu_log.exists() else None
-    gpu_time = parse_log_timing(gpu_log) if gpu_log.exists() else None
+    cpu_time = parse_log_timing(cpu_log) if cpu_log else None
+    gpu_time = parse_log_timing(gpu_log) if gpu_log else None
     
-    if cpu_time and gpu_time:
+    if cpu_time is not None and gpu_time is not None:
         speedup = cpu_time / gpu_time
         cpu_times.append(cpu_time)
         gpu_times.append(gpu_time)
@@ -135,10 +148,14 @@ for n_ions in ION_COUNTS:
         speedups.append(np.nan)
         
         status = []
-        if not cpu_log.exists():
+        if not cpu_log:
             status.append("CPU log missing")
-        if not gpu_log.exists():
+        elif cpu_time is None:
+            status.append("CPU timing missing")
+        if not gpu_log:
             status.append("GPU log missing")
+        elif gpu_time is None:
+            status.append("GPU timing missing")
         
         print(f"N={n_ions:6d}: ⚠️  {', '.join(status)}")
 
@@ -193,9 +210,9 @@ integrator_times = {}
 N_IONS = 10000
 
 for integrator in INTEGRATORS:
-    log_file = RESULTS_BASE / "integrators" / f"{integrator}_gpu_N{N_IONS}.log"
+    log_file = resolve_log(f"integrator_{integrator}_gpu_N{N_IONS}", prefer_gpu=True)
     
-    if log_file.exists():
+    if log_file and log_file.exists():
         wall_time = parse_log_timing(log_file)
         if wall_time:
             integrator_times[integrator.upper()] = wall_time
@@ -253,9 +270,9 @@ for integrator, ion_counts in THRESHOLD_DATA.items():
     
     print(f"\n{integrator}:")
     for n_ions in ion_counts:
-        log_file = RESULTS_BASE / "threshold" / f"{integrator_lower}_threshold_N{n_ions}.log"
+        log_file = resolve_log(f"threshold_{integrator_lower}_N{n_ions}", prefer_gpu=True)
         
-        if log_file.exists():
+        if log_file and log_file.exists():
             wall_time = parse_log_timing(log_file)
             if wall_time:
                 times.append(wall_time)
@@ -310,9 +327,9 @@ print("-" * 60)
 long_times = {}
 
 for integrator in ["rk4", "rk45", "boris"]:
-    log_file = RESULTS_BASE / "long" / f"{integrator}_long_gpu_N10000.log"
+    log_file = resolve_log(f"long_{integrator}_gpu_N10000", prefer_gpu=True)
     
-    if log_file.exists():
+    if log_file and log_file.exists():
         wall_time = parse_log_timing(log_file)
         if wall_time:
             long_times[integrator.upper()] = wall_time

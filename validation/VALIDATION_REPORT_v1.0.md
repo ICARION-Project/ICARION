@@ -1913,46 +1913,49 @@ All performance characterization runs use the v1.0 release binary (`build/src/ic
 
 | Ion count | CPU RK4 (s) | GPU RK4 (s) | GPU / CPU |
 |-----------|-------------|-------------|-----------|
-| 1 000 | 3.86 | 4.66 | 1.21× slower |
-| 5 000 | 9.68 | 13.80 | 1.43× slower |
-| 10 000 | 15.65 | 25.54 | 1.63× slower |
-| 50 000 | 62.87 | 81.38 | 1.30× slower |
-| 100 000 | 101.70 | 140.86 | 1.39× slower |
+| 1 000 | 9.77 | 14.51 | 1.49× slower |
+| 5 000 | 43.78 | 57.35 | 1.31× slower |
+| 10 000 | 69.62 | 94.84 | 1.36× slower |
+| 50 000 | 230.85 | 364.11 | 1.58× slower |
+| 100 000 | 434.14 | 689.27 | 1.59× slower |
 
-**Observations:** On this WSL-based workstation the GPU path never overtakes the CPU: kernel launches and host/device copies keep the CUDA integrator 20–63 % slower than the OpenMP build even when feeding it 100 k ions. Absolute times are longer than the short baseline suite because these configs run the full 10 µs IMS geometry with the same diagnostics as the GPU harness. The ratios provide the defensible “GPU is slower today” statement reviewers expect.
+**Observations:** Even after the refactor to the unified runner the CUDA path remains throttled by launch and transfer overhead: the GPU never catches the OpenMP build and now trails it by 30–60 % across the entire ion-count sweep. Feeding the kernels 100 k ions still costs 11.5 minutes wall time (689 s) because these configs execute the full 10 µs IMS workload with identical diagnostics on both backends. The updated ratios and logs make the “GPU is slower today” conclusion explicit.
 
 #### 10.8.2 Integrator Comparison (N = 10 k)
 
 | Integrator | Wall time (s) |
 |------------|---------------|
-| RK4 (GPU) | 22.39 |
-| RK45 (GPU) | 50.38 |
-| Boris (GPU) | 50.12 |
+| RK4 (GPU) | 92.53 |
+| RK45 (GPU) | 338.43 |
+| Boris (GPU) | 330.98 |
 
-**Observations:** RK4 remains the only practical option for GPU production use on this hardware. RK45 roughly doubles wall time because adaptive sub-steps serialize the kernel, while the Boris pusher pays for tighter coupling to the magnetic-field math despite sharing the same step size.
+**Observations:** RK4 is still the only viable production option—RK45 and Boris both take ~5.5 minutes to push 10 k ions through the IMS cell, over 3.5× slower than RK4. RK45 pays the price for adaptive sub-stepping while Boris suffers from tighter coupling to the magnetic-field math, keeping both firmly in “diagnostic only” territory.
 
 #### 10.8.3 GPU Threshold Experiments
 
 | Case | N ions | Configured threshold | Measured time (s) | Notes |
 |------|--------|----------------------|-------------------|-------|
-| RK4 | 4 000 | 5 000 | 13.58 | CPU path (below threshold) |
-| RK4 | 5 000 | 5 000 | 16.22 | GPU engages exactly at threshold |
-| RK4 | 6 000 | 5 000 | 18.42 | GPU stays active, +35 % overhead vs CPU |
-| Boris | 2 250 | 5 000 | 12.78 | CPU path |
-| Boris | 2 500 | 5 000 | 18.35 | GPU kicked in early (needs investigation) |
-| Boris | 3 000 | 5 000 | 18.76 | GPU active, similar penalty |
+| RK4 | 4 000 | 5 000 | 50.27 | CPU path (below threshold) |
+| RK4 | 5 000 | 5 000 | 57.82 | GPU engages exactly at threshold |
+| RK4 | 6 000 | 5 000 | 64.38 | GPU stays active, +30 % overhead vs CPU |
+| RK45 | 4 000 | 5 000 | 151.89 | CPU path (below threshold) |
+| RK45 | 5 000 | 5 000 | 179.14 | GPU engages at threshold, +18 % overhead |
+| RK45 | 6 000 | 5 000 | 208.02 | GPU stays active, +14 % per additional 1 k ions |
+| Boris | 2 000 | 5 000 | 86.39 | GPU kicked in early (logic bug) |
+| Boris | 2 500 | 5 000 | 106.90 | GPU active well below threshold |
+| Boris | 3 000 | 5 000 | 119.05 | GPU active, similar penalty |
 
-**Observations:** RK4 honors the threshold cleanly—the runtime jump coincides with GPU activation and remains ~30–40 % slower than the CPU path for these short trajectories. The Boris tests expose inconsistent behavior: two mid-count configs triggered the GPU even though the threshold was 5 k ions, implying a logic bug in the kernel-selection heuristic. All data are kept in `validation/results/v1.0_test/performance/gpu_logs/threshold_*.log` for debugging.
+**Observations:** RK4 still honors the 5 k switching rule exactly while paying a steady ~30 % overhead once the GPU is hot. RK45 behaves similarly but at a far higher absolute cost. Boris remains problematic—the GPU path engages as early as 2 k ions despite the 5 k threshold, confirming the kernel-selection heuristic bug noted earlier. The detailed logs live in `validation/results/v1.0_test/performance/gpu_logs/threshold_*.log` for anyone investigating the control logic.
 
 #### 10.8.4 Long Trajectories on GPU (100 µs, N = 10 k)
 
 | Integrator | Wall time (s) |
 |------------|---------------|
-| RK4 | 55.53 |
-| RK45 | 100.36 |
-| Boris | 98.25 |
+| RK4 | 180.54 |
+| RK45 | 608.58 |
+| Boris | 615.54 |
 
-**Observations:** Scaling the run length by 10× increases each GPU runtime ~2.5× because the cost is dominated by launch latency and diagnostics rather than pure floating-point throughput. Even RK4 needs 55 s to advance 10 k ions through 100 µs, so the CUDA backend cannot yet justify its complexity on this platform.
+**Observations:** The long IMS trajectory now reflects the fully instrumented harness, and every GPU integrator needs real minutes: RK4 takes 3 min, whereas RK45 and Boris stretch past 10 min. Launch latency plus heavy diagnostics still dominate, so the CUDA backend offers no wall-clock advantage for these workloads today.
 
 ### 10.9 Artifacts and Reproducibility
 

@@ -92,6 +92,34 @@ def parse_log_timing(log_file):
     
     return None
 
+def parse_time_file(time_file):
+    """Read wall time (seconds) from the companion .time file."""
+    try:
+        text = Path(time_file).read_text().strip()
+        if text:
+            return float(text)
+    except Exception as e:
+        print(f"⚠️  Error parsing time file {time_file}: {e}")
+    return None
+
+def resolve_artifact(base_name, extension, prefer_gpu=False):
+    search_dirs = [GPU_RESULTS_DIR, CPU_RESULTS_DIR] if prefer_gpu else [CPU_RESULTS_DIR, GPU_RESULTS_DIR]
+    for directory in search_dirs:
+        candidate = directory / f"{base_name}.{extension}"
+        if candidate.exists():
+            return candidate
+    return None
+
+def get_wall_time(base_name, prefer_gpu=False):
+    log_file = resolve_artifact(base_name, "log", prefer_gpu)
+    time_file = resolve_artifact(base_name, "time", prefer_gpu)
+    wall_time = None
+    if log_file:
+        wall_time = parse_log_timing(log_file)
+    if wall_time is None and time_file:
+        wall_time = parse_time_file(time_file)
+    return log_file, wall_time
+
 def extract_timing_data(pattern, results_dir=GPU_RESULTS_DIR):
     """Extract timing data for configs matching pattern"""
     timings = {}
@@ -119,21 +147,9 @@ cpu_times = []
 gpu_times = []
 speedups = []
 
-def resolve_log(base_name, prefer_gpu=False):
-    """Return Path to log file by checking GPU and CPU directories."""
-    search_dirs = [GPU_RESULTS_DIR, CPU_RESULTS_DIR] if prefer_gpu else [CPU_RESULTS_DIR, GPU_RESULTS_DIR]
-    for directory in search_dirs:
-        candidate = directory / f"{base_name}.log"
-        if candidate.exists():
-            return candidate
-    return None
-
 for n_ions in ION_COUNTS:
-    cpu_log = resolve_log(f"RK4_cpu_N{n_ions}")
-    gpu_log = resolve_log(f"RK4_gpu_N{n_ions}", prefer_gpu=True)
-    
-    cpu_time = parse_log_timing(cpu_log) if cpu_log else None
-    gpu_time = parse_log_timing(gpu_log) if gpu_log else None
+    cpu_log, cpu_time = get_wall_time(f"RK4_cpu_N{n_ions}")
+    gpu_log, gpu_time = get_wall_time(f"RK4_gpu_N{n_ions}", prefer_gpu=True)
     
     if cpu_time is not None and gpu_time is not None:
         speedup = cpu_time / gpu_time
@@ -210,10 +226,9 @@ integrator_times = {}
 N_IONS = 10000
 
 for integrator in INTEGRATORS:
-    log_file = resolve_log(f"integrator_{integrator}_gpu_N{N_IONS}", prefer_gpu=True)
+    log_file, wall_time = get_wall_time(f"integrator_{integrator}_gpu_N{N_IONS}", prefer_gpu=True)
     
-    if log_file and log_file.exists():
-        wall_time = parse_log_timing(log_file)
+    if log_file and wall_time is not None:
         if wall_time:
             integrator_times[integrator.upper()] = wall_time
             print(f"{integrator.upper():6s}: {wall_time:8.3f} s")
@@ -270,10 +285,9 @@ for integrator, ion_counts in THRESHOLD_DATA.items():
     
     print(f"\n{integrator}:")
     for n_ions in ion_counts:
-        log_file = resolve_log(f"threshold_{integrator_lower}_N{n_ions}", prefer_gpu=True)
-        
-        if log_file and log_file.exists():
-            wall_time = parse_log_timing(log_file)
+        log_file, wall_time = get_wall_time(f"threshold_{integrator_lower}_N{n_ions}", prefer_gpu=True)
+    
+        if log_file and wall_time is not None:
             if wall_time:
                 times.append(wall_time)
                 print(f"  N={n_ions:5d}: {wall_time:8.3f} s")
@@ -327,10 +341,9 @@ print("-" * 60)
 long_times = {}
 
 for integrator in ["rk4", "rk45", "boris"]:
-    log_file = resolve_log(f"long_{integrator}_gpu_N10000", prefer_gpu=True)
+    log_file, wall_time = get_wall_time(f"long_{integrator}_gpu_N10000", prefer_gpu=True)
     
-    if log_file and log_file.exists():
-        wall_time = parse_log_timing(log_file)
+    if log_file and wall_time is not None:
         if wall_time:
             long_times[integrator.upper()] = wall_time
             print(f"{integrator.upper():6s}: {wall_time:8.3f} s (100 µs simulation)")

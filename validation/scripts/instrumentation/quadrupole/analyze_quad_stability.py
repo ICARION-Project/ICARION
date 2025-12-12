@@ -19,6 +19,7 @@ Outputs:
 import h5py
 import numpy as np
 import json
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -117,24 +118,55 @@ def analyze_trajectory(h5_path):
 
 
 def main():
-    # Paths
-    results_dir = Path('/home/chsch95/ICARION/results/v1.0_test/instruments/quadrupole')
-    config_dir = Path('/home/chsch95/ICARION/validation/configs/instruments/quadrupole')
-    
+    parser = argparse.ArgumentParser(
+        description="Analyze quadrupole stability map validation results."
+    )
+    parser.add_argument(
+        "--results-dir",
+        help="Directory containing quadrupole trajectory .h5 files",
+    )
+    parser.add_argument(
+        "--config-dir",
+        help="Directory containing quadrupole config JSON files",
+    )
+    args = parser.parse_args()
+
+    if args.results_dir:
+        results_dir = Path(args.results_dir).expanduser().resolve()
+    else:
+        results_dir = _resolve_first_existing(_default_results_dir_candidates())
+        if results_dir is None:
+            candidates = "\n  - ".join(str(p) for p in _default_results_dir_candidates())
+            print("❌ ERROR: Unable to locate results directory. Checked:\n  - " + candidates)
+            return 1
+
     if not results_dir.exists():
         print(f"❌ ERROR: Results directory not found: {results_dir}")
         return 1
-    
-    # Find all HDF5 files
+
+    if args.config_dir:
+        config_dir = Path(args.config_dir).expanduser().resolve()
+    else:
+        config_dir = _resolve_first_existing(_default_config_dir_candidates())
+        if config_dir is None:
+            candidates = "\n  - ".join(str(p) for p in _default_config_dir_candidates())
+            print("❌ ERROR: Unable to locate config directory. Checked:\n  - " + candidates)
+            return 1
+
+    if not config_dir.exists():
+        print(f"❌ ERROR: Config directory not found: {config_dir}")
+        return 1
+
     h5_files = sorted(results_dir.glob('quad_a*.h5'))
-    
     if len(h5_files) == 0:
         print(f"❌ ERROR: No HDF5 files found in {results_dir}")
         return 1
-    
+
     print("="*80)
     print("QUADRUPOLE STABILITY MAP ANALYSIS")
     print("="*80)
+    print(f"Results dir : {results_dir}")
+    print(f"Config dir  : {config_dir}")
     print(f"Found {len(h5_files)} trajectory files")
     print()
     
@@ -151,9 +183,6 @@ def main():
         a_file = float(a_str_h5)
         q_file = float(q_str)
         
-        # Config files use explicit +/- sign
-        a_str_config = f"{a_file:+.4f}".replace('.', '')  # e.g., "+00300" or "-00100"
-        # Actually, let's just search for matching config
         matching_configs = list(config_dir.glob(f"quad_stability_a*{a_file:+.4f}*_q{q_str}.json"))
         
         if len(matching_configs) == 0:
@@ -193,6 +222,9 @@ def main():
     
     # Sort by q, then a
     results.sort(key=lambda x: (x['q'], x['a']))
+        SCRIPT_DIR = Path(__file__).resolve().parent
+        REPO_ROOT = SCRIPT_DIR.parents[3]
+        VALIDATION_DIR = REPO_ROOT / "validation"
     
     # Print results table
     print()
@@ -244,6 +276,27 @@ def main():
                 print(f"  a={r['a']:>7.4f}, q={r['q']:>7.4f}: Theory={theory_str}, "
                       f"Simul={simul_str} (Trans={r['transmission']:.1%})")
     
+
+    def _default_results_dir_candidates():
+        """Return ordered list of candidate results directories."""
+        return [
+            VALIDATION_DIR / "results" / "instruments" / "quadrupole",
+            VALIDATION_DIR / "results" / "v1.0_test" / "instruments" / "quadrupole",
+            REPO_ROOT / "results" / "v1.0_test" / "instruments" / "quadrupole",
+        ]
+
+    def _default_config_dir_candidates():
+        return [
+            VALIDATION_DIR / "configs" / "instruments" / "quadrupole",
+            REPO_ROOT / "validation" / "configs" / "instruments" / "quadrupole",
+        ]
+
+    def _resolve_first_existing(paths):
+        for path in paths:
+            if path.exists():
+                return path
+        return None
+
     # Save results to JSON
     output_path = results_dir / 'stability_analysis.json'
     with open(output_path, 'w') as f:

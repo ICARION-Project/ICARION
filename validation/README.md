@@ -321,6 +321,19 @@ RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evalu
 - `scripts/run_instrument_tests.sh` - Unified instrument runner; delegates to bespoke
     scripts (IMS, Quadrupole) or executes a generic batch loop over
     `validation/configs/instruments/<instrument>`.
+- `scripts/run_instrument_suite.sh` - Convenience wrapper that sequentially runs
+    `run_instrument_tests.sh` for each instrument (or a subset) with shared
+    `-j/-t/-b/--config-root/--output-root` overrides.
+- `scripts/run_instrument_analysis.sh` - Central analyzer wrapper that reruns all
+    IMS/FTICR/LQIT/Orbitrap/TOF/Quadrupole post-processing in one command (or per
+    instrument via filters).
+- `scripts/run_physics_suite.sh` - Sequential driver for the physics-focused
+    studies (thermalization session runner + gas-flow, combined-drift, mixture
+    mobility/thermalization, and reaction kinetics validations) with shared
+    options (`--python`, `--thermalization-mode`, `--icarion-bin`, target filters).
+- `scripts/run_physics_analysis.sh` - Companion analyzer that locates the latest
+    thermalization/transport/spacecharge/reactions outputs (or accepts explicit
+    `--*-dir` overrides) and replays all post-processing with one command.
 
 🚀 **GPU Performance (Session 7):**
 - `scripts/generate_gpu_performance_configs.py` - GPU benchmark suite (31 configs)
@@ -402,12 +415,69 @@ python3 scripts/final_therm_check.py
 ./scripts/run_instrument_tests.sh ims        # Delegates to IMS runner
 ./scripts/run_instrument_tests.sh quadrupole # Delegates to Quadrupole runner
 ./scripts/run_instrument_tests.sh orbitrap   # Generic batch mode (no bespoke runner yet)
+
+# Run the entire instrument suite (or a subset) sequentially
+./scripts/run_instrument_suite.sh            # ims, fticr, lqit, orbitrap, tof, quadrupole
+./scripts/run_instrument_suite.sh tof ims    # custom ordering / subset
+./scripts/run_instrument_suite.sh --jobs 4 --threads 8 quadrupole
+
+# Run the consolidated physics validation suite
+./scripts/run_physics_suite.sh                   # thermalization + gas/mixture/reaction studies
+./scripts/run_physics_suite.sh reactions \
+    --thermalization-mode full --dry-run        # preview commands only
+
+# Regenerate all physics analysis plots/tables
+./scripts/run_physics_analysis.sh               # auto-detects latest datasets
+./scripts/run_physics_analysis.sh \
+    --results-root validation/results/physics \
+    --transport-dir /scratch/combined_drift_latest
 ```
 
 `run_instrument_tests.sh` honors `-j/--jobs`, `-t/--threads`, `-b/--binary`,
 `-c/--config-dir`, and `-o/--output-root` when running in generic mode. Each
 session stores stdout/stderr under
 `validation/results/v1.0_test/instruments/<instrument>/run_logs/<timestamp>`.
+
+`run_instrument_suite.sh` wraps the same runner and forwards shared options. Use
+`--config-root` or `--output-root` when you want each instrument to read/write
+from `<root>/<instrument>` instead of the defaults.
+
+`run_physics_suite.sh` chains the existing physics runners in a fixed order
+(thermalization session → gas flow → combined drift → gas mixture mobility →
+mixture thermalization → reactions). Use positional filters or `--list` to pick
+specific targets, `--thermalization-mode` to switch between quick/subset/full,
+and `--icarion-bin` when you need a custom simulator path (forwarded to the
+reaction harness). Set `--dry-run` to inspect the commands without launching
+anything.
+
+`run_physics_analysis.sh` mirrors the analyzer wrapper experience: it searches
+the standard locations for each dataset (or respects the per-analysis
+`--*-dir` overrides) and replays thermalization/transport/spacecharge/reaction
+post-processing with a single command. Provide `--results-root` to prepend a
+custom search location (e.g., scratch storage) before the defaults.
+
+### **Instrument Analysis:**
+
+Use the centralized analyzer wrapper after simulations finish to regenerate the
+plots/tables for every instrument study (or a filtered subset):
+
+```bash
+# Rebuild every IMS/FTICR/LQIT/Orbitrap/TOF/Quadrupole figure in one go
+./scripts/run_instrument_analysis.sh
+
+# Example: only IMS drift + FTICR, using custom Python interpreter
+PYTHON_BIN=/opt/conda/bin/python \
+    ./scripts/run_instrument_analysis.sh ims-drift fticr
+
+# Discover available analyzer keys
+./scripts/run_instrument_analysis.sh --list
+```
+
+The script automatically searches `validation/results/instruments/` first, then
+falls back to the frozen `validation/results/v1.0_test/instruments/` baselines
+(and finally the legacy top-level `results/` mirror) so old datasets continue to
+work. Provide `--results-root <dir>` if you stored outputs elsewhere.
+
 
 ### **Test Modes:**
 

@@ -53,9 +53,9 @@
       "description": "Optional path to existing trajectory file to continue simulation from"
     },
     
-    "continue_from_s": {
+    "continue_time_s": {
       "$ref": "common-types.schema.json#/$defs/time_non_negative",
-      "description": "Physical time (in seconds) to continue from in the existing trajectory file"
+      "description": "Additional physical time (in seconds) to simulate when continuing from an existing trajectory file"
     },
     
     "auto_continue_if_active": {
@@ -66,7 +66,7 @@
     
     "rk45_settings": {
       "type": "object",
-      "description": "Optional settings for adaptive RK45 integrator",
+      "description": "Planned: Optional settings for adaptive RK45 integrator (not currently implemented)",
       "properties": {
         "abs_tol": {
           "type": "number",
@@ -117,7 +117,7 @@
     
     "numerical_safety": {
       "type": "object",
-      "description": "Numerical safety guard configuration",
+      "description": "Planned: Numerical safety guard configuration (not currently implemented)",
       "properties": {
         "enable_nan_checks": {
           "type": "boolean",

@@ -42,6 +42,10 @@ Vec3 AnalyticalFieldModel::compute_lqit_field(const Vec3& pos, double t) const {
     const auto& geom = domain_->geometry;
     const auto& lib = domain_->fields.waveform_library;
 
+    // Work in local coordinates; shift by origin and apply rotation
+    const Vec3 pos_local = domain_->rotation_global_to_local * (pos - geom.origin_m);
+    const Vec3& p = pos_local;  // shorthand
+
     const double rf_voltage = (rf.voltage_V.constant_value.has_value() || rf.voltage_V.waveform_ref.has_value() || rf.voltage_V.waveform.has_value())
                              ? eval_value(rf.voltage_V, t, lib) : 0.0;
     const double rf_freq = (rf.frequency_Hz.constant_value.has_value() || rf.frequency_Hz.waveform_ref.has_value() || rf.frequency_Hz.waveform.has_value())
@@ -59,8 +63,8 @@ Vec3 AnalyticalFieldModel::compute_lqit_field(const Vec3& pos, double t) const {
         const double r0_sq = geom.radius_m * geom.radius_m;
         const double omega = 2.0 * M_PI * rf_freq;
         const double U_eff = dc_quad + rf_voltage * std::cos(omega * t);
-        E_total.x = -2.0 * pos.x * U_eff / r0_sq;
-        E_total.y = 2.0 * pos.y * U_eff / r0_sq;
+        E_total.x = -2.0 * p.x * U_eff / r0_sq;
+        E_total.y = 2.0 * p.y * U_eff / r0_sq;
     }
 
     if (std::fabs(ac_voltage) > MIN_VOLTAGE_THRESHOLD) {
@@ -72,11 +76,12 @@ Vec3 AnalyticalFieldModel::compute_lqit_field(const Vec3& pos, double t) const {
     if (std::fabs(dc_axial) > MIN_VOLTAGE_THRESHOLD) {
         const double L = geom.length_m;
         const double alpha = dc_axial / (L * L);
-        const double z_centered = pos.z - 0.5 * L;
+        const double z_centered = p.z - 0.5 * L;
         E_total.z = -2.0 * alpha * z_centered;
     }
 
-    return E_total;
+    // Transform back to global coordinates
+    return domain_->rotation_local_to_global * E_total;
 }
 
 Vec3 AnalyticalFieldModel::compute_ims_field(const Vec3& pos, double t) const {

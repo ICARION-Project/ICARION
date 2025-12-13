@@ -27,7 +27,24 @@ SPECIES_MASSES = {
     "ReserpineH+": 609.0,
 }
 
-def measure_cyclotron_frequency(trajectory_file, species_id=None):
+def _load_species_labels(h5_file):
+    """Return 1D array of species labels for each ion in the trajectory."""
+    if 'ions/initial_species_id' in h5_file:
+        raw = h5_file['ions/initial_species_id'][:]
+    elif '/trajectory/species_ids' in h5_file:
+        raw = h5_file['/trajectory/species_ids'][0, :]
+    else:
+        raise KeyError("No species identifiers found in trajectory file")
+
+    def _normalize(entry):
+        if isinstance(entry, (bytes, bytearray)):
+            return entry.decode()
+        return str(entry)
+
+    return np.array([_normalize(val) for val in raw])
+
+
+def measure_cyclotron_frequency(trajectory_file, species_id=None, expected_freq=None, search_window=0.3):
     """
     Measure cyclotron frequency from XY plane trajectory.
     
@@ -40,42 +57,74 @@ def measure_cyclotron_frequency(trajectory_file, species_id=None):
         times = f['/trajectory/time'][:]
         
         # Get species IDs if multi-species
-        if '/trajectory/species_ids' in f:
-            species_ids = f['/trajectory/species_ids'][:]
-            if species_id is not None:
-                # Filter for specific species
-                mask = species_ids == species_id.encode()
-                if not np.any(mask):
-                    raise ValueError(f"Species {species_id} not found")
-                pos = pos[:, mask, :]
+        multi_species = species_id is not None
+        if multi_species:
+            species_labels = _load_species_labels(f)
+            mask = species_labels == species_id
+            if not np.any(mask):
+                raise ValueError(f"Species {species_id} not found")
+            pos = pos[:, mask, :]
         
         # Extract X and Y coordinates
         x = pos[:, :, 0]  # [time, ions]
         y = pos[:, :, 1]
-        
-        # Average over ions
-        x_avg = np.mean(x, axis=1)
-        y_avg = np.mean(y, axis=1)
-        
-        # Compute radial distance (cyclotron radius)
-        r = np.sqrt(x_avg**2 + y_avg**2)
-        r_mean = np.mean(r[len(r)//2:])  # Mean radius (after settling)
-        
-        # FFT on X coordinate to find cyclotron frequency
+
         dt = times[1] - times[0]
-        n = len(x_avg)
+
+        if multi_species:
+            # Use whichever axial projection carries the strongest signal to avoid
+            # phase-cancellation when combining X/Y directly.
+            x_centered = x - np.mean(x, axis=0)
+            y_centered = y - np.mean(y, axis=0)
+            rms_x = np.sqrt(np.mean(x_centered**2, axis=0))
+            rms_y = np.sqrt(np.mean(y_centered**2, axis=0))
+            if np.max(rms_x) >= np.max(rms_y):
+                best_idx = int(np.argmax(rms_x))
+                samples = x_centered[:, best_idx]
+            else:
+                best_idx = int(np.argmax(rms_y))
+                samples = y_centered[:, best_idx]
+        else:
+            x_avg = np.mean(x, axis=1)
+            samples = x_avg - np.mean(x_avg)
+
+        n = samples.shape[0]
         freqs = fft.fftfreq(n, dt)
-        fft_x = fft.fft(x_avg - np.mean(x_avg))  # Remove DC offset
-        psd = np.abs(fft_x)**2
-        
-        # Only positive frequencies
+        fft_vals = fft.fft(samples)
+        psd = np.abs(fft_vals)**2
+
         pos_mask = freqs > 0
         freqs_pos = freqs[pos_mask]
         psd_pos = psd[pos_mask]
-        
-        # Find peak frequency (cyclotron frequency)
-        peak_idx = np.argmax(psd_pos)
-        f_c = freqs_pos[peak_idx]
+
+        if psd_pos.size == 0:
+            raise ValueError("Unable to compute PSD peak for cyclotron frequency")
+
+        search_mask = np.ones_like(freqs_pos, dtype=bool)
+        if expected_freq is not None:
+            lower = max(expected_freq * (1 - search_window), freqs_pos[0])
+            upper = min(expected_freq * (1 + search_window), freqs_pos[-1])
+            mask = (freqs_pos >= lower) & (freqs_pos <= upper)
+            if np.any(mask):
+                search_mask = mask
+            else:
+                # Fallback to alias-aware window if expected frequency exceeds Nyquist
+                fs = 1.0 / dt
+                alias_freq = abs(expected_freq - np.round(expected_freq / fs) * fs)
+                lower = max(alias_freq * (1 - search_window), freqs_pos[0])
+                upper = min(alias_freq * (1 + search_window), freqs_pos[-1])
+                mask = (freqs_pos >= lower) & (freqs_pos <= upper)
+                if np.any(mask):
+                    search_mask = mask
+
+        search_freqs = freqs_pos[search_mask]
+        search_psd = psd_pos[search_mask]
+
+        peak_idx = np.argmax(search_psd)
+        f_c = search_freqs[peak_idx]
+        # Compute radial distance (mean over latter half of trajectory, averaged across ions)
+        r = np.sqrt(x**2 + y**2)
+        r_mean = np.mean(r[len(r)//2:, :])
         
         # Estimate period
         T_c = 1.0 / f_c if f_c > 0 else 0.0
@@ -116,13 +165,14 @@ def analyze_fticr_results(results_dir, b_field_T):
             for species_id, mass_amu in SPECIES_MASSES.items():
                 print(f"  Species: {species_id} (m={mass_amu:.1f} u)")
                 try:
-                    f_c, r_c, T_c, freqs, psd = measure_cyclotron_frequency(
-                        traj_file, species_id=species_id
-                    )
-                    
-                    # Theoretical frequency
+                    # Theoretical frequency used to guide peak search
                     m_kg = mass_amu * AMU_TO_KG
                     f_c_theory = (Q_E * b_field_T) / (2 * np.pi * m_kg)
+                    f_c, r_c, T_c, freqs, psd = measure_cyclotron_frequency(
+                        traj_file,
+                        species_id=species_id,
+                        expected_freq=f_c_theory
+                    )
                     
                     # Error
                     error_pct = 100 * (f_c - f_c_theory) / f_c_theory
@@ -153,11 +203,12 @@ def analyze_fticr_results(results_dir, b_field_T):
                 if species_id in traj_file.name:
                     print(f"  Species: {species_id} (m={mass_amu:.1f} u)")
                     try:
-                        f_c, r_c, T_c, freqs, psd = measure_cyclotron_frequency(traj_file)
-                        
-                        # Theoretical frequency
                         m_kg = mass_amu * AMU_TO_KG
                         f_c_theory = (Q_E * b_field_T) / (2 * np.pi * m_kg)
+                        f_c, r_c, T_c, freqs, psd = measure_cyclotron_frequency(
+                            traj_file,
+                            expected_freq=f_c_theory
+                        )
                         
                         # Error
                         error_pct = 100 * (f_c - f_c_theory) / f_c_theory

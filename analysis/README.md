@@ -9,7 +9,7 @@ Kleine, lauffähige Auswertungen für die ICARION HDF5-Trajektorien. Der Fokus l
 ## Skripte
 - `analysis/plot_trajectories.py`: Statischer Plot (XY- und XZ-Projektion plus optional 3D) für eine Auswahl an Ionen.
 - `analysis/animate_trajectories.py`: Einfache Animation (GIF/MP4) einer Projektion. Nutzt Striding und Sampling, damit große Dateien nicht explodieren.
-- `analysis/elimination_histograms.py`: Histogramme der Eliminationszeiten und Kanal-Zählungen (radial/axial, Orbitrap inner/outer).
+- `analysis/elimination_histograms.py`: Histogramme der Eliminationszeiten und Kanal-Zählungen (radial/axial, Orbitrap inner/outer); erstellt auch per-Species Breakdown.
 - `analysis/mean_positions.py`: Mittlere radiale und axiale Positionen über die Zeit (pro Species), mit Ion-Downsampling und Time-Striding.
 
 ## Beispielaufrufe
@@ -39,6 +39,7 @@ python analysis/elimination_histograms.py \
   --max-ions 300 \
   --log-bins \
   --tol-frac 0.05
+# Per-Species-Plot wird zusätzlich als *_per_species.png erzeugt (abschaltbar mit --no-per-species).
 
 # Mittlere radiale/axiale Positionen (pro Species)
 python analysis/mean_positions.py \

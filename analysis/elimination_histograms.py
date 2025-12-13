@@ -34,6 +34,25 @@ def parse_args() -> argparse.Namespace:
         help="Orbitrap-specific radial classification (inner/outer). Default: auto-detect via geometry.",
     )
     p.add_argument("--domain-index", type=int, default=0, help="Domain index (default: 0).")
+    p.add_argument(
+        "--per-species",
+        dest="per_species",
+        action="store_true",
+        default=True,
+        help="Plot per-species breakdown (counts + time hist). Enabled by default.",
+    )
+    p.add_argument(
+        "--no-per-species",
+        dest="per_species",
+        action="store_false",
+        help="Disable per-species breakdown plots.",
+    )
+    p.add_argument(
+        "--out-per-species",
+        type=Path,
+        default=None,
+        help="Custom output path for per-species plot (default: <out> with _per_species suffix).",
+    )
     return p.parse_args()
 
 
@@ -64,16 +83,35 @@ def main() -> int:
         orbitrap_mode = _orbitrap_mode(args.orbitrap, geom)
 
         reasons = classify_ions(last_positions, death_times, geom, args.tol_frac, orbitrap_mode)
+        selected_species = np.array(species_ids)[ion_indices]
         plot_histograms(
             reasons,
             death_times,
-            species=np.array(species_ids)[ion_indices],
+            species=selected_species,
             bins=args.bins,
             log_bins=args.log_bins,
             out_path=args.out,
             total_time=total_time,
             orbitrap_mode=orbitrap_mode,
         )
+
+        if args.per_species:
+            per_species_path = (
+                args.out_per_species
+                if args.out_per_species is not None
+                else args.out.with_name(f"{args.out.stem}_per_species{args.out.suffix}")
+            )
+            plot_per_species(
+                reasons,
+                death_times,
+                species=selected_species,
+                bins=args.bins,
+                log_bins=args.log_bins,
+                out_path=per_species_path,
+                orbitrap_mode=orbitrap_mode,
+            )
+            print(f"Wrote {per_species_path}")
+
     print(f"Wrote {args.out}")
     return 0
 
@@ -253,6 +291,92 @@ def plot_histograms(
     if not np.isnan(total_time):
         fig.suptitle(f"Elimination summary – {out_path.name} (sim T={total_time:.3e}s, ions={len(reasons)})")
     fig.tight_layout()
+    fig.savefig(out_path, dpi=200)
+
+
+def plot_per_species(
+    reasons: np.ndarray,
+    death_times: np.ndarray,
+    species: np.ndarray,
+    bins: int,
+    log_bins: bool,
+    out_path: Path,
+    orbitrap_mode: bool,
+):
+    unique_species = sorted(set(species))
+    categories = ["inner", "outer"] if orbitrap_mode else ["radial"]
+    categories += ["axial_low", "axial_high", "other"]
+    colors: Dict[str, str] = {
+        "inner": "#4c78a8",
+        "outer": "#f58518",
+        "radial": "#4c78a8",
+        "axial_low": "#54a24b",
+        "axial_high": "#e45756",
+        "other": "#bab0ac",
+    }
+
+    n = len(unique_species)
+    if n == 0:
+        return
+    fig, axes = plt.subplots(n, 2, figsize=(12, 3 * n), squeeze=False)
+
+    for row, sp in enumerate(unique_species):
+        idx = species == sp
+        sp_reasons = reasons[idx]
+        sp_dt = death_times[idx]
+        mask_alive = sp_dt < 0
+        sp_elim = sp_dt[~mask_alive]
+        sp_reasons_elim = sp_reasons[~mask_alive]
+
+        # Counts per category
+        ax_counts = axes[row, 0]
+        counts = [int(np.sum(sp_reasons == cat)) for cat in (["alive"] + categories)]
+        labels = ["alive"] + categories
+        ax_counts.bar(range(len(labels)), counts, color=[colors.get(cat, "gray") for cat in labels], alpha=0.85)
+        ax_counts.set_xticks(range(len(labels)), labels, rotation=30, ha="right")
+        ax_counts.set_ylabel("Count")
+        ax_counts.set_title(f"{sp} – elimination channels")
+
+        # Time histogram per category
+        ax_hist = axes[row, 1]
+        if len(sp_elim) > 0:
+            t_min = sp_elim[sp_elim > 0].min() if np.any(sp_elim > 0) else 1e-12
+            t_max = sp_elim.max()
+            if log_bins and t_max > 0:
+                edges = np.geomspace(t_min, t_max, num=bins + 1)
+            else:
+                edges = np.linspace(0, t_max, num=bins + 1)
+
+            bottoms = np.zeros_like(edges[:-1])
+            for cat in categories:
+                vals = sp_elim[sp_reasons_elim == cat]
+                if len(vals) == 0:
+                    continue
+                hist, _ = np.histogram(vals, bins=edges)
+                ax_hist.bar(
+                    edges[:-1],
+                    hist,
+                    width=np.diff(edges),
+                    bottom=bottoms,
+                    align="edge",
+                    color=colors.get(cat, None),
+                    label=cat,
+                    alpha=0.85,
+                )
+                bottoms += hist
+            if log_bins:
+                ax_hist.set_xscale("log")
+            ax_hist.set_ylabel("Count")
+            ax_hist.set_xlabel("Death time [s]")
+            ax_hist.set_title(f"{sp} – elimination time")
+        else:
+            ax_hist.text(0.5, 0.5, "No eliminated ions", ha="center", va="center", transform=ax_hist.transAxes)
+            ax_hist.set_axis_off()
+
+    # Add legend to the last histogram axis
+    axes[0, 1].legend(loc="upper right")
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=200)
 
 

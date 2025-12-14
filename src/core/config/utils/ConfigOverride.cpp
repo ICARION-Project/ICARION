@@ -34,6 +34,9 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         else if (key == "simulation.integrator") {
             config.simulation.integrator = value;
         }
+        else if (key == "simulation.rk45_min_step_s") {
+            config.simulation.rk45_min_step_s = parse_double(value, key);
+        }
         else if (key == "simulation.enable_gpu") {
             config.simulation.enable_gpu = parse_bool(value, key);
         }

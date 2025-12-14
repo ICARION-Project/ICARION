@@ -55,6 +55,7 @@ public:
         double max_step_factor = 1e3;  ///< Max step = dt_initial * max_step_factor
         double max_step_increase = 5.0; ///< Limit growth per step
         double max_step_decrease = 0.1; ///< Limit shrinkage per step
+        double absolute_min_step_s = 0.0; ///< Optional absolute dt floor (0 = disabled)
     };
 
     /**
@@ -167,12 +168,16 @@ public:
      * @brief Get adaptive configuration (for GPU integration)
      */
     const AdaptiveConfig& get_config() const { return config_; }
+    double last_dt_used() const { return last_dt_used_; }
+    double last_dt_suggested() const { return last_dt_suggested_; }
 
 private:
     AdaptiveConfig config_;
     StepStats stats_;
     double last_error_ = 1.0;  ///< Previous error for PI controller
     bool fsal_available_ = false; ///< Flag for FSAL k1 reuse
+    double last_dt_used_ = 0.0;      ///< Actual dt used in last step
+    double last_dt_suggested_ = 0.0; ///< Suggested dt for next step
     
     // FSAL storage: k1 for next step = k7 from previous step
     struct {

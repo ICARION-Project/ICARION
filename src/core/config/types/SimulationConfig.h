@@ -29,6 +29,7 @@ struct SimulationConfig {
     
     // === Integrator ===
     std::string integrator = "RK4";     ///< Default integrator (can be overridden per-domain)
+    double rk45_min_step_s = 0.0;       ///< Absolute minimum dt for RK45 (0 = disabled, use relative factor)
     
     // === Execution mode ===
     bool enable_gpu = false;            ///< GPU acceleration requested
@@ -97,6 +98,9 @@ struct SimulationConfig {
         }
         if (dt_s > total_time_s) {
             result.add_error("dt_s exceeds total_time_s");
+        }
+        if (rk45_min_step_s < 0.0) {
+            result.add_error("rk45_min_step_s must be non-negative");
         }
         
         return result;

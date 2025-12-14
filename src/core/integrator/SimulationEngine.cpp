@@ -7,6 +7,7 @@
 #include "core/utils/Profiler.h"
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/types/IonEnsemble.h"
+#include "core/integrator/strategies/RK45Strategy.h"
 #include <algorithm>
 #include <vector>
 #include <iostream>
@@ -263,7 +264,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     initialize(ensemble);
     
     // 2. Main time loop using SoA
-    const double dt = config_.simulation.dt_s;
+    current_dt_ = config_.simulation.dt_s;
     current_time_ = 0.0;
     current_step_ = 0;
     
@@ -289,17 +290,22 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     };
     
     while (should_continue()) {
+        double dt_next_hint = current_dt_;
         // Process one timestep using SoA
-        process_timestep(ensemble, dt);
+        double new_time = process_timestep(ensemble, current_dt_, dt_next_hint);
         
         // Log trajectory snapshot (write every write_interval steps)
-        if (current_step_ % config_.simulation.write_interval == 0) {
+        if (current_step_ == 0 || current_step_ % config_.simulation.write_interval == 0 ||
+            output_manager_->should_write(new_time)) {
             PROFILE_SCOPE_IF_ENABLED("Output Writing");
-            output_manager_->log_step(current_time_, ensemble);
+            output_manager_->log_step(new_time, ensemble);
         }
         
         // Update time and step counter
-        current_time_ += dt;
+        current_time_ = new_time;
+        if (integrator_->is_adaptive()) {
+            current_dt_ = dt_next_hint;
+        }
         current_step_++;
         
         // Progress logging (every 10%)
@@ -364,8 +370,10 @@ void SimulationEngine::update_space_charge_models(core::IonEnsemble& ensemble) {
     }
 }
 
-void SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt) {
+double SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt, double& dt_next_hint_out) {
     const size_t n_ions = ensemble.size();
+    std::vector<double> dt_used_per_ion(n_ions, dt);
+    double dt_next_hint = dt;
 
     if (rng_by_ion_.empty()) {
         PROFILE_SCOPE_IF_ENABLED("RNG Initialization");
@@ -426,10 +434,16 @@ void SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt) 
         }
     }
 
-    perform_collisions(ensemble, dt, integration_domains);
-    perform_reactions(ensemble, dt, integration_domains);
+    perform_collisions(ensemble, dt_used_per_ion, integration_domains);
+    perform_reactions(ensemble, dt_used_per_ion, integration_domains);
 
-    perform_integration(ensemble, current_time_, dt, integration_domains);
+    double max_dt_used = perform_integration(
+        ensemble,
+        current_time_,
+        dt,
+        integration_domains,
+        dt_used_per_ion,
+        dt_next_hint);
 
     #pragma omp parallel if(config_.simulation.enable_openmp)
     {
@@ -458,7 +472,7 @@ void SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt) 
                     new_dom.environment.gas_mass_kg);
             }
 
-            ensemble.set_time(i, ensemble.time(i) + dt);
+            ensemble.set_time(i, ensemble.time(i) + dt_used_per_ion[i]);
 
             Vec3 vel_check = ensemble.get_vel(i);
             bool position_valid = ICARION::safety::is_finite(pos_after);
@@ -475,15 +489,37 @@ void SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt) 
             }
         }
     }
+
+    dt_next_hint_out = dt_next_hint;
+
+    double new_time = current_time_;
+    const double* time_ptr = ensemble.time_data();
+    for (size_t i = 0; i < n_ions; ++i) {
+        new_time = std::max(new_time, time_ptr[i]);
+    }
+    // Fallback to accumulated max dt if time data not yet populated
+    if (new_time <= current_time_) {
+        new_time = current_time_ + max_dt_used;
+    }
+    return new_time;
 }
 
-void SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
+double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
                                            double t,
                                            double dt,
-                                           const std::vector<int>& domain_indices) {
+                                           const std::vector<int>& domain_indices,
+                                           std::vector<double>& dt_used_per_ion,
+                                           double& dt_next_hint) {
+    double max_dt_used = dt;
+    dt_next_hint = dt;
+
     if (integrator_->step_batch(ensemble, t, dt, force_registries_, domain_indices)) {
-        return;
+        return max_dt_used;
     }
+
+    auto* rk45 = integrator_->is_adaptive()
+        ? dynamic_cast<RK45Strategy*>(integrator_.get())
+        : nullptr;
 
     const size_t n = ensemble.size();
     for (size_t i = 0; i < n; ++i) {
@@ -499,11 +535,24 @@ void SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
             continue;
         }
         integrator_->step(ensemble, i, t, dt, *registry);
+
+        if (rk45) {
+            double used = rk45->last_dt_used();
+            double next = rk45->last_dt_suggested();
+            if (used > 0.0) {
+                dt_used_per_ion[i] = used;
+                max_dt_used = std::max(max_dt_used, used);
+            }
+            if (next > 0.0) {
+                dt_next_hint = std::min(dt_next_hint, next);
+            }
+        }
     }
+    return max_dt_used;
 }
 
 void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
-                                          double dt,
+                                          const std::vector<double>& dt_used_per_ion,
                                           const std::vector<int>& domain_indices) {
     if (!collision_handler_ || domain_indices.empty()) {
         return;
@@ -534,17 +583,28 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
         const auto& env = config_.domains[dom].environment;
         bool handled = false;
         if (has_batch) {
-            handled = collision_handler_->handle_batch(
-                ensemble, indices, dt, env, rng_by_ion_);
+            // Use batch path only if all dt are equal (avoids bias)
+            double dt_batch = dt_used_per_ion[indices.front()];
+            bool uniform_dt = true;
+            for (size_t idx : indices) {
+                if (dt_used_per_ion[idx] != dt_batch) {
+                    uniform_dt = false;
+                    break;
+                }
+            }
+            if (uniform_dt) {
+                handled = collision_handler_->handle_batch(
+                    ensemble, indices, dt_batch, env, rng_by_ion_);
+            }
         }
         if (!handled) {
-            handle_collisions_cpu(ensemble, dt, indices, env);
+            handle_collisions_cpu(ensemble, dt_used_per_ion, indices, env);
         }
     }
 }
 
 void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
-                                             double dt,
+                                             const std::vector<double>& dt_used_per_ion,
                                              const std::vector<size_t>& indices,
                                              const config::EnvironmentConfig& env) {
     if (!collision_handler_ || indices.empty()) {
@@ -564,13 +624,13 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
             }
             auto view = ensemble.collision_data(ion_idx);
             collision_handler_->handle_collision(
-                view, dt, rng_by_ion_[ion_idx], env);
+                view, dt_used_per_ion[ion_idx], rng_by_ion_[ion_idx], env);
         }
     }
 }
 
 void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
-                                         double dt,
+                                         const std::vector<double>& dt_used_per_ion,
                                          const std::vector<int>& domain_indices) {
     if (!reaction_handler_ || config_.reaction_db.reactions.empty()) {
         return;
@@ -579,17 +639,33 @@ void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
     PROFILE_SCOPE_IF_ENABLED("Reaction Handling");
 
     if (reaction_handler_->supports_batch()) {
-        const bool handled = reaction_handler_->handle_batch(
-            ensemble,
-            domain_indices,
-            dt,
-            config_.reaction_db,
-            config_.species_db,
-            config_.domains,
-            rng_by_ion_
-        );
-        if (handled) {
-            return;
+        // Batch only if dt is uniform across active ions
+        double dt_batch = 0.0;
+        bool dt_set = false;
+        bool uniform_dt = true;
+        for (size_t i = 0; i < dt_used_per_ion.size(); ++i) {
+            if (!ensemble.is_active(i) || !ensemble.born_data()[i] || domain_indices[i] < 0) continue;
+            if (!dt_set) {
+                dt_batch = dt_used_per_ion[i];
+                dt_set = true;
+            } else if (dt_used_per_ion[i] != dt_batch) {
+                uniform_dt = false;
+                break;
+            }
+        }
+        if (dt_set && uniform_dt) {
+            const bool handled = reaction_handler_->handle_batch(
+                ensemble,
+                domain_indices,
+                dt_batch,
+                config_.reaction_db,
+                config_.species_db,
+                config_.domains,
+                rng_by_ion_
+            );
+            if (handled) {
+                return;
+            }
         }
     }
 
@@ -611,7 +687,7 @@ void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
             auto reaction_view = ensemble.reaction_data(i);
             reaction_handler_->handle_reaction(
                 reaction_view,
-                dt,
+                dt_used_per_ion[static_cast<size_t>(i)],
                 rng_by_ion_[static_cast<size_t>(i)],
                 config_.reaction_db,
                 config_.species_db,

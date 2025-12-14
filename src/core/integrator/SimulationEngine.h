@@ -152,6 +152,7 @@ private:
     // Simulation state
     double current_time_ = 0.0;
     int current_step_ = 0;
+    double current_dt_ = 0.0;
     
     // Per-ion RNG states (persistent across timesteps!)
     std::vector<physics::PhysicsRng> rng_by_ion_;
@@ -207,6 +208,8 @@ private:
      * @brief Process one timestep using SoA (Structure of Arrays)
      * @param ensemble Ion ensemble (SoA)
      * @param dt Timestep [s]
+     * @param dt_next_hint_out Suggested timestep for the next iteration (adaptive integrators)
+     * @return New simulation time (max over ions)
      * 
      * **Cache-Optimized Processing:**
      * - Bulk position/velocity updates (SIMD-friendly)
@@ -215,24 +218,26 @@ private:
      * - Compatibility layer: converts to IonState for collision/reaction handlers
      * 
      */
-    void process_timestep(core::IonEnsemble& ensemble, double dt);
+    double process_timestep(core::IonEnsemble& ensemble, double dt, double& dt_next_hint_out);
 
-    void perform_integration(core::IonEnsemble& ensemble,
+    double perform_integration(core::IonEnsemble& ensemble,
                              double t,
                              double dt,
-                             const std::vector<int>& domain_indices);
+                             const std::vector<int>& domain_indices,
+                             std::vector<double>& dt_used_per_ion,
+                             double& dt_next_hint);
 
     void perform_collisions(core::IonEnsemble& ensemble,
-                             double dt,
+                             const std::vector<double>& dt_used_per_ion,
                              const std::vector<int>& domain_indices);
 
     void handle_collisions_cpu(core::IonEnsemble& ensemble,
-                               double dt,
+                               const std::vector<double>& dt_used_per_ion,
                                const std::vector<size_t>& indices,
                                const config::EnvironmentConfig& env);
 
     void perform_reactions(core::IonEnsemble& ensemble,
-                           double dt,
+                           const std::vector<double>& dt_used_per_ion,
                            const std::vector<int>& domain_indices);
     
     /**

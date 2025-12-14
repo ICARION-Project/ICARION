@@ -27,7 +27,7 @@ public:
     static std::unique_ptr<IIntegrationStrategy> create(
         const std::string& strategy_name,
         const config::FullConfig* config) {
-        auto cpu_strategy = create_cpu(strategy_name);
+        auto cpu_strategy = create_cpu(strategy_name, config);
 
         if (!config || !config->simulation.enable_gpu) {
             return cpu_strategy;
@@ -51,10 +51,16 @@ public:
     }
 
 private:
-    static std::unique_ptr<IIntegrationStrategy> create_cpu(const std::string& strategy_name) {
+    static std::unique_ptr<IIntegrationStrategy> create_cpu(const std::string& strategy_name,
+                                                            const config::FullConfig* config = nullptr) {
         if (strategy_name == "RK4") {
             return std::make_unique<RK4Strategy>();
         } else if (strategy_name == "RK45") {
+            if (config) {
+                RK45Strategy::AdaptiveConfig cfg;
+                cfg.absolute_min_step_s = config->simulation.rk45_min_step_s;
+                return std::make_unique<RK45Strategy>(cfg);
+            }
             return std::make_unique<RK45Strategy>();
         } else if (strategy_name == "Boris") {
             return std::make_unique<BorisStrategy>();

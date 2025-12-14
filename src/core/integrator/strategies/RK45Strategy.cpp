@@ -3,15 +3,49 @@
 
 #include "RK45Strategy.h"
 #include "core/physics/forces/ForceContext.h"
+#include "core/config/types/IFieldModel.h"
 #include "core/types/IonEnsemble.h"
 #include <cmath>
 #include <algorithm>
 #include <stdexcept>
+#include <cstdlib>
+#include <spdlog/spdlog.h>
 
 namespace ICARION {
 namespace integrator {
 
 namespace {
+
+bool rk45_force_debug_enabled() {
+    static const bool enabled = [] {
+        if (const char* env = std::getenv("ICARION_DEBUG_RK45_FORCE")) {
+            switch (env[0]) {
+                case '1': case 't': case 'T': case 'y': case 'Y':
+                    return true;
+                default:
+                    break;
+            }
+        }
+        return false;
+    }();
+    return enabled;
+}
+
+bool rk45_state_debug_enabled() {
+    static const bool enabled = [] {
+        if (const char* env = std::getenv("ICARION_DEBUG_RK45_STATE")) {
+            switch (env[0]) {
+                case '1': case 't': case 'T': case 'y': case 'Y':
+                    return true;
+                default:
+                    break;
+            }
+        }
+        return false;
+    }();
+    return enabled;
+}
+
 IonState make_state_from_ensemble(const core::IonEnsemble& ensemble, size_t i) {
     IonState s;
     s.pos = ensemble.get_pos(i);
@@ -153,6 +187,9 @@ RK45Strategy::RK45Strategy(const AdaptiveConfig& config)
     if (config_.safety_factor <= 0.0 || config_.safety_factor >= 1.0) {
         throw std::invalid_argument("RK45Strategy: safety factor must be in (0, 1)");
     }
+    if (config_.absolute_min_step_s < 0.0) {
+        throw std::invalid_argument("RK45Strategy: absolute_min_step_s must be non-negative");
+    }
 }
 
 void RK45Strategy::compute_acceleration_batch(
@@ -199,6 +236,29 @@ void RK45Strategy::compute_acceleration_state(
     Vec3 F = force_registry.compute_total_force(scratch, 0, t, ctx);
     const double inv_mass = 1.0 / state.mass_kg;
     Vec3 a = F * inv_mass;
+
+    static thread_local int rk45_force_debug_counter = 0;
+    if (rk45_force_debug_enabled() && rk45_force_debug_counter < 20 && state.mass_kg > 0.0) {
+        Vec3 E_ref{0.0, 0.0, 0.0};
+        if (ctx.field_model) {
+            E_ref = ctx.field_model->E(state.pos, t);
+        }
+        const double q_over_m = state.ion_charge_C / state.mass_kg;
+        Vec3 a_from_field = E_ref * q_over_m;
+        Vec3 delta = a - a_from_field;
+        SPDLOG_INFO(
+            "[RK45Force] species={}, domain={}, t={:.6e}, pos=({:.6e}, {:.6e}, {:.6e}), F=({:.6e}, {:.6e}, {:.6e}), a=({:.6e}, {:.6e}, {:.6e}), a_E=({:.6e}, {:.6e}, {:.6e}), delta=({:.6e}, {:.6e}, {:.6e})",
+            state.species_id,
+            state.current_domain_index,
+            t,
+            state.pos.x, state.pos.y, state.pos.z,
+            F.x, F.y, F.z,
+            a.x, a.y, a.z,
+            a_from_field.x, a_from_field.y, a_from_field.z,
+            delta.x, delta.y, delta.z
+        );
+        ++rk45_force_debug_counter;
+    }
 
     ax = a.x;
     ay = a.y;
@@ -288,6 +348,7 @@ void RK45Strategy::step(
     const physics::ForceRegistry& force_registry
 ) {
     double dt_variable = dt;
+    double dt_used = dt;
 
     IonState ion = make_state_from_ensemble(ensemble, ion_idx);
 
@@ -297,7 +358,7 @@ void RK45Strategy::step(
     if (!domain) {
         throw std::runtime_error("RK45Strategy: ForceRegistry has no domain configured");
     }
-    const double dt_min = dt_initial * config_.min_step_factor;
+    const double dt_min = std::max(dt_initial * config_.min_step_factor, config_.absolute_min_step_s);
     const double dt_max = dt_initial * config_.max_step_factor;
 
     double dt_work = dt_variable;
@@ -396,7 +457,10 @@ void RK45Strategy::step(
 
             double dt_next = compute_new_step(dt_work, error, dt_min, dt_max);
             dt_variable = dt_next;
+            dt_used = dt_work;
             last_error_ = error;
+            last_dt_used_ = dt_used;
+            last_dt_suggested_ = dt_variable;
         } else {
             stats_.rejected_steps++;
             double dt_next = compute_new_step(dt_work, error, dt_min, dt_max);
@@ -414,8 +478,37 @@ void RK45Strategy::step(
     }
 
     // Write back to SoA
+    const bool state_logging_enabled = rk45_state_debug_enabled();
+    static thread_local int rk45_state_debug_counter = 0;
+    bool captured_state = false;
+    Vec3 pos_before;
+    Vec3 vel_before;
+    if (state_logging_enabled && rk45_state_debug_counter < 20) {
+        pos_before = ensemble.get_pos(ion_idx);
+        vel_before = ensemble.get_vel(ion_idx);
+        captured_state = true;
+    }
+
     ensemble.set_pos(ion_idx, ion.pos);
     ensemble.set_vel(ion_idx, ion.vel);
+
+    if (captured_state) {
+        Vec3 pos_after = ensemble.get_pos(ion_idx);
+        Vec3 vel_after = ensemble.get_vel(ion_idx);
+        SPDLOG_INFO(
+            "[RK45State] ion_idx={} t={:.6e} dt_used={:.6e} pos_before=({:.6e}, {:.6e}, {:.6e}) vel_before=({:.6e}, {:.6e}, {:.6e}) solver_pos=({:.6e}, {:.6e}, {:.6e}) solver_vel=({:.6e}, {:.6e}, {:.6e}) pos_after=({:.6e}, {:.6e}, {:.6e}) vel_after=({:.6e}, {:.6e}, {:.6e})",
+            ion_idx,
+            t,
+            dt_used,
+            pos_before.x, pos_before.y, pos_before.z,
+            vel_before.x, vel_before.y, vel_before.z,
+            ion.pos.x, ion.pos.y, ion.pos.z,
+            ion.vel.x, ion.vel.y, ion.vel.z,
+            pos_after.x, pos_after.y, pos_after.z,
+            vel_after.x, vel_after.y, vel_after.z
+        );
+        rk45_state_debug_counter++;
+    }
 }
 
 void RK45Strategy::step_adaptive(
@@ -433,7 +526,7 @@ void RK45Strategy::step_adaptive(
     if (!domain) {
         throw std::runtime_error("RK45Strategy: ForceRegistry has no domain configured");
     }
-    const double dt_min = dt_initial * config_.min_step_factor;
+    const double dt_min = std::max(dt_initial * config_.min_step_factor, config_.absolute_min_step_s);
     const double dt_max = dt_initial * config_.max_step_factor;
     
     double dt = dt_inout;
@@ -565,8 +658,10 @@ void RK45Strategy::step_adaptive(
             double dt_next = compute_new_step(dt, error, dt_min, dt_max);
             // Expose used dt to caller; next-step hint can be derived if needed
             dt_inout = dt;
+            last_dt_used_ = dt;
+            last_dt_suggested_ = dt_next;
             (void)dt_next;
-            
+
             last_error_ = error;
             
         } else {

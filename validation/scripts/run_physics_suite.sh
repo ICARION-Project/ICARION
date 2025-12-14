@@ -8,11 +8,14 @@ VALIDATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$VALIDATION_DIR/.." && pwd)"
 THERMALIZATION_RUNNER="$VALIDATION_DIR/scripts/thermalization/run_thermalization_tests.sh"
 PHYSICS_SCRIPT_DIR="$VALIDATION_DIR/scripts/physics"
+THERMALIZATION_RUNNER_DIR="$(dirname "$THERMALIZATION_RUNNER")"
 
 PYTHON_BIN=${PYTHON_BIN:-python3}
-THERMALIZATION_MODE="quick"
+# Default to full sweep to cover all thermalization configs
+THERMALIZATION_MODE="full"
 ICARION_BIN=""
 DRY_RUN=false
+CONFIG_JOBS=1
 SELECTED_TARGETS=()
 
 AVAILABLE_TARGETS=(
@@ -21,6 +24,7 @@ AVAILABLE_TARGETS=(
   combined_drift
   gas_mixture_mobility
   mixture_thermalization
+  spacecharge
   reactions
 )
 
@@ -30,6 +34,7 @@ declare -A TARGET_LABELS=(
   [combined_drift]="Combined drift (E + gas flow)"
   [gas_mixture_mobility]="Blanc's law mixture mobility"
   [mixture_thermalization]="Gas mixture thermalization"
+  [spacecharge]="Space charge expansion / IMS space charge"
   [reactions]="Reaction kinetics scenarios"
 )
 
@@ -42,6 +47,7 @@ Options:
   --thermalization-mode MODE Mode passed to run_thermalization_tests.sh (quick|subset|full)
   --icarion-bin PATH         Forward PATH to validate_reaction_kinetics.py
   --dry-run                  Show the commands without executing them
+  --config-jobs N            Max configs to run in parallel (where applicable, default: $CONFIG_JOBS)
   --list                     Show available targets and exit
   -h, --help                 Show this help
 
@@ -51,6 +57,7 @@ Targets (default: all):
   combined_drift             ${TARGET_LABELS[combined_drift]}
   gas_mixture_mobility       ${TARGET_LABELS[gas_mixture_mobility]}
   mixture_thermalization     ${TARGET_LABELS[mixture_thermalization]}
+  spacecharge                ${TARGET_LABELS[spacecharge]}
   reactions                  ${TARGET_LABELS[reactions]}
 EOF
 }
@@ -75,6 +82,9 @@ normalize_target() {
       ;;
     mixture-thermalization|mixture_thermalization|mix-therm)
       printf '%s\n' "mixture_thermalization"
+      ;;
+    spacecharge|space-charge|sc)
+      printf '%s\n' "spacecharge"
       ;;
     reactions|reaction|kinetics)
       printf '%s\n' "reactions"
@@ -106,6 +116,7 @@ Available targets:
   combined_drift         ${TARGET_LABELS[combined_drift]}
   gas_mixture_mobility   ${TARGET_LABELS[gas_mixture_mobility]}
   mixture_thermalization ${TARGET_LABELS[mixture_thermalization]}
+  spacecharge            ${TARGET_LABELS[spacecharge]}
   reactions              ${TARGET_LABELS[reactions]}
 EOF
 }
@@ -130,6 +141,11 @@ while [[ $# -gt 0 ]]; do
     --dry-run)
       DRY_RUN=true
       shift
+      ;;
+    --config-jobs)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      CONFIG_JOBS="$2"
+      shift 2
       ;;
     --list)
       list_targets
@@ -161,7 +177,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
   esac
-end
+done
 
 if [[ ${#SELECTED_TARGETS[@]} -eq 0 ]]; then
   SELECTED_TARGETS=("${AVAILABLE_TARGETS[@]}")
@@ -179,15 +195,84 @@ if [[ ! -x "$THERMALIZATION_RUNNER" ]]; then
   exit 1
 fi
 
+NEED_ICARION=false
+for tgt in "${SELECTED_TARGETS[@]}"; do
+  if [[ "$tgt" == "spacecharge" || "$tgt" == "reactions" ]]; then
+    NEED_ICARION=true
+    break
+  fi
+done
+
+if $NEED_ICARION; then
+  if [[ -z "$ICARION_BIN" ]]; then
+    ICARION_BIN="$REPO_ROOT/build/src/icarion_main"
+  fi
+  if [[ ! -x "$ICARION_BIN" ]]; then
+    echo "Error: ICARION binary not found or not executable: $ICARION_BIN" >&2
+    echo "Hint: set --icarion-bin or build the project first." >&2
+    exit 1
+  fi
+fi
+
 run_in_repo() {
   (cd "$REPO_ROOT" && "$@")
+}
+
+run_spacecharge_configs() {
+  local bin="${ICARION_BIN:-$REPO_ROOT/build/src/icarion_main}"
+  local cfg_dir="$REPO_ROOT/validation/configs/physics/spacecharge"
+  local -a cfgs=("$cfg_dir"/*.json)
+
+  if [[ ! -x "$bin" ]]; then
+    echo "[spacecharge] icarion_main not found or not executable at '$bin'" >&2
+    return 1
+  fi
+  if [[ ${#cfgs[@]} -eq 0 ]]; then
+    echo "[spacecharge] No configs found in $cfg_dir" >&2
+    return 1
+  fi
+
+  local -a pids=()
+  local failures=0
+
+  for cfg in "${cfgs[@]}"; do
+    [[ ! -f "$cfg" ]] && continue
+    echo "[spacecharge] running $cfg"
+    ("$bin" "$cfg" --threads 1 >/dev/null 2>&1) &
+    pids+=("$!")
+
+    while [[ ${#pids[@]} -ge $CONFIG_JOBS && $CONFIG_JOBS -gt 0 ]]; do
+      if ! wait -n; then
+        failures=$((failures + 1))
+      fi
+      # prune finished
+      local new_pids=()
+      for pid in "${pids[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+          new_pids+=("$pid")
+        fi
+      done
+      pids=("${new_pids[@]}")
+    done
+  done
+
+  for pid in "${pids[@]:-}"; do
+    wait "$pid" || failures=$((failures + 1))
+  done
+
+  if [[ $failures -gt 0 ]]; then
+    echo "[spacecharge] $failures config(s) failed" >&2
+    return 1
+  fi
+  return 0
 }
 
 build_command() {
   local target="$1"
   case "$target" in
     thermalization)
-      printf '%q ' "$THERMALIZATION_RUNNER" "$THERMALIZATION_MODE"
+      printf '%q ' bash -c \
+        "cd \"$THERMALIZATION_RUNNER_DIR\" && THERM_JOBS=\"$CONFIG_JOBS\" ./$(basename "$THERMALIZATION_RUNNER") \"$THERMALIZATION_MODE\""
       ;;
     gas_flow)
       printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_gas_flow_transport.py"
@@ -200,6 +285,9 @@ build_command() {
       ;;
     mixture_thermalization)
       printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_mixture_thermalization.py"
+      ;;
+    spacecharge)
+      printf '%s' "__SPACECHARGE_INTERNAL__"
       ;;
     reactions)
       printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_reaction_kinetics.py"
@@ -220,6 +308,26 @@ run_target() {
   if ! cmd_str=$(build_command "$target"); then
     echo "Internal error: unsupported target '$target'" >&2
     return 1
+  fi
+
+  if [[ "$cmd_str" == "__SPACECHARGE_INTERNAL__" ]]; then
+    echo "============================================================"
+    echo "$label"
+    echo "============================================================"
+    echo "Command: run_spacecharge_configs (jobs=$CONFIG_JOBS)"
+
+    if $DRY_RUN; then
+      echo "[dry-run] Skipping execution"
+      return 0
+    fi
+
+    if run_spacecharge_configs; then
+      echo "[$target] ✅ completed"
+      return 0
+    else
+      echo "[$target] ❌ failed" >&2
+      return 1
+    fi
   fi
 
   echo "============================================================"
@@ -270,7 +378,7 @@ for target in "${SELECTED_TARGETS[@]}"; do
     FAILED_TARGETS+=("$target")
   fi
   echo
- done
+done
 
 END_TIME=$(date)
 

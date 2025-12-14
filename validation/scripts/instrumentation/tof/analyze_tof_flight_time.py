@@ -24,6 +24,13 @@ import numpy as np
 import sys
 from pathlib import Path
 
+
+def _decode_species_id(value):
+    """Ensure species identifiers coming from HDF5 are strings."""
+    if isinstance(value, bytes):
+        return value.decode()
+    return str(value)
+
 def calculate_theoretical_flight_time(mass_u, charge_e, V_acc, L_acc, L_drift):
     """Calculate theoretical TOF flight time.
     
@@ -49,95 +56,110 @@ def calculate_theoretical_flight_time(mass_u, charge_e, V_acc, L_acc, L_drift):
     return t_acc + t_drift
 
 def analyze_tof_trajectory(h5_path, config_path=None):
-    """Extract flight time from TOF HDF5 trajectory."""
+    """Extract flight times per species from a TOF HDF5 trajectory."""
     with h5py.File(h5_path, 'r') as f:
-        # Read trajectory
         positions = f['trajectory/positions'][:]  # (n_steps, n_ions, 3)
         time = f['trajectory/time'][:]  # (n_steps,)
-        
+
         # Number of ions
         n_ions = positions.shape[1] if positions.ndim == 3 else 1
         if positions.ndim == 2:
             positions = positions[:, np.newaxis, :]
-    
+
+        if 'ions/initial_species_id' in f:
+            raw_species = f['ions/initial_species_id'][:]
+        else:
+            raw_species = f['trajectory/species_ids'][0, :]
+
+    ion_species = [_decode_species_id(s) for s in raw_species]
+    if len(ion_species) != n_ions:
+        raise ValueError(f"Species metadata length ({len(ion_species)}) does not match ion count ({n_ions}).")
+
     # Read config
     if config_path is None:
         config_path = str(h5_path).replace('.h5', '.json').replace('results/v1.0_test/instruments/', 'configs/instruments/')
-    
+
     import json
     with open(config_path, 'r') as f:
         config = json.load(f)
-    
-    # Extract parameters
-    species_id = config['ions']['species'][0].get('species_id', 'Unknown')
+
     V_acc = config['domains'][0]['fields']['DC']['axial_V']
     L_acc = config['domains'][0]['geometry']['acc_length_m']
     L_total = config['domains'][0]['geometry']['length_m']
-    
-    # Get initial ion position (ions don't start at z=0!)
-    z_start = config['ions']['species'][0].get('position', {}).get('center', [0, 0, 0])[2]  # m
-    
-    # Read mass from species database
-    if 'species_database_path' in config:
+
+    species_db = {}
+    if config.get('species_database_path'):
         with open(config['species_database_path'], 'r') as f:
-            species_db = json.load(f)
-        if 'species' in species_db and species_id in species_db['species']:
-            species_data = species_db['species'][species_id]
-            mass_u = species_data.get('mass_amu', 0)
-            charge = species_data.get('charge', 1)
-        else:
-            mass_u = config['ions']['species'][0].get('mass_Da', 0)
-            charge = config['ions']['species'][0].get('charge', 1)
-    else:
-        mass_u = config['ions']['species'][0].get('mass_Da', 0)
-        charge = config['ions']['species'][0].get('charge', 1)
-    
-    # Find when ions reach detector (z > 0.999 m or become inactive)
+            raw_db = json.load(f)
+        species_db = raw_db.get('species', {})
+
+    species_configs = []
+    for entry in config['ions']['species']:
+        sid = entry.get('species_id', 'Unknown')
+        db_entry = species_db.get(sid, {})
+        mass_u = db_entry.get('mass_amu', entry.get('mass_Da', 0))
+        charge = db_entry.get('charge', entry.get('charge', entry.get('charge_state', 1)))
+        center = entry.get('position', {}).get('center', [0, 0, 0])
+        z_start = center[2] if len(center) > 2 else 0.0
+        species_configs.append({
+            'species_id': sid,
+            'mass_u': mass_u,
+            'charge': charge,
+            'z_start': z_start
+        })
+
     z_detector = 0.999  # m
-    flight_times = []
-    
-    for ion_idx in range(n_ions):
-        z_pos = positions[:, ion_idx, 2]
-        
-        # Find first time ion crosses detector plane
-        crossed = np.where(z_pos >= z_detector)[0]
-        if len(crossed) > 0:
-            t_hit = time[crossed[0]]
-            flight_times.append(t_hit)
-    
-    if len(flight_times) == 0:
-        # Ions didn't reach detector in simulation time
-        return None
-    
-    # Statistics
-    t_mean = np.mean(flight_times) * 1e6  # µs
-    t_std = np.std(flight_times) * 1e6  # µs
-    
-    # Theory (corrected formula accounting for initial position)
-    # Ions start at z_start and experience uniform field E = V_acc/L_acc
-    # They gain energy: E_kin = q * E * (L_acc - z_start) = q * V_acc * (L_acc - z_start)/L_acc
-    # Effective voltage: V_eff = V_acc * (L_acc - z_start) / L_acc
-    L_acc_eff = L_acc - z_start  # Effective acceleration distance
-    V_eff = V_acc * L_acc_eff / L_acc  # Effective voltage gained
-    L_drift = L_total - L_acc  # Drift region starts at L_acc, not z_start!
-    t_theory = calculate_theoretical_flight_time(mass_u, charge, V_eff, L_acc_eff, L_drift) * 1e6  # µs
-    
-    # Error
-    error_pct = 100 * (t_mean - t_theory) / t_theory
-    
-    return {
-        'species': species_id,
-        'mass_u': mass_u,
-        'charge': charge,
-        'V_acc': V_acc,
-        'L_total_m': L_total,
-        't_theory_us': t_theory,
-        't_mean_us': t_mean,
-        't_std_us': t_std,
-        'error_pct': error_pct,
-        'n_ions': len(flight_times),
-        'resolution': t_mean / t_std if t_std > 0 else np.inf
-    }
+    results = []
+
+    for spec in species_configs:
+        sid = spec['species_id']
+        ion_indices = [idx for idx, label in enumerate(ion_species) if label == sid]
+        if not ion_indices:
+            continue
+
+        flight_times = []
+        for ion_idx in ion_indices:
+            z_pos = positions[:, ion_idx, 2]
+            crossed = np.where(z_pos >= z_detector)[0]
+            if len(crossed) > 0:
+                flight_times.append(time[crossed[0]])
+
+        if not flight_times:
+            # No ions of this species reached the detector
+            continue
+
+        t_mean = float(np.mean(flight_times) * 1e6)
+        t_std = float(np.std(flight_times) * 1e6)
+
+        z_start = spec['z_start']
+        L_acc_eff = max(L_acc - z_start, 1e-12)
+        V_eff = V_acc * L_acc_eff / L_acc
+        L_drift = L_total - L_acc
+        t_theory = calculate_theoretical_flight_time(
+            spec['mass_u'],
+            spec['charge'],
+            V_eff,
+            L_acc_eff,
+            L_drift
+        ) * 1e6
+
+        error_pct = 100 * (t_mean - t_theory) / t_theory if t_theory else float('inf')
+
+        results.append({
+            'species': sid,
+            'mass_u': spec['mass_u'],
+            'charge': spec['charge'],
+            'V_acc': V_acc,
+            'L_total_m': L_total,
+            't_theory_us': t_theory,
+            't_mean_us': t_mean,
+            't_std_us': t_std,
+            'error_pct': error_pct,
+            'n_ions': len(flight_times),
+            'resolution': t_mean / t_std if t_std > 0 else np.inf
+        })
+
+    return results
 
 def main():
     if len(sys.argv) < 2:
@@ -151,11 +173,11 @@ def main():
             continue
         
         try:
-            result = analyze_tof_trajectory(h5_path)
-            if result is None:
+            species_results = analyze_tof_trajectory(h5_path)
+            if not species_results:
                 print(f"⚠ No ions reached detector: {h5_path}")
                 continue
-            results.append(result)
+            results.extend(species_results)
         except Exception as e:
             print(f"✗ Error analyzing {h5_path}: {e}")
             import traceback

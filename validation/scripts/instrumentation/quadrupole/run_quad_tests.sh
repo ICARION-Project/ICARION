@@ -3,7 +3,7 @@
 # run_quad_tests.sh
 #
 # Batch runner for quadrupole stability map validation tests
-# Runs all 72 (a,q) grid points with CaffeineH+ ions
+# Runs the first stability-region (a,q) grid with CaffeineH+ ions
 #
 # Usage: 
 #   ./run_quad_tests.sh [parallel_jobs]
@@ -17,7 +17,7 @@ set -e
 # Configuration
 ICARION_BIN="/home/chsch95/ICARION/build/src/icarion_main"
 CONFIG_DIR="/home/chsch95/ICARION/validation/configs/instruments/quadrupole"
-OUTPUT_DIR="/home/chsch95/ICARION/results/v1.0_test/instruments/quadrupole"
+OUTPUT_DIR="/home/chsch95/ICARION/validation/results/v1.0_test/instruments/quadrupole_first_region"
 LOG_DIR="${OUTPUT_DIR}/logs"
 MAX_PARALLEL=${1:-2}  # Default to 2 parallel jobs
 
@@ -107,7 +107,7 @@ echo "Total time: ${ELAPSED_MIN}m ${ELAPSED_SEC}s"
 echo "=============================================="
 
 # Count successes and failures
-SUCCESS_COUNT=$(grep -l "Simulation completed successfully" ${LOG_DIR}/*.log 2>/dev/null | wc -l)
+SUCCESS_COUNT=$(grep -El "Simulation completed successfully|=== Simulation Complete ===" "${LOG_DIR}"/*.log 2>/dev/null | wc -l)
 FAIL_COUNT=$((TOTAL_CONFIGS - SUCCESS_COUNT))
 
 echo ""
@@ -127,9 +127,9 @@ if [[ ${FAIL_COUNT} -gt 0 ]]; then
     echo "⚠️  Some tests failed. Check logs in ${LOG_DIR}"
     echo ""
     echo "Failed tests:"
-    for log in ${LOG_DIR}/*.log; do
-        if ! grep -q "Simulation completed successfully" "${log}" 2>/dev/null; then
-            echo "  - $(basename ${log} .log)"
+    for log in "${LOG_DIR}"/*.log; do
+        if ! grep -Eq "Simulation completed successfully|=== Simulation Complete ===" "${log}" 2>/dev/null; then
+            echo "  - $(basename "${log}" .log)"
         fi
     done
 else
@@ -138,6 +138,6 @@ fi
 
 echo ""
 echo "Next steps:"
-echo "  1. Analyze results: python3 validation/scripts/instrumentation/analyze_quad_stability.py"
-echo "  2. Plot stability map: python3 validation/scripts/instrumentation/plot_quad_stability.py"
+echo "  1. Analyze results: python3 validation/scripts/instrumentation/quadrupole/analyze_quad_stability.py"
+echo "  2. Plot stability map: python3 validation/scripts/instrumentation/quadrupole/plot_quad_stability.py"
 echo ""

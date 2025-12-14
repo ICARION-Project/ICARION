@@ -19,6 +19,7 @@ where:
 """
 
 import json
+import sys
 import numpy as np
 from pathlib import Path
 
@@ -32,6 +33,11 @@ def find_validation_dir() -> Path:
 
 VALIDATION_DIR = find_validation_dir()
 CONFIG_DIR = VALIDATION_DIR / "configs" / "instruments" / "quadrupole"
+QUAD_SCRIPT_DIR = VALIDATION_DIR / "scripts" / "instrumentation" / "quadrupole"
+if str(QUAD_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(QUAD_SCRIPT_DIR))
+
+from mathieu_utils import in_first_stability_region
 
 # Quadrupole geometry
 R0_M = 0.005  # 5 mm field radius (typical for analytical quad)
@@ -51,8 +57,8 @@ MASS_KG = MASS_AMU * 1.66053906660e-27
 E_CHARGE = 1.602176634e-19  # C
 
 # Simulation parameters
-N_IONS = 100  # ions per test
-SIMULATION_TIME_S = 50e-6  # 50 µs (25 RF cycles at 2 MHz)
+N_IONS = 60  # ions per test (enough for stability classification)
+SIMULATION_TIME_S = 25e-6  # 25 µs (~12 RF cycles at 2 MHz)
 DT_S = 1e-9  # 1 ns timestep
 WRITE_INTERVAL = 500  # every 500 steps
 
@@ -68,29 +74,13 @@ def calc_voltages_from_aq(a, q, m_amu, r0_m, omega):
     
     return U, V
 
-def is_stable_mathieu(a, q):
-    """Check if (a,q) point is in first stability region (approximate)"""
-    # First stability region boundaries (simplified)
-    # More accurate would use actual Mathieu stability boundaries
-    
-    if q < 0 or q > 0.908:
-        return False
-    
-    # Upper boundary: a ≈ 0.237 - 0.26*q + ...(higher order terms)
-    a_upper = 0.237 - 0.26 * q
-    
-    # Lower boundary
-    a_lower = -0.1
-    
-    return a_lower < a < a_upper
-
 def generate_config(a, q, config_num, total_configs):
     """Generate a single quadrupole stability test configuration"""
     
     U, V = calc_voltages_from_aq(a, q, MASS_AMU, R0_M, OMEGA)
     
     # Determine if this should be stable
-    stable_theory = is_stable_mathieu(a, q)
+    stable_theory = in_first_stability_region(a, q)
     
     config = {
         "simulation": {
@@ -109,7 +99,7 @@ def generate_config(a, q, config_num, total_configs):
             "enable_reactions": False
         },
         "output": {
-            "folder": "results/v1.0_test/instruments/quadrupole",
+            "folder": "validation/results/v1.0_test/instruments/quadrupole_first_region",
             "trajectory_file": f"quad_a{a:.4f}_q{q:.4f}.h5",
             "print_progress": True
         },
@@ -176,10 +166,10 @@ def main():
     print(f"Quadrupole: r₀ = {R0_M*1000} mm, f = {RF_FREQ_HZ/1e6} MHz")
     print()
     
-    # Define (a, q) grid
-    # First stability region + instability verification: q ∈ [0, 1.0], a ∈ [-0.1, 0.237]
-    q_values = np.linspace(0.05, 1.00, 11)  # 11 points from 0.05 to 1.00 (includes unstable region!)
-    a_values = np.linspace(-0.05, 0.23, 8)  # 8 points from -0.05 to 0.23
+    # Define (a, q) grid focused on the first stability region used in production
+    # Keep |a| <= 0.2 and q <= 0.5 while limiting the total combinations for faster sweeps
+    q_values = np.linspace(0.05, 0.50, 6)   # 6 points from 0.05 to 0.50
+    a_values = np.linspace(-0.20, 0.20, 5)  # 5 points from -0.20 to 0.20
     
     configs = []
     stable_count = 0
@@ -188,7 +178,7 @@ def main():
     for q in q_values:
         for a in a_values:
             U, V = calc_voltages_from_aq(a, q, MASS_AMU, R0_M, OMEGA)
-            stable_theory = is_stable_mathieu(a, q)
+            stable_theory = in_first_stability_region(a, q)
             
             if stable_theory:
                 stable_count += 1

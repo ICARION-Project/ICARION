@@ -16,16 +16,49 @@ Outputs:
   - Statistics on agreement with theory
 """
 
-import h5py
-import numpy as np
-import json
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
 
+import h5py
+import numpy as np
+
+from mathieu_utils import in_first_stability_region
+
 # Physical constants
 E = 1.602176634e-19  # Elementary charge (C)
+
+# Treat configurations as empirically stable only if ≥80% of ions arrive.
+EMPIRICAL_STABILITY_THRESHOLD = 0.8
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[3]
+VALIDATION_DIR = REPO_ROOT / "validation"
+
+
+def _default_results_dir_candidates():
+    """Return ordered list of candidate results directories."""
+    return [
+        VALIDATION_DIR / "results" / "instruments" / "quadrupole",
+        VALIDATION_DIR / "results" / "v1.0_test" / "instruments" / "quadrupole",
+        REPO_ROOT / "results" / "v1.0_test" / "instruments" / "quadrupole",
+    ]
+
+
+def _default_config_dir_candidates():
+    return [
+        VALIDATION_DIR / "configs" / "instruments" / "quadrupole",
+        REPO_ROOT / "validation" / "configs" / "instruments" / "quadrupole",
+    ]
+
+
+def _resolve_first_existing(paths):
+    for path in paths:
+        if path.exists():
+            return path
+    return None
 
 def read_config_parameters(config_path):
     """Read (a,q) parameters from config file."""
@@ -52,31 +85,6 @@ def read_config_parameters(config_path):
     
     return a, q, U_dc, V_rf, freq, r0, mass_amu
 
-
-def is_theoretically_stable(a, q):
-    """
-    Check if (a,q) point is in the first Mathieu stability region.
-    
-    Uses approximate boundaries based on standard Mathieu stability diagram.
-    First stability region (β_u and β_z both stable):
-      - q: 0 to ~0.908
-      - a: varies with q
-    """
-    # First stability region boundaries (more accurate)
-    if q < 0 or q > 0.908:
-        return False
-    
-    # Lower a boundary (approximately)
-    a_min = -0.05  # Below this, u-direction becomes unstable
-    
-    # Upper a boundary (empirical fit from simulation data)
-    # Observed pattern: a_max increases roughly linearly with q
-    # At q=0.025: a_max ~ 0.01
-    # At q=0.225: a_max ~ 0.04
-    # Linear fit: a_max ≈ 0.15*q
-    a_max = 0.15 * q
-    
-    return a_min <= a <= a_max
 
 
 def analyze_trajectory(h5_path):
@@ -168,6 +176,7 @@ def main():
     print(f"Results dir : {results_dir}")
     print(f"Config dir  : {config_dir}")
     print(f"Found {len(h5_files)} trajectory files")
+    print(f"Empirical stability threshold: {EMPIRICAL_STABILITY_THRESHOLD:.0%} transmission")
     print()
     
     # Analyze each test point
@@ -198,10 +207,10 @@ def main():
         transmission, n_initial, n_final = analyze_trajectory(h5_path)
         
         # Theoretical stability
-        theory_stable = is_theoretically_stable(a, q)
+        theory_stable = in_first_stability_region(a, q)
         
-        # Empirical stability (threshold at 50% transmission)
-        empirical_stable = transmission >= 0.5
+        # Empirical stability uses a production-like transmission bar.
+        empirical_stable = transmission >= EMPIRICAL_STABILITY_THRESHOLD
         
         # Agreement with theory
         agreement = (theory_stable == empirical_stable)
@@ -222,9 +231,6 @@ def main():
     
     # Sort by q, then a
     results.sort(key=lambda x: (x['q'], x['a']))
-        SCRIPT_DIR = Path(__file__).resolve().parent
-        REPO_ROOT = SCRIPT_DIR.parents[3]
-        VALIDATION_DIR = REPO_ROOT / "validation"
     
     # Print results table
     print()
@@ -276,26 +282,6 @@ def main():
                 print(f"  a={r['a']:>7.4f}, q={r['q']:>7.4f}: Theory={theory_str}, "
                       f"Simul={simul_str} (Trans={r['transmission']:.1%})")
     
-
-    def _default_results_dir_candidates():
-        """Return ordered list of candidate results directories."""
-        return [
-            VALIDATION_DIR / "results" / "instruments" / "quadrupole",
-            VALIDATION_DIR / "results" / "v1.0_test" / "instruments" / "quadrupole",
-            REPO_ROOT / "results" / "v1.0_test" / "instruments" / "quadrupole",
-        ]
-
-    def _default_config_dir_candidates():
-        return [
-            VALIDATION_DIR / "configs" / "instruments" / "quadrupole",
-            REPO_ROOT / "validation" / "configs" / "instruments" / "quadrupole",
-        ]
-
-    def _resolve_first_existing(paths):
-        for path in paths:
-            if path.exists():
-                return path
-        return None
 
     # Save results to JSON
     output_path = results_dir / 'stability_analysis.json'

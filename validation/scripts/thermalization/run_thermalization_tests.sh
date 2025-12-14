@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VALIDATION_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_DIR="$VALIDATION_DIR/configs/physics/thermalization"
 RESULTS_DIR="$SCRIPT_DIR/../results/thermalization_session_$(date +%Y%m%d_%H%M%S)"
+THERM_JOBS=${THERM_JOBS:-1}
 
 echo "=============================================="
 echo "ICARION Validation Suite - Session 2"
@@ -76,36 +77,63 @@ PASSED=0
 FAILED=0
 START_SESSION=$(date +%s)
 
+TMP_DIR="$(mktemp -d "$RESULTS_DIR/tmp.XXXX")"
+declare -a PIDS=()
+
 for i in "${!CONFIGS[@]}"; do
     CONFIG="${CONFIGS[$i]}"
     CONFIG_NAME=$(basename "$CONFIG" .json)
-    
-    echo "----------------------------------------"
-    echo "Test $((i+1))/$NUM_CONFIGS: $CONFIG_NAME"
-    echo "----------------------------------------"
-    
-    # Run single test
-    TEST_START=$(date +%s)
-    
-    if cd "$SCRIPT_DIR" && ./test_single_config.sh "$CONFIG"; then
-        TEST_END=$(date +%s)
-        RUNTIME=$((TEST_END - TEST_START))
-        PASSED=$((PASSED + 1))
-        
-        # TODO: Extract temperature analysis from HDF5 output
-        # For now, just mark as PASS
-        echo "| $CONFIG_NAME | ✅ PASS | ${RUNTIME}s | TBD | - |" >> "$RESULTS_DIR/summary.md"
-        
-    else
-        TEST_END=$(date +%s)
-        RUNTIME=$((TEST_END - TEST_START))
-        FAILED=$((FAILED + 1))
-        
-        echo "| $CONFIG_NAME | ❌ FAIL | ${RUNTIME}s | - | Check logs |" >> "$RESULTS_DIR/summary.md"
-    fi
-    
-    echo ""
+    {
+        TEST_START=$(date +%s)
+        if cd "$SCRIPT_DIR" && ./test_single_config.sh "$CONFIG"; then
+            TEST_END=$(date +%s)
+            RUNTIME=$((TEST_END - TEST_START))
+            STATUS=0
+            LINE="| $CONFIG_NAME | ✅ PASS | ${RUNTIME}s | TBD | - |"
+        else
+            TEST_END=$(date +%s)
+            RUNTIME=$((TEST_END - TEST_START))
+            STATUS=1
+            LINE="| $CONFIG_NAME | ❌ FAIL | ${RUNTIME}s | - | Check logs |"
+        fi
+        echo "$STATUS $RUNTIME" > "$TMP_DIR/${i}_${CONFIG_NAME}.status"
+        echo "$LINE" > "$TMP_DIR/${i}_${CONFIG_NAME}.line"
+    } &
+    PIDS+=("$!")
+
+    while [[ ${#PIDS[@]} -ge $THERM_JOBS && $THERM_JOBS -gt 0 ]]; do
+        wait -n || true
+        # prune finished
+        NEW_PIDS=()
+        for pid in "${PIDS[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                NEW_PIDS+=("$pid")
+            fi
+        done
+        PIDS=("${NEW_PIDS[@]}")
+    done
 done
+
+# wait for remaining
+for pid in "${PIDS[@]:-}"; do
+    wait "$pid" || true
+done
+
+# Collect results
+for status_file in "$TMP_DIR"/*.status; do
+    [[ -f "$status_file" ]] || continue
+    read -r STATUS RUNTIME < "$status_file"
+    base=${status_file%.status}
+    line_file="${base}.line"
+    if [[ "$STATUS" -eq 0 ]]; then
+        PASSED=$((PASSED + 1))
+    else
+        FAILED=$((FAILED + 1))
+    fi
+    [[ -f "$line_file" ]] && cat "$line_file" >> "$RESULTS_DIR/summary.md"
+done
+
+rm -rf "$TMP_DIR"
 
 # Session summary
 END_SESSION=$(date +%s)

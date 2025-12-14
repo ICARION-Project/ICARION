@@ -1,7 +1,7 @@
 ================================================================================
 GAS FLOW TRANSPORT VALIDATION
 ================================================================================
-Start time: 2025-12-04 15:42:11
+Start time: 2025-12-14 17:13:06
 
 Purpose: Validate ion transport by gas flow without electric field
 Physics: SIFT-MS (Selected Ion Flow Tube Mass Spectrometry)
@@ -30,10 +30,10 @@ Theory (H3O+ in N2):
 📊 Analyzing: gas_flow_100Pa.h5
   Ions: 1000/1000 active
   Mean velocity:
-    vx =    -7.22 ± 366.07 m/s
-    vy =    -4.61 ± 363.42 m/s
-    vz =    63.57 ± 366.33 m/s  (expected: 100.00 m/s)
-  Error: 36.4%
+    vx =    10.78 ± 377.99 m/s
+    vy =    -7.11 ± 369.86 m/s
+    vz =    93.39 ± 364.54 m/s  (expected: 100.00 m/s)
+  Error: 6.6%
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 1000Pa
@@ -57,10 +57,10 @@ Theory (H3O+ in N2):
 📊 Analyzing: gas_flow_1000Pa.h5
   Ions: 1000/1000 active
   Mean velocity:
-    vx =   -14.81 ± 367.36 m/s
-    vy =     9.97 ± 360.53 m/s
-    vz =   116.69 ± 351.57 m/s  (expected: 100.00 m/s)
-  Error: 16.7%
+    vx =    10.58 ± 384.11 m/s
+    vy =     3.18 ± 363.06 m/s
+    vz =    86.75 ± 365.41 m/s  (expected: 100.00 m/s)
+  Error: 13.3%
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 5000Pa
@@ -84,10 +84,10 @@ Theory (H3O+ in N2):
 📊 Analyzing: gas_flow_5000Pa.h5
   Ions: 1000/1000 active
   Mean velocity:
-    vx =     9.41 ± 361.70 m/s
-    vy =     8.31 ± 356.57 m/s
-    vz =   100.86 ± 352.37 m/s  (expected: 100.00 m/s)
-  Error: 0.9%
+    vx =     5.05 ± 352.18 m/s
+    vy =    32.77 ± 356.04 m/s
+    vz =    95.00 ± 365.06 m/s  (expected: 100.00 m/s)
+  Error: 5.0%
 
 📈 Creating validation plot...
   ✓ Saved: /home/chsch95/ICARION/validation/figures/physics/gas_flow_transport_validation.png
@@ -95,13 +95,13 @@ Theory (H3O+ in N2):
 ================================================================================
 VALIDATION SUMMARY
 ================================================================================
-  100Pa: ❌ FAILED (error = 36.4%)
-  1000Pa: ✓ PASSED (error = 16.7%)
-  5000Pa: ✓ PASSED (error = 0.9%)
+  100Pa: ✓ PASSED (error = 6.6%)
+  1000Pa: ✓ PASSED (error = 13.3%)
+  5000Pa: ✓ PASSED (error = 5.0%)
 
-❌ SOME VALIDATIONS FAILED
+✓ ALL VALIDATIONS PASSED
 
-End time: 2025-12-04 15:42:13
+End time: 2025-12-14 17:13:39
 Log file: /home/chsch95/ICARION/validation/logs/GAS_FLOW_TRANSPORT_VALIDATION.txt
 Figures:  /home/chsch95/ICARION/validation/figures/physics/gas_flow_transport_validation.png
 ================================================================================

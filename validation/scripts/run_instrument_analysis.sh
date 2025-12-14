@@ -49,7 +49,7 @@ declare -A ANALYZER_INSTRUMENT_DIR=(
   [lqit]="lqit"
   [orbitrap]="orbitrap"
   [tof]="tof"
-  [quadrupole]="quadrupole"
+  [quadrupole]="quadrupole_first_region"
 )
 
 QUAD_CONFIG_DIR="$CONFIG_DIR/quadrupole"
@@ -197,9 +197,17 @@ build_results_roots
 
 resolve_results_dir() {
   local instrument="$1"
+  local require_h5="${2:-0}"
   for root in "${RESULT_ROOTS[@]}"; do
     local candidate="$root/$instrument"
     if [[ -d "$candidate" ]]; then
+      if [[ "$require_h5" == 1 ]]; then
+        if find "$candidate" -maxdepth 1 -type f -name '*.h5' -print -quit | grep -q '.'; then
+          printf '%s' "$candidate"
+          return 0
+        fi
+        continue
+      fi
       printf '%s' "$candidate"
       return 0
     fi
@@ -227,8 +235,15 @@ run_analysis() {
   echo "$label"
   echo "============================================================"
 
+  local require_h5=0
+  case "$key" in
+    ims-drift|ims-en|fticr|lqit|orbitrap|tof|quadrupole)
+      require_h5=1
+      ;;
+  esac
+
   local data_dir
-  if ! data_dir=$(resolve_results_dir "$instrument_dir"); then
+  if ! data_dir=$(resolve_results_dir "$instrument_dir" "$require_h5"); then
     echo "✗ No results found for instrument '$instrument_dir'." >&2
     return 1
   fi

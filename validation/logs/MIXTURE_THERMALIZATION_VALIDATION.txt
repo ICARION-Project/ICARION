@@ -1,7 +1,7 @@
 ================================================================================
 GAS MIXTURE THERMALIZATION VALIDATION
 ================================================================================
-Start time: 2025-12-05 16:06:32
+Start time: 2025-12-14 17:45:13
 
 Purpose: Validate HSS collision model thermalization in gas mixtures
 Method: Cold start (0.1 K) → thermalize to ambient (300 K)
@@ -24,9 +24,9 @@ Collision time:      0.01 µs
 
 📊 Analyzing: therm_100He_0N2.h5
   Ions active (final): 500/500
-  Temperature (final): 302.6 ± 8.8 K
+  Temperature (final): 299.8 ± 11.4 K
   Expected:            300.0 K
-  Error:               0.9%  ✅
+  Error:               0.1%  ✅
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 75He_25N2
 ────────────────────────────────────────────────────────────────────────────────
@@ -40,9 +40,9 @@ Collision time:      0.01 µs
 
 📊 Analyzing: therm_75He_25N2.h5
   Ions active (final): 500/500
-  Temperature (final): 301.9 ± 9.1 K
+  Temperature (final): 300.4 ± 10.5 K
   Expected:            300.0 K
-  Error:               0.6%  ✅
+  Error:               0.1%  ✅
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 50He_50N2
 ────────────────────────────────────────────────────────────────────────────────
@@ -56,9 +56,9 @@ Collision time:      0.01 µs
 
 📊 Analyzing: therm_50He_50N2.h5
   Ions active (final): 500/500
-  Temperature (final): 301.3 ± 8.6 K
+  Temperature (final): 302.2 ± 12.1 K
   Expected:            300.0 K
-  Error:               0.4%  ✅
+  Error:               0.7%  ✅
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 25He_75N2
 ────────────────────────────────────────────────────────────────────────────────
@@ -72,9 +72,9 @@ Collision time:      0.01 µs
 
 📊 Analyzing: therm_25He_75N2.h5
   Ions active (final): 500/500
-  Temperature (final): 301.9 ± 8.1 K
+  Temperature (final): 300.0 ± 10.7 K
   Expected:            300.0 K
-  Error:               0.6%  ✅
+  Error:               0.0%  ✅
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 0He_100N2
 ────────────────────────────────────────────────────────────────────────────────
@@ -88,26 +88,26 @@ Collision time:      0.01 µs
 
 📊 Analyzing: therm_0He_100N2.h5
   Ions active (final): 500/500
-  Temperature (final): 301.2 ± 8.2 K
+  Temperature (final): 301.1 ± 11.7 K
   Expected:            300.0 K
   Error:               0.4%  ✅
 
 ================================================================================
 VALIDATION SUMMARY
 ================================================================================
-  100He_0N2      : ✅    0.9% error
-  75He_25N2      : ✅    0.6% error
-  50He_50N2      : ✅    0.4% error
-  25He_75N2      : ✅    0.6% error
+  100He_0N2      : ✅    0.1% error
+  75He_25N2      : ✅    0.1% error
+  50He_50N2      : ✅    0.7% error
+  25He_75N2      : ✅    0.0% error
   0He_100N2      : ✅    0.4% error
 
 ✅ ALL VALIDATIONS PASSED (5/5)
 
 📈 Creating validation plot...
-  ✓ Saved: /home/chsch95/ICARION/validation/figures/physics/mixture_thermalization_validation.png
+  ✓ Saved: /home/chsch95/ICARION/validation/figures/mixture_thermalization_validation.png
 
 ================================================================================
-End time: 2025-12-05 16:11:16
-Duration: 284.4 seconds
+End time: 2025-12-14 17:51:56
+Duration: 402.8 seconds
 Log file: /home/chsch95/ICARION/validation/logs/MIXTURE_THERMALIZATION_VALIDATION.txt
 ================================================================================

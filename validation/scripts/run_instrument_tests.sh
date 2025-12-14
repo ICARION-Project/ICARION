@@ -234,12 +234,14 @@ printf '==============================================\n\n'
 PASSED=0
 FAILED=0
 declare -a FAILED_CONFIGS=()
-declare -a PIDS=()
-declare -A PID_TO_CONFIG=()
+declare -a RUNNING_PIDS=()
+ACTIVE_JOBS=0
+STATUS_LOG="$SESSION_LOG_DIR/status.tsv"
+: >"$STATUS_LOG"
 
 cleanup() {
-  if [[ ${#PIDS[@]} -gt 0 ]]; then
-    kill "${PIDS[@]}" 2>/dev/null || true
+  if [[ ${#RUNNING_PIDS[@]} -gt 0 ]]; then
+    kill "${RUNNING_PIDS[@]}" 2>/dev/null || true
   fi
 }
 trap cleanup INT TERM
@@ -264,35 +266,43 @@ run_config() {
   fi
 }
 
-wait_on_pid() {
-  local pid="$1"
-  local config="${PID_TO_CONFIG[$pid]}"
-  if wait "$pid"; then
-    ((PASSED++))
-  else
-    ((FAILED++))
-    FAILED_CONFIGS+=("$config")
-  fi
-  unset PID_TO_CONFIG["$pid"]
-}
-
 for idx in "${!CONFIG_FILES[@]}"; do
   config="${CONFIG_FILES[$idx]}"
   ordinal=$((idx + 1))
-  run_config "$config" "$ordinal" "$CONFIG_TOTAL" &
+  (
+    run_config "$config" "$ordinal" "$CONFIG_TOTAL"
+    status=$?
+    printf '%s\t%d\t%s\n' "$$" "$status" "$config" >>"$STATUS_LOG"
+    exit "$status"
+  ) &
   pid=$!
-  PIDS+=("$pid")
-  PID_TO_CONFIG["$pid"]="$config"
+  RUNNING_PIDS+=("$pid")
+  ((ACTIVE_JOBS+=1))
 
-  if [[ ${#PIDS[@]} -ge $JOBS ]]; then
-    wait_on_pid "${PIDS[0]}"
-    PIDS=("${PIDS[@]:1}")
+  if [[ $ACTIVE_JOBS -ge $JOBS ]]; then
+    wait -n || true
+    ((ACTIVE_JOBS-=1)) || true
   fi
 done
 
-for pid in "${PIDS[@]}"; do
-  wait_on_pid "$pid"
+while [[ $ACTIVE_JOBS -gt 0 ]]; do
+  wait -n || true
+  ((ACTIVE_JOBS-=1)) || true
 done
+
+while IFS=$'\t' read -r pid status config; do
+  if [[ -z "$pid" ]]; then
+    continue
+  fi
+  if [[ "$status" -eq 0 ]]; then
+    ((PASSED+=1))
+  else
+    ((FAILED+=1))
+    FAILED_CONFIGS+=("$config")
+  fi
+done <"$STATUS_LOG" || true
+
+rm -f "$STATUS_LOG"
 
 SUCCESS_RATE=$(awk -v p="$PASSED" -v t="$CONFIG_TOTAL" 'BEGIN { if (t == 0) { print "0.0" } else { printf "%.1f", (p/t)*100 } }')
 

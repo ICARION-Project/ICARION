@@ -1,7 +1,7 @@
 ================================================================================
 COMBINED DRIFT VALIDATION: E-field + Gas Flow
 ================================================================================
-Start time: 2025-12-04 21:56:27
+Start time: 2025-12-14 17:13:39
 
 Purpose: Validate combined drift: v_drift = μ·E + v_gas
 Theory: Linear superposition of mobility and convection
@@ -26,12 +26,12 @@ Theory (H3O+ in N2):
   ✓ Simulation complete
 
 📊 Analyzing: drift_E0_1000Pa.h5
-  Ions: 507/1000 active
-  Drift velocity (fit):          52.4 m/s  ← PRIMARY
-  Drift velocity (instant):      31.6 ±  351.9 m/s  (noisy)
+  Ions: 521/1000 active
+  Drift velocity (fit):         108.6 m/s  ← PRIMARY
+  Drift velocity (instant):      39.4 ±  352.4 m/s  (noisy)
   Expected:                      50.0 m/s
-  Error (fit):      4.9%  ← PRIMARY
-  Error (instant):  36.8%
+  Error (fit):      117.2%  ← PRIMARY
+  Error (instant):  21.3%
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: E1000_1000Pa
@@ -52,12 +52,12 @@ Theory (H3O+ in N2):
   ✓ Simulation complete
 
 📊 Analyzing: drift_E1000_1000Pa.h5
-  Ions: 518/1000 active
-  Drift velocity (fit):          92.4 m/s  ← PRIMARY
-  Drift velocity (instant):      79.9 ±  358.1 m/s  (noisy)
+  Ions: 556/1000 active
+  Drift velocity (fit):         252.9 m/s  ← PRIMARY
+  Drift velocity (instant):     140.9 ±  361.5 m/s  (noisy)
   Expected:                      85.6 m/s
-  Error (fit):      7.9%  ← PRIMARY
-  Error (instant):  6.7%
+  Error (fit):      195.4%  ← PRIMARY
+  Error (instant):  64.6%
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: E5000_1000Pa
@@ -78,12 +78,12 @@ Theory (H3O+ in N2):
   ✓ Simulation complete
 
 📊 Analyzing: drift_E5000_1000Pa.h5
-  Ions: 547/1000 active
-  Drift velocity (fit):         223.0 m/s  ← PRIMARY
-  Drift velocity (instant):     255.2 ±  378.5 m/s  (noisy)
+  Ions: 635/1000 active
+  Drift velocity (fit):         746.2 m/s  ← PRIMARY
+  Drift velocity (instant):     402.1 ±  441.6 m/s  (noisy)
   Expected:                     228.1 m/s
-  Error (fit):      2.2%  ← PRIMARY
-  Error (instant):  11.9%
+  Error (fit):      227.2%  ← PRIMARY
+  Error (instant):  76.3%
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: E0_100Pa
@@ -104,12 +104,12 @@ Theory (H3O+ in N2):
   ✓ Simulation complete
 
 📊 Analyzing: drift_E0_100Pa.h5
-  Ions: 505/1000 active
-  Drift velocity (fit):          50.0 m/s  ← PRIMARY
-  Drift velocity (instant):      51.3 ±  366.6 m/s  (noisy)
+  Ions: 510/1000 active
+  Drift velocity (fit):         127.3 m/s  ← PRIMARY
+  Drift velocity (instant):      54.6 ±  365.2 m/s  (noisy)
   Expected:                      50.0 m/s
-  Error (fit):      0.0%  ← PRIMARY
-  Error (instant):  2.5%
+  Error (fit):      154.6%  ← PRIMARY
+  Error (instant):  9.3%
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: E1000_100Pa
@@ -130,12 +130,12 @@ Theory (H3O+ in N2):
   ✓ Simulation complete
 
 📊 Analyzing: drift_E1000_100Pa.h5
-  Ions: 564/1000 active
-  Drift velocity (fit):         365.2 m/s  ← PRIMARY
-  Drift velocity (instant):     345.3 ±  458.5 m/s  (noisy)
+  Ions: 683/1000 active
+  Drift velocity (fit):        1149.0 m/s  ← PRIMARY
+  Drift velocity (instant):     544.9 ±  541.0 m/s  (noisy)
   Expected:                     406.1 m/s
-  Error (fit):      10.1%  ← PRIMARY
-  Error (instant):  15.0%
+  Error (fit):      182.9%  ← PRIMARY
+  Error (instant):  34.2%
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: E5000_100Pa
@@ -156,29 +156,29 @@ Theory (H3O+ in N2):
   ✓ Simulation complete
 
 📊 Analyzing: drift_E5000_100Pa.h5
-  Ions: 662/1000 active
-  Drift velocity (fit):         968.6 m/s  ← PRIMARY
-  Drift velocity (instant):     943.1 ±  773.1 m/s  (noisy)
+  Ions: 896/1000 active
+  Drift velocity (fit):        2749.1 m/s  ← PRIMARY
+  Drift velocity (instant):    1434.6 ± 1062.4 m/s  (noisy)
   Expected:                    1830.6 m/s
-  Error (fit):      47.1%  ← PRIMARY
-  Error (instant):  48.5%
+  Error (fit):      50.2%  ← PRIMARY
+  Error (instant):  21.6%
 
 📈 Creating validation plot...
-  ✓ Saved: /home/chsch95/ICARION/validation/figures/physics/combined_drift_validation.png
+  ✓ Saved: /home/chsch95/ICARION/validation/figures/combined_drift_validation.png
 
 ================================================================================
 VALIDATION SUMMARY
 ================================================================================
-  E0_1000Pa: ✓ PASSED (error = 4.9%)
-  E1000_1000Pa: ✓ PASSED (error = 7.9%)
-  E5000_1000Pa: ✓ PASSED (error = 2.2%)
-  E0_100Pa: ✓ PASSED (error = 0.0%)
-  E1000_100Pa: ✓ PASSED (error = 10.1%)
-  E5000_100Pa: ❌ FAILED (error = 47.1%)
+  E0_1000Pa: ❌ FAILED (error = 117.2%)
+  E1000_1000Pa: ❌ FAILED (error = 195.4%)
+  E5000_1000Pa: ❌ FAILED (error = 227.2%)
+  E0_100Pa: ❌ FAILED (error = 154.6%)
+  E1000_100Pa: ❌ FAILED (error = 182.9%)
+  E5000_100Pa: ❌ FAILED (error = 50.2%)
 
 ❌ SOME VALIDATIONS FAILED
 
-End time: 2025-12-04 21:56:33
+End time: 2025-12-14 17:15:06
 Log file: /home/chsch95/ICARION/validation/logs/COMBINED_DRIFT_VALIDATION.txt
-Figures:  /home/chsch95/ICARION/validation/figures/physics/combined_drift_validation.png
+Figures:  /home/chsch95/ICARION/validation/figures/combined_drift_validation.png
 ================================================================================

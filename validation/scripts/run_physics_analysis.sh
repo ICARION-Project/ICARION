@@ -154,7 +154,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
   esac
-end
+done
 
 if [[ ${#SELECTED_ANALYSES[@]} -eq 0 ]]; then
   SELECTED_ANALYSES=("${AVAILABLE_ANALYSES[@]}")

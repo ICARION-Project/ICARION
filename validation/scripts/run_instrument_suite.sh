@@ -5,15 +5,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
 VALIDATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUNNER="$SCRIPT_DIR/run_instrument_tests.sh"
-
-DEFAULT_INSTRUMENTS=(ims fticr lqit orbitrap tof quadrupole)
+  STATUS_FIFO="$(mktemp -u "$VALIDATION_DIR/suite_status_fifo.XXXX")"
+  mkfifo "$STATUS_FIFO"
+  exec {STATUS_FD}<"$STATUS_FIFO"
 SELECTED_INSTRUMENTS=()
 JOBS=""
 THREADS=""
 BINARY=""
 CONFIG_ROOT=""
 OUTPUT_ROOT=""
+SUITE_JOBS=1
 
 print_usage() {
   cat <<'EOF'
@@ -25,6 +26,7 @@ Options:
   -b, --binary PATH     Override path to icarion_main
   -c, --config-root DIR Use DIR/<instrument> for config overrides
   -o, --output-root DIR Use DIR/<instrument> for output overrides
+  -J, --suite-jobs N    Number of instruments to run concurrently (default: 1)
   --list                Show normalized instrument keys and exit
   -h, --help            Show this help text
 
@@ -42,6 +44,15 @@ Available instruments:
   tof          Time-of-flight mass spectrometer
   quadrupole   Quadrupole stability map
 EOF
+}
+
+require_positive_integer() {
+  local value="$1"
+  local label="$2"
+  if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: $label must be a positive integer (got '$value')." >&2
+    exit 1
+  fi
 }
 
 abs_path() {
@@ -93,25 +104,18 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -b|--binary)
-      [[ $# -lt 2 ]] && print_usage && exit 1
-      BINARY="$2"
-      shift 2
-      ;;
-    -c|--config-root)
-      [[ $# -lt 2 ]] && print_usage && exit 1
-      CONFIG_ROOT="$2"
-      shift 2
-      ;;
-    -o|--output-root)
-      [[ $# -lt 2 ]] && print_usage && exit 1
-      OUTPUT_ROOT="$2"
-      shift 2
-      ;;
-    --list)
-      list_instruments
-      exit 0
-      ;;
-    -h|--help)
+      STATUS_LOG="$VALIDATION_DIR/suite_status.tsv"
+      : >"$STATUS_LOG"
+      declare -a RUNNING_PIDS=()
+      ACTIVE_JOBS=0
+
+      cleanup() {
+        if [[ ${#RUNNING_PIDS[@]} -gt 0 ]]; then
+          kill "${RUNNING_PIDS[@]}" 2>/dev/null || true
+        fi
+        rm -f "$STATUS_LOG"
+      }
+      trap cleanup EXIT INT TERM
       print_usage
       exit 0
       ;;
@@ -145,6 +149,8 @@ fi
 
 dedupe_array SELECTED_INSTRUMENTS
 
+require_positive_integer "$SUITE_JOBS" "suite jobs"
+
 if [[ ! -x "$RUNNER" ]]; then
   echo "Error: Expected runner not found at $RUNNER" >&2
   exit 1
@@ -162,12 +168,37 @@ PASSED=0
 FAILED=0
 FAILED_LIST=()
 
+STATUS_FIFO="$(mktemp -u "$VALIDATION_DIR/suite_status_fifo.XXXX")"
+mkfifo "$STATUS_FIFO"
+exec {STATUS_FD}<>"$STATUS_FIFO"
+declare -a RUNNING_PIDS=()
+
+close_status_channel() {
+  if [[ -n "${STATUS_FD:-}" ]]; then
+    exec {STATUS_FD}>&- 2>/dev/null || true
+    unset STATUS_FD
+  fi
+  if [[ -n "${STATUS_FIFO:-}" && -p "$STATUS_FIFO" ]]; then
+    rm -f "$STATUS_FIFO"
+    STATUS_FIFO=""
+  fi
+}
+
+cleanup() {
+  if [[ ${#RUNNING_PIDS[@]} -gt 0 ]]; then
+    kill "${RUNNING_PIDS[@]}" 2>/dev/null || true
+  fi
+  close_status_channel
+}
+trap cleanup EXIT INT TERM
+
 printf '==============================================\n'
 printf 'Instrument Validation Suite\n'
 printf '==============================================\n'
 printf 'Runner      : %s\n' "$RUNNER"
 printf 'Jobs        : %s\n' "${JOBS:-default}"
 printf 'Threads     : %s\n' "${THREADS:-default}"
+printf 'Suite jobs  : %s\n' "$SUITE_JOBS"
 printf 'Binary      : %s\n' "${BINARY:-auto}"
 printf 'Config root : %s\n' "${CONFIG_ROOT:-validation/configs/instruments}" 
 printf 'Output root : %s\n' "${OUTPUT_ROOT:-validation/results/instruments}"
@@ -206,13 +237,40 @@ run_single() {
 
 for instrument in "${SELECTED_INSTRUMENTS[@]}"; do
   TOTAL=$((TOTAL + 1))
-  if run_single "$instrument"; then
+  (
+    run_single "$instrument"
+    status=$?
+    printf '%s\t%d\t%s\n' "$$" "$status" "$instrument" >>"$STATUS_LOG"
+    exit "$status"
+  ) &
+  pid=$!
+  RUNNING_PIDS+=("$pid")
+  ((ACTIVE_JOBS+=1))
+
+  if [[ $ACTIVE_JOBS -ge $SUITE_JOBS ]]; then
+    wait -n || true
+    ((ACTIVE_JOBS-=1)) || true
+  fi
+done
+
+while [[ $ACTIVE_JOBS -gt 0 ]]; do
+  wait -n || true
+  ((ACTIVE_JOBS-=1)) || true
+done
+
+while IFS=$'\t' read -r pid status instrument; do
+  if [[ -z "$pid" ]]; then
+    continue
+  fi
+  if [[ "$status" -eq 0 ]]; then
     PASSED=$((PASSED + 1))
   else
     FAILED=$((FAILED + 1))
     FAILED_LIST+=("$instrument")
   fi
-done
+done <"$STATUS_LOG" || true
+
+rm -f "$STATUS_LOG"
 
 printf '\n==============================================\n'
 printf 'Suite summary\n'

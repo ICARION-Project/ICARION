@@ -125,7 +125,7 @@ def create_config(E_field_Vm, v_gas_z, pressure_Pa, temperature_K, sim_time_s, o
                 }
             }]
         },
-        "species_database": str(REPO_ROOT / "data" / "species_database_v1.json"),
+        "species_database_path": str(REPO_ROOT / "data" / "species_database_v1.json"),
         "domains": [{
             "name": "combined_drift_test",
             "instrument": "IMS",

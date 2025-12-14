@@ -247,6 +247,7 @@ def analyze_ims_spacecharge(results_dir):
     ]
 
     summaries = []
+    plot_entries = []
 
     for variant in variants:
         print(f"\n--- {variant['label']} ---")
@@ -307,6 +308,7 @@ def analyze_ims_spacecharge(results_dir):
                 print(f"  ❌ Error: {e}")
 
         if len(results_sc) == 2:
+            plot_entries.append({'label': variant['label'], 'on': results_sc['on'], 'off': results_sc['off']})
             t_off = results_sc['off']['arrival_time']
             t_on = results_sc['on']['arrival_time']
             v_off = results_sc['off']['drift_velocity']
@@ -345,6 +347,39 @@ def analyze_ims_spacecharge(results_dir):
             delay_text = f"{summary['delay']:+.1f}%" if np.isfinite(summary['delay']) else "--"
             drift_text = f"{summary['drift_delta']:+.1f}%" if np.isfinite(summary['drift_delta']) else "--"
             print(f"  {summary['label']}: delay={delay_text}, drift={drift_text}, broadening={summary['broadening']:+.1f}%")
+
+    # Plot IMS drift position/width comparisons if both runs are present
+    if plot_entries:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        ax_pos, ax_width = axes
+
+        for entry in plot_entries:
+            for sc_label, style, color in [('off', '-', 'tab:blue'), ('on', '--', 'tab:red')]:
+                data = entry.get(sc_label)
+                if not data:
+                    continue
+                times_ms = data['times'] * 1e3
+                ax_pos.plot(times_ms, data['z_mean'] * 1e3, linestyle=style, color=color,
+                            label=f"{entry['label']} SC {sc_label.upper()}")
+                ax_width.plot(times_ms, data['z_std'] * 1e3, linestyle=style, color=color,
+                              label=f"{entry['label']} SC {sc_label.upper()}")
+
+        ax_pos.set_title("IMS drift position (mean z)")
+        ax_pos.set_xlabel("Time (ms)")
+        ax_pos.set_ylabel("Mean z (mm)")
+        ax_pos.grid(True, alpha=0.3)
+        ax_pos.legend(fontsize=8)
+
+        ax_width.set_title("IMS peak width (σ_z)")
+        ax_width.set_xlabel("Time (ms)")
+        ax_width.set_ylabel("σ_z (mm)")
+        ax_width.grid(True, alpha=0.3)
+        ax_width.legend(fontsize=8)
+
+        plt.tight_layout()
+        plot_path = results_dir / "spacecharge_ims_comparison.png"
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        print(f"\n📊 Saved IMS space charge plot: {plot_path}")
 
     print("="*80 + "\n")
 

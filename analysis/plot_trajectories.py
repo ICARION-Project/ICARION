@@ -12,6 +12,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Allow running as a standalone script without installing the package
+if __package__ is None or __package__ == "":
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 from analysis.common import (
     load_positions_subset,
     load_species_ids,

@@ -17,6 +17,12 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Allow running as a standalone script without installing the package
+if __package__ is None or __package__ == "":
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 from analysis.common import load_species_ids, open_trajectory, select_ion_indices
 
 K_B = 1.380649e-23  # Boltzmann constant [J/K]

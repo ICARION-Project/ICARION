@@ -11,6 +11,7 @@ Small, runnable examples for ICARION HDF5 trajectories. Focused on quick visuali
 - `analysis/animate_trajectories.py`: Simple projection animation (GIF/MP4) with striding and sampling to keep size down.
 - `analysis/elimination_histograms.py`: Elimination-time histograms and channel counts (radial/axial, Orbitrap inner/outer); also produces per-species breakdowns.
 - `analysis/mean_positions.py`: Mean radial and axial positions over time (per species) with ion downsampling and time striding.
+- `analysis/thermalization_check.py`: Temperature vs time plus speed distribution vs Maxwell-Boltzmann over the last timesteps.
 
 ## Example invocations
 ```bash
@@ -48,6 +49,13 @@ python analysis/mean_positions.py \
   --species Mass80_CCS25 Mass88_CCS50 \
   --time-stride 5 \
   --max-ions 300
+
+# Thermalization check: temperature curve + MB overlay on last speeds
+python analysis/thermalization_check.py \
+  --traj results/v1.0_test/physics/thermalization/therm_hss_300K_20Pa.h5 \
+  --out analysis/output/thermalization_check.png \
+  --time-stride 10 \
+  --window 10
 ```
 
 See `--help` on the scripts for more options (e.g., ion caps per species, RNG seed, projection).

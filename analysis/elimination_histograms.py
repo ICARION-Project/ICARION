@@ -148,18 +148,18 @@ def _read_geometry(h5, domain_idx: int, positions_last: np.ndarray) -> Geometry:
     geom_group = h5.get(f"domains/{dom_name}/geometry")
 
     def _scalar(name: str) -> Optional[float]:
-        if geom_group and name in geom_group:
-            return float(np.array(geom_group[name]).astype(float))
-        return None
+        if geom_group is None or name not in geom_group:
+            return None
+        arr = np.array(geom_group[name])
+        if arr.size == 0:
+            return None
+        return float(arr.flat[0])
 
-    origin = _scalar("origin_m")
-    if origin is not None:
-        try:
-            origin_z = float(np.array(geom_group["origin_m"])[2])
-        except Exception:
-            origin_z = 0.0
-    else:
-        origin_z = 0.0
+    origin_z = 0.0
+    if geom_group is not None and "origin_m" in geom_group:
+        arr = np.array(geom_group["origin_m"]).astype(float)
+        if arr.size >= 3:
+            origin_z = float(arr[2])
 
     length = _scalar("length_m")
     r_out = _scalar("radius_out_m") or _scalar("radius_m")

@@ -40,6 +40,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--window", type=int, default=10, help="Number of last timesteps to average for the speed histogram.")
     p.add_argument("--bins", type=int, default=70, help="Histogram bins for speed distribution.")
     p.add_argument("--domain-index", type=int, default=0, help="Domain index for target temperature.")
+    p.add_argument(
+        "--tol-frac",
+        type=float,
+        default=0.05,
+        help="Relative tolerance for thermalization time estimate (|T-T_target|/T_target <= tol).",
+    )
+    p.add_argument(
+        "--steady-window",
+        type=int,
+        default=5,
+        help="Consecutive points within tolerance required to declare thermalized.",
+    )
     return p.parse_args()
 
 
@@ -78,6 +90,13 @@ def main() -> int:
         time = time_ds[::stride]
         velocities = vel_ds[::stride, ion_indices, :]
         temp_series = _temperature_series(velocities, masses)
+        t_therm = estimate_thermalization_time(
+            time=time,
+            temp_series=temp_series,
+            target_temp=target_temp,
+            tol_frac=args.tol_frac,
+            steady_window=args.steady_window,
+        )
 
         # Last window for MB comparison (unstrided to get true last frames)
         window = max(1, min(args.window, vel_ds.shape[0]))
@@ -101,6 +120,7 @@ def main() -> int:
         time=time,
         temp_series=temp_series,
         target_temp=target_temp,
+        t_therm=t_therm,
         centers=centers,
         counts=counts,
         mb_tail=mb_tail,
@@ -146,6 +166,24 @@ def _temperature_from_speeds(velocities: np.ndarray, masses: np.ndarray) -> floa
     return float(np.mean(energy) / (3 * K_B))
 
 
+def estimate_thermalization_time(
+    time: np.ndarray,
+    temp_series: np.ndarray,
+    target_temp: float | None,
+    tol_frac: float,
+    steady_window: int,
+) -> float | None:
+    if target_temp is None or np.isnan(target_temp):
+        return None
+    tol = abs(target_temp) * tol_frac
+    within = np.abs(temp_series - target_temp) <= tol
+    w = max(1, steady_window)
+    for i in range(len(time) - w + 1):
+        if np.all(within[i : i + w]):
+            return float(time[i])
+    return None
+
+
 def _maxwell_speed_pdf(v: np.ndarray, T: float, mass: float) -> np.ndarray:
     coeff = np.sqrt(2 / np.pi) * (mass / (K_B * T)) ** 1.5
     return coeff * v**2 * np.exp(-mass * v**2 / (2 * K_B * T))
@@ -155,6 +193,7 @@ def _plot(
     time: np.ndarray,
     temp_series: np.ndarray,
     target_temp: float | None,
+    t_therm: float | None,
     centers: np.ndarray,
     counts: np.ndarray,
     mb_tail: np.ndarray,
@@ -170,6 +209,8 @@ def _plot(
     ax_t.plot(time, temp_series, label="Simulated T", color="#1f77b4")
     if target_temp is not None:
         ax_t.axhline(target_temp, color="#e45756", linestyle="--", label=f"Domain T={target_temp:.1f} K")
+    if t_therm is not None:
+        ax_t.axvline(t_therm, color="#54a24b", linestyle=":", label=f"T therm ~ {t_therm:.3e}s")
     ax_t.set_xlabel("Time [s]")
     ax_t.set_ylabel("Temperature [K]")
     ax_t.set_title("Temperature vs time")

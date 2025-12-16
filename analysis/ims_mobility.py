@@ -106,7 +106,18 @@ def main() -> int:
         species_valid = species_selected[mask_valid]
 
     # Plot and CSV
-    _plot(arrivals, mobility, K0, species_valid, args.out, bins=args.bins, field_Vm=field_Vm, temp=temp_K, pressure=pressure_Pa, length=length_m)
+    _plot(
+        arrivals,
+        mobility,
+        K0,
+        species_valid,
+        args.out,
+        bins=args.bins,
+        field_Vm=field_Vm,
+        temp=temp_K,
+        pressure=pressure_Pa,
+        length=length_m,
+    )
     _write_csv(arrivals, mobility, K0, species_valid, args.out_csv)
     print(f"Wrote {args.out}")
     print(f"Wrote {args.out_csv}")
@@ -191,13 +202,28 @@ def find_arrival_times(
     return arrivals[mask_valid], mask_valid
 
 
-def _plot(arrivals, mobility, K0, species, out_path: Path, bins: int, field_Vm: float, temp: float, pressure: float, length: float):
+def _plot(
+    arrivals,
+    mobility,
+    K0,
+    species,
+    out_path: Path,
+    bins: int,
+    field_Vm: float,
+    temp: float,
+    pressure: float,
+    length: float,
+):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 
     # Arrival histogram
     ax_arr = axes[0]
-    ax_arr.hist(arrivals, bins=bins, color="#4c78a8", alpha=0.8)
+    if len(arrivals) > 1:
+        edges = np.linspace(arrivals.min(), arrivals.max(), bins + 1)
+    else:
+        edges = np.linspace(arrivals.min() * 0.99, arrivals.max() * 1.01 + 1e-12, bins + 1)
+    ax_arr.hist(arrivals, bins=edges, color="#4c78a8", alpha=0.8)
     ax_arr.axvline(np.median(arrivals), color="#e45756", linestyle="--", label=f"Median t={np.median(arrivals):.3e}s")
     ax_arr.set_xlabel("Arrival time [s]")
     ax_arr.set_ylabel("Count")
@@ -208,16 +234,22 @@ def _plot(arrivals, mobility, K0, species, out_path: Path, bins: int, field_Vm: 
     # Mobility scatter
     ax_mob = axes[1]
     ax_mob.scatter(arrivals, mobility, alpha=0.7, s=12, label="K per ion")
-    ax_mob.axhline(np.median(mobility), color="#e45756", linestyle="--", label=f"Median K={np.median(mobility):.3e} m²/Vs")
+    ax_mob.axhline(
+        np.median(mobility),
+        color="#e45756",
+        linestyle="--",
+        label=f"Median K={np.median(mobility):.3e} m²/Vs",
+    )
     ax_mob.set_xlabel("Arrival time [s]")
     ax_mob.set_ylabel("Mobility K [m²/(V·s)]")
     ax_mob.set_title(f"K, K0 stats (N={len(arrivals)})")
     ax_mob.grid(True, alpha=0.2)
     ax_mob.legend()
 
+    K0_cm2 = K0 * 1e4
     fig.suptitle(
         f"IMS mobility: E={field_Vm:.3e} V/m, L={length:.3e} m, T={temp:.1f} K, p={pressure:.1f} Pa\n"
-        f"K median={np.median(mobility):.3e} m²/Vs, K0 median={np.median(K0):.3e} m²/Vs"
+        f"K median={np.median(mobility):.3e} m²/Vs, K0 median={np.median(K0_cm2):.3e} cm²/Vs"
     )
     fig.tight_layout(rect=[0, 0, 1, 0.92])
     fig.savefig(out_path, dpi=200)
@@ -227,9 +259,9 @@ def _write_csv(arrivals, mobility, K0, species, out_path: Path):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["species", "arrival_time_s", "K_m2_Vs", "K0_m2_Vs"])
+        writer.writerow(["species", "arrival_time_s", "K_m2_Vs", "K0_m2_Vs", "K0_cm2_Vs"])
         for sp, t, k, k0 in zip(species, arrivals, mobility, K0):
-            writer.writerow([sp, f"{t:.6e}", f"{k:.6e}", f"{k0:.6e}"])
+            writer.writerow([sp, f"{t:.6e}", f"{k:.6e}", f"{k0:.6e}", f"{k0 * 1e4:.6e}"])
 
 
 if __name__ == "__main__":

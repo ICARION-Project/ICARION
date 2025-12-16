@@ -12,6 +12,7 @@ Small, runnable examples for ICARION HDF5 trajectories. Focused on quick visuali
 - `analysis/elimination_histograms.py`: Elimination-time histograms and channel counts (radial/axial, Orbitrap inner/outer); also produces per-species breakdowns.
 - `analysis/mean_positions.py`: Mean radial and axial positions over time (per species) with ion downsampling and time striding.
 - `analysis/thermalization_check.py`: Temperature vs time plus speed distribution vs Maxwell-Boltzmann over the last timesteps.
+- `analysis/ims_mobility.py`: Drift mobility / reduced mobility estimation from IMS trajectories (arrival times, K, K0).
 
 ## Example invocations
 ```bash
@@ -56,6 +57,14 @@ python analysis/thermalization_check.py \
   --out analysis/output/thermalization_check.png \
   --time-stride 10 \
   --window 10
+
+# IMS mobility / reduced mobility from arrival times
+python analysis/ims_mobility.py \
+  --traj results/ims/ims_trajectories.h5 \
+  --out analysis/output/ims_mobility.png \
+  --out-csv analysis/output/ims_mobility.csv \
+  --bins 60 \
+  --time-stride 2
 ```
 
 See `--help` on the scripts for more options (e.g., ion caps per species, RNG seed, projection).

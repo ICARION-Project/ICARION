@@ -234,10 +234,13 @@ void RK45Strategy::compute_acceleration_state(
     ctx.all_ions = nullptr;
     ctx.field_provider = nullptr;
     ctx.field_model = force_registry.field_model();
-    ctx.ion_ensemble = nullptr;
+    core::IonEnsemble scratch;
+    // Domain cache is filled with zeros here; RK stages do not depend on it.
+    write_state_to_scratch(state, 0.0, 0.0, 0.0, scratch);
+    ctx.ion_ensemble = &scratch;
     ctx.ion_index = 0;
 
-    Vec3 F = force_registry.compute_total_force(state, t, ctx);
+    Vec3 F = force_registry.compute_total_force(scratch, 0, t, ctx);
     const double inv_mass = 1.0 / state.mass_kg;
     Vec3 a = F * inv_mass;
 

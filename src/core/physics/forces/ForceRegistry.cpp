@@ -52,29 +52,4 @@ Vec3 ForceRegistry::compute_total_force(
     return total_force;
 }
 
-Vec3 ForceRegistry::compute_total_force(
-    const IonState& ion,
-    double t,
-    const ForceContext& context
-) const {
-    Vec3 total_force{0, 0, 0};
-
-    if (!forces_.empty()) {
-        for (const auto& force : forces_) {
-            if (force->applies_to(ion)) {
-                // For AoS path, we pass through the same context (no ensemble)
-                ForceContext ctx = context;
-                ctx.all_ions = nullptr;
-                ctx.ion_ensemble = nullptr;
-                total_force += force->compute(ion, t, ctx);
-            }
-        }
-    }
-
-    if (space_charge_model_) {
-        // AoS path has no per-ion index; space-charge not supported here.
-    }
-    return total_force;
-}
-
 } // namespace ICARION::physics

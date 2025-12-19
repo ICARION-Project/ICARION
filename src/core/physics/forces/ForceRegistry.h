@@ -79,17 +79,6 @@ public:
         double t,
         const ForceContext& context = {}
     ) const;
-
-    /**
-     * @brief Compute total force for a standalone IonState (AoS path).
-     *
-     * Intended for integrators that operate on temporary IonState snapshots.
-     */
-    Vec3 compute_total_force(
-        const IonState& state,
-        double t,
-        const ForceContext& context = {}
-    ) const;
     
     /**
      * @brief Get all registered forces (for inspection/debugging)

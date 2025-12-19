@@ -17,6 +17,39 @@
       "geometry_file": "molecules/H3O+.json",
       "note": "CCS_HSS values are MOBILITY CCS Ω(1,1) from Mason-Schamp, NOT geometrical hard-sphere! HSS collision rate should use mobility CCS to account for Langevin enhancement."
     },
+    "AcetoneH+": {
+      "mass_amu": 59.07,
+      "charge": 1,
+      "mobility_cm2Vs": 13.06,
+      "CCS_A2": 40.7,
+      "name": "Acetone protonated",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/AcetoneH+.json"
+    },
+    "ButanoneH+": {
+      "mass_amu": 73.09,
+      "charge": 1,
+      "mobility_cm2Vs": 11.67,
+      "CCS_A2": 47.2,
+      "name": "Butanone protonated",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/ButanoneH+.json"
+    },
+    "PentanoneH+": {
+      "mass_amu": 87.11,
+      "charge": 1,
+      "mobility_cm2Vs": 10.41,
+      "CCS_A2": 52.6,
+      "name": "Pentanone protonated",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/PentanoneH+.json"
+    },
     "PentanalH+": {
       "mass_amu": 87.0,
       "charge": 1,
@@ -31,8 +64,8 @@
     "26DTBPH+": {
       "mass_amu": 192.0,
       "charge": 1,
-      "mobility_cm2Vs": 6.25,
-      "CCS_A2": 87.02,
+      "mobility_cm2Vs": 6.307,
+      "CCS_A2": 85.8,
       "name": "2,6-DTBPH protonated",
       "reference_temperature_K": 273.15,
       "reference_pressure_Pa": 101325,
@@ -87,6 +120,15 @@
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/ReserpineH+.json"
+    },
+    "Ar+": {
+      "mass_amu": 39.95,
+      "charge": 1,
+      "mobility_cm2Vs": 19.5,
+      "CCS_A2": 50.24,
+      "name": "Argon ion",
+      "reference_temperature_K": 273.15,
+      "reference_pressure_Pa": 101325
     },
     "He": {
       "mass_amu": 4.003,

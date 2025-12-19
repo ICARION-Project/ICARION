@@ -36,6 +36,12 @@ public:
         const double m = ensemble.mass_data()[ion_idx];
         return Vec3{0, 0, -m * g_};
     }
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override {
+        (void)t; (void)ctx;
+        return Vec3{0, 0, -state.mass_kg * g_};
+    }
     
     std::string name() const override { return "ConstantGravity"; }
     
@@ -52,6 +58,12 @@ public:
         (void)t; (void)ctx;
         Vec3 pos = ensemble.get_pos(ion_idx);
         return pos * (-k_);
+    }
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override {
+        (void)t; (void)ctx;
+        return state.pos * (-k_);
     }
     
     std::string name() const override { return "HarmonicOscillator"; }
@@ -70,6 +82,12 @@ public:
         Vec3 vel = ensemble.get_vel(ion_idx);
         double mass = ensemble.mass_data()[ion_idx];
         return vel * (-gamma_ * mass);
+    }
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override {
+        (void)t; (void)ctx;
+        return state.vel * (-gamma_ * state.mass_kg);
     }
     
     std::string name() const override { return "ExponentialDamping"; }

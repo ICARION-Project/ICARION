@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Last Updated:** 2025-12-04  
 **Branch:** `release/v1.0-prep`  
-**Goal:** Systematic validation of physics and performance for v1.0 release
+**Goal:** Systematic validation of physics and performance for v1.0 release. The full validation suite ships with this repository and can be executed by any user (no external assets required).
 
 ⚠️ **IMPORTANT: Validation Suite vs CTests**
 
@@ -18,6 +18,33 @@ For fast CI/CD regression tests (<5s), see `tests/` directory (CTests).
 | **Ensemble** | 10-100 ions | 1000-10000 ions |
 | **Output** | Pass/Fail | Plots + tables + metrics |
 | **Example** | `test_gas_flow_transport.cpp` | `validate_gas_flow_transport.py` |
+
+---
+
+## At a Glance
+
+| Suite | Scope | Configs | Primary Metric | Entry Script | Status |
+|-------|-------|---------|----------------|--------------|--------|
+| Thermalization | Gas thermalization (HSS/EHSS) | 90 | T_final vs target (|Δ|<10%) | `scripts/run_thermalization_tests.sh` | ✅ Complete |
+| Instrument Physics | IMS, Orbitrap, LQIT, Quadrupole, FT-ICR | 187 | Instrument-specific theory checks | `scripts/run_instrument_suite.sh` | ✅ Complete |
+| Transport Physics | Drift/Gas flow/Diffusion | 27 (drift) | K₀ vs Mason-Schamp | `scripts/run_transport_tests.sh` | 🔄 In progress |
+| Space Charge | Coulomb expansion, solver parity | 8 | σ(t), ΔE/E | `scripts/run_spacecharge_tests.sh` | ⏳ Planned |
+| Reaction Kinetics | 1st-order + bimolecular | 6 | N(t) vs rate equations | `scripts/run_reactions_tests.sh` | ⏳ Planned |
+| Performance (CPU) | Scaling + model overhead | 18 | wallclock vs N, model | `scripts/performance/run_performance_suite.sh` | ✅ Complete |
+| Performance (GPU) | Speedup vs CPU, thresholds | 31 | GPU/CPU speedup | `scripts/performance/run_performance_suite.sh --gpu-only` | 🔄 In progress |
+
+**How to run (short version):**
+- Single study: `./scripts/run_thermalization_tests.sh full`
+- All instruments: `./scripts/run_instrument_suite.sh`
+- Full physics sweep: `./scripts/run_physics_suite.sh`
+- Performance benchmarks: `./scripts/performance/run_performance_suite.sh [--gpu-only]`
+- End-to-end: `./scripts/run_all_validation.sh` (chains everything; expects a built `../build/src/icarion_main`)
+
+**Example outputs / metrics:**
+- `validation/figures/combined_drift_validation.png`: IMS drift velocity vs Mason-Schamp (|ΔK₀| ≤ 5% across E/N sweep).
+- `validation/figures/gas_mixture_mobility_validation.png`: Mixture mobility parity (slope ≈ 1.00 vs reference).
+- `validation/figures/mixture_thermalization_validation.png`: Temperature rise to target for mixed gases (|ΔT/T| < 10%).
+- `validation/figures/combined_drift_validation.png` and `validation/logs/COMBINED_DRIFT_VALIDATION.txt`: consolidated drift metrics with per-config errors.
 
 ---
 
@@ -337,8 +364,8 @@ RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evalu
 
 🚀 **GPU Performance (Session 7):**
 - `scripts/generate_gpu_performance_configs.py` - GPU benchmark suite (31 configs)
-- `scripts/performance/run_performance_suite.sh --gpu-only` - GPU test orchestration (skips automatically if `USE_GPU_ACCEL=OFF`)
-- `scripts/performance/run_performance_analysis.sh` - wraps the analyzers to regenerate CPU/GPU plots in one step
+- `scripts/performance/run_performance_suite.sh` - Unified CPU+GPU benchmark runner (defaults to all categories, honors `--cpu-only`, `--gpu-only`, and category filters; logs land under `validation/results/v1.0_test/performance/{logs,gpu_logs}`)
+- `scripts/performance/run_performance_analysis.sh` - Central analyzer wrapper that regenerates the CPU/GPU plots/tables in one command
 - `scripts/analyze_gpu_performance.py` - Speedup analysis and plotting
 - `scripts/analyze_quadrupole_stability_map.py` - Stability map analysis
 - `scripts/generate_fticr_configs.py` - FT-ICR cyclotron frequency (5 configs)
@@ -354,8 +381,8 @@ RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evalu
 - `scripts/run_reactions_tests.sh` - Kinetics validation
 
 ⏳ **Performance (Session 6):**
-- `scripts/performance/run_performance_suite.sh` - Scaling and overhead benchmarks (CPU by default, GPU optional)
-- `scripts/performance/run_performance_analysis.sh` - Centralized CPU/GPU performance analysis runner
+- `scripts/performance/run_performance_suite.sh` - Same unified runner as above; exercises CPU categories by default and auto-skips GPU sections unless `USE_GPU_ACCEL=ON`
+- `scripts/performance/run_performance_analysis.sh` - Companion analyzer that sweeps the latest logs to refresh performance CSVs/plots
 
 ⏳ **Orchestration:**
 - `scripts/run_all_validation.sh` - Master script for full suite
@@ -528,4 +555,3 @@ python3 scripts/analyze_transport_drift.py
 
 **Last updated:** 2025-11-29  
 **Status:** Sessions 1-2 complete ✅ (277 configs), Session 3 (Transport) starting 🔄
-

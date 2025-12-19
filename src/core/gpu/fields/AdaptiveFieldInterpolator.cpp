@@ -1,5 +1,8 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
+//
+// Experimental: Only linear interpolation is implemented/validated in v1.0;
+// higher-order modes fall back to linear.
 
 #include "AdaptiveFieldInterpolator.h"
 #include <cmath>
@@ -333,14 +336,14 @@ Vec3 AdaptiveFieldInterpolator::interpolate_linear(const Vec3& pos) const {
 
 Vec3 AdaptiveFieldInterpolator::interpolate_cubic(const Vec3& pos) const {
     // Tricubic interpolation using Catmull-Rom splines
-    // TODO: Full implementation (complex - use library or future phase)
+    // TODO(v1.1): Full implementation (complex - use library or future phase)
     // For now, fall back to linear
     return interpolate_linear(pos);
 }
 
 Vec3 AdaptiveFieldInterpolator::interpolate_quintic(const Vec3& pos) const {
     // Triquintic interpolation
-    // TODO: Full implementation (very complex - future phase)
+    // TODO(v1.1): Full implementation (very complex - future phase)
     // For now, fall back to linear
     return interpolate_linear(pos);
 }

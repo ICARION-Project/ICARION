@@ -36,24 +36,32 @@ DampingForce::DampingForce(
 
 Vec3 DampingForce::compute(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
                            const ForceContext& ctx) const {
+    ForceState state{};
+    state.pos = ensemble.get_pos(ion_idx);
+    state.vel = ensemble.get_vel(ion_idx);
+    state.mass_kg = ensemble.mass_data()[ion_idx];
+    state.ion_charge_C = ensemble.charge_data()[ion_idx];
+    state.CCS_m2 = ensemble.CCS(ion_idx);
+    state.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+    state.species_id = ensemble.species_id(ion_idx);
+    state.active = ensemble.active_data()[ion_idx] != 0;
+    state.born = ensemble.born_data()[ion_idx] != 0;
+    state.current_domain_index = ensemble.domain_index(ion_idx);
+    state.birth_time_s = ensemble.birth_time(ion_idx);
+    state.ensemble_index = ion_idx;
+
+    return compute_soa(state, t, ctx);
+}
+
+Vec3 DampingForce::compute_soa(const ForceState& state, double t,
+                               const ForceContext& ctx) const {
     (void)t;  // Time-independent (deterministic damping)
 
     if (model_ == DampingModel::None) {
         return Vec3{0.0, 0.0, 0.0};
     }
 
-    IonState ion;
-    ion.pos = ensemble.get_pos(ion_idx);
-    ion.vel = ensemble.get_vel(ion_idx);
-    ion.mass_kg = ensemble.mass_data()[ion_idx];
-    ion.ion_charge_C = ensemble.charge_data()[ion_idx];
-    ion.CCS_m2 = ensemble.CCS(ion_idx);
-    ion.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
-    ion.species_id = ensemble.species_id(ion_idx);
-    ion.active = ensemble.active_data()[ion_idx] != 0;
-    ion.born = ensemble.born_data()[ion_idx] != 0;
-    ion.current_domain_index = ensemble.domain_index(ion_idx);
-    ion.birth_time_s = ensemble.birth_time(ion_idx);
+    IonState ion = state.to_ion_state();
 
     double gamma = calculate_gamma(ion, ctx);
 

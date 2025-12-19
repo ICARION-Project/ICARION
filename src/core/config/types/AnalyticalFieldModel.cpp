@@ -5,9 +5,26 @@
 #include "core/utils/mathUtils.h"
 #include <cmath>
 #include <algorithm>
+#include <cstdlib>
+#include <spdlog/spdlog.h>
 
 namespace {
     constexpr double MIN_VOLTAGE_THRESHOLD = 1e-12;
+
+    inline bool orbitrap_field_debug_enabled() {
+        static const bool enabled = [] {
+            if (auto* env = std::getenv("ICARION_DEBUG_ORBITRAP_FIELD")) {
+                switch (env[0]) {
+                    case '1': case 't': case 'T': case 'y': case 'Y':
+                        return true;
+                    default:
+                        break;
+                }
+            }
+            return false;
+        }();
+        return enabled;
+    }
 
     inline double eval_value(const ICARION::config::ValueOrWaveform& val, double t,
                              const std::map<std::string, ICARION::config::Waveform>& lib) {
@@ -157,6 +174,13 @@ Vec3 AnalyticalFieldModel::compute_orbitrap_field(const Vec3& global_pos, double
         0.5 * k * pos_local.y * C,
        -k * pos_local.z
     };
+    static thread_local int debug_counter = 0;
+    if (orbitrap_field_debug_enabled() && debug_counter++ < 10) {
+        SPDLOG_INFO("[OrbitrapField] pos_local=({}, {}, {}), E_local=({}, {}, {}), k={}, C={}, r_sq={}",
+                    pos_local.x, pos_local.y, pos_local.z,
+                    E_local.x, E_local.y, E_local.z,
+                    k, C, r_sq);
+    }
     return domain_->rotation_local_to_global * E_local;
 }
 

@@ -40,7 +40,14 @@ int main() {
     EnvironmentConfig env;
     env.temperature_K = 300.0;
     env.pressure_Pa = 101325.0;
-    env.gas_mixture.push_back({.species="He", .density_m3=2.5e25, .mass_kg=MOLAR_MASS_HE_KG, .radius_m=1.4e-10, .participates_in_collisions=true});
+    env.gas_mixture.push_back({});
+    auto& comp = env.gas_mixture.back();
+    comp.species = "He";
+    comp.mole_fraction = 1.0;
+    comp.density_m3 = 2.5e25;
+    comp.mass_kg = MOLAR_MASS_HE_KG;
+    comp.radius_m = 1.4e-10;
+    comp.participates_in_collisions = true;
 
     // Ions belonging to species B to exercise non-zero species index
     std::vector<IonState> ions(4);

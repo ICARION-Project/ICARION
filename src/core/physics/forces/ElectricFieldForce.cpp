@@ -39,24 +39,40 @@ ElectricFieldForce::ElectricFieldForce(std::shared_ptr<::IFieldProvider> field_p
 
 Vec3 ElectricFieldForce::compute(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
                                  const ForceContext& ctx) const {
-    Vec3 E_field{0.0, 0.0, 0.0};
+    ForceState state{};
+    state.pos = ensemble.get_pos(ion_idx);
+    state.vel = ensemble.get_vel(ion_idx);
+    state.mass_kg = ensemble.mass_data()[ion_idx];
+    state.ion_charge_C = ensemble.charge_data()[ion_idx];
+    state.CCS_m2 = ensemble.CCS(ion_idx);
+    state.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+    state.species_id = ensemble.species_id(ion_idx);
+    state.active = ensemble.active_data()[ion_idx] != 0;
+    state.born = ensemble.born_data()[ion_idx] != 0;
+    state.current_domain_index = ensemble.domain_index(ion_idx);
+    state.birth_time_s = ensemble.birth_time(ion_idx);
+    state.ensemble_index = ion_idx;
 
-    const Vec3 pos = ensemble.get_pos(ion_idx);
-    const double q = ensemble.charge_data()[ion_idx];
+    return compute_soa(state, t, ctx);
+}
+
+Vec3 ElectricFieldForce::compute_soa(const ForceState& state, double t,
+                                     const ForceContext& ctx) const {
+    Vec3 E_field{0.0, 0.0, 0.0};
 
     // Prefer SSOT field model; fall back to providers, then internal model.
     if (ctx.field_model) {
-        E_field = ctx.field_model->E(pos, t);
+        E_field = ctx.field_model->E(state.pos, t);
     } else if (ctx.field_provider) {
-        E_field = ctx.field_provider->get_E(pos, t);
+        E_field = ctx.field_provider->get_E(state.pos, t);
     } else if (use_field_provider_ && field_provider_) {
-        E_field = field_provider_->get_E(pos, t);
+        E_field = field_provider_->get_E(state.pos, t);
     } else if (fallback_model_) {
-        E_field = fallback_model_->E(pos, t);
+        E_field = fallback_model_->E(state.pos, t);
     }
 
     // F = q * E
-    return E_field * q;
+    return E_field * state.ion_charge_C;
 }
 
 std::string ElectricFieldForce::name() const {

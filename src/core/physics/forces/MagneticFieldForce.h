@@ -94,6 +94,9 @@ public:
      */
     Vec3 compute(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
                  const ForceContext& ctx) const override;
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override;
     
     /**
      * @brief Get force name

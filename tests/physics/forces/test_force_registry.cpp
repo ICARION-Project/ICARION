@@ -61,6 +61,12 @@ public:
         (void)ensemble; (void)ion_idx; (void)t; (void)ctx;
         return force_;
     }
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override {
+        (void)state; (void)t; (void)ctx;
+        return force_;
+    }
     
     std::string name() const override { return "ConstantForce"; }
     
@@ -81,6 +87,12 @@ public:
     Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
                  const ForceContext& ctx) const override {
         (void)ensemble; (void)ion_idx; (void)t; (void)ctx;
+        return force_;
+    }
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override {
+        (void)state; (void)t; (void)ctx;
         return force_;
     }
     
@@ -109,6 +121,12 @@ public:
         (void)t; (void)ctx;
         double m = ensemble.mass_data()[ion_idx];
         return Vec3{0, 0, -m * g_};
+    }
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override {
+        (void)t; (void)ctx;
+        return Vec3{0, 0, -state.mass_kg * g_};
     }
     
     std::string name() const override { return "Gravity"; }
@@ -328,6 +346,15 @@ TEST_CASE("ForceRegistry - Force context (SSOT)", "[forces][registry]") {
         Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
                      const ForceContext& ctx) const override {
             (void)ensemble; (void)ion_idx; (void)t;
+            if (ctx.domain) {
+                return Vec3{ctx.domain->environment.temperature_K, 0, 0};
+            }
+            return Vec3{0, 0, 0};
+        }
+
+        Vec3 compute_soa(const ForceState& state, double t,
+                         const ForceContext& ctx) const override {
+            (void)state; (void)t;
             if (ctx.domain) {
                 return Vec3{ctx.domain->environment.temperature_K, 0, 0};
             }

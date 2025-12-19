@@ -19,6 +19,9 @@ public:
     Vec3 compute(const core::IonEnsemble&, size_t, double, const ForceContext&) const override {
         return Vec3{0.0, 0.0, 0.0};
     }
+    Vec3 compute_soa(const ForceState&, double, const ForceContext&) const override {
+        return Vec3{0.0, 0.0, 0.0};
+    }
     bool applies_to(const IonState&) const override { return true; }
     std::string name() const override { return "ZeroForce"; }
 };

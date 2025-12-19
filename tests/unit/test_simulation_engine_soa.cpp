@@ -14,6 +14,7 @@
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/integrator/strategies/RK4Strategy.h"
 #include "core/config/types/FullConfig.h"
+#include <filesystem>
 
 using namespace ICARION;
 using namespace ICARION::integrator;
@@ -53,6 +54,7 @@ FullConfig create_test_config() {
     cfg.output.folder = "/tmp/test_soa";
     cfg.output.trajectory_file = "test_trajectory.h5";
     cfg.output.print_progress = false;
+    std::filesystem::create_directories(cfg.output.folder);
     
     return cfg;
 }

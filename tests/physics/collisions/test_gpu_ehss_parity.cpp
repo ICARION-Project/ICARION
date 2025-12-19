@@ -8,6 +8,7 @@
 #include "core/gpu/collisions/GPUCollisionHelper.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "utils/constants.h"
 #include <vector>
 #include <cmath>
@@ -27,7 +28,7 @@ int main() {
     }
 
     // Geometry: single-sphere placeholder (acts close to HSS)
-    EHSSCollisionHandler::GeometryMap geom;
+    GeometryMap geom;
     std::vector<Vec3> pos = {Vec3{0.0, 0.0, 0.0}};
     std::vector<double> radii = {1.5e-10};
     geom["A"] = {pos, radii};
@@ -70,13 +71,15 @@ int main() {
     const double dt = 1e-8;
     const int steps = 500;
 
+    core::IonEnsemble ensemble_cpu = core::IonEnsemble::from_legacy(ions_cpu);
     // CPU collisions
     for (int s = 0; s < steps; ++s) {
-        for (auto& ion : ions_cpu) {
-            auto view = core::IonCollisionData{ion};
+        for (size_t i = 0; i < N; ++i) {
+            auto view = ensemble_cpu.collision_data(i);
             cpu_handler.handle_collision(view, dt, rng_cpu, env);
         }
     }
+    ions_cpu = ensemble_cpu.to_legacy();
 
     // GPU collisions
     for (int s = 0; s < steps; ++s) {

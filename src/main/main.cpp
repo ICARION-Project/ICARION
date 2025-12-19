@@ -115,12 +115,12 @@ static std::string write_config_snapshot(
         std::ifstream in(config_path);
         if (!in) {
             ICARION::log::Logger::main()->warn("Config snapshot skipped: cannot read {}", config_path);
-            return;
+            return {};
         }
         in >> j;
     } catch (const std::exception& e) {
         ICARION::log::Logger::main()->warn("Config snapshot skipped: failed to parse {} ({})", config_path, e.what());
-        return;
+        return {};
     }
     
     // Apply CLI overrides (same keys as ConfigOverride)

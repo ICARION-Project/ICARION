@@ -7,6 +7,7 @@
 #include <optional>
 #include <map>
 #include <vector>
+#include <cstdint>
 
 namespace ICARION {
 namespace cli {

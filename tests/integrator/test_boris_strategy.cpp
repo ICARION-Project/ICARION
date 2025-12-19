@@ -35,6 +35,12 @@ public:
         double q = ensemble.charge_data()[ion_idx];
         return E_ * q;
     }
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override {
+        (void)t; (void)ctx;
+        return E_ * state.ion_charge_C;
+    }
     
     std::string name() const override { return "ConstantElectric"; }
     

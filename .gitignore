@@ -39,6 +39,9 @@ CTestTestfile.cmake
 validation/**/*.json
 tmp/**/*.json
 
+# Analysis outputs
+analysis/output/
+
 # Other artifacts
 *.pyc
 __pycache__/

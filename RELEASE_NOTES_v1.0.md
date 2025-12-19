@@ -5,9 +5,10 @@
 - Reproducibility improvements: inline resolved config snapshot in HDF5, runtime RK45 settings, RNG scope, physics/GPU thresholds, hashes for config/species/reaction DBs and field array files, derived summaries; output buffer cap option.
 - GPU EHSS: geometry upload and species mapping enabled; experimental parity/thermalization sanity checks added.
 - New tests: RK45 per-ion dt/OpenMP determinism, SimulationEngine per-ion dt, batch dt fallback, RNG determinism across compaction, GPU EHSS mapping/parity.
+- Forces/Integrator: RK45 uses the SoA force path end-to-end; forces implement `compute_soa` and space-charge indexing is corrected (no AoS staging).
 
 ## Known Limitations
-- **RK45 performance/architecture:** RK45 still uses AoS copies and carries state internally; SimulationEngine remains monolithic. No performance regressions are measured in CI; see `validation/` for performance/physics sweeps.
+- **RK45 performance/architecture:** RK45 now uses the SoA force path (no AoS staging) and per-ion state caches; adaptive remains serial-only by design. SimulationEngine remains monolithic. No performance regressions are measured in CI; see `validation/` for performance/physics sweeps.
 - **External inputs embedding:** Species/reaction databases and field arrays are hashed (SHA256) but not embedded; per-ion seeds are not stored (only the seed scheme is recorded).
 - **GPU status:** GPU collision (EHSS/HSS) and GPU integration are experimental; GPU EHSS physics beyond parity checks is not validated.
 - **Batch constraints:** Batch integration/collision runs only when active ions share a uniform `dt`; mixed-dt runs fallback to per-ion paths.

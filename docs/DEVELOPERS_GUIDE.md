@@ -25,7 +25,12 @@ This guide provides practical instructions for extending ICARION with new featur
 
 ### Overview
 
-ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement a single SoA entry point `IForce::compute(...)` (ensemble + ion index + time + context) and are managed by `ForceRegistry`. AoS hooks have been removed from the hot path; tests wrap single ions into a scratch SoA when needed.
+ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement a single SoA entry point `IForce::compute(...)` (ensemble + ion index + time + context) and are managed by `ForceRegistry`. AoS hooks have been removed from the hot path; tests wrap single ions into a scratch SoA when needed.  
+
+**New in v1.0 SoA path:**  
+- `IForce::compute_soa(const ForceState&, t, ctx)` is required; it must use the provided state (no ensemble fetches).  
+- `ForceRegistry::compute_total_force_soa` aggregates via `compute_soa` and uses `ForceState::ensemble_index` for space-charge (no AoS staging).  
+- RK45 calls only the SoA path; no scratch ensembles are built in integration stages.
 
 **Version:** 1.0 uses **const config references** (Single Source of Truth pattern)
 

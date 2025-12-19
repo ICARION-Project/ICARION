@@ -20,6 +20,7 @@
 #include "core/config/types/FullConfig.h"
 #include <chrono>
 #include <iostream>
+#include <filesystem>
 
 using namespace ICARION;
 using namespace ICARION::integrator;
@@ -138,6 +139,8 @@ TEST_CASE("Manual Performance Test", "[soa][performance]") {
     auto integrator = std::make_shared<RK4Strategy>();
     
     for (size_t n_ions : {100, 500, 1000}) {
+        // fresh output file per run to avoid HDF5 append issues
+        std::filesystem::remove(std::filesystem::path(config.output.folder) / config.output.trajectory_file);
         auto ions_aos = create_benchmark_ions(n_ions);
         auto ions_soa_init = ions_aos;
         auto ensemble = IonEnsemble::from_legacy(ions_soa_init);

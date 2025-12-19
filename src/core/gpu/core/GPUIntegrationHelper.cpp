@@ -117,22 +117,26 @@ bool GPUIntegrationHelper::integrate_batch_rk4(
         // Upload fields to GPU if available
         bool use_field_interpolation = false;
         if (field_array && is_field_valid_for_gpu(*field_array)) {
-            // Free previous GPU fields if any
-            if (has_gpu_fields_) {
-                free_field_array_gpu(field_array_gpu_);
-                has_gpu_fields_ = false;
-            }
-            
-            // Upload new fields
-            try {
-                upload_field_array_to_gpu(*field_array, field_array_gpu_);
-                has_gpu_fields_ = true;
+            if (field_array != last_field_array_ || !has_gpu_fields_) {
+                // Free previous GPU fields if any
+                if (has_gpu_fields_) {
+                    free_field_array_gpu(field_array_gpu_);
+                    has_gpu_fields_ = false;
+                }
+                // Upload new fields
+                try {
+                    upload_field_array_to_gpu(*field_array, field_array_gpu_);
+                    has_gpu_fields_ = true;
+                    last_field_array_ = field_array;
+                    use_field_interpolation = true;
+                }
+                catch (const std::exception& e) {
+                    fprintf(stderr, "Warning: Failed to upload fields to GPU: %s\n", e.what());
+                    fprintf(stderr, "         Falling back to zero fields.\n");
+                    use_field_interpolation = false;
+                }
+            } else {
                 use_field_interpolation = true;
-            }
-            catch (const std::exception& e) {
-                fprintf(stderr, "Warning: Failed to upload fields to GPU: %s\n", e.what());
-                fprintf(stderr, "         Falling back to zero fields.\n");
-                use_field_interpolation = false;
             }
         }
         
@@ -236,19 +240,24 @@ bool GPUIntegrationHelper::integrate_batch_rk45(
         // Upload fields to GPU if available
         bool use_field_interpolation = false;
         if (field_array && is_field_valid_for_gpu(*field_array)) {
-            if (has_gpu_fields_) {
-                free_field_array_gpu(field_array_gpu_);
-                has_gpu_fields_ = false;
-            }
-            
-            try {
-                upload_field_array_to_gpu(*field_array, field_array_gpu_);
-                has_gpu_fields_ = true;
+            if (field_array != last_field_array_ || !has_gpu_fields_) {
+                if (has_gpu_fields_) {
+                    free_field_array_gpu(field_array_gpu_);
+                    has_gpu_fields_ = false;
+                }
+                
+                try {
+                    upload_field_array_to_gpu(*field_array, field_array_gpu_);
+                    has_gpu_fields_ = true;
+                    last_field_array_ = field_array;
+                    use_field_interpolation = true;
+                }
+                catch (const std::exception& e) {
+                    fprintf(stderr, "Warning: Failed to upload fields to GPU: %s\n", e.what());
+                    use_field_interpolation = false;
+                }
+            } else {
                 use_field_interpolation = true;
-            }
-            catch (const std::exception& e) {
-                fprintf(stderr, "Warning: Failed to upload fields to GPU: %s\n", e.what());
-                use_field_interpolation = false;
             }
         }
         
@@ -360,19 +369,24 @@ bool GPUIntegrationHelper::integrate_batch_boris(
         // Upload fields to GPU if available
         bool use_field_interpolation = false;
         if (field_array && is_field_valid_for_gpu(*field_array)) {
-            if (has_gpu_fields_) {
-                free_field_array_gpu(field_array_gpu_);
-                has_gpu_fields_ = false;
-            }
-            
-            try {
-                upload_field_array_to_gpu(*field_array, field_array_gpu_);
-                has_gpu_fields_ = true;
+            if (field_array != last_field_array_ || !has_gpu_fields_) {
+                if (has_gpu_fields_) {
+                    free_field_array_gpu(field_array_gpu_);
+                    has_gpu_fields_ = false;
+                }
+                
+                try {
+                    upload_field_array_to_gpu(*field_array, field_array_gpu_);
+                    has_gpu_fields_ = true;
+                    last_field_array_ = field_array;
+                    use_field_interpolation = true;
+                }
+                catch (const std::exception& e) {
+                    fprintf(stderr, "Warning: Failed to upload fields to GPU: %s\n", e.what());
+                    use_field_interpolation = false;
+                }
+            } else {
                 use_field_interpolation = true;
-            }
-            catch (const std::exception& e) {
-                fprintf(stderr, "Warning: Failed to upload fields to GPU: %s\n", e.what());
-                use_field_interpolation = false;
             }
         }
         

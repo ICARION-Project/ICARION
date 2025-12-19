@@ -187,6 +187,7 @@ private:
     // GPU field storage (managed)
     FieldArrayGPU field_array_gpu_;
     bool has_gpu_fields_;
+    const FieldArray* last_field_array_ = nullptr;
     
     size_t threshold_;
     bool enabled_;

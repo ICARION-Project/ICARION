@@ -120,7 +120,28 @@ bool GPUIntegrationStrategy::step_batch(
         return run_cpu_fallback(ensemble, t, dt, registries, domain_indices);
     }
 
+    // Reject GPU if space-charge model is attached
+    if (registries[selected_domain]->space_charge_model()) {
+        if (!warned_force_mix_) {
+            log::Logger::main()->warn(
+                "GPUIntegrationStrategy: space-charge present in domain '{}' – using CPU",
+                registries[selected_domain]->domain() ? registries[selected_domain]->domain()->name : "<unknown>");
+            warned_force_mix_ = true;
+        }
+        return run_cpu_fallback(ensemble, t, dt, registries, domain_indices);
+    }
+
     const auto* e_force = extract_electric_force(registries[selected_domain]);
+    if (!e_force && registries[selected_domain] && registries[selected_domain]->forces().size() != 1) {
+        if (!warned_force_mix_) {
+            log::Logger::main()->warn(
+                "GPUIntegrationStrategy: domain '{}' has {} forces; GPU supports only a single ElectricFieldForce. Using CPU.",
+                registries[selected_domain]->domain() ? registries[selected_domain]->domain()->name : "<unknown>",
+                registries[selected_domain]->forces().size());
+            warned_force_mix_ = true;
+        }
+        return run_cpu_fallback(ensemble, t, dt, registries, domain_indices);
+    }
     if (!e_force || !e_force->get_field_provider()) {
         if (!warned_force_mix_) {
             log::Logger::main()->warn(

@@ -213,7 +213,8 @@ TEST_CASE("DampingForce - Friction model (mobility-based)", "[forces][damping]")
         // F = -γ·m·v [N] where γ = q/(K·m)
         // K = K₀ · (n/n₀) where n = gas_density, n₀ = LOSCHMIDT_CONSTANT
         double K0_m2_Vs = ion.reduced_mobility_cm2_Vs * 1e-4;
-        double K_m2_Vs = K0_m2_Vs * LOSCHMIDT_CONSTANT / env.particle_density_m_3;
+        double teff_scale = std::sqrt(STP_TEMP / env.temperature_K);
+        double K_m2_Vs = K0_m2_Vs * teff_scale * LOSCHMIDT_CONSTANT / env.particle_density_m_3;
         double gamma = ion.ion_charge_C / (K_m2_Vs * ion.mass_kg);
         double expected_F_x = -gamma * ion.mass_kg * 1000.0;
         

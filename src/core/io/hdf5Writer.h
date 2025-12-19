@@ -260,6 +260,7 @@ private:
     static void write_scalar(H5::Group& group, const std::string& name, unsigned int value);
     static void write_scalar(H5::Group& group, const std::string& name, bool value);
     static void write_string(H5::Group& group, const std::string& name, const std::string& value);
+    static void write_blob(H5::Group& group, const std::string& name, const std::string& data);
     static void write_array(H5::Group& group, const std::string& name, const std::vector<double>& data);
     static void write_vec3(H5::Group& group, const std::string& name, const Vec3& vec);
 };

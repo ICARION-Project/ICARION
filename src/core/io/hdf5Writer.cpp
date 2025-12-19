@@ -18,6 +18,7 @@
 #include "core/config/conversion/EnumMapper.h"
 #include "core/config/types/WaveformConfig.h"
 #include "core/utils/hash.h"
+#include <limits>
 #include "core/types/IonEnsemble.h"
 #include "core/integrator/strategies/RK45Strategy.h"
 #include <chrono>
@@ -911,7 +912,7 @@ void HDF5Writer::write_reproducibility_metadata(
 
     // Optional: embed small external inputs for maximal reproducibility
     H5::Group blobs = repro.createGroup("input_blobs");
-    const size_t MAX_EMBED_BYTES = 5 * 1024 * 1024; // 5 MB cap
+    const size_t MAX_EMBED_BYTES = std::numeric_limits<size_t>::max(); // Embed regardless of size
     if (!config.species_database_path.empty()) {
         auto blob = read_file_if_small(config.species_database_path, MAX_EMBED_BYTES);
         if (!blob.empty()) {
@@ -931,6 +932,23 @@ void HDF5Writer::write_reproducibility_metadata(
         }
     } else {
         write_string(blobs, "reaction_db_json", "{}");
+    }
+
+    // Embed field array binaries when small enough
+    H5::Group field_blobs = blobs.createGroup("field_arrays");
+    const auto field_paths_embed = collect_field_array_paths(config.domains);
+    for (size_t i = 0; i < field_paths_embed.size(); ++i) {
+        const auto& path = field_paths_embed[i];
+        auto blob = read_file_if_small(path, MAX_EMBED_BYTES);
+        if (!blob.empty()) {
+            std::string dataset = "blob_" + std::to_string(i);
+            write_blob(field_blobs, dataset, blob);
+            write_string(field_blobs, dataset + "_filename", path);
+        } else {
+            std::string dataset = "blob_" + std::to_string(i);
+            write_string(field_blobs, dataset, "");
+            write_string(field_blobs, dataset + "_filename", path);
+        }
     }
     
     log::Logger::hdf5()->debug("Wrote reproducibility metadata with file hashes");
@@ -1385,6 +1403,17 @@ void HDF5Writer::write_string(H5::Group& group, const std::string& name, const s
     H5::DataSpace space(H5S_SCALAR);
     H5::DataSet dataset = group.createDataSet(name, str_type, space);
     dataset.write(value.c_str(), str_type);
+}
+
+void HDF5Writer::write_blob(H5::Group& group, const std::string& name, const std::string& data) {
+    if (data.empty()) {
+        write_string(group, name, "");
+        return;
+    }
+    hsize_t dims[1] = {data.size()};
+    H5::DataSpace space(1, dims);
+    H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_UCHAR, space);
+    dataset.write(data.data(), H5::PredType::NATIVE_UCHAR);
 }
 
 void HDF5Writer::write_array(H5::Group& group, const std::string& name, const std::vector<double>& data) {

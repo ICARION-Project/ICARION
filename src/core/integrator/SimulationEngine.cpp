@@ -205,6 +205,26 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         output_manager_->log_progress("GPU: Disabled in configuration, using CPU-only");
         return;
     }
+
+    output_manager_->log_progress("GPU: Experimental path (E/B-only). Space-charge, damping, magnetic forces, and multi-domain batches are NOT supported; falling back to CPU in those cases.");
+
+    // Validate force setup: only a single ElectricFieldForce per domain, no space charge
+    auto gpu_forces_supported = [&]() -> bool {
+        if (config_.physics.enable_space_charge) return false;
+        for (const auto& reg : force_registries_) {
+            if (!reg) continue;
+            if (reg->space_charge_model()) return false;
+            const auto& forces = reg->forces();
+            if (forces.size() != 1) return false;
+            if (forces.front()->name().find("ElectricField") != 0) return false;
+        }
+        return true;
+    };
+
+    if (!gpu_forces_supported()) {
+        output_manager_->log_progress("GPU: Disabled — unsupported force combination (requires exactly one ElectricFieldForce per domain, no space charge/damping/magnetic).");
+        return;
+    }
     
     try {
         // Check if CUDA is available
@@ -431,6 +451,18 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
     if (dt_per_ion_.size() != n_ions) {
         dt_per_ion_.assign(n_ions, config_.simulation.dt_s);
     }
+
+    bool has_space_charge = false;
+    for (const auto& reg : force_registries_) {
+        if (reg && reg->space_charge_model()) {
+            has_space_charge = true;
+            break;
+        }
+    }
+    if (has_space_charge && integrator_ && integrator_->is_adaptive()) {
+        throw std::runtime_error("Space charge with adaptive integrator (RK45) is not supported: fields would be stale within substeps. Use fixed-step RK4 or disable space charge.");
+    }
+
     std::vector<double> dt_used_per_ion = dt_per_ion_;
     std::vector<double> dt_next_per_ion = dt_per_ion_;
 
@@ -533,51 +565,48 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
                 new_domain_idx = domain_manager_->find_domain_index(pos_after);
             }
             if (new_domain_idx < 0) {
-                int prev_dom = ensemble.domain_index(i);
-                bool handled = false;
-                if (prev_dom >= 0) {
-                    if (auto* action = domain_manager_->boundary_action(prev_dom)) {
-                        IonState ion = ensemble.ion_state(i);
-                        Vec3 hit = pos_after;
-                        Vec3 normal = domain_manager_->surface_normal_global(pos_after, prev_dom);
-                        domain_manager_->boundary_intersection_global(pos_before[i], pos_after, prev_dom, hit, normal);
-                        action->apply(ion, normal, hit,
-                                      config_.domains[static_cast<size_t>(prev_dom)].environment.temperature_K,
-                                      current_time_);
-                        ensemble.apply_ion_state(i, ion);
-                        active[i] = ion.active ? 1 : 0;
-                        handled = true;
-                        if (ion.active) {
-                            // If still outside after action, deactivate
-                            int dom_check = domain_manager_->find_domain_index(ensemble.get_pos(i));
-                            if (dom_check < 0) {
-                                active[i] = 0;
-                                ensemble.set_death_time(i, current_time_);
-                            }
+                const int prev_dom = ensemble.domain_index(i);
+                bool bridged = false;
+                if (prev_dom >= 0 && static_cast<size_t>(prev_dom + 1) < config_.domains.size()) {
+                    const auto& cur_dom = config_.domains[static_cast<size_t>(prev_dom)];
+                    const auto& next_dom = config_.domains[static_cast<size_t>(prev_dom + 1)];
+                    const double cur_end = cur_dom.geometry.origin_m.z + cur_dom.geometry.length_m;
+                    if (pos_after.z >= cur_end) {
+                        new_domain_idx = prev_dom + 1;
+                        bridged = true;
+                    }
+                }
+                if (!bridged && new_domain_idx < 0) {
+                    active[i] = 0;
+                    ensemble.set_death_time(i, current_time_);
+                    continue;
+                }
+            } else {
+                // Still inside current domain; allow seamless hand-off at a shared boundary
+                const int cur_dom_idx = ensemble.domain_index(i);
+                if (cur_dom_idx >= 0 &&
+                    new_domain_idx == cur_dom_idx &&
+                    static_cast<size_t>(cur_dom_idx + 1) < config_.domains.size()) {
+                    const auto& cur_dom = config_.domains[static_cast<size_t>(cur_dom_idx)];
+                    const auto& next_dom = config_.domains[static_cast<size_t>(cur_dom_idx + 1)];
+                    const double local_z = pos_after.z - cur_dom.geometry.origin_m.z;
+                    const double tol = 1e-9;
+                    if (local_z >= cur_dom.geometry.length_m - tol) {
+                        const double dx = pos_after.x - cur_dom.geometry.origin_m.x;
+                        const double dy = pos_after.y - cur_dom.geometry.origin_m.y;
+                        const double r2 = dx * dx + dy * dy;
+                        const double aperture = cur_dom.geometry.end_aperture_m > 0.0
+                            ? cur_dom.geometry.end_aperture_m
+                            : cur_dom.geometry.radius_m;
+                        if (r2 <= aperture * aperture) {
+                            // Hand off to next domain without deactivation
+                            new_domain_idx = cur_dom_idx + 1;
                         }
                     }
                 }
-                if (!handled) {
-                    active[i] = 0;
-                    ensemble.set_death_time(i, current_time_);
-                }
-                continue;
             }
             if (new_domain_idx != ensemble.domain_index(i)) {
                 const auto& new_dom = config_.domains[new_domain_idx];
-                // Apply boundary action on entry
-                if (auto* action = domain_manager_->boundary_action(new_domain_idx)) {
-                    IonState ion = ensemble.ion_state(i);
-                    Vec3 hit = pos_after;
-                    Vec3 normal = domain_manager_->surface_normal_global(pos_after, new_domain_idx);
-                    domain_manager_->boundary_intersection_global(pos_before[i], pos_after, new_domain_idx, hit, normal);
-                    action->apply(ion, normal, hit, new_dom.environment.temperature_K, current_time_);
-                    ensemble.apply_ion_state(i, ion);
-                    active[i] = ion.active ? 1 : 0;
-                    if (!ion.active) {
-                        continue;
-                    }
-                }
                 ensemble.update_domain_cache(i, new_domain_idx,
                     new_dom.environment.temperature_K,
                     new_dom.environment.particle_density_m_3,
@@ -630,6 +659,13 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
                                            std::vector<double>& dt_next_per_ion) {
     double max_dt_used = 0.0;
 
+    auto has_space_charge = [&]() {
+        for (const auto& reg : force_registries_) {
+            if (reg && reg->space_charge_model()) return true;
+        }
+        return false;
+    }();
+
     // Only run batch if dt is uniform across active ions
     bool uniform_dt = false;
     double dt_batch = 0.0;
@@ -650,6 +686,335 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
                 std::fill(dt_next_per_ion.begin(), dt_next_per_ion.end(), dt_batch);
                 return dt_batch;
             }
+        }
+    }
+
+    // Space-charge aware RK4 batch: recompute fields at each stage (uniform dt required)
+    if (has_space_charge) {
+        if (!uniform_dt || dt_batch <= 0.0 || dynamic_cast<RK4Strategy*>(integrator_.get()) == nullptr) {
+            output_manager_->log_progress("Warning: Space-charge present without uniform RK4 dt; falling back to per-ion integration with stale fields.");
+        } else {
+            const size_t n = ensemble.size();
+            auto* pos_x = ensemble.pos_x_data();
+            auto* pos_y = ensemble.pos_y_data();
+            auto* pos_z = ensemble.pos_z_data();
+            auto* vel_x = ensemble.vel_x_data();
+            auto* vel_y = ensemble.vel_y_data();
+            auto* vel_z = ensemble.vel_z_data();
+            auto* mass = ensemble.mass_data();
+
+            std::vector<double> base_px(pos_x, pos_x + n);
+            std::vector<double> base_py(pos_y, pos_y + n);
+            std::vector<double> base_pz(pos_z, pos_z + n);
+            std::vector<double> base_vx(vel_x, vel_x + n);
+            std::vector<double> base_vy(vel_y, vel_y + n);
+            std::vector<double> base_vz(vel_z, vel_z + n);
+
+            std::vector<Vec3> k1_a(n), k2_a(n), k3_a(n), k4_a(n);
+            std::vector<Vec3> k1_v(n), k2_v(n), k3_v(n), k4_v(n);
+
+            auto compute_accels = [&](double t_stage, std::vector<Vec3>& acc_out) {
+                double saved_time = current_time_;
+                current_time_ = t_stage;
+                update_space_charge_models(ensemble);
+                current_time_ = saved_time;
+                const bool use_omp = parallel_enabled_;
+                #pragma omp parallel if(use_omp)
+                {
+                    #pragma omp for schedule(guided, kOmpChunk)
+                    for (int i = 0; i < static_cast<int>(n); ++i) {
+                        if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                        const auto& reg = force_registries_[domain_indices[i]];
+                        if (!reg) continue;
+                        physics::ForceContext ctx;
+                        ctx.domain = reg->domain();
+                        ctx.field_model = reg->field_model();
+                        ctx.ion_ensemble = &ensemble;
+                        ctx.ion_index = static_cast<size_t>(i);
+                        Vec3 F = reg->compute_total_force(ensemble, static_cast<size_t>(i), t_stage, ctx);
+                        const double inv_m = 1.0 / mass[i];
+                        acc_out[static_cast<size_t>(i)] = F * inv_m;
+                    }
+                }
+            };
+
+            // Stage 1: current positions
+            for (size_t i = 0; i < n; ++i) {
+                k1_v[i] = Vec3{base_vx[i], base_vy[i], base_vz[i]};
+            }
+            compute_accels(t, k1_a);
+
+            // Stage 2
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                pos_x[i] = base_px[i] + k1_v[i].x * (dt_batch * 0.5);
+                pos_y[i] = base_py[i] + k1_v[i].y * (dt_batch * 0.5);
+                pos_z[i] = base_pz[i] + k1_v[i].z * (dt_batch * 0.5);
+                vel_x[i] = base_vx[i] + k1_a[i].x * (dt_batch * 0.5);
+                vel_y[i] = base_vy[i] + k1_a[i].y * (dt_batch * 0.5);
+                vel_z[i] = base_vz[i] + k1_a[i].z * (dt_batch * 0.5);
+                k2_v[i] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+            }
+            compute_accels(t + dt_batch * 0.5, k2_a);
+
+            // Stage 3
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                pos_x[i] = base_px[i] + k2_v[i].x * (dt_batch * 0.5);
+                pos_y[i] = base_py[i] + k2_v[i].y * (dt_batch * 0.5);
+                pos_z[i] = base_pz[i] + k2_v[i].z * (dt_batch * 0.5);
+                vel_x[i] = base_vx[i] + k2_a[i].x * (dt_batch * 0.5);
+                vel_y[i] = base_vy[i] + k2_a[i].y * (dt_batch * 0.5);
+                vel_z[i] = base_vz[i] + k2_a[i].z * (dt_batch * 0.5);
+                k3_v[i] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+            }
+            compute_accels(t + dt_batch * 0.5, k3_a);
+
+            // Stage 4
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                pos_x[i] = base_px[i] + k3_v[i].x * dt_batch;
+                pos_y[i] = base_py[i] + k3_v[i].y * dt_batch;
+                pos_z[i] = base_pz[i] + k3_v[i].z * dt_batch;
+                vel_x[i] = base_vx[i] + k3_a[i].x * dt_batch;
+                vel_y[i] = base_vy[i] + k3_a[i].y * dt_batch;
+                vel_z[i] = base_vz[i] + k3_a[i].z * dt_batch;
+                k4_v[i] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+            }
+            compute_accels(t + dt_batch, k4_a);
+
+            // Final update from base state
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) {
+                    continue;
+                }
+                Vec3 pos_new = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                    (k1_v[i] + k2_v[i] * 2.0 + k3_v[i] * 2.0 + k4_v[i]) * (dt_batch / 6.0);
+                Vec3 vel_new = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                    (k1_a[i] + k2_a[i] * 2.0 + k3_a[i] * 2.0 + k4_a[i]) * (dt_batch / 6.0);
+
+                pos_x[i] = pos_new.x;
+                pos_y[i] = pos_new.y;
+                pos_z[i] = pos_new.z;
+                vel_x[i] = vel_new.x;
+                vel_y[i] = vel_new.y;
+                vel_z[i] = vel_new.z;
+
+                dt_used_per_ion[i] = dt_batch;
+                dt_next_per_ion[i] = dt_batch;
+            }
+
+            dt_per_ion_.assign(n, dt_batch);
+            max_dt_used = dt_batch;
+            return max_dt_used;
+        }
+    }
+
+    // Space-charge aware RK45 batch (fixed-step use of Dormand-Prince coefficients)
+    if (has_space_charge) {
+        auto* rk45_ptr = dynamic_cast<RK45Strategy*>(integrator_.get());
+        if (rk45_ptr && uniform_dt && dt_batch > 0.0) {
+            const size_t n = ensemble.size();
+            auto* pos_x = ensemble.pos_x_data();
+            auto* pos_y = ensemble.pos_y_data();
+            auto* pos_z = ensemble.pos_z_data();
+            auto* vel_x = ensemble.vel_x_data();
+            auto* vel_y = ensemble.vel_y_data();
+            auto* vel_z = ensemble.vel_z_data();
+            auto* mass = ensemble.mass_data();
+
+            std::vector<double> base_px(pos_x, pos_x + n);
+            std::vector<double> base_py(pos_y, pos_y + n);
+            std::vector<double> base_pz(pos_z, pos_z + n);
+            std::vector<double> base_vx(vel_x, vel_x + n);
+            std::vector<double> base_vy(vel_y, vel_y + n);
+            std::vector<double> base_vz(vel_z, vel_z + n);
+
+            std::vector<Vec3> kv[7];
+            std::vector<Vec3> ka[7];
+            for (int s = 0; s < 7; ++s) {
+                kv[s].assign(n, Vec3{0.0, 0.0, 0.0});
+                ka[s].assign(n, Vec3{0.0, 0.0, 0.0});
+            }
+
+            auto compute_accels_rk = [&](double t_stage, std::vector<Vec3>& acc_out) {
+                double saved_time = current_time_;
+                current_time_ = t_stage;
+                update_space_charge_models(ensemble);
+                current_time_ = saved_time;
+                const bool use_omp = parallel_enabled_;
+                #pragma omp parallel if(use_omp)
+                {
+                    #pragma omp for schedule(guided, kOmpChunk)
+                    for (int i = 0; i < static_cast<int>(n); ++i) {
+                        if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                        const auto& reg = force_registries_[domain_indices[i]];
+                        if (!reg) continue;
+                        physics::ForceContext ctx;
+                        ctx.domain = reg->domain();
+                        ctx.field_model = reg->field_model();
+                        ctx.ion_ensemble = &ensemble;
+                        ctx.ion_index = static_cast<size_t>(i);
+                        Vec3 F = reg->compute_total_force(ensemble, static_cast<size_t>(i), t_stage, ctx);
+                        const double inv_m = 1.0 / mass[i];
+                        acc_out[static_cast<size_t>(i)] = F * inv_m;
+                    }
+                }
+            };
+
+            // Dormand-Prince coefficients (from RK45Strategy)
+            constexpr double c2 = 1.0 / 5.0;
+            constexpr double c3 = 3.0 / 10.0;
+            constexpr double c4 = 4.0 / 5.0;
+            constexpr double c5 = 8.0 / 9.0;
+            constexpr double c6 = 1.0;
+            constexpr double c7 = 1.0;
+
+            constexpr double a21 = 1.0 / 5.0;
+            constexpr double a31 = 3.0 / 40.0;
+            constexpr double a32 = 9.0 / 40.0;
+            constexpr double a41 = 44.0 / 45.0;
+            constexpr double a42 = -56.0 / 15.0;
+            constexpr double a43 = 32.0 / 9.0;
+            constexpr double a51 = 19372.0 / 6561.0;
+            constexpr double a52 = -25360.0 / 2187.0;
+            constexpr double a53 = 64448.0 / 6561.0;
+            constexpr double a54 = -212.0 / 729.0;
+            constexpr double a61 = 9017.0 / 3168.0;
+            constexpr double a62 = -355.0 / 33.0;
+            constexpr double a63 = 46732.0 / 5247.0;
+            constexpr double a64 = 49.0 / 176.0;
+            constexpr double a65 = -5103.0 / 18656.0;
+            constexpr double a71 = 35.0 / 384.0;
+            constexpr double a72 = 0.0;
+            constexpr double a73 = 500.0 / 1113.0;
+            constexpr double a74 = 125.0 / 192.0;
+            constexpr double a75 = -2187.0 / 6784.0;
+            constexpr double a76 = 11.0 / 84.0;
+
+            constexpr double b41 = 35.0 / 384.0;
+            constexpr double b42 = 0.0;
+            constexpr double b43 = 500.0 / 1113.0;
+            constexpr double b44 = 125.0 / 192.0;
+            constexpr double b45 = -2187.0 / 6784.0;
+            constexpr double b46 = 11.0 / 84.0;
+            constexpr double b47 = 0.0;
+
+            constexpr double b51 = 5179.0 / 57600.0;
+            constexpr double b52 = 0.0;
+            constexpr double b53 = 7571.0 / 16695.0;
+            constexpr double b54 = 393.0 / 640.0;
+            constexpr double b55 = -92097.0 / 339200.0;
+            constexpr double b56 = 187.0 / 2100.0;
+            constexpr double b57 = 1.0 / 40.0;
+
+            // k1
+            for (size_t i = 0; i < n; ++i) {
+                kv[0][i] = Vec3{base_vx[i], base_vy[i], base_vz[i]};
+            }
+            compute_accels_rk(t, ka[0]);
+
+            auto stage_apply = [&](size_t i, const Vec3& pos, const Vec3& vel) {
+                pos_x[i] = pos.x;
+                pos_y[i] = pos.y;
+                pos_z[i] = pos.z;
+                vel_x[i] = vel.x;
+                vel_y[i] = vel.y;
+                vel_z[i] = vel.z;
+            };
+
+            // k2
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} + kv[0][i] * (dt_batch * a21);
+                Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} + ka[0][i] * (dt_batch * a21);
+                stage_apply(i, pos, vel);
+                kv[1][i] = vel;
+            }
+            compute_accels_rk(t + c2 * dt_batch, ka[1]);
+
+            // k3
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                    (kv[0][i] * a31 + kv[1][i] * a32) * dt_batch;
+                Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                    (ka[0][i] * a31 + ka[1][i] * a32) * dt_batch;
+                stage_apply(i, pos, vel);
+                kv[2][i] = vel;
+            }
+            compute_accels_rk(t + c3 * dt_batch, ka[2]);
+
+            // k4
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                    (kv[0][i] * a41 + kv[1][i] * a42 + kv[2][i] * a43) * dt_batch;
+                Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                    (ka[0][i] * a41 + ka[1][i] * a42 + ka[2][i] * a43) * dt_batch;
+                stage_apply(i, pos, vel);
+                kv[3][i] = vel;
+            }
+            compute_accels_rk(t + c4 * dt_batch, ka[3]);
+
+            // k5
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                    (kv[0][i] * a51 + kv[1][i] * a52 + kv[2][i] * a53 + kv[3][i] * a54) * dt_batch;
+                Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                    (ka[0][i] * a51 + ka[1][i] * a52 + ka[2][i] * a53 + ka[3][i] * a54) * dt_batch;
+                stage_apply(i, pos, vel);
+                kv[4][i] = vel;
+            }
+            compute_accels_rk(t + c5 * dt_batch, ka[4]);
+
+            // k6
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                    (kv[0][i] * a61 + kv[1][i] * a62 + kv[2][i] * a63 + kv[3][i] * a64 + kv[4][i] * a65) * dt_batch;
+                Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                    (ka[0][i] * a61 + ka[1][i] * a62 + ka[2][i] * a63 + ka[3][i] * a64 + ka[4][i] * a65) * dt_batch;
+                stage_apply(i, pos, vel);
+                kv[5][i] = vel;
+            }
+            compute_accels_rk(t + c6 * dt_batch, ka[5]);
+
+            // k7
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                    (kv[0][i] * a71 + kv[1][i] * a72 + kv[2][i] * a73 + kv[3][i] * a74 + kv[4][i] * a75 + kv[5][i] * a76) * dt_batch;
+                Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                    (ka[0][i] * a71 + ka[1][i] * a72 + ka[2][i] * a73 + ka[3][i] * a74 + ka[4][i] * a75 + ka[5][i] * a76) * dt_batch;
+                stage_apply(i, pos, vel);
+                kv[6][i] = vel;
+            }
+            compute_accels_rk(t + c7 * dt_batch, ka[6]);
+
+            // 4th-order solution (y4) using b4 weights
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                Vec3 pos_new = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                    (kv[0][i] * b41 + kv[1][i] * b42 + kv[2][i] * b43 + kv[3][i] * b44 + kv[4][i] * b45 + kv[5][i] * b46 + kv[6][i] * b47) * dt_batch;
+                Vec3 vel_new = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                    (ka[0][i] * b41 + ka[1][i] * b42 + ka[2][i] * b43 + ka[3][i] * b44 + ka[4][i] * b45 + ka[5][i] * b46 + ka[6][i] * b47) * dt_batch;
+
+                pos_x[i] = pos_new.x;
+                pos_y[i] = pos_new.y;
+                pos_z[i] = pos_new.z;
+                vel_x[i] = vel_new.x;
+                vel_y[i] = vel_new.y;
+                vel_z[i] = vel_new.z;
+
+                dt_used_per_ion[i] = dt_batch;
+                dt_next_per_ion[i] = dt_batch;
+                max_dt_used = std::max(max_dt_used, dt_batch);
+            }
+
+            dt_per_ion_.assign(n, dt_batch);
+            return max_dt_used;
         }
     }
 

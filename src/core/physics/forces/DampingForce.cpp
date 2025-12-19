@@ -4,6 +4,7 @@
 #include "DampingForce.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/config/types/SpeciesConfig.h"
+#include "core/config/types/DomainConfig.h"
 #include "core/log/Logger.h"
 #include "utils/constants.h"
 
@@ -153,7 +154,11 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
                 return 0.0;  // Missing parameters
             }
             const double K0_m2_Vs = K0_cm2_Vs * 1e-4;
-            
+            const double N_ratio = LOSCHMIDT_CONSTANT / gas_density;
+            // Temperature correction (Mason-Schamp): K ∝ sqrt(T0 / T)
+            const double teff_scale = std::sqrt(STP_TEMP / std::max(env_->temperature_K, 1.0));
+            const double K0_teff_m2_Vs = K0_m2_Vs * teff_scale;
+
             // DEBUG: Print what we're actually using
             static bool debug_once = false;
             if (!debug_once) {
@@ -226,7 +231,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
                     // Heuristic scaling: mobility ∝ 1/σ · sqrt(m_ref / m_gas)
                     double scale_sigma = sigma_ref / sigma_i;
                     double scale_mass = std::sqrt(env_->gas_mass_kg / comp.mass_kg);
-                    double Ki = K0_m2_Vs * scale_sigma * scale_mass * LOSCHMIDT_CONSTANT / gas_density;
+                    double Ki = K0_teff_m2_Vs * scale_sigma * scale_mass * N_ratio;
                     if (Ki <= 0.0) {
                         continue;
                     }
@@ -240,7 +245,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             }
 
             // Single-gas fallback: K = K₀·(n₀/n)
-            const double ion_mobility = K0_m2_Vs * LOSCHMIDT_CONSTANT / gas_density;
+            const double ion_mobility = K0_teff_m2_Vs * N_ratio;
             const double gamma_result = q / (ion_mobility * m_ion);
             
             // DEBUG: Print calculated values

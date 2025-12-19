@@ -74,14 +74,10 @@ SimulationEngine::SimulationEngine(
             cfg.max_step_decrease,
             cfg.absolute_min_step_s
         };
+        rk45->enable_stats(!parallel_enabled_);
     }
 
-    parallel_enabled_ = config_.simulation.enable_openmp && !integrator_->is_adaptive();
-    if (!parallel_enabled_ && config_.simulation.enable_openmp && integrator_->is_adaptive()) {
-        // Disable OpenMP for adaptive integrator to avoid shared-state races
-        config_.simulation.enable_openmp = false;
-        ICARION::log::Logger::main()->warn("Adaptive integrator is serial-only; OpenMP disabled for this run");
-    }
+    parallel_enabled_ = config_.simulation.enable_openmp;
     
     // Create domain manager
     domain_manager_ = std::make_unique<DomainManager>(

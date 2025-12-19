@@ -171,19 +171,27 @@ public:
     const AdaptiveConfig& get_config() const { return config_; }
     double last_dt_used() const { return last_dt_used_; }
     double last_dt_suggested() const { return last_dt_suggested_; }
+    void enable_stats(bool enabled) { stats_enabled_ = enabled; }
 
 private:
+    struct RK45State {
+        double last_error = 1.0;
+        bool fsal_available = false;
+        double last_dt_used = 0.0;
+        double last_dt_suggested = 0.0;
+        double k1_ax = 0.0, k1_ay = 0.0, k1_az = 0.0;
+    };
+
+    std::vector<RK45State> per_ion_state_;
+
     AdaptiveConfig config_;
     StepStats stats_;
-    double last_error_ = 1.0;  ///< Previous error for PI controller
-    bool fsal_available_ = false; ///< Flag for FSAL k1 reuse
-    double last_dt_used_ = 0.0;      ///< Actual dt used in last step
-    double last_dt_suggested_ = 0.0; ///< Suggested dt for next step
+    double last_dt_used_ = 0.0;      ///< Actual dt used in last step (per call)
+    double last_dt_suggested_ = 0.0; ///< Suggested dt for next step (per call)
+    bool stats_enabled_ = true;
     
     // FSAL storage: k1 for next step = k7 from previous step
-    struct {
-        double ax = 0.0, ay = 0.0, az = 0.0;  ///< Acceleration [m/s²]
-    } k1_stored_;
+    RK45State& state_for(size_t ion_idx);
     
     /**
      * @brief Compute acceleration at given state

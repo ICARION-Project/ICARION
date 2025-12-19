@@ -172,13 +172,13 @@ void write_state_to_scratch(const IonState& state,
 }
 
 RK45Strategy::RK45Strategy()
-    : config_{}, stats_{}, last_error_(1.0), fsal_available_(false)
+    : config_{}, stats_{}
 {
     // Use default configuration
 }
 
 RK45Strategy::RK45Strategy(const AdaptiveConfig& config)
-    : config_(config), stats_{}, last_error_(1.0), fsal_available_(false)
+    : config_(config), stats_{}
 {
     // Validate configuration
     if (config_.atol <= 0.0 || config_.rtol <= 0.0) {
@@ -190,6 +190,13 @@ RK45Strategy::RK45Strategy(const AdaptiveConfig& config)
     if (config_.absolute_min_step_s < 0.0) {
         throw std::invalid_argument("RK45Strategy: absolute_min_step_s must be non-negative");
     }
+}
+
+RK45Strategy::RK45State& RK45Strategy::state_for(size_t ion_idx) {
+    if (per_ion_state_.size() <= ion_idx) {
+        per_ion_state_.resize(ion_idx + 1);
+    }
+    return per_ion_state_[ion_idx];
 }
 
 void RK45Strategy::compute_acceleration_batch(
@@ -351,6 +358,7 @@ void RK45Strategy::step(
     double dt_used = dt;
 
     IonState ion = make_state_from_ensemble(ensemble, ion_idx);
+    auto& st = state_for(ion_idx);
 
     // Run adaptive step using SoA acceleration path; ignore dt update (fixed-step interface)
     const double dt_initial = dt_variable;
@@ -376,8 +384,8 @@ void RK45Strategy::step(
     Vec3 k7_v, k7_a;
 
         k1_v = y0.vel;
-        if (fsal_available_) {
-            k1_a = Vec3{k1_stored_.ax, k1_stored_.ay, k1_stored_.az};
+        if (st.fsal_available) {
+            k1_a = Vec3{st.k1_ax, st.k1_ay, st.k1_az};
         } else {
             double ax, ay, az;
             compute_acceleration_state(ax, ay, az, y0, t, force_registry);
@@ -444,30 +452,34 @@ void RK45Strategy::step(
             ion = y4;
             step_accepted = true;
 
-            k1_stored_.ax = k7_a.x;
-            k1_stored_.ay = k7_a.y;
-            k1_stored_.az = k7_a.z;
-            fsal_available_ = true;
+            st.k1_ax = k7_a.x;
+            st.k1_ay = k7_a.y;
+            st.k1_az = k7_a.z;
+            st.fsal_available = true;
 
-            stats_.accepted_steps++;
-            stats_.min_step_used = std::min(stats_.min_step_used, dt_work);
-            stats_.max_step_used = std::max(stats_.max_step_used, dt_work);
-            stats_.avg_error = (stats_.avg_error * (stats_.accepted_steps - 1) + error)
-                             / stats_.accepted_steps;
-            stats_.sum_step_used += dt_work;
+            if (stats_enabled_) {
+                stats_.accepted_steps++;
+                stats_.min_step_used = std::min(stats_.min_step_used, dt_work);
+                stats_.max_step_used = std::max(stats_.max_step_used, dt_work);
+                stats_.avg_error = (stats_.avg_error * (stats_.accepted_steps - 1) + error)
+                                 / stats_.accepted_steps;
+                stats_.sum_step_used += dt_work;
+            }
 
             double dt_next = compute_new_step(dt_work, error, dt_min, dt_max);
             dt_variable = dt_next;
             dt_used = dt_work;
-            last_error_ = error;
+            st.last_error = error;
             last_dt_used_ = dt_used;
             last_dt_suggested_ = dt_variable;
         } else {
-            stats_.rejected_steps++;
+            if (stats_enabled_) {
+                stats_.rejected_steps++;
+            }
             double dt_next = compute_new_step(dt_work, error, dt_min, dt_max);
             dt_work = dt_next;
             attempts++;
-            fsal_available_ = false;
+            st.fsal_available = false;
         }
     }
 
@@ -645,16 +657,20 @@ void RK45Strategy::step_adaptive(
             // Store k7 for next step's k1 (FSAL)
             k1_stored_.ax = k7_a.x;
             k1_stored_.ay = k7_a.y;
-            k1_stored_.az = k7_a.z;
-            fsal_available_ = true;
+            st.k1_ax = k7_a.x;
+            st.k1_ay = k7_a.y;
+            st.k1_az = k7_a.z;
+            st.fsal_available = true;
             
             // Update statistics
-            stats_.accepted_steps++;
-            stats_.min_step_used = std::min(stats_.min_step_used, dt);
-            stats_.max_step_used = std::max(stats_.max_step_used, dt);
-            stats_.avg_error = (stats_.avg_error * (stats_.accepted_steps - 1) + error) 
-                             / stats_.accepted_steps;
-            stats_.sum_step_used += dt;
+            if (stats_enabled_) {
+                stats_.accepted_steps++;
+                stats_.min_step_used = std::min(stats_.min_step_used, dt);
+                stats_.max_step_used = std::max(stats_.max_step_used, dt);
+                stats_.avg_error = (stats_.avg_error * (stats_.accepted_steps - 1) + error) 
+                                 / stats_.accepted_steps;
+                stats_.sum_step_used += dt;
+            }
             
             // Compute new step size for next step
             double dt_next = compute_new_step(dt, error, dt_min, dt_max);
@@ -664,11 +680,13 @@ void RK45Strategy::step_adaptive(
             last_dt_suggested_ = dt_next;
             (void)dt_next;
 
-            last_error_ = error;
+            st.last_error = error;
             
         } else {
             // Reject step, reduce dt, retry
-            stats_.rejected_steps++;
+            if (stats_enabled_) {
+                stats_.rejected_steps++;
+            }
             
             double dt_next = compute_new_step(dt, error, dt_min, dt_max);
             dt = dt_next;
@@ -676,7 +694,7 @@ void RK45Strategy::step_adaptive(
             attempts++;
             
             // Reset FSAL flag (must recompute k1)
-            fsal_available_ = false;
+            st.fsal_available = false;
         }
     }
     

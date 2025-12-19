@@ -41,12 +41,14 @@ tests/
 
 - **Instruments:** `test_instrument_basic.cpp`, `test_ims_drift.cpp`, `test_lqit_stability.cpp`, `test_orbitrap_frequency.cpp`, `test_quadrupole_filter.cpp`, `test_tof_flight_time.cpp`, `test_fticr_cyclotron.cpp`, `test_domain_transition.cpp`
 - **Physics – Collisions:** `test_collision_energy_conservation.cpp`, `test_hss_collision_handler.cpp`, `test_ehss_collision_handler.cpp`, `test_ou_collision_handler.cpp`, `test_temperature_scaling.cpp`, `test_multi_gas_collision.cpp`, CPU SoA parity (`test_collision_soa_parity.cpp`), GPU parity/thermalization (`test_gpu_collision_parity.cpp`, `test_gpu_thermalization.cpp`, `test_gpu_ehss_thermalization.cpp`)
+- **Physics – Collisions (GPU EHSS):** `test_gpu_ehss_mapping.cpp` (geometry→species map), `test_gpu_ehss_parity.cpp` (CPU vs GPU thermalization sanity)
 - **Physics – Forces:** `test_electric_field_force.cpp`, `test_field_model_parity.cpp`, `test_field_model_provider.cpp`, `test_magnetic_damping_forces.cpp`, `test_force_registry.cpp`
 - **Physics – Reactions:** `test_reaction_factory.cpp`, `test_stochastic_reaction_handler.cpp`, `test_multi_gas_reaction.cpp`, SoA parity (`test_reaction_soa_parity.cpp`)
 - **Physics – Reactions (GPU):** `test_gpu_reaction_parity.cpp` (GPU vs CPU stochastic parity for constant/Arrhenius/modified rates incl. multi-gas; requires `USE_GPU_ACCEL=ON`, uses pooled GPU buffers)
 - **Physics – Space Charge:** `test_poisson_solver.cpp`, `test_charge_deposition.cpp`, `test_space_charge_integration.cpp`, `test_space_charge_model_direct.cpp`, `test_space_charge_model_parity.cpp`, `test_space_charge_gpu_model.cpp`
 - **Physics – Gas Flow Transport:** `test_gas_flow_transport.cpp`
 - **Integrator:** `test_rk4_strategy.cpp`, `test_rk45_strategy.cpp`, `test_boris_strategy.cpp`, `test_domain_manager.cpp`, `test_domain_geometry.cpp`, `test_output_manager.cpp`, `test_simulation_engine.cpp` (SoA parity, birth/transition), GPU integration/parity tests (`test_gpu_integration.cpp`, `test_gpu_rk45.cpp`, `test_gpu_boris.cpp`, `test_rk45_boris_parity.cpp`, `test_gpu_field_interpolation.cpp`), `test_simulation_engine_soa.cpp` (SoA unit/parity)
+  - **RK45 per-ion dt/OpenMP:** `test_rk45_per_ion_dt.cpp`
 - **Config:** `test_config_loader.cpp`, `test_field_array_terms_loader.cpp`, `test_field_array_e2e.cpp`, `test_ion_loader.cpp`, `test_species_loader_unit.cpp`, `test_reaction_loader_unit.cpp`, `test_reaction_validation.cpp`, `test_waveform_loader.cpp`, `test_waveform_types.cpp`, `test_database_integration.cpp`
 - **I/O:** `test_hdf5_writer.cpp`, `test_hdf5_writer_v2.cpp`
 - **GPU (misc):** `test_gpu_boundaries.cpp`, `test_gpu_space_charge.cpp`, `test_adaptive_interpolation.cpp`

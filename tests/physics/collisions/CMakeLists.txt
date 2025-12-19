@@ -259,4 +259,11 @@ if(ICARION_USE_GPU)
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/include
     )
+
+    add_executable(test_gpu_ehss_parity test_gpu_ehss_parity.cpp)
+    target_link_libraries(test_gpu_ehss_parity PRIVATE icarion_core)
+    target_include_directories(test_gpu_ehss_parity PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
 endif()

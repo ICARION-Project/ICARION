@@ -524,6 +524,12 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
             }
 
             ensemble.set_time(i, ensemble.time(i) + dt_used_per_ion[i]);
+            if (dt_next_per_ion[i] <= 0.0) {
+                // Safety: avoid zeros propagating into next step
+                dt_next_per_ion[i] = dt_used_per_ion[i] > 0.0
+                    ? dt_used_per_ion[i]
+                    : config_.simulation.dt_s;
+            }
 
             Vec3 vel_check = ensemble.get_vel(i);
             bool position_valid = ICARION::safety::is_finite(pos_after);

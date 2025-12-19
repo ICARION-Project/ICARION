@@ -41,6 +41,12 @@ target_include_directories(test_simulation_engine PRIVATE ${CMAKE_SOURCE_DIR}/sr
 
 add_test(NAME test_simulation_engine COMMAND test_simulation_engine)
 
+add_executable(test_simulation_engine_per_ion_dt test_simulation_engine_per_ion_dt.cpp)
+target_link_libraries(test_simulation_engine_per_ion_dt PRIVATE icarion_core Catch2::Catch2WithMain)
+target_include_directories(test_simulation_engine_per_ion_dt PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME test_simulation_engine_per_ion_dt COMMAND test_simulation_engine_per_ion_dt)
+
 add_executable(test_domain_geometry test_domain_geometry.cpp)
 target_link_libraries(test_domain_geometry PRIVATE icarion_core Catch2::Catch2WithMain)
 target_include_directories(test_domain_geometry PRIVATE ${CMAKE_SOURCE_DIR}/src)

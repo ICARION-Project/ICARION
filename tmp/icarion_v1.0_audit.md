@@ -1,32 +1,27 @@
 **Physical Correctness**
-- ✅ Collisions/reactions now use the integrator’s accepted per-ion `dt`; pre-adaptation bias removed.
-- ⚠ GPU EHSS uploads geometry with deterministic species→index map and warns on missing species; parity/thermalization sanity added, but physics still experimental.
+- ✅ Collisions/reactions use accepted per-ion `dt`; pre-adaptation bias removed.
+- ⚠ GPU EHSS has geometry upload + species mapping and parity/thermalization sanity tests; physics still experimental.
 - ✅ Missing mixture concentrations default to zero (no buffer-gas fallback).
 - ✅ Single-gas HSS/OU unchanged and consistent.
 
 **Numerical Soundness**
-- ✅ RK45 parallel races avoided by forcing serial mode with warning.
-- ✅ RNG pool resizes with ensemble to prevent desync after compaction/addition.
-- ⚠ Adaptive timestep feedback still uses min suggested `dt` across ions (conservative, not tuned).
-- ✅ Fixed-step paths remain deterministic with per-ion RNG.
+- ✅ RK45 per-ion state, OpenMP-safe; per-ion dt without global min-clamp; dt=0 fallback; RNG resizes; compaction determinism tested.
+- ⚠ Adaptive dt remains per-ion with no cross-ion sync/tuning; RK45 AoS overhead unchanged.
 
 **Architecture & Maintainability**
-- ⚠ RK45 remains non-reentrant; mitigation is serial enforcement, not refactor.
-- ⚠ SimulationEngine still large orchestrator; untouched.
+- ⚠ RK45 still carries state internally (not refactored out); SimulationEngine remains a large orchestrator.
 - ✅ ForceRegistry separation retained.
 
 **Performance & Parallelization**
-- ⚠ RK45 scaling absent (serial-only); RK45 AoS copies/allocation overhead unchanged.
-- ⚠ GPU collision helper thresholded; adaptive/mixed-`dt` runs may fall back to CPU.
-- ✅ Fixed-step + SoA path unchanged.
+- ⚠ RK45 still heavy (AoS copies, no vectorization); batch paths only for uniform dt; GPU collision thresholds remain.
+- ✅ OpenMP usable for RK45 due to per-ion state; fixed-step/SoA path unchanged.
 
 **I/O & Reproducibility**
-- ✅ HDF5 embeds resolved config snapshot (in-memory), integrator/RK45 params (runtime), RNG scope, physics handler/GPU thresholds, derived summaries, input hashes (config/species/reaction DB, field arrays).
-- ✅ Output buffer cap (`output.buffer_byte_cap` / `--buffer-byte-cap`) with hard enforcement.
-- ⚠ DB contents not embedded (only hashes); field arrays hashed, not stored; per-ion seeds not recorded (scheme only).
+- ✅ HDF5 embeds in-memory config snapshot, runtime RK45 params, RNG scope, physics/GPU thresholds, derived summaries, hashes for config/species/reaction DBs and field-array files; buffer cap supported.
+- ⚠ DB/field contents not embedded (only hashes); per-ion seeds not stored (scheme only).
 
-**Release Readiness (v1.0)**
-- ✅ Prior blockers mitigated: RK45 races/dt misalignment, GPU EHSS misrepresentation (geometry upload), missing metadata.
-- ⚠ Remaining: RK45 serial-only, RK45 performance, GPU EHSS still experimental, DB/field data not embedded.
+**Tests**
+- ✅ Added: RK45 per-ion dt/OpenMP determinism, SimulationEngine per-ion dt, batch dt fallback (mock), RNG determinism across compaction, GPU EHSS mapping + parity.
+- ⚠ No perf regression tests; GPU EHSS physics not deeply validated.
 
-Verdict: Blockers addressed; residual risks are performance/parallel limits and metadata completeness. Proceed with caution for v1.0; parallel RK45 and GPU EHSS not production-grade.
+Verdict: Prior blockers resolved; remaining risks are performance/parallel limits and incomplete embedding of external inputs. Proceed with caution; RK45 performance and GPU EHSS remain non-production-grade.

@@ -94,6 +94,9 @@ Configuration parameters extracted from `FullConfig`.
 | `integrator_params/rk45_absolute_min_step_s` | double | RK45 absolute min step (config/strategy default) | s |
 | `integrator_params/gpu_collision_threshold` | int | Minimum ions for GPU collision dispatch (default 5000) | - |
 | `integrator_params/gpu_space_charge_threshold` | int | Minimum ions for GPU space-charge dispatch (default 1000, 0 if GPU disabled) | - |
+| `derived_summary/num_domains` | int | Number of domains in config | - |
+| `derived_summary/num_species_db` | int | Species entries loaded | - |
+| `derived_summary/num_reactions_db` | int | Reactions loaded | - |
 | `physics/collision_handler` | string | Collision handler (HSS, EHSS, etc.) | - |
 | `physics/reaction_handler` | string | Reaction handler (or None) | - |
 | `physics/reaction_gpu_threshold` | int | Minimum ions for GPU reaction dispatch (default 2000) | - |
@@ -132,8 +135,8 @@ Information required to reproduce the simulation exactly.
 | Name | Type | Description |
 |------|------|-------------|
 | `config_sha256` | string | SHA256 hash of config file |
-| `species_db_sha256` | string | SHA256 hash of species database |
-| `reaction_db_sha256` | string | SHA256 hash of reaction database |
+| `species_db_sha256` | string | SHA256 hash of species database (N/A if not provided) |
+| `reaction_db_sha256` | string | SHA256 hash of reaction database (N/A if not provided) |
 
 ---
 

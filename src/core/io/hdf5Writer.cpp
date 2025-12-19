@@ -42,6 +42,9 @@ namespace ICARION::io {
 // Forward helpers
 static void write_string_vector(H5::Group& group, const std::string& name, const std::vector<std::string>& data);
 static void write_array_int(H5::Group& group, const std::string& name, const std::vector<int>& data);
+static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains);
+static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains);
+static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains);
 
 // ====================================================================
 // Public API
@@ -573,6 +576,12 @@ void HDF5Writer::write_config_metadata(
     write_scalar(integrator_group, "gpu_space_charge_threshold", 0);
 #endif
 
+    // Derived summary (helps reproducibility without full serialization)
+    H5::Group derived_group = cfg_group.createGroup("derived_summary");
+    write_scalar(derived_group, "num_domains", static_cast<int>(config.domains.size()));
+    write_scalar(derived_group, "num_species_db", static_cast<int>(config.species_db.size()));
+    write_scalar(derived_group, "num_reactions_db", static_cast<int>(config.reaction_db.reactions.size()));
+
     // Physics handlers
     write_string(physics_group, "collision_handler", config::EnumMapper::collision_model_to_string(config.physics.collision_model));
     write_string(physics_group, "reaction_handler", config.physics.enable_reactions ? "StochasticReactionHandler" : "None");
@@ -692,12 +701,31 @@ void HDF5Writer::write_reproducibility_metadata(
     }
     
     // Species database hash (if external file exists)
-    // Note: FullConfig embeds species data, so this is optional
-    write_string(hash_group, "species_db_sha256", "N/A");
+    if (!config.species_database_path.empty()) {
+        std::string species_hash = utils::sha256_file_safe(config.species_database_path, "N/A");
+        write_string(hash_group, "species_db_sha256", species_hash);
+    } else {
+        write_string(hash_group, "species_db_sha256", "N/A");
+    }
     
     // Reaction database hash (if external file exists)
-    // Note: FullConfig embeds reaction data, so this is optional
-    write_string(hash_group, "reaction_db_sha256", "N/A");
+    if (!config.reaction_database_path.empty()) {
+        std::string reaction_hash = utils::sha256_file_safe(config.reaction_database_path, "N/A");
+        write_string(hash_group, "reaction_db_sha256", reaction_hash);
+    } else {
+        write_string(hash_group, "reaction_db_sha256", "N/A");
+    }
+
+    // Field array hashes (paths from domains)
+    auto field_paths = collect_field_array_paths(config.domains);
+    std::vector<std::string> field_hashes;
+    field_hashes.reserve(field_paths.size());
+    for (const auto& p : field_paths) {
+        field_hashes.push_back(utils::sha256_file_safe(p, "N/A"));
+    }
+    H5::Group field_hash_group = hash_group.createGroup("field_arrays");
+    write_string_vector(field_hash_group, "files", field_paths);
+    write_string_vector(field_hash_group, "sha256", field_hashes);
     
     log::Logger::hdf5()->debug("Wrote reproducibility metadata with file hashes");
 }
@@ -1160,6 +1188,22 @@ void HDF5Writer::write_array(H5::Group& group, const std::string& name, const st
     H5::DataSpace space(1, dims);
     H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_DOUBLE, space);
     dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE);
+}
+
+static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains) {
+    std::vector<std::string> paths;
+    for (const auto& dom : domains) {
+        const auto& fields = dom.fields;
+        if (!fields.legacy_field_array_file.empty()) {
+            paths.push_back(fields.legacy_field_array_file);
+        }
+        for (const auto& term : fields.field_array_terms) {
+            if (!term.file.empty()) {
+                paths.push_back(term.file);
+            }
+        }
+    }
+    return paths;
 }
 
 void HDF5Writer::write_vec3(H5::Group& group, const std::string& name, const Vec3& vec) {

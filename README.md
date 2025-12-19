@@ -10,27 +10,39 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 
 ---
 
-# Overview
+# Release & API
 
-**ICARION** is a high-performance ion trajectory simulation engine for:
+- **Versioning:** v1.0.0 (semantic versioning). See `CHANGELOG.md`.
+- **Stable surface:** JSON configuration schema is considered stable for v1.x.
+- **Internal API:** C++ headers/classes are internal and may evolve between minor releases.
+- **License:** MIT (see `LICENSE`); third-party dependencies listed in `CMakeLists.txt` and `cmake/`.
+- **Experimental components (off-path for v1.0 results):** GPU EHSS geometry upload, GPU space-charge P³M, and adaptive field interpolation are present but incomplete and should be treated as experimental.
 
-- drift tube IMS
-- RF quadrupoles
-- Orbitraps
-- TOF analyzers
-- linear quadrupole ion traps (LQIT)
-- multi-domain instruments (IMS → Quadrupole → TOF)
+# What & Who
 
-It supports:
+- **What is ICARION?** Modular ion trajectory simulator (C++17) for mass spectrometry, ion mobility devices and ion optics with collision and reaction support.
+- **What can it do in v1.0?** IMS, RF quadrupole, Orbitrap, TOF, LQIT, FT-ICR; EHSS/HSS stochastic collision models Friction/Langevin/HardSphere deterministic collision models; Arrhenius reactions; RK4/RK45/Boris integrators; HDF5 with reproducibility metadata and config snapshot.
+- **What can it not do yet?** No full-field solver, no optimizer loop, limited GPU coverage (see below).
+- **Who is it for?** Researchers/engineers needing reproducible ion mobility / MS simulations with configurable physics and domains.
+- **Expectation management:** ICARION prioritizes physical correctness and modularity. Performance optimization and GPU offloading are active development areas.
+- **Integrator note:** Adaptive RK45 is supported only in serial runs; OpenMP-parallel runs use fixed-step integrators (RK4, Boris).
+- **GPU status:** GPU support is provided as an **experimental backend**. While functional, it is not yet optimized for large-scale production simulations.
+- **Output memory guard:** Set `output.buffer_byte_cap` (bytes) to cap in-memory trajectory buffering and fail fast before OOM; `0` disables the cap.
 
-- Stochastic & deterministic collision models (EHSS, HSS, Friction, Langevin, HardSphere), see docs/COLLISION_MODELS.md
-- Ion–neutral reactions with Arrhenius rates
-- Modular integrators (fixed-step RK4, adaptive RK45, Boris pusher)
-- GPU acceleration via CUDA
-- HDF5 output with metadata for full reproducibility
-- Strict input validation for species, reactions, domains, and global parameters
+# Minimal Example (IMS)
 
-The architecture is designed for reproducible science, publication-grade accuracy, and future extensibility (FieldSolver, Optimizer, multi-physics).
+```bash
+cmake -B build -S . && cmake --build build
+./build/src/icarion_main examples/ims/ims_basic.json
+```
+
+Key settings in `examples/ims/ims_basic.json`:
+- `simulation.integrator: "RK4"`; `physics.collision_model: "HSS"`
+- `simulation.rng_seed: 123` (reproducibility)
+- `output.trajectory_file: "ims_trajectories.h5"` (writes HDF5 with version, git hash, build flags, RNG seed, integrator/collision model)
+- `simulation.enable_gpu: false` (GPU is optional/experimental)
+
+Run produces `results/ims/ims_trajectories.h5` (plus a config snapshot `ims_trajectories.config.json` alongside the output).
 
 # Key Features
 

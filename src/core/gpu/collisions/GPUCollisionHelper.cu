@@ -3,7 +3,7 @@
 
 /**
  * @file GPUCollisionHelper.cu
- * @brief GPU collision helper implementation (experimental)
+ * @brief GPU collision helper implementation (experimental; EHSS geometry mapping stubbed for v1.0)
  */
 
 /**
@@ -25,6 +25,10 @@
 #include <cuda_runtime.h>
 #include <cmath>
 #include <cstdint>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <unordered_set>
 
 // Minimal C++ utilities (avoid STL headers with nvcc)
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -105,9 +109,21 @@ void GPUCollisionHelper::upload_geometry_to_gpu() {
         throw std::runtime_error("GPUCollisionHelper: Empty geometry map");
     }
     
+    // Create deterministic ordering of species to ensure index consistency
+    std::vector<std::string> species_ids;
+    species_ids.reserve(n_species);
+    for (const auto& kv : geom_map) {
+        species_ids.push_back(kv.first);
+    }
+    std::sort(species_ids.begin(), species_ids.end());
+
+    species_index_map_.clear();
+    species_index_map_.reserve(n_species);
+
     // Count total atoms
     size_t total_atoms = 0;
-    for (const auto& [species_id, geom_data] : geom_map) {
+    for (const auto& species_id : species_ids) {
+        const auto& geom_data = geom_map.at(species_id);
         total_atoms += geom_data.first.size();
     }
     
@@ -124,12 +140,15 @@ void GPUCollisionHelper::upload_geometry_to_gpu() {
     
     // Flatten geometry data
     size_t offset = 0;
-    for (const auto& [species_id, geom_data] : geom_map) {
+    int species_idx = 0;
+    for (const auto& species_id : species_ids) {
+        const auto& geom_data = geom_map.at(species_id);
         const auto& positions = geom_data.first;
         const auto& radii = geom_data.second;
         
         atom_offsets_host.push_back(offset);
         atom_counts_host.push_back(positions.size());
+        species_index_map_.emplace(species_id, species_idx++);
         
         for (const auto& pos : positions) {
             atom_x_host.push_back(pos.x);
@@ -320,11 +339,20 @@ bool GPUCollisionHelper::process_collisions_batch(
             ccs_host[i] = ions[i].CCS_m2;
             active_host[i] = ions[i].active ? 1 : 0;
             if (collision_model_ == "EHSS") {
-                // WARNING: species_index mapping is stubbed (assumes single species).
-                // Caller must populate IonState species_id -> geometry index mapping
-                // before relying on EHSS results.
-                // TODO: hook up species DB lookup here.
-                species_indices_host[i] = 0;
+                auto it = species_index_map_.find(ions[i].species_id);
+                if (it != species_index_map_.end()) {
+                    species_indices_host[i] = it->second;
+                } else {
+#ifndef __CUDACC__
+                    if (!missing_species_warned_.count(ions[i].species_id)) {
+                        ICARION::log::Logger::main()->warn(
+                            "GPUCollisionHelper: No geometry uploaded for species '{}', falling back to index 0",
+                            ions[i].species_id);
+                        missing_species_warned_.insert(ions[i].species_id);
+                    }
+#endif
+                    species_indices_host[i] = 0;
+                }
             }
         }
         

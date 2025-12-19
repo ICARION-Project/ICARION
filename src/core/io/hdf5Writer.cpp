@@ -19,6 +19,7 @@
 #include "core/config/types/WaveformConfig.h"
 #include "core/utils/hash.h"
 #include "core/types/IonEnsemble.h"
+#include "core/integrator/strategies/RK45Strategy.h"
 #include <chrono>
 #include <fstream>
 #include <sstream>
@@ -526,6 +527,7 @@ void HDF5Writer::write_config_metadata(
 ) {
     H5::Group meta = file.createGroup("/metadata");
     H5::Group cfg_group = meta.createGroup("config");
+    H5::Group physics_group = meta.createGroup("physics");
     
     // === Write format version ===
     write_string(cfg_group, "format_version", "2.0.0");
@@ -545,6 +547,69 @@ void HDF5Writer::write_config_metadata(
     write_scalar(cfg_group, "enable_gpu", config.simulation.enable_gpu);
     
     write_string(cfg_group, "output_file", config.output.trajectory_file);
+
+    // Integrator metadata (useful for reproducibility)
+    H5::Group integrator_group = cfg_group.createGroup("integrator_params");
+    write_string(integrator_group, "name", config.simulation.integrator);
+    if (config.simulation.integrator == "RK45") {
+        // Defaults mirror RK45Strategy::AdaptiveConfig
+        integrator::RK45Strategy::AdaptiveConfig defaults;
+        write_scalar(integrator_group, "rk45_atol", defaults.atol);
+        write_scalar(integrator_group, "rk45_rtol", defaults.rtol);
+        write_scalar(integrator_group, "rk45_safety_factor", defaults.safety_factor);
+        write_scalar(integrator_group, "rk45_min_step_factor", defaults.min_step_factor);
+        write_scalar(integrator_group, "rk45_max_step_factor", defaults.max_step_factor);
+        write_scalar(integrator_group, "rk45_min_step_s", config.simulation.rk45_min_step_s);
+        write_scalar(integrator_group, "rk45_max_step_increase", defaults.max_step_increase);
+        write_scalar(integrator_group, "rk45_max_step_decrease", defaults.max_step_decrease);
+        write_scalar(integrator_group, "rk45_absolute_min_step_s", defaults.absolute_min_step_s);
+    }
+    write_scalar(integrator_group, "openmp_enabled", config.simulation.enable_openmp);
+    write_scalar(integrator_group, "gpu_collision_threshold", 5000);
+#ifdef ICARION_USE_GPU
+    write_scalar(integrator_group, "gpu_space_charge_threshold", 1000);
+#else
+    write_scalar(integrator_group, "gpu_space_charge_threshold", 0);
+#endif
+
+    // Physics handlers
+    write_string(physics_group, "collision_handler", config::EnumMapper::collision_model_to_string(config.physics.collision_model));
+    write_string(physics_group, "reaction_handler", config.physics.enable_reactions ? "StochasticReactionHandler" : "None");
+    write_scalar(physics_group, "reaction_gpu_threshold", 2000);
+    write_scalar(physics_group, "collision_gpu_threshold", 5000);
+    write_string(physics_group, "collision_mixture_limit", "8 (GPU helper)");
+
+    // Embed resolved config JSON if available (snapshot written by main)
+    try {
+        std::filesystem::path out_dir = config.output.folder;
+        std::filesystem::path traj_file = config.output.trajectory_file;
+        std::string base = traj_file.stem().string();
+        if (base.empty()) {
+            base = "config_snapshot";
+        }
+        std::filesystem::path snapshot_path = out_dir / (base + ".config.json");
+        std::ifstream in(snapshot_path);
+        if (!in && !config.config_file_path.empty()) {
+            in.open(config.config_file_path);
+        }
+        if (!in) {
+            if (config.config_file_path.empty()) {
+                // Tests/alternate entrypoints may not set config_file_path; embed empty with warning
+                write_string(cfg_group, "config_json", "{}");
+                log::Logger::hdf5()->warn("Config snapshot not found and no config_file_path set; embedding empty object");
+                return;
+            }
+            throw std::runtime_error("Config snapshot not found: " + snapshot_path.string());
+        }
+
+        std::ostringstream buffer;
+        buffer << in.rdbuf();
+        write_string(cfg_group, "config_json", buffer.str());
+        log::Logger::hdf5()->debug("Embedded config snapshot: {}", snapshot_path.string());
+    } catch (const std::exception& e) {
+        log::Logger::hdf5()->error("Failed to embed config snapshot: {}", e.what());
+        throw;
+    }
     
     log::Logger::hdf5()->debug("Wrote config metadata");
 }
@@ -561,6 +626,7 @@ void HDF5Writer::write_reproducibility_metadata(
     write_scalar(repro, "global_seed", config.simulation.rng_seed);
     write_string(repro, "rng_algorithm", "std::mt19937_64");
     write_string(repro, "seed_scheme", "global_seed + ion_index");
+    write_string(repro, "per_ion_rng_scope", "collisions,reactions,stochastic_forces");
     
     // === Git info ===
     write_string(repro, "git_hash", git_hash);
@@ -594,9 +660,14 @@ void HDF5Writer::write_reproducibility_metadata(
     #endif
     
     // === Execution ===
+    bool openmp_enabled = false;
+    int openmp_threads = 1;
     #ifdef _OPENMP
-        write_scalar(repro, "openmp_threads", omp_get_max_threads());
+        openmp_enabled = true;
+        openmp_threads = omp_get_max_threads();
     #endif
+    write_scalar(repro, "openmp_enabled", openmp_enabled);
+    write_scalar(repro, "openmp_threads", openmp_threads);
     
     // === Input file hashes (SHA256) ===
     H5::Group hash_group = repro.createGroup("input_hash");

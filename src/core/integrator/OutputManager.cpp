@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <chrono>
 #include <iomanip>
+#include <sstream>
 
 // Git hash from CMake (via compile definition)
 #ifndef GIT_HASH
@@ -20,6 +21,38 @@
 #else
 #define BUILD_TYPE "Debug"
 #endif
+
+namespace {
+// Compose a compact build-info string for reproducibility metadata.
+std::string make_build_info() {
+    std::ostringstream oss;
+    oss << "type=" << BUILD_TYPE;
+
+#ifdef _OPENMP
+    const bool openmp_enabled = true;
+    const int openmp_threads = omp_get_max_threads();
+#else
+    const bool openmp_enabled = false;
+    const int openmp_threads = 1;
+#endif
+    oss << "; openmp=" << (openmp_enabled ? "on" : "off");
+    oss << "; openmp_threads=" << openmp_threads;
+
+#if defined(ICARION_ENABLE_CUDA) || defined(USE_CUDA)
+    oss << "; cuda=on";
+#else
+    oss << "; cuda=off";
+#endif
+
+#ifdef ICARION_BUILD_CORE_ONLY
+    oss << "; mode=core-only";
+#else
+    oss << "; mode=full";
+#endif
+
+    return oss.str();
+}
+}  // namespace
 
 namespace ICARION {
 namespace integrator {
@@ -89,7 +122,7 @@ void OutputManager::initialize(
             config,
             ensemble,
             GIT_HASH,
-            BUILD_TYPE
+            make_build_info()
         );
     } catch (const std::exception& e) {
         throw std::runtime_error("OutputManager: Failed to create HDF5 file (SoA): " + 
@@ -160,12 +193,35 @@ bool OutputManager::should_write(double t_current) const {
 
 bool OutputManager::should_write_before_add(double t_current) const {
     // Check BEFORE adding to buffer (allows buffer to reach buffer_max exactly)
-    return (times_buffer_.size() >= buffer_max_) || (t_current >= next_write_time_);
+    if ((times_buffer_.size() >= buffer_max_) || (t_current >= next_write_time_)) {
+        return true;
+    }
+
+    if (buffer_byte_cap_ == 0) {
+        return false;
+    }
+
+    // Rough byte estimate: time + IonEnsemble payloads
+    size_t bytes = sizeof(double) * times_buffer_.capacity();
+    for (const auto& ens : trajectory_buffer_) {
+        bytes += ens.memory_footprint();
+    }
+    return bytes >= buffer_byte_cap_;
 }
 
 void OutputManager::flush() {
     if (times_buffer_.empty()) {
         return;  // Nothing to flush
+    }
+    if (buffer_byte_cap_ > 0) {
+        size_t bytes = sizeof(double) * times_buffer_.capacity();
+        for (const auto& ens : trajectory_buffer_) {
+            bytes += ens.memory_footprint();
+        }
+        if (bytes > buffer_byte_cap_) {
+            throw std::runtime_error("OutputManager: Buffer byte cap exceeded (" + std::to_string(bytes) +
+                                     " > " + std::to_string(buffer_byte_cap_) + ")");
+        }
     }
     
     // Store last time before clearing buffer (for drift-free next_write_time_)

@@ -88,6 +88,8 @@ static void apply_override_to_json(nlohmann::json& j, const std::string& key, co
             j["output"]["trajectory_file"] = value;
         } else if (key == "output.print_progress") {
             j["output"]["print_progress"] = parse_bool_cli(value);
+        } else if (key == "output.buffer_byte_cap") {
+            j["output"]["buffer_byte_cap"] = std::stoull(value);
         }
         else if (key == "species_database" || key == "database.species") {
             j["species_database"] = value;
@@ -133,6 +135,9 @@ static void write_config_snapshot(
     if (opts.output_dir.has_value()) {
         j["output"]["folder"] = opts.output_dir.value();
     }
+    if (opts.buffer_byte_cap.has_value()) {
+        j["output"]["buffer_byte_cap"] = opts.buffer_byte_cap.value();
+    }
     if (opts.seed.has_value()) {
         j["simulation"]["rng_seed"] = opts.seed.value();
     }
@@ -157,6 +162,7 @@ static void write_config_snapshot(
         ICARION::log::Logger::main()->info("Wrote config snapshot: {}", snapshot_path.string());
     } catch (const std::exception& e) {
         ICARION::log::Logger::main()->warn("Failed to write config snapshot to {} ({})", snapshot_path.string(), e.what());
+        throw;
     }
 }
 

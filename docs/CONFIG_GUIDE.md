@@ -919,7 +919,8 @@ See `schema/physics.schema.json` for all options.
 "output": {
   "folder": "./results/my_sim",
   "trajectory_file": "output.h5",
-  "print_progress": true
+  "print_progress": true,
+  "buffer_byte_cap": 0          // Optional RAM cap for trajectory buffer (bytes, 0 = unlimited)
 }
 ```
 

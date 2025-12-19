@@ -132,6 +132,7 @@ EnvironmentConfig create_test_environment(double T_K = 300.0, double n_m3 = 2.5e
     env.pressure_Pa = 101325.0;
     env.gas_species = "He";
     env.gas_mass_kg = MOLAR_MASS_HE_KG;
+    env.gas_mixture.clear();
     return env;
 }
 
@@ -157,6 +158,32 @@ core::IonEnsemble make_ensemble_for_species(const SpeciesDatabase& db, const std
         }
     }
     return core::IonEnsemble::from_legacy(ions);
+}
+
+TEST_CASE("StochasticReactionHandler: Missing mixture concentration defaults to zero", "[reaction][mixture]") {
+    auto reaction_db = create_test_reaction_db();
+    auto species_db = create_test_species_db();
+
+    // Environment with mixture but missing the reactant species -> should not use buffer gas
+    EnvironmentConfig env = create_test_environment();
+    env.gas_mixture.clear();
+    env.gas_mixture.push_back({.species="N2", .density_m3=1e25, .mass_kg=MOLAR_MASS_N2_KG, .participates_in_reactions=true});
+
+    // Single reaction: H3O+ + He (concentration -1 sentinel) should use 0 because He not in mixture
+    StochasticReactionHandler handler(false);
+    auto ensemble = make_ensemble_for_species(species_db, "H3O+");
+    auto view = ensemble.reaction_data(0);
+    PhysicsRng rng(123);
+    const double dt = 1e-6;
+
+    // Run many trials; probability should be effectively zero if concentration=0
+    size_t reactions = 0;
+    for (int i = 0; i < 1000; ++i) {
+        if (handler.handle_reaction(view, dt, rng, reaction_db, species_db, env)) {
+            reactions++;
+        }
+    }
+    REQUIRE(reactions == 0);
 }
 
 // ===================================================================

@@ -181,7 +181,14 @@ double StochasticReactionHandler::compute_effective_rate(
             if (it != concentrations.end()) {
                 conc_m3 = it->second;
             } else {
-                conc_m3 = particle_density;
+                static bool warned = false;
+                if (!warned && enable_logging_) {
+                    log::debug_log(
+                        "[StochasticReactionHandler] No concentration for '" + term.species +
+                        "' in mixture; assuming zero (was buffer gas density)");
+                    warned = true;
+                }
+                conc_m3 = 0.0;  // Do not silently use buffer gas density
             }
         }
 

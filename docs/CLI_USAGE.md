@@ -179,6 +179,14 @@ Override the output directory specified in the configuration.
 icarion --output-dir ./results/experiment1 config.json
 ```
 
+### `--buffer-byte-cap <BYTES>`
+Cap the in-memory trajectory buffer to avoid OOM; `0` (default) disables the cap.
+
+```bash
+# Cap at 512 MB
+icarion --buffer-byte-cap 536870912 config.json
+```
+
 ---
 
 ## Performance Options

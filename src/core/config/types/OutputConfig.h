@@ -23,6 +23,7 @@ struct OutputConfig {
     
     // === Output control ===
     bool print_progress = true;                 ///< Print simulation progress
+    size_t buffer_byte_cap = 0;                 ///< Optional memory cap for trajectory buffer (bytes, 0=disabled)
     
     // Future extensions:
     // bool save_reactions = false;

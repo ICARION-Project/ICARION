@@ -6,6 +6,7 @@
 #include "core/utils/safety/numericalSafetyLogger.h"
 #include "core/utils/Profiler.h"
 #include "core/physics/forces/ElectricFieldForce.h"
+#include "core/log/Logger.h"
 #include "core/types/IonEnsemble.h"
 #include "core/integrator/strategies/RK45Strategy.h"
 #include <algorithm>
@@ -16,6 +17,7 @@
 #include <stdexcept>
 #include <chrono>
 #include <cstdlib>  // for setenv (NUMA thread placement)
+#include <limits>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -57,6 +59,13 @@ SimulationEngine::SimulationEngine(
     if (!integrator_) {
         throw std::invalid_argument("SimulationEngine: IntegrationStrategy cannot be null");
     }
+
+    parallel_enabled_ = config_.simulation.enable_openmp && !integrator_->is_adaptive();
+    if (!parallel_enabled_ && config_.simulation.enable_openmp && integrator_->is_adaptive()) {
+        // Disable OpenMP for adaptive integrator to avoid shared-state races
+        config_.simulation.enable_openmp = false;
+        ICARION::log::Logger::main()->warn("Adaptive integrator is serial-only; OpenMP disabled for this run");
+    }
     
     // Create domain manager
     domain_manager_ = std::make_unique<DomainManager>(
@@ -75,7 +84,7 @@ SimulationEngine::SimulationEngine(
     
     // Create output manager
     std::string hdf5_path = config_.output.folder + "/" + config_.output.trajectory_file;
-    std::string log_path = "";  // TODO: Add log file to OutputConfig
+    std::string log_path = "";  // TODO(v1.1): Add log file path to OutputConfig
     if (config_.output.print_progress) {
         log_path = config_.output.folder + "/simulation.log";
     }
@@ -86,6 +95,14 @@ SimulationEngine::SimulationEngine(
         config_.simulation.dt_s * config_.simulation.write_interval,  // Write interval in seconds
         50  // Buffer max
     );
+    if (config_.output.buffer_byte_cap > 0) {
+        output_manager_->set_buffer_byte_cap(config_.output.buffer_byte_cap);
+        output_manager_->log_progress("Output buffer byte cap set to " + std::to_string(config_.output.buffer_byte_cap) + " bytes");
+    }
+
+    if (!parallel_enabled_ && integrator_ && integrator_->is_adaptive()) {
+        output_manager_->log_progress("OpenMP disabled for adaptive integrator to avoid shared state races (RK45 not thread-safe)");
+    }
     
     // Initialize numerical safety logger if enabled
     if (config_.simulation.enable_safety_logging) {
@@ -126,7 +143,7 @@ void SimulationEngine::initialize(const core::IonEnsemble& ensemble) {
 
 void SimulationEngine::initialize_openmp_settings() {
 #ifdef _OPENMP
-    if (!config_.simulation.enable_openmp) {
+    if (!parallel_enabled_) {
         return;  // OpenMP disabled
     }
     
@@ -219,7 +236,7 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
                     
                     // For EHSS, upload geometry data
                     if (collision_model_enum == config::CollisionModel::EHSS) {
-                        // TODO: Extract geometry from species database and upload to GPU
+                        // TODO(v1.1): Extract geometry from species database and upload to GPU
                         // This requires access to species_db molecular geometries
                         output_manager_->log_progress("GPU: EHSS geometry upload deferred (using HSS fallback for now)");
                     }
@@ -316,6 +333,25 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     }
     
     // 3. Finalization
+    if (integrator_->is_adaptive()) {
+        if (auto* rk45 = dynamic_cast<RK45Strategy*>(integrator_.get())) {
+            const auto& stats = rk45->get_stats();
+            double avg_dt = (stats.accepted_steps > 0)
+                ? stats.sum_step_used / static_cast<double>(stats.accepted_steps)
+                : 0.0;
+            double min_dt = (stats.min_step_used == std::numeric_limits<double>::max())
+                ? 0.0
+                : stats.min_step_used;
+            std::ostringstream rk_msg;
+            rk_msg << "RK45 stats: accepted=" << stats.accepted_steps
+                   << ", rejected=" << stats.rejected_steps
+                   << ", dt_avg=" << avg_dt
+                   << ", dt_min=" << min_dt
+                   << ", dt_max=" << stats.max_step_used
+                   << ", avg_error=" << stats.avg_error;
+            output_manager_->log_progress(rk_msg.str());
+        }
+    }
     output_manager_->log_progress("Simulation completed (SoA)");
     
     // Count active ions
@@ -375,8 +411,9 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt
     std::vector<double> dt_used_per_ion(n_ions, dt);
     double dt_next_hint = dt;
 
-    if (rng_by_ion_.empty()) {
+    if (rng_by_ion_.size() != n_ions) {
         PROFILE_SCOPE_IF_ENABLED("RNG Initialization");
+        rng_by_ion_.clear();
         rng_by_ion_.reserve(n_ions);
         for (size_t i = 0; i < n_ions; ++i) {
             uint64_t ion_seed = config_.simulation.rng_seed + static_cast<uint64_t>(i);
@@ -394,7 +431,9 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt
 
     std::vector<int> integration_domains(n_ions, -1);
 
-    #pragma omp parallel if(config_.simulation.enable_openmp)
+    const bool use_omp = parallel_enabled_;
+
+    #pragma omp parallel if(use_omp)
     {
         #pragma omp for schedule(static, 256)
         for (int i = 0; i < static_cast<int>(n_ions); ++i) {
@@ -434,9 +473,6 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt
         }
     }
 
-    perform_collisions(ensemble, dt_used_per_ion, integration_domains);
-    perform_reactions(ensemble, dt_used_per_ion, integration_domains);
-
     double max_dt_used = perform_integration(
         ensemble,
         current_time_,
@@ -445,7 +481,11 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt
         dt_used_per_ion,
         dt_next_hint);
 
-    #pragma omp parallel if(config_.simulation.enable_openmp)
+    // Apply stochastic processes using the actual dt used by the integrator
+    perform_collisions(ensemble, dt_used_per_ion, integration_domains);
+    perform_reactions(ensemble, dt_used_per_ion, integration_domains);
+
+    #pragma omp parallel if(use_omp)
     {
         #pragma omp for schedule(static, 256)
         for (int i = 0; i < static_cast<int>(n_ions); ++i) {
@@ -614,7 +654,7 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
     const auto* active = ensemble.active_data();
     const auto* born = ensemble.born_data();
 
-    #pragma omp parallel if(config_.simulation.enable_openmp)
+    #pragma omp parallel if(use_omp)
     {
         #pragma omp for schedule(static, 256)
         for (int k = 0; k < static_cast<int>(indices.size()); ++k) {
@@ -673,7 +713,7 @@ void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
     const auto* active = ensemble.active_data();
     const auto* born = ensemble.born_data();
 
-    #pragma omp parallel if(config_.simulation.enable_openmp)
+    #pragma omp parallel if(use_omp)
     {
         #pragma omp for schedule(static, 256)
         for (int i = 0; i < static_cast<int>(n); ++i) {

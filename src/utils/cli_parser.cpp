@@ -79,7 +79,9 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         ("o,output", "Override output HDF5 filename", 
          cxxopts::value<std::string>(), "FILE")
         ("output-dir", "Override output directory", 
-         cxxopts::value<std::string>(), "DIR");
+         cxxopts::value<std::string>(), "DIR")
+        ("buffer-byte-cap", "Cap in-memory trajectory buffer (bytes, 0 = unlimited)", 
+         cxxopts::value<uint64_t>(), "BYTES");
     
     // === Config overrides (Phase 1: ACTIVE) ===
     parser.add_options("Advanced")
@@ -220,6 +222,10 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     if (result.count("output-dir")) {
         opts.output_dir = result["output-dir"].as<std::string>();
     }
+
+    if (result.count("buffer-byte-cap")) {
+        opts.buffer_byte_cap = result["buffer-byte-cap"].as<uint64_t>();
+    }
     
     // === Parse config overrides (Phase 1: ACTIVE) ===
     if (result.count("set")) {
@@ -333,7 +339,7 @@ Hierarchical Structure:
 /metadata/
   /config/
     format_version      string      Config format version
-    config_json         string      Full FullConfig as JSON (TODO: serializer)
+    config_json         string      Full FullConfig as JSON (TODO(v1.1): serializer)
     dt_s                float64     Timestep [s]
     total_time_s        float64     Total simulation time [s]
     total_steps         int32       Number of integration steps

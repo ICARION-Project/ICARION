@@ -41,6 +41,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <cstdint>  // For uint8_t
 
@@ -221,6 +222,8 @@ private:
     GeometryData_GPU* geometry_gpu_ = nullptr;
     bool geometry_uploaded_ = false;
     const GeometryMap* geometry_map_host_ = nullptr;
+    std::unordered_map<std::string, int> species_index_map_;  ///< species_id -> geometry index
+    std::unordered_set<std::string> missing_species_warned_;
     
     // Performance statistics
     CollisionStats_GPU stats_;

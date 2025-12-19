@@ -148,6 +148,7 @@ private:
     // Subsystems (owned)
     std::unique_ptr<DomainManager> domain_manager_;
     std::unique_ptr<OutputManager> output_manager_;
+    bool parallel_enabled_ = false;  ///< OpenMP allowed (disabled for adaptive integrators)
     
     // Simulation state
     double current_time_ = 0.0;

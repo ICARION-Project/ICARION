@@ -80,8 +80,27 @@ Configuration parameters extracted from `FullConfig`.
 | `enable_space_charge` | bool | Space charge enabled? | - |
 | `enable_gpu` | bool | GPU acceleration enabled? | - |
 | `output_file` | string | Output file path | - |
+| `config_json` | string | Embedded resolved config snapshot (validated + CLI overrides) | - |
+| `integrator_params/name` | string | Integrator name | - |
+| `integrator_params/rk45_min_step_s` | double | Absolute min step for RK45 (if set) | s |
+| `integrator_params/openmp_enabled` | bool | OpenMP enabled flag | - |
+| `integrator_params/rk45_atol` | double | RK45 absolute tolerance (default if RK45) | - |
+| `integrator_params/rk45_rtol` | double | RK45 relative tolerance (default if RK45) | - |
+| `integrator_params/rk45_safety_factor` | double | RK45 safety factor (default) | - |
+| `integrator_params/rk45_min_step_factor` | double | RK45 minimum step scaling factor | - |
+| `integrator_params/rk45_max_step_factor` | double | RK45 maximum step scaling factor | - |
+| `integrator_params/rk45_max_step_increase` | double | RK45 max growth per step | - |
+| `integrator_params/rk45_max_step_decrease` | double | RK45 max shrink per step | - |
+| `integrator_params/rk45_absolute_min_step_s` | double | RK45 absolute min step (config/strategy default) | s |
+| `integrator_params/gpu_collision_threshold` | int | Minimum ions for GPU collision dispatch (default 5000) | - |
+| `integrator_params/gpu_space_charge_threshold` | int | Minimum ions for GPU space-charge dispatch (default 1000, 0 if GPU disabled) | - |
+| `physics/collision_handler` | string | Collision handler (HSS, EHSS, etc.) | - |
+| `physics/reaction_handler` | string | Reaction handler (or None) | - |
+| `physics/reaction_gpu_threshold` | int | Minimum ions for GPU reaction dispatch (default 2000) | - |
+| `physics/collision_gpu_threshold` | int | Minimum ions for GPU collision dispatch (default 5000) | - |
+| `physics/collision_mixture_limit` | string | Max mixture components in GPU helper (default 8) | - |
 
-**Note:** Only selected fields are written; full JSON config is not embedded in v1.0.
+**Note:** Full resolved config snapshot is embedded as `config_json` (identical to the `.config.json` snapshot written alongside the HDF5). Selected key fields remain broken out as individual datasets for fast access.
 
 ---
 
@@ -96,15 +115,17 @@ Information required to reproduce the simulation exactly.
 | `global_seed` | uint | RNG seed for entire simulation |
 | `rng_algorithm` | string | RNG algorithm (std::mt19937_64) |
 | `seed_scheme` | string | Per-ion seeding method |
+| `per_ion_rng_scope` | string | Subsystems using per-ion RNG (collisions, reactions, stochastic forces) |
 | `git_hash` | string | Git commit hash of ICARION |
 | `git_dirty` | bool | Uncommitted changes present? |
 | `code_version` | string | ICARION version (e.g., "1.0.0") |
 | `build_type` | string | Release or Debug |
 | `compiler_cxx` | string | C++ compiler version |
-| `build_info` | string | Complete build information |
+| `build_info` | string | Build flags summary (type, OpenMP, CUDA, mode) |
 | `cuda_version` | string | CUDA version (if enabled) |
 | `gpu_arch` | string | GPU architecture (if enabled) |
-| `openmp_threads` | int | Number of OpenMP threads |
+| `openmp_enabled` | bool | OpenMP enabled at build time? |
+| `openmp_threads` | int | Number of OpenMP threads (1 if disabled) |
 
 **Subgroup:** `/metadata/reproducibility/input_hash/`
 

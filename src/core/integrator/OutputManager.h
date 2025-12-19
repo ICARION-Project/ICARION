@@ -130,6 +130,11 @@ public:
      */
     bool should_write(double t_current) const;
     
+    /**
+     * @brief Set maximum buffer size in bytes to guard against OOM.
+     */
+    void set_buffer_byte_cap(size_t bytes) { buffer_byte_cap_ = bytes; }
+    
 private:
     /**
      * @brief Internal check before adding to buffer
@@ -190,6 +195,7 @@ private:
     // HDF5 buffers
     std::vector<double> times_buffer_;
     std::vector<core::IonEnsemble> trajectory_buffer_;
+    size_t buffer_byte_cap_ = 0;  ///< Optional byte cap; 0 disables
     
     // Text logging (optional)
     std::string log_filename_;

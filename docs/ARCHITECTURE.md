@@ -33,6 +33,15 @@ ICARION is a modular C++17 framework for ion trajectory simulation in mass spect
 4. **Reliability**: Comprehensive test coverage, validation suite, schema validation, error handling
 5. **Usability**: Intuitive JSON configuration, extensive documentation
 
+## Core Concepts (v1.0)
+
+- **SimulationEngine as conductor:** Owns the timestep loop and delegates; physics behavior comes from injected strategies (integrator, collisions, reactions, forces).
+- **Strategy everywhere:** Integrators, collision/reaction handlers, and field providers are interchangeable strategies chosen by factories from the JSON config (RK4/RK45/Boris; HSS/EHSS/Langevin; CPU/GPU variants).
+- **ForceRegistry as composite:** Active forces are registered once and executed as a composite over the SoA ensemble each step. Adding a new force = implement interface + register; the engine loop stays unchanged.
+- **SSOT config:** JSON + schema is the single source of truth; factories derive domains, fields, and physics switches directly from it. No hidden hardcoded defaults.
+- **Domain-centric:** Each domain owns geometry/environment/field model; DomainManager resolves per-ion domain state and hands the correct strategies to the engine.
+- **CPU/GPU split with transparent fallback:** CPU paths are canonical; GPU helpers wrap the same strategies and take over only when enabled/thresholded, otherwise falling back without diverging user logic.
+
 ## Module Structure
 ```
 src/
@@ -125,6 +134,8 @@ Integration strategies implement `IIntegrationStrategy::step(...)` on the SoA co
 - `RK45Strategy` – Dormand-Prince (adaptive)
 - `BorisStrategy` – Boris pusher
 - `GPUIntegrationStrategy` – wrapper that delegates to RK4/RK45/Boris and hands off batches to the CUDA helper when possible (auto CPU fallback)
+
+**Parallelism note:** Adaptive RK45 is supported only in serial execution; OpenMP-parallel runs use fixed-step integrators (RK4, Boris).
 
 **Key Files:**
 - `src/core/integrator/strategies/IntegrationStrategyFactory.h`

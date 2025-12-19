@@ -21,6 +21,13 @@
       "default": 100,
       "description": "Interval (in steps) between trajectory output writes"
     },
+
+    "buffer_byte_cap": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Maximum in-memory buffer size for trajectory snapshots (bytes, 0 = unlimited)"
+    },
     
     "integrator": {
       "$ref": "common-types.schema.json#/$defs/solver_type",
@@ -71,13 +78,13 @@
         "abs_tol": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 1e-14,
+          "default": 1e-11,
           "description": "Absolute tolerance for RK45 error control"
         },
         "rel_tol": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 1e-12,
+          "default": 1e-9,
           "description": "Relative tolerance for RK45 error control"
         },
         "dt_min": {

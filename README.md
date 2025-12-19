@@ -25,7 +25,7 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 - **What can it not do yet?** No full-field solver, no optimizer loop, limited GPU coverage (see below).
 - **Who is it for?** Researchers/engineers needing reproducible ion mobility / MS simulations with configurable physics and domains.
 - **Expectation management:** ICARION prioritizes physical correctness and modularity. Performance optimization and GPU offloading are active development areas.
-- **Integrator note:** Adaptive RK45 is supported only in serial runs; OpenMP-parallel runs use fixed-step integrators (RK4, Boris).
+- **Integrator note:** RK45 now keeps per-ion adaptive state and is OpenMP-safe; batch paths (CPU/GPU) require uniform `dt` across active ions.
 - **GPU status:** GPU support is provided as an **experimental backend**. While functional, it is not yet optimized for large-scale production simulations.
 - **Output memory guard:** Set `output.buffer_byte_cap` (bytes) to cap in-memory trajectory buffering and fail fast before OOM; `0` disables the cap.
 

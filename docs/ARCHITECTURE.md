@@ -131,11 +131,11 @@ Integration strategies implement `IIntegrationStrategy::step(...)` on the SoA co
 
 **Available Strategies:**
 - `RK4Strategy` – 4th order Runge-Kutta (fixed step)
-- `RK45Strategy` – Dormand-Prince (adaptive)
+- `RK45Strategy` – Dormand-Prince (adaptive, per-ion dt/state, OpenMP-safe)
 - `BorisStrategy` – Boris pusher
 - `GPUIntegrationStrategy` – wrapper that delegates to RK4/RK45/Boris and hands off batches to the CUDA helper when possible (auto CPU fallback)
 
-**Parallelism note:** Adaptive RK45 is supported only in serial execution; OpenMP-parallel runs use fixed-step integrators (RK4, Boris).
+**Parallelism note:** RK45 maintains per-ion adaptive state; OpenMP is allowed. Batch paths (CPU/GPU) are only used when all active ions share the same `dt`.
 
 **Key Files:**
 - `src/core/integrator/strategies/IntegrationStrategyFactory.h`

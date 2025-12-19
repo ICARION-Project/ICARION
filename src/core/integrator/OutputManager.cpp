@@ -187,6 +187,7 @@ void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
     const auto* vel_x = ensemble.vel_x_data();
     const auto* vel_y = ensemble.vel_y_data();
     const auto* vel_z = ensemble.vel_z_data();
+    const auto* t_ptr = ensemble.time_data();
     const auto* domain_idx = ensemble.domain_index_data();
     const auto* species_idx = ensemble.species_id_indices();
 
@@ -194,6 +195,7 @@ void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
     velocities_buffer_.reserve(velocities_buffer_.size() + n_ions_ * 3);
     domain_buffer_.reserve(domain_buffer_.size() + n_ions_);
     species_buffer_.reserve(species_buffer_.size() + n_ions_);
+    per_ion_time_buffer_.reserve(per_ion_time_buffer_.size() + n_ions_);
 
     for (size_t i = 0; i < n_ions_; ++i) {
         positions_buffer_.push_back(pos_x[i]);
@@ -206,6 +208,7 @@ void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
 
         domain_buffer_.push_back(domain_idx[i]);
         species_buffer_.push_back(species_idx[i]);
+        per_ion_time_buffer_.push_back(t_ptr ? t_ptr[i] : t);
     }
 }
 
@@ -241,6 +244,7 @@ bool OutputManager::should_write_before_add(double t_current) const {
     size_t bytes = sizeof(double) * times_buffer_.capacity();
     bytes += sizeof(double) * positions_buffer_.capacity();
     bytes += sizeof(double) * velocities_buffer_.capacity();
+    bytes += sizeof(double) * per_ion_time_buffer_.capacity();
     bytes += sizeof(int) * domain_buffer_.capacity();
     bytes += sizeof(uint32_t) * species_buffer_.capacity();
     return bytes >= buffer_byte_cap_;
@@ -254,6 +258,7 @@ void OutputManager::flush() {
         size_t bytes = sizeof(double) * times_buffer_.capacity();
         bytes += sizeof(double) * positions_buffer_.capacity();
         bytes += sizeof(double) * velocities_buffer_.capacity();
+        bytes += sizeof(double) * per_ion_time_buffer_.capacity();
         bytes += sizeof(int) * domain_buffer_.capacity();
         bytes += sizeof(uint32_t) * species_buffer_.capacity();
         if (bytes > buffer_byte_cap_) {
@@ -275,13 +280,15 @@ void OutputManager::flush() {
             velocities_buffer_,
             domain_buffer_,
             species_buffer_,
-            species_pool_
+            species_pool_,
+            per_ion_time_buffer_
         );
         
         // Clear buffers
         times_buffer_.clear();
         positions_buffer_.clear();
         velocities_buffer_.clear();
+        per_ion_time_buffer_.clear();
         domain_buffer_.clear();
         species_buffer_.clear();
         

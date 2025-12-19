@@ -197,6 +197,7 @@ private:
     // Flattened buffers (avoid full IonEnsemble copies)
     size_t n_ions_ = 0;
     std::vector<double> times_buffer_;
+    std::vector<double> per_ion_time_buffer_;   // [steps * n_ions]
     std::vector<double> positions_buffer_;   // contiguous [steps * n_ions * 3]
     std::vector<double> velocities_buffer_;  // contiguous [steps * n_ions * 3]
     std::vector<int> domain_buffer_;         // [steps * n_ions]

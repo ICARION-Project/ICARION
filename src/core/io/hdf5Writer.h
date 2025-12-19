@@ -109,7 +109,8 @@ public:
         const std::vector<double>& velocities,
         const std::vector<int>& domain_indices,
         const std::vector<uint32_t>& species_indices,
-        const std::vector<std::string>* species_pool = nullptr
+        const std::vector<std::string>* species_pool = nullptr,
+        const std::vector<double>& per_ion_times = {}
     );
     
     /**

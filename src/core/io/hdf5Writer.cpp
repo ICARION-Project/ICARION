@@ -468,7 +468,8 @@ void HDF5Writer::append_trajectory_batch_flat(
     const std::vector<double>& velocities,
     const std::vector<int>& domain_indices,
     const std::vector<uint32_t>& species_indices,
-    const std::vector<std::string>* species_pool
+    const std::vector<std::string>* species_pool,
+    const std::vector<double>& per_ion_times
 ) {
     if (times.empty()) {
         log::Logger::hdf5()->warn("Skipping trajectory batch append - no data");
@@ -482,6 +483,9 @@ void HDF5Writer::append_trajectory_batch_flat(
         domain_indices.size() != expected_vec ||
         species_indices.size() != expected_vec) {
         throw std::invalid_argument("HDF5Writer::append_trajectory_batch_flat: buffer size mismatch");
+    }
+    if (!per_ion_times.empty() && per_ion_times.size() != expected_vec) {
+        throw std::invalid_argument("HDF5Writer::append_trajectory_batch_flat: per_ion_times size mismatch");
     }
 
     try {
@@ -583,6 +587,9 @@ void HDF5Writer::append_trajectory_batch_flat(
         append_3d_batch("velocities", velocities, n_steps, n_ions, 3);
         append_2d_batch_int("domain_indices", domain_indices.data(), H5::PredType::NATIVE_INT, n_steps, n_ions);
         append_2d_batch_int("species_id_indices", species_indices.data(), H5::PredType::NATIVE_UINT32, n_steps, n_ions);
+        if (!per_ion_times.empty()) {
+            append_2d_batch_int("time_per_ion", per_ion_times.data(), H5::PredType::NATIVE_DOUBLE, n_steps, n_ions);
+        }
 
         // Compatibility: also write species_ids (varlen strings) if pool available
         if (species_pool && !species_pool->empty()) {

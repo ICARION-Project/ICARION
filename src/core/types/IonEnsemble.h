@@ -243,6 +243,7 @@ public:
     void set_time(size_t i, double t) { output_.t[i] = t; }
     void set_death_time(size_t i, double t) { cold_.death_time[i] = t; }
     double* time_data() { return output_.t.data(); }
+    const double* time_data() const { return output_.t.data(); }
     const int32_t* domain_index_data() const { return domain_.domain_index.data(); }
     const double* gas_density_data() const { return domain_.gas_density.data(); }
     const double* temperature_data() const { return domain_.temperature.data(); }

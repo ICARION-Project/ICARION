@@ -157,6 +157,7 @@ private:
     
     // Per-ion RNG states (persistent across timesteps!)
     std::vector<physics::PhysicsRng> rng_by_ion_;
+    bool space_charge_stale_warned_ = false;
     
 #ifdef ICARION_USE_GPU
     // GPU acceleration (optional)

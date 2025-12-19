@@ -28,6 +28,9 @@ namespace ICARION {
 namespace integrator {
 
 using physics::PhysicsRng;
+namespace {
+constexpr int kOmpChunk = 128;
+}
 
 SimulationEngine::SimulationEngine(
     const config::FullConfig& config,
@@ -151,6 +154,15 @@ void SimulationEngine::initialize(const core::IonEnsemble& ensemble) {
 #ifdef ICARION_USE_GPU
     initialize_gpu(config_.simulation.enable_gpu);
 #endif
+
+    // Warn if space charge present but updated only once per macro step
+    for (const auto& registry : force_registries_) {
+        if (registry && registry->space_charge_model()) {
+            space_charge_stale_warned_ = true;
+            output_manager_->log_progress("Warning: Space-charge fields are updated once per timestep, not per RK substep; fast-changing clouds may be inaccurate.");
+            break;
+        }
+    }
 }
 
 void SimulationEngine::initialize_openmp_settings() {
@@ -456,7 +468,7 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
 
     #pragma omp parallel if(use_omp)
     {
-        #pragma omp for schedule(static, 256)
+        #pragma omp for schedule(guided, kOmpChunk)
         for (int i = 0; i < static_cast<int>(n_ions); ++i) {
             PhysicsRng& ion_rng = rng_by_ion_[i];
 
@@ -508,7 +520,7 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
 
     #pragma omp parallel if(use_omp)
     {
-        #pragma omp for schedule(static, 256)
+        #pragma omp for schedule(guided, kOmpChunk)
         for (int i = 0; i < static_cast<int>(n_ions); ++i) {
             if (!active[i] || !born[i]) {
                 continue;
@@ -746,7 +758,7 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
 
     #pragma omp parallel if(use_omp)
     {
-        #pragma omp for schedule(static, 256)
+        #pragma omp for schedule(guided, kOmpChunk)
         for (int k = 0; k < static_cast<int>(indices.size()); ++k) {
             size_t ion_idx = indices[static_cast<size_t>(k)];
             if (!active[ion_idx] || !born[ion_idx]) {
@@ -806,7 +818,7 @@ void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
 
     #pragma omp parallel if(use_omp)
     {
-        #pragma omp for schedule(static, 256)
+        #pragma omp for schedule(guided, kOmpChunk)
         for (int i = 0; i < static_cast<int>(n); ++i) {
             if (!active[i] || !born[i]) {
                 continue;

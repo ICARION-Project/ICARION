@@ -552,17 +552,18 @@ void HDF5Writer::write_config_metadata(
     H5::Group integrator_group = cfg_group.createGroup("integrator_params");
     write_string(integrator_group, "name", config.simulation.integrator);
     if (config.simulation.integrator == "RK45") {
-        // Defaults mirror RK45Strategy::AdaptiveConfig
+        // Prefer runtime settings captured from RK45Strategy; fallback to defaults
         integrator::RK45Strategy::AdaptiveConfig defaults;
-        write_scalar(integrator_group, "rk45_atol", defaults.atol);
-        write_scalar(integrator_group, "rk45_rtol", defaults.rtol);
-        write_scalar(integrator_group, "rk45_safety_factor", defaults.safety_factor);
-        write_scalar(integrator_group, "rk45_min_step_factor", defaults.min_step_factor);
-        write_scalar(integrator_group, "rk45_max_step_factor", defaults.max_step_factor);
-        write_scalar(integrator_group, "rk45_min_step_s", config.simulation.rk45_min_step_s);
-        write_scalar(integrator_group, "rk45_max_step_increase", defaults.max_step_increase);
-        write_scalar(integrator_group, "rk45_max_step_decrease", defaults.max_step_decrease);
-        write_scalar(integrator_group, "rk45_absolute_min_step_s", defaults.absolute_min_step_s);
+        const auto& rt = config.simulation.rk45_runtime_settings;
+        write_scalar(integrator_group, "rk45_atol", rt ? rt->atol : defaults.atol);
+        write_scalar(integrator_group, "rk45_rtol", rt ? rt->rtol : defaults.rtol);
+        write_scalar(integrator_group, "rk45_safety_factor", rt ? rt->safety_factor : defaults.safety_factor);
+        write_scalar(integrator_group, "rk45_min_step_factor", rt ? rt->min_step_factor : defaults.min_step_factor);
+        write_scalar(integrator_group, "rk45_max_step_factor", rt ? rt->max_step_factor : defaults.max_step_factor);
+        write_scalar(integrator_group, "rk45_min_step_s", rt ? rt->absolute_min_step_s : config.simulation.rk45_min_step_s);
+        write_scalar(integrator_group, "rk45_max_step_increase", rt ? rt->max_step_increase : defaults.max_step_increase);
+        write_scalar(integrator_group, "rk45_max_step_decrease", rt ? rt->max_step_decrease : defaults.max_step_decrease);
+        write_scalar(integrator_group, "rk45_absolute_min_step_s", rt ? rt->absolute_min_step_s : defaults.absolute_min_step_s);
     }
     write_scalar(integrator_group, "openmp_enabled", config.simulation.enable_openmp);
     write_scalar(integrator_group, "gpu_collision_threshold", 5000);
@@ -579,33 +580,38 @@ void HDF5Writer::write_config_metadata(
     write_scalar(physics_group, "collision_gpu_threshold", 5000);
     write_string(physics_group, "collision_mixture_limit", "8 (GPU helper)");
 
-    // Embed resolved config JSON if available (snapshot written by main)
+    // Embed resolved config JSON if available (prefer in-memory snapshot from FullConfig)
     try {
-        std::filesystem::path out_dir = config.output.folder;
-        std::filesystem::path traj_file = config.output.trajectory_file;
-        std::string base = traj_file.stem().string();
-        if (base.empty()) {
-            base = "config_snapshot";
-        }
-        std::filesystem::path snapshot_path = out_dir / (base + ".config.json");
-        std::ifstream in(snapshot_path);
-        if (!in && !config.config_file_path.empty()) {
-            in.open(config.config_file_path);
-        }
-        if (!in) {
-            if (config.config_file_path.empty()) {
-                // Tests/alternate entrypoints may not set config_file_path; embed empty with warning
-                write_string(cfg_group, "config_json", "{}");
-                log::Logger::hdf5()->warn("Config snapshot not found and no config_file_path set; embedding empty object");
-                return;
+        if (!config.resolved_config_json.empty()) {
+            write_string(cfg_group, "config_json", config.resolved_config_json);
+            log::Logger::hdf5()->debug("Embedded config snapshot from memory");
+        } else {
+            std::filesystem::path out_dir = config.output.folder;
+            std::filesystem::path traj_file = config.output.trajectory_file;
+            std::string base = traj_file.stem().string();
+            if (base.empty()) {
+                base = "config_snapshot";
             }
-            throw std::runtime_error("Config snapshot not found: " + snapshot_path.string());
-        }
+            std::filesystem::path snapshot_path = out_dir / (base + ".config.json");
+            std::ifstream in(snapshot_path);
+            if (!in && !config.config_file_path.empty()) {
+                in.open(config.config_file_path);
+            }
+            if (!in) {
+                if (config.config_file_path.empty()) {
+                    // Tests/alternate entrypoints may not set config_file_path; embed empty with warning
+                    write_string(cfg_group, "config_json", "{}");
+                    log::Logger::hdf5()->warn("Config snapshot not found and no config_file_path set; embedding empty object");
+                    return;
+                }
+                throw std::runtime_error("Config snapshot not found: " + snapshot_path.string());
+            }
 
-        std::ostringstream buffer;
-        buffer << in.rdbuf();
-        write_string(cfg_group, "config_json", buffer.str());
-        log::Logger::hdf5()->debug("Embedded config snapshot: {}", snapshot_path.string());
+            std::ostringstream buffer;
+            buffer << in.rdbuf();
+            write_string(cfg_group, "config_json", buffer.str());
+            log::Logger::hdf5()->debug("Embedded config snapshot: {}", snapshot_path.string());
+        }
     } catch (const std::exception& e) {
         log::Logger::hdf5()->error("Failed to embed config snapshot: {}", e.what());
         throw;

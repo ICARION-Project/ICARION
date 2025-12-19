@@ -103,7 +103,7 @@ static void apply_override_to_json(nlohmann::json& j, const std::string& key, co
     }
 }
 
-static void write_config_snapshot(
+static std::string write_config_snapshot(
     const std::string& config_path,
     const ICARION::config::FullConfig& config,
     const ICARION::cli::CLIOptions& opts
@@ -156,10 +156,12 @@ static void write_config_snapshot(
     std::filesystem::path snapshot_path = out_dir / (base + ".config.json");
     
     try {
+        std::string content = j.dump(2);
         std::ofstream out(snapshot_path);
-        out << j.dump(2);
+        out << content;
         out.close();
         ICARION::log::Logger::main()->info("Wrote config snapshot: {}", snapshot_path.string());
+        return content;
     } catch (const std::exception& e) {
         ICARION::log::Logger::main()->warn("Failed to write config snapshot to {} ({})", snapshot_path.string(), e.what());
         throw;
@@ -378,7 +380,7 @@ int main(int argc, char* argv[]) {
         }
         
         // === Persist effective config snapshot (after overrides) ===
-        write_config_snapshot(opts.config_file, config, opts);
+        config.resolved_config_json = write_config_snapshot(opts.config_file, config, opts);
         
         // === 4. Initialize ions ===
         size_t total_ion_count = 0;

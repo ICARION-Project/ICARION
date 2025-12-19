@@ -43,10 +43,22 @@ CONFIG_COUNT=$(ls "$CONFIG_DIR"/*.json 2>/dev/null | wc -l)
 echo "Found $CONFIG_COUNT IMS configurations"
 echo ""
 
-# Run tests in parallel (2 at a time, 4 threads each)
+JOBS=${IMS_JOBS:-2}
+THREADS=${IMS_THREADS:-4}
 PASSED=0
 FAILED=0
 TOTAL=0
+STATUS_LOG="$RESULTS_DIR/status.tsv"
+: >"$STATUS_LOG"
+declare -a RUNNING_PIDS=()
+ACTIVE_JOBS=0
+
+cleanup() {
+    if [[ ${#RUNNING_PIDS[@]} -gt 0 ]]; then
+        kill "${RUNNING_PIDS[@]}" 2>/dev/null || true
+    fi
+}
+trap cleanup INT TERM
 
 # Function to run a single test
 run_test() {
@@ -60,7 +72,7 @@ run_test() {
     output_dir="$RESULTS_DIR/$basename"
     mkdir -p "$output_dir"
     
-    if "$ICARION_BIN" "$config" --threads 4 > "$output_dir/stdout.log" 2> "$output_dir/stderr.log"; then
+    if "$ICARION_BIN" "$config" --threads "$THREADS" > "$output_dir/stdout.log" 2> "$output_dir/stderr.log"; then
         echo "  ✅ PASS: $basename"
         return 0
     else
@@ -76,30 +88,46 @@ export ICARION_BIN RESULTS_DIR CONFIG_COUNT
 # Collect all configs into array
 CONFIGS=("$CONFIG_DIR"/*.json)
 
-# Run tests 2 at a time
-for ((i=0; i<${#CONFIGS[@]}; i+=2)); do
-    TOTAL=$((i + 1))
-    
-    # Start first job in background
-    run_test "${CONFIGS[i]}" "$TOTAL" &
-    pid1=$!
-    
-    # Start second job if available
-    if [ $((i+1)) -lt ${#CONFIGS[@]} ]; then
-        TOTAL=$((i + 2))
-        run_test "${CONFIGS[$((i+1))]}" "$TOTAL" &
-        pid2=$!
-        
-        # Wait for both jobs
-        wait $pid1 && ((PASSED++)) || ((FAILED++))
-        wait $pid2 && ((PASSED++)) || ((FAILED++))
-    else
-        # Only one job left
-        wait $pid1 && ((PASSED++)) || ((FAILED++))
+for idx in "${!CONFIGS[@]}"; do
+    config="${CONFIGS[$idx]}"
+    ordinal=$((idx + 1))
+    (
+        if run_test "$config" "$ordinal"; then
+            printf '%s\t0\t%s\n' "$$" "$config" >>"$STATUS_LOG"
+            exit 0
+        else
+            printf '%s\t1\t%s\n' "$$" "$config" >>"$STATUS_LOG"
+            exit 1
+        fi
+    ) &
+    pid=$!
+    RUNNING_PIDS+=("$pid")
+    ((ACTIVE_JOBS+=1))
+
+    if [[ $ACTIVE_JOBS -ge $JOBS ]]; then
+        wait -n || true
+        ((ACTIVE_JOBS-=1)) || true
     fi
 done
 
-TOTAL=${#CONFIGS[@]}
+while [[ $ACTIVE_JOBS -gt 0 ]]; do
+    wait -n || true
+    ((ACTIVE_JOBS-=1)) || true
+done
+
+while IFS=$'\t' read -r pid status config; do
+    if [[ -z "$pid" ]]; then
+        continue
+    fi
+    TOTAL=$((TOTAL + 1))
+    if [[ "$status" -eq 0 ]]; then
+        ((PASSED++))
+    else
+        ((FAILED++))
+    fi
+done <"$STATUS_LOG" || true
+
+rm -f "$STATUS_LOG"
 
 echo ""
 echo "=============================================="

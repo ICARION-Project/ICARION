@@ -1,13 +1,15 @@
 #!/bin/bash
-# Sequentially execute the instrument validation runners.
+# Sequentially (or concurrently) execute the instrument validation runners.
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-  STATUS_FIFO="$(mktemp -u "$VALIDATION_DIR/suite_status_fifo.XXXX")"
-  mkfifo "$STATUS_FIFO"
-  exec {STATUS_FD}<"$STATUS_FIFO"
+RUNNER="$VALIDATION_DIR/scripts/run_instrument_tests.sh"
+DEFAULT_CONFIG_ROOT="$VALIDATION_DIR/configs/instruments"
+DEFAULT_OUTPUT_ROOT="$VALIDATION_DIR/results/v1.0_test/instruments"
+DEFAULT_INSTRUMENTS=(ims fticr lqit orbitrap tof quadrupole)
+
 SELECTED_INSTRUMENTS=()
 JOBS=""
 THREADS=""
@@ -104,18 +106,30 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -b|--binary)
-      STATUS_LOG="$VALIDATION_DIR/suite_status.tsv"
-      : >"$STATUS_LOG"
-      declare -a RUNNING_PIDS=()
-      ACTIVE_JOBS=0
-
-      cleanup() {
-        if [[ ${#RUNNING_PIDS[@]} -gt 0 ]]; then
-          kill "${RUNNING_PIDS[@]}" 2>/dev/null || true
-        fi
-        rm -f "$STATUS_LOG"
-      }
-      trap cleanup EXIT INT TERM
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      BINARY="$2"
+      shift 2
+      ;;
+    -c|--config-root)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      CONFIG_ROOT="$2"
+      shift 2
+      ;;
+    -o|--output-root)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      OUTPUT_ROOT="$2"
+      shift 2
+      ;;
+    -J|--suite-jobs)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      SUITE_JOBS="$2"
+      shift 2
+      ;;
+    --list)
+      list_instruments
+      exit 0
+      ;;
+    -h|--help)
       print_usage
       exit 0
       ;;
@@ -123,7 +137,7 @@ while [[ $# -gt 0 ]]; do
       shift
       break
       ;;
-    -*)
+    -* )
       echo "Unknown option: $1" >&2
       print_usage >&2
       exit 1
@@ -156,6 +170,9 @@ if [[ ! -x "$RUNNER" ]]; then
   exit 1
 fi
 
+if [[ -n "$BINARY" ]]; then
+  BINARY="$(abs_path "$BINARY")"
+fi
 if [[ -n "$CONFIG_ROOT" ]]; then
   CONFIG_ROOT="$(abs_path "$CONFIG_ROOT")"
 fi
@@ -168,27 +185,15 @@ PASSED=0
 FAILED=0
 FAILED_LIST=()
 
-STATUS_FIFO="$(mktemp -u "$VALIDATION_DIR/suite_status_fifo.XXXX")"
-mkfifo "$STATUS_FIFO"
-exec {STATUS_FD}<>"$STATUS_FIFO"
+STATUS_LOG="$(mktemp "$VALIDATION_DIR/suite_status_XXXX.tsv")"
 declare -a RUNNING_PIDS=()
-
-close_status_channel() {
-  if [[ -n "${STATUS_FD:-}" ]]; then
-    exec {STATUS_FD}>&- 2>/dev/null || true
-    unset STATUS_FD
-  fi
-  if [[ -n "${STATUS_FIFO:-}" && -p "$STATUS_FIFO" ]]; then
-    rm -f "$STATUS_FIFO"
-    STATUS_FIFO=""
-  fi
-}
+ACTIVE_JOBS=0
 
 cleanup() {
   if [[ ${#RUNNING_PIDS[@]} -gt 0 ]]; then
     kill "${RUNNING_PIDS[@]}" 2>/dev/null || true
   fi
-  close_status_channel
+  rm -f "$STATUS_LOG"
 }
 trap cleanup EXIT INT TERM
 
@@ -200,8 +205,8 @@ printf 'Jobs        : %s\n' "${JOBS:-default}"
 printf 'Threads     : %s\n' "${THREADS:-default}"
 printf 'Suite jobs  : %s\n' "$SUITE_JOBS"
 printf 'Binary      : %s\n' "${BINARY:-auto}"
-printf 'Config root : %s\n' "${CONFIG_ROOT:-validation/configs/instruments}" 
-printf 'Output root : %s\n' "${OUTPUT_ROOT:-validation/results/instruments}"
+printf 'Config root : %s\n' "${CONFIG_ROOT:-$DEFAULT_CONFIG_ROOT}" 
+printf 'Output root : %s\n' "${OUTPUT_ROOT:-$DEFAULT_OUTPUT_ROOT}"
 printf 'Targets     : %s\n' "${SELECTED_INSTRUMENTS[*]}"
 printf '==============================================\n\n'
 
@@ -240,7 +245,7 @@ for instrument in "${SELECTED_INSTRUMENTS[@]}"; do
   (
     run_single "$instrument"
     status=$?
-    printf '%s\t%d\t%s\n' "$$" "$status" "$instrument" >>"$STATUS_LOG"
+    printf '%s\t%d\n' "$instrument" "$status" >>"$STATUS_LOG"
     exit "$status"
   ) &
   pid=$!
@@ -258,8 +263,8 @@ while [[ $ACTIVE_JOBS -gt 0 ]]; do
   ((ACTIVE_JOBS-=1)) || true
 done
 
-while IFS=$'\t' read -r pid status instrument; do
-  if [[ -z "$pid" ]]; then
+while IFS=$'\t' read -r instrument status; do
+  if [[ -z "$instrument" ]]; then
     continue
   fi
   if [[ "$status" -eq 0 ]]; then

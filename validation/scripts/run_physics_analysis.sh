@@ -209,14 +209,16 @@ candidate_patterns() {
   case "$key" in
     thermalization)
       entries+=(
-        "$VALIDATION_DIR/results/physics/thermalization"
         "$VALIDATION_DIR/results/v1.0_test/physics/thermalization"
+        "$VALIDATION_DIR/results/physics/thermalization"
+        "$VALIDATION_DIR/results/thermalization"
         "$REPO_ROOT/results/v1.0_test/physics/thermalization"
         "$VALIDATION_DIR/scripts/results/thermalization_session_*"
       )
       ;;
     transport)
       entries+=(
+        "$VALIDATION_DIR/results/combined_drift"
         "$VALIDATION_DIR/results/physics/combined_drift"
         "$VALIDATION_DIR/results/physics/gas_flow_transport"
         "$VALIDATION_DIR/results/v1.0_test/physics/transport/drift"
@@ -225,15 +227,17 @@ candidate_patterns() {
       ;;
     spacecharge)
       entries+=(
-        "$VALIDATION_DIR/results/physics/spacecharge"
         "$VALIDATION_DIR/results/v1.0_test/physics/spacecharge"
+        "$VALIDATION_DIR/results/physics/spacecharge"
+        "$VALIDATION_DIR/results/spacecharge"
         "$REPO_ROOT/results/v1.0_test/physics/spacecharge"
       )
       ;;
     reactions)
       entries+=(
-        "$VALIDATION_DIR/results/physics/reactions"
         "$VALIDATION_DIR/results/v1.0_test/physics/reactions"
+        "$VALIDATION_DIR/results/physics/reactions"
+        "$VALIDATION_DIR/results/reactions"
         "$REPO_ROOT/results/v1.0_test/physics/reactions"
       )
       ;;

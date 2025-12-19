@@ -1,7 +1,7 @@
 ================================================================================
 GAS FLOW TRANSPORT VALIDATION
 ================================================================================
-Start time: 2025-12-14 17:13:06
+Start time: 2025-12-15 11:23:56
 
 Purpose: Validate ion transport by gas flow without electric field
 Physics: SIFT-MS (Selected Ion Flow Tube Mass Spectrometry)
@@ -101,7 +101,7 @@ VALIDATION SUMMARY
 
 ✓ ALL VALIDATIONS PASSED
 
-End time: 2025-12-14 17:13:39
+End time: 2025-12-15 11:24:54
 Log file: /home/chsch95/ICARION/validation/logs/GAS_FLOW_TRANSPORT_VALIDATION.txt
 Figures:  /home/chsch95/ICARION/validation/figures/physics/gas_flow_transport_validation.png
 ================================================================================

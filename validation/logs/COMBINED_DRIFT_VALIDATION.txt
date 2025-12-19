@@ -1,167 +1,95 @@
 ================================================================================
 COMBINED DRIFT VALIDATION: E-field + Gas Flow
 ================================================================================
-Start time: 2025-12-14 17:13:39
+Start time: 2025-12-16 21:12:08
 
 Purpose: Validate combined drift: v_drift = μ·E + v_gas
 Theory: Linear superposition of mobility and convection
 
 
 ────────────────────────────────────────────────────────────────────────────────
-TEST: E0_1000Pa
+TEST: Td5p0_1000Pa
 ────────────────────────────────────────────────────────────────────────────────
 Conditions:
-  E-field:      0 V/m
-  Pressure:     1000 Pa
-  Gas velocity: 50 m/s (axial)
+  Target E/N:     5.0 Td
+  Actual E/N:     5.00 Td
+  E-field:        1207.2 V/m
+  Pressure:       1000 Pa
+  Gas velocity: 0 m/s (axial)
   Temperature:  300 K
 
-Theory (H3O+ in N2):
-  Mobility drift: 0.0 m/s (μ·E)
-  Gas flow:       50.0 m/s
-  Total expected: 50.0 m/s
+Theory (H3O+ in He):
+  Mobility drift: 323.8 m/s (μ·E)
+  Gas flow:       0.0 m/s
+  Total expected: 323.8 m/s
 
-▶ Running simulation: config_E0_1000Pa.json
-  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_E0_1000Pa.json
-  ✓ Simulation complete
-
-📊 Analyzing: drift_E0_1000Pa.h5
-  Ions: 521/1000 active
-  Drift velocity (fit):         108.6 m/s  ← PRIMARY
-  Drift velocity (instant):      39.4 ±  352.4 m/s  (noisy)
-  Expected:                      50.0 m/s
-  Error (fit):      117.2%  ← PRIMARY
-  Error (instant):  21.3%
+▶ Running simulation: config_Td5p0_1000Pa.json
+  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_Td5p0_1000Pa.json
+  ❌ Simulation timeout (>10 minutes)
+  ❌ Simulation failed
 
 ────────────────────────────────────────────────────────────────────────────────
-TEST: E1000_1000Pa
+TEST: Td10p0_1000Pa
 ────────────────────────────────────────────────────────────────────────────────
 Conditions:
-  E-field:      1000 V/m
-  Pressure:     1000 Pa
-  Gas velocity: 50 m/s (axial)
+  Target E/N:     10.0 Td
+  Actual E/N:     10.00 Td
+  E-field:        2414.3 V/m
+  Pressure:       1000 Pa
+  Gas velocity: 0 m/s (axial)
   Temperature:  300 K
 
-Theory (H3O+ in N2):
-  Mobility drift: 35.6 m/s (μ·E)
-  Gas flow:       50.0 m/s
-  Total expected: 85.6 m/s
+Theory (H3O+ in He):
+  Mobility drift: 647.5 m/s (μ·E)
+  Gas flow:       0.0 m/s
+  Total expected: 647.5 m/s
 
-▶ Running simulation: config_E1000_1000Pa.json
-  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_E1000_1000Pa.json
-  ✓ Simulation complete
-
-📊 Analyzing: drift_E1000_1000Pa.h5
-  Ions: 556/1000 active
-  Drift velocity (fit):         252.9 m/s  ← PRIMARY
-  Drift velocity (instant):     140.9 ±  361.5 m/s  (noisy)
-  Expected:                      85.6 m/s
-  Error (fit):      195.4%  ← PRIMARY
-  Error (instant):  64.6%
+▶ Running simulation: config_Td10p0_1000Pa.json
+  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_Td10p0_1000Pa.json
+  ❌ Simulation timeout (>10 minutes)
+  ❌ Simulation failed
 
 ────────────────────────────────────────────────────────────────────────────────
-TEST: E5000_1000Pa
+TEST: Td5p0_500Pa
 ────────────────────────────────────────────────────────────────────────────────
 Conditions:
-  E-field:      5000 V/m
-  Pressure:     1000 Pa
-  Gas velocity: 50 m/s (axial)
+  Target E/N:     5.0 Td
+  Actual E/N:     5.00 Td
+  E-field:        603.6 V/m
+  Pressure:       500 Pa
+  Gas velocity: 0 m/s (axial)
   Temperature:  300 K
 
-Theory (H3O+ in N2):
-  Mobility drift: 178.1 m/s (μ·E)
-  Gas flow:       50.0 m/s
-  Total expected: 228.1 m/s
+Theory (H3O+ in He):
+  Mobility drift: 323.8 m/s (μ·E)
+  Gas flow:       0.0 m/s
+  Total expected: 323.8 m/s
 
-▶ Running simulation: config_E5000_1000Pa.json
-  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_E5000_1000Pa.json
-  ✓ Simulation complete
-
-📊 Analyzing: drift_E5000_1000Pa.h5
-  Ions: 635/1000 active
-  Drift velocity (fit):         746.2 m/s  ← PRIMARY
-  Drift velocity (instant):     402.1 ±  441.6 m/s  (noisy)
-  Expected:                     228.1 m/s
-  Error (fit):      227.2%  ← PRIMARY
-  Error (instant):  76.3%
+▶ Running simulation: config_Td5p0_500Pa.json
+  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_Td5p0_500Pa.json
+  ❌ Simulation timeout (>10 minutes)
+  ❌ Simulation failed
 
 ────────────────────────────────────────────────────────────────────────────────
-TEST: E0_100Pa
+TEST: Td10p0_500Pa
 ────────────────────────────────────────────────────────────────────────────────
 Conditions:
-  E-field:      0 V/m
-  Pressure:     100 Pa
-  Gas velocity: 50 m/s (axial)
+  Target E/N:     10.0 Td
+  Actual E/N:     10.00 Td
+  E-field:        1207.2 V/m
+  Pressure:       500 Pa
+  Gas velocity: 0 m/s (axial)
   Temperature:  300 K
 
-Theory (H3O+ in N2):
-  Mobility drift: 0.0 m/s (μ·E)
-  Gas flow:       50.0 m/s
-  Total expected: 50.0 m/s
+Theory (H3O+ in He):
+  Mobility drift: 647.5 m/s (μ·E)
+  Gas flow:       0.0 m/s
+  Total expected: 647.5 m/s
 
-▶ Running simulation: config_E0_100Pa.json
-  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_E0_100Pa.json
-  ✓ Simulation complete
-
-📊 Analyzing: drift_E0_100Pa.h5
-  Ions: 510/1000 active
-  Drift velocity (fit):         127.3 m/s  ← PRIMARY
-  Drift velocity (instant):      54.6 ±  365.2 m/s  (noisy)
-  Expected:                      50.0 m/s
-  Error (fit):      154.6%  ← PRIMARY
-  Error (instant):  9.3%
-
-────────────────────────────────────────────────────────────────────────────────
-TEST: E1000_100Pa
-────────────────────────────────────────────────────────────────────────────────
-Conditions:
-  E-field:      1000 V/m
-  Pressure:     100 Pa
-  Gas velocity: 50 m/s (axial)
-  Temperature:  300 K
-
-Theory (H3O+ in N2):
-  Mobility drift: 356.1 m/s (μ·E)
-  Gas flow:       50.0 m/s
-  Total expected: 406.1 m/s
-
-▶ Running simulation: config_E1000_100Pa.json
-  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_E1000_100Pa.json
-  ✓ Simulation complete
-
-📊 Analyzing: drift_E1000_100Pa.h5
-  Ions: 683/1000 active
-  Drift velocity (fit):        1149.0 m/s  ← PRIMARY
-  Drift velocity (instant):     544.9 ±  541.0 m/s  (noisy)
-  Expected:                     406.1 m/s
-  Error (fit):      182.9%  ← PRIMARY
-  Error (instant):  34.2%
-
-────────────────────────────────────────────────────────────────────────────────
-TEST: E5000_100Pa
-────────────────────────────────────────────────────────────────────────────────
-Conditions:
-  E-field:      5000 V/m
-  Pressure:     100 Pa
-  Gas velocity: 50 m/s (axial)
-  Temperature:  300 K
-
-Theory (H3O+ in N2):
-  Mobility drift: 1780.6 m/s (μ·E)
-  Gas flow:       50.0 m/s
-  Total expected: 1830.6 m/s
-
-▶ Running simulation: config_E5000_100Pa.json
-  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_E5000_100Pa.json
-  ✓ Simulation complete
-
-📊 Analyzing: drift_E5000_100Pa.h5
-  Ions: 896/1000 active
-  Drift velocity (fit):        2749.1 m/s  ← PRIMARY
-  Drift velocity (instant):    1434.6 ± 1062.4 m/s  (noisy)
-  Expected:                    1830.6 m/s
-  Error (fit):      50.2%  ← PRIMARY
-  Error (instant):  21.6%
+▶ Running simulation: config_Td10p0_500Pa.json
+  Config: /home/chsch95/ICARION/validation/results/combined_drift/config_Td10p0_500Pa.json
+  ❌ Simulation timeout (>10 minutes)
+  ❌ Simulation failed
 
 📈 Creating validation plot...
   ✓ Saved: /home/chsch95/ICARION/validation/figures/combined_drift_validation.png
@@ -169,16 +97,14 @@ Theory (H3O+ in N2):
 ================================================================================
 VALIDATION SUMMARY
 ================================================================================
-  E0_1000Pa: ❌ FAILED (error = 117.2%)
-  E1000_1000Pa: ❌ FAILED (error = 195.4%)
-  E5000_1000Pa: ❌ FAILED (error = 227.2%)
-  E0_100Pa: ❌ FAILED (error = 154.6%)
-  E1000_100Pa: ❌ FAILED (error = 182.9%)
-  E5000_100Pa: ❌ FAILED (error = 50.2%)
+  Td5p0_1000Pa: ❌ FAILED (no data)
+  Td10p0_1000Pa: ❌ FAILED (no data)
+  Td5p0_500Pa: ❌ FAILED (no data)
+  Td10p0_500Pa: ❌ FAILED (no data)
 
 ❌ SOME VALIDATIONS FAILED
 
-End time: 2025-12-14 17:15:06
+End time: 2025-12-16 22:52:10
 Log file: /home/chsch95/ICARION/validation/logs/COMBINED_DRIFT_VALIDATION.txt
 Figures:  /home/chsch95/ICARION/validation/figures/combined_drift_validation.png
 ================================================================================

@@ -101,7 +101,7 @@ for n_ions in EXPANSION_ION_COUNTS:
                         "std": [sigma_init_m, sigma_init_m, sigma_init_m]
                     },
                     "velocity": {
-                        "type": "maxwell",
+                        "type": "thermal",
                         "temperature_K": 1.0  # Very cold (minimal thermal motion)
                     }
                 }
@@ -119,7 +119,7 @@ for n_ions in EXPANSION_ION_COUNTS:
             "env": {
                 "gas_species": "He",
                 "temperature_K": 1.0,
-                "pressure_Pa": 0.0,  # Perfect vacuum (no collisions)
+                "pressure_Pa": 1e-6,  # Near-vacuum to satisfy positive-pressure constraint
                 "gas_velocity_m_s": [0.0, 0.0, 0.0]
             },
             "fields": {}  # No external fields
@@ -189,7 +189,7 @@ for n_ions in GRID_ION_COUNTS:
                         "std": [sigma_init_m, sigma_init_m, sigma_init_m]
                     },
                     "velocity": {
-                        "type": "maxwell",
+                        "type": "thermal",
                         "temperature_K": 1.0
                     }
                 }
@@ -207,7 +207,7 @@ for n_ions in GRID_ION_COUNTS:
             "env": {
                 "gas_species": "He",
                 "temperature_K": 1.0,
-                "pressure_Pa": 0.0,
+                "pressure_Pa": 1e-6,
                 "gas_velocity_m_s": [0.0, 0.0, 0.0]
             },
             "fields": {}
@@ -276,7 +276,7 @@ config_comparison = {
                     "std": [sigma_init_m, sigma_init_m, sigma_init_m]
                 },
                 "velocity": {
-                    "type": "maxwell",
+                    "type": "thermal",
                     "temperature_K": 1.0
                 }
             }
@@ -294,7 +294,7 @@ config_comparison = {
         "env": {
             "gas_species": "He",
             "temperature_K": 1.0,
-            "pressure_Pa": 0.0,
+            "pressure_Pa": 1e-6,
             "gas_velocity_m_s": [0.0, 0.0, 0.0]
         },
         "fields": {}
@@ -363,7 +363,7 @@ for enable_sc in [False, True]:
                         "std": [0.002, 0.002, 0.0005]  # Compact initial cloud
                     },
                     "velocity": {
-                        "type": "maxwell",
+                        "type": "thermal",
                         "temperature_K": temperature_K
                     }
                 }

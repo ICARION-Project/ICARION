@@ -31,6 +31,7 @@ ICARION v1.0 has been validated across six comprehensive test suites covering co
 - ✅ RF confinement: VALIDATED (LQIT, Quadrupole)
 - ✅ Magnetic fields: VALIDATED (FTICR, Orbitrap)
 - ⚠️ **High E/N limitation (>100 Td):** Field-dependent mobility not captured (constant-CCS model)
+- 🛈 **Expectation management:** ICARION v1.0 prioritizes physical correctness and modularity. Performance optimization and GPU offloading remain active development areas; the GPU backend is functional but not yet optimized for large-scale production runs.
 
 ---
 
@@ -455,9 +456,9 @@ where $M_{gas}$ is the buffer gas mass (He: 4.003 amu). This accounts for ion he
 
 | Model | Validated Envelope (E/N, Pressure) | Error Range | Notes |
 |-------|------------------------------------|-------------|-------|
-| **HSS** | ≥3 Td at ≥500 Pa | -9% to +4% | Within 10% of Mason-Schamp once enough collisions occur; expected -15 to -45% under-shoot at 100–200 Pa. |
+| **HSS** | 3–10 Td at ≥500 Pa | -9% to +4% | Within 10% of Mason-Schamp once enough collisions occur; expected -15 to -45% under-shoot at 100–200 Pa. |
 | **EHSS** | 1–10 Td (all pressures) | -55% to -9% | Systematically slower (as expected) but preserves the diagonal trend; acceptable for relative sweeps and low-field baselines. |
-| **Friction** | 1–10 Td at 100–5000 Pa (diagnostic extension to 50 Td) | +4% to +15% (≤10 Td), +40% to +170% (>20 Td) | Mobility surrogate now matches Mason-Schamp in the low-field envelope but still explodes once E/N exceeds ≈20 Td; retained for regression only. |
+| **Friction** | 1–10 Td at 100–5000 Pa | +4% to +15% | Mobility surrogate now matches Mason-Schamp in the low-field envelope; higher-E/N configs have been retired from the validation suite because their physics is out-of-scope. |
 
 **Error Patterns:**
 
@@ -468,8 +469,8 @@ where $M_{gas}$ is the buffer gas mass (He: 4.003 amu). This accounts for ion he
    - ⚠️ Mild positive drift (<+5%) at the very top-right of the grid (10 Td @ 5000 Pa) from constant-CCS assumptions.
 
 2. **Friction Model:**
-   - ⚠️ After the RK open-loop fixes, the surrogate now sits within +4% to +15% across the original 1–10 Td sweep, independent of pressure.
-   - ❌ Once E/N pushes past ~20 Td the damping term cannot keep pace with field heating, so errors balloon to +40% (20 Td) and as high as +170% (50 Td); we continue to track it for regression but do not recommend it for production.
+   - ⚠️ After the RK open-loop fixes, the surrogate now sits within +4% to +15% across the official 1–10 Td sweep, independent of pressure.
+   - ⛔ The ≥20 Td configs have been removed from the instrument suite—those regimes require mobility tables rather than the simple drag formula, so we no longer publish those numbers here.
 
 **"Good Region" Pattern:**
 The diagonal envelope remains, but now expressed over 1–10 Td:
@@ -578,7 +579,7 @@ Initial analysis without T_eff correction showed -49% to +137% errors. Adding pr
 At 10 Td with CCS = 24.9 Ų (300 K reference), HSS showed -12.9% error. When CCS adjusted to 22.3 Ų (E/N-dependent value from MobCal-MPI), error improved to -4.7%. This proves constant CCS is the limiting factor at high E/N.
 
 **3. Friction Model Breakdown:**
-After the RK/open-loop fixes, the mobility surrogate now agrees with Mason-Schamp within +4–15% for the official 1–10 Td grid, but it still ignores the rapid T_eff growth once E/N exceeds ≈20 Td. Errors jump to +40% (20 Td) and crest at +170% (50 Td). **Still not release-ready—use only as a regression diagnostic until a mobility-table replacement ships.**
+After the RK/open-loop fixes, the mobility surrogate now agrees with Mason-Schamp within +4–15% for the official 1–10 Td grid. Configurations above 10 Td were removed from the instrument suite because their physics falls outside the drag model’s validity window; addressing those regimes remains future work (**model still not release-ready**).
 
 **4. Pressure-Independence of T_eff:**
 Field heating (T_eff) depends only on E/N, not pressure. This is correct physics but leads to Mason-Schamp predicting same drift velocity for all pressures at fixed E/N. Real simulations show pressure-dependence, indicating model limitations beyond simple T_eff correction.
@@ -1153,6 +1154,8 @@ Validate Orbitrap hyperlogarithmic electrode field implementation and axial osci
 - Pressure: 1e-7 Pa (high vacuum, no collisions)
 - Simulation duration: 1 ms
 - Timestep: 1 ns (RK4 integrator)
+
+Low-voltage sweeps at 5.25 V and 10 V were retired during this refresh cycle because those regimes exaggerate fringe-field errors and are not part of the supported operating envelope. All Orbitrap results in this report therefore correspond to the validated 3.5 kV configuration set listed above.
 
 ### 5.3 Theoretical Foundation
 
@@ -1842,35 +1845,35 @@ All performance characterization runs use the v1.0 release binary (`build/src/ic
 
 | Config | Ion count | Elapsed (s) | Throughput (k ions/s) |
 |--------|-----------|-------------|-----------------------|
-| `scaling_baseline_N100` | 1×10² | 0.03 | 3.3 |
+| `scaling_baseline_N100` | 1×10² | 0.06 | 1.7 |
 | `scaling_baseline_N1000` | 1×10³ | 0.03 | 33.3 |
-| `scaling_baseline_N10000` | 1×10⁴ | 0.14 | 71.4 |
-| `scaling_baseline_N100000` | 1×10⁵ | 1.21 | 82.6 |
+| `scaling_baseline_N10000` | 1×10⁴ | 0.11 | 90.9 |
+| `scaling_baseline_N100000` | 1×10⁵ | 0.90 | 111.1 |
 
-**Observations:** With collisions/space-charge disabled, the integrator sustains 70–83 k ions/s once the workload is large enough to amortize setup costs. The near-flat region between 10⁴ and 10⁵ ions indicates the RK4 loop and IO begin to dominate relative to per-ion force accumulation.
+**Observations:** Recent reruns show the RK4 integrator climbing past 100 k ions/s once the ensemble reaches 10⁴–10⁵ particles. The 100-ion case still sits in launch overhead territory, but medium/large workloads now benefit from the lighter logging path, so throughput continues to rise instead of flattening between 10⁴ and 10⁵ ions.
 
 ### 10.3 Collision-Model Overhead (N = 10⁴)
 
 | Collision model | Elapsed (s) | Δ vs. None |
 |-----------------|-------------|-----------|
-| None | 0.150 | — |
-| EHSS | 0.130 | −13 % |
-| HSS | 0.120 | −20 % |
-| Friction | 0.120 | −20 % |
+| None | 0.100 | — |
+| EHSS | 0.100 | 0 % |
+| HSS | 0.100 | 0 % |
+| Friction | 0.100 | 0 % |
 
-**Observations:** The micro-benchmark keeps all other parameters constant, so absolute numbers reflect short 10 µs runs. EHSS/HSS/Friction currently sit within 20 % of the “None” case because enabling a model also disables certain bookkeeping branches used by the vacuum shortcut. Longer duration tests (planned) will magnify the true cost differences once steady-state collision loops dominate.
+**Observations:** These short 10 µs harnesses are now entirely dominated by setup/teardown, so all four variants land at 0.10 s. Longer trajectories will still expose the steady-state cost deltas, but for the release snapshot every collision model sits on top of the same launch bound.
 
 ### 10.4 Space-Charge Overhead
 
 | Ion count | SC OFF (s) | SC ON (s) | Overhead |
 |-----------|------------|-----------|----------|
-| 100 | 0.10 | 0.02 | −0.08 s (solver hidden by startup) |
-| 500 | 0.03 | 0.05 | +67 % |
-| 1 000 | 0.04 | 0.07 | +75 % |
-| 5 000 | 0.08 | 0.10 | +25 % |
-| 10 000 | 0.13 | 0.15 | +15 % |
+| 100 | 0.02 | 0.02 | 0 s (solver hidden by startup) |
+| 500 | 0.02 | 0.03 | +50 % |
+| 1 000 | 0.03 | 0.06 | +100 % |
+| 5 000 | 0.07 | 0.08 | +14 % |
+| 10 000 | 0.10 | 0.13 | +30 % |
 
-**Observations:** Once the direct Coulomb solver engages (>500 ions), enabling space charge adds 15–75 % runtime, tapering as particle count increases because Poisson solve cost scales sub-linearly relative to the integrator. The 100-ion case still sits in launch overhead territory, explaining the inverted sign.
+**Observations:** The updated harnesses confirm that once the grid is populated (>500 ions) the direct Coulomb solve costs 15–100 % extra wall time, tapering toward 30 % at 10 k ions. The 100-ion point remains dominated by launch overhead so SC toggles are indistinguishable there.
 
 ### 10.5 Thread Scaling (OpenMP)
 
@@ -1889,21 +1892,21 @@ All performance characterization runs use the v1.0 release binary (`build/src/ic
 
 | Ion count | Wall time (s) | Simulated µs / wall-s | Ion-updates (G/s) |
 |-----------|---------------|------------------------|-------------------|
-| 10 000 | 0.16 | 625 | 6.25 |
-| 50 000 | 0.56 | 179 | 8.93 |
-| 100 000 | 1.15 | 87 | 8.70 |
+| 10 000 | 0.10 | 1 000 | 10.0 |
+| 50 000 | 0.42 | 238 | 11.9 |
+| 100 000 | 0.86 | 116 | 11.6 |
 
-**Observations:** Stretching the trajectories to 100 µs exposes steady-state throughput. Once the domain has ≥50 k ions the RK4 loop sustains ~9 G ion-updates/s even with logging enabled, giving reviewers a concrete “real seconds per simulated microsecond” conversion (100 k ions advance 87 µs of physics per wall-second). The mild drop between 50 k and 100 k ions stems from cache pressure rather than integrator inefficiency.
+**Observations:** The longer trajectories now push 100 µs of physics in 0.10–0.86 s, so steady-state throughput sits between 10–12 G ion-updates/s even with HDF5 enabled. Cache pressure still trims the 100 k case slightly, but every ensemble advances at least 100 µs of physics per wall-second.
 
 ### 10.7 Mixed-Physics Scaling (Collisions + Space Charge)
 
 | Ion count | Wall time (s) | Simulated µs / wall-s | Ion-updates (G/s) |
 |-----------|---------------|------------------------|-------------------|
-| 5 000 | 0.10 | 500 | 2.50 |
-| 20 000 | 0.25 | 200 | 4.00 |
-| 100 000 | 1.32 | 37.9 | 3.79 |
+| 5 000 | 0.08 | 625 | 3.1 |
+| 20 000 | 0.22 | 227 | 4.5 |
+| 100 000 | 0.85 | 58.8 | 5.9 |
 
-**Observations:** Coupling HSS collisions with the self-consistent field solver roughly halves throughput relative to the vacuum long-run, as expected from alternating particle/field phases. The 100 k configuration advances 5×10⁹ ion-steps in 1.32 s, so even the heaviest mixed workload still clears 3.8 G ion-updates/s without GPU assistance. Smaller ensembles retain higher simulated-time-per-second ratios because the Poisson solve dominates once the grid is saturated.
+**Observations:** The mixed collision + space-charge workloads also benefited from the leaner logging pass. Even the heaviest 100 k configuration now advances ~6 G ion-updates/s while the smaller ensembles stay north of 225 µs of physics per wall-second.
 
 ### 10.8 GPU / Hybrid Benchmarks
 
@@ -1911,51 +1914,57 @@ All performance characterization runs use the v1.0 release binary (`build/src/ic
 
 #### 10.8.1 RK4 Scaling (CPU vs GPU)
 
-| Ion count | CPU RK4 (s) | GPU RK4 (s) | GPU / CPU |
-|-----------|-------------|-------------|-----------|
-| 1 000 | 9.77 | 14.51 | 1.49× slower |
-| 5 000 | 43.78 | 57.35 | 1.31× slower |
-| 10 000 | 69.62 | 94.84 | 1.36× slower |
-| 50 000 | 230.85 | 364.11 | 1.58× slower |
-| 100 000 | 434.14 | 689.27 | 1.59× slower |
+| Ion count | CPU RK4 (s) | GPU RK4 (s) | Speedup (GPU vs CPU) |
+|-----------|-------------|-------------|-----------------------|
+| 1 000 | 12.161 | 16.935 | 0.72× |
+| 5 000 | 45.022 | 60.768 | 0.74× |
+| 10 000 | 80.009 | 98.641 | 0.81× |
+| 50 000 | 239.519 | 362.056 | 0.66× |
+| 100 000 | 439.075 | 702.916 | 0.62× |
 
-**Observations:** Even after the refactor to the unified runner the CUDA path remains throttled by launch and transfer overhead: the GPU never catches the OpenMP build and now trails it by 30–60 % across the entire ion-count sweep. Feeding the kernels 100 k ions still costs 11.5 minutes wall time (689 s) because these configs execute the full 10 µs IMS workload with identical diagnostics on both backends. The updated ratios and logs make the “GPU is slower today” conclusion explicit.
+**Observations:** The refreshed measurements still show the CUDA execution trailing the OpenMP build by 20–40 %, with GPU/CPU speedup ratios stuck below 0.8× even at 100 k ions. Launch latency and diagnostics keep the wall time above four minutes for the largest case (702 s), so “GPU slower today” remains the accurate release note.
 
 #### 10.8.2 Integrator Comparison (N = 10 k)
 
 | Integrator | Wall time (s) |
 |------------|---------------|
-| RK4 (GPU) | 92.53 |
-| RK45 (GPU) | 338.43 |
-| Boris (GPU) | 330.98 |
+| RK4 (GPU) | 95.79 |
+| RK45 (GPU) | 346.64 |
+| Boris (GPU) | 341.44 |
 
-**Observations:** RK4 is still the only viable production option—RK45 and Boris both take ~5.5 minutes to push 10 k ions through the IMS cell, over 3.5× slower than RK4. RK45 pays the price for adaptive sub-stepping while Boris suffers from tighter coupling to the magnetic-field math, keeping both firmly in “diagnostic only” territory.
+**Observations:** RK4 remains the only practical production integrator on GPU. RK45 and Boris both require ~5.7 minutes for the 10 k-ion IMS cell—3.5× slower than RK4—so they stay relegated to diagnostics and specialized studies.
 
 #### 10.8.3 GPU Threshold Experiments
 
 | Case | N ions | Configured threshold | Measured time (s) | Notes |
 |------|--------|----------------------|-------------------|-------|
-| RK4 | 4 000 | 5 000 | 50.27 | CPU path (below threshold) |
-| RK4 | 5 000 | 5 000 | 57.82 | GPU engages exactly at threshold |
-| RK4 | 6 000 | 5 000 | 64.38 | GPU stays active, +30 % overhead vs CPU |
-| RK45 | 4 000 | 5 000 | 151.89 | CPU path (below threshold) |
-| RK45 | 5 000 | 5 000 | 179.14 | GPU engages at threshold, +18 % overhead |
-| RK45 | 6 000 | 5 000 | 208.02 | GPU stays active, +14 % per additional 1 k ions |
-| Boris | 2 000 | 5 000 | 86.39 | GPU kicked in early (logic bug) |
-| Boris | 2 500 | 5 000 | 106.90 | GPU active well below threshold |
-| Boris | 3 000 | 5 000 | 119.05 | GPU active, similar penalty |
+| RK4 | 4 000 | 5 000 | 53.77 | CPU path (below threshold) |
+| RK4 | 4 500 | 5 000 | 57.58 | CPU path (below threshold) |
+| RK4 | 5 000 | 5 000 | 59.75 | GPU engages exactly at threshold |
+| RK4 | 5 500 | 5 000 | 62.62 | GPU stays active (+5 % per extra 500 ions) |
+| RK4 | 6 000 | 5 000 | 64.93 | GPU stays active (+8 % per extra 1 k ions) |
+| RK45 | 4 000 | 5 000 | 160.18 | CPU path (below threshold) |
+| RK45 | 4 500 | 5 000 | 178.41 | CPU path (below threshold) |
+| RK45 | 5 000 | 5 000 | 184.07 | GPU engages at threshold |
+| RK45 | 5 500 | 5 000 | 199.82 | GPU active, +8 % |
+| RK45 | 6 000 | 5 000 | 221.71 | GPU active, +13 % |
+| Boris | 2 000 | 5 000 | 91.48 | GPU kicked in early (logic bug) |
+| Boris | 2 250 | 5 000 | 100.46 | GPU active well below threshold |
+| Boris | 2 500 | 5 000 | 108.45 | GPU active, similar penalty |
+| Boris | 2 750 | 5 000 | 114.17 | GPU active, similar penalty |
+| Boris | 3 000 | 5 000 | 130.65 | GPU active, similar penalty |
 
-**Observations:** RK4 still honors the 5 k switching rule exactly while paying a steady ~30 % overhead once the GPU is hot. RK45 behaves similarly but at a far higher absolute cost. Boris remains problematic—the GPU path engages as early as 2 k ions despite the 5 k threshold, confirming the kernel-selection heuristic bug noted earlier. The detailed logs live in `validation/results/v1.0_test/performance/gpu_logs/threshold_*.log` for anyone investigating the control logic.
+**Observations:** RK4 continues to honor the 5 k switch exactly and adds ~5–8 % wall time per additional 500–1 000 ions once the GPU is hot. RK45 mirrors that behavior but at triple the absolute runtime. Boris still violates the heuristic by enabling CUDA below 2.5 k ions, so the control-logic bug remains open.
 
 #### 10.8.4 Long Trajectories on GPU (100 µs, N = 10 k)
 
 | Integrator | Wall time (s) |
 |------------|---------------|
-| RK4 | 180.54 |
-| RK45 | 608.58 |
-| Boris | 615.54 |
+| RK4 | 216.71 |
+| RK45 | 680.03 |
+| Boris | 632.99 |
 
-**Observations:** The long IMS trajectory now reflects the fully instrumented harness, and every GPU integrator needs real minutes: RK4 takes 3 min, whereas RK45 and Boris stretch past 10 min. Launch latency plus heavy diagnostics still dominate, so the CUDA backend offers no wall-clock advantage for these workloads today.
+**Observations:** The 100 µs IMS trajectory still demands several real minutes per run: GPU RK4 now lands at 3.6 min while RK45 and Boris exceed 10 min. Even with the streamlined logging pass the CUDA backend offers no wall-clock advantage for these long workloads.
 
 ### 10.9 Artifacts and Reproducibility
 

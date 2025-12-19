@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 AXIS_INDICES = {'x': 0, 'y': 1, 'z': 2}
 DEFAULT_AXIAL_AXIS = 'z'
 BAND_PROMINENCE_RATIO = 0.1
+NON_UNIFORM_TOL = 1e-3  # relative tolerance before we resample the signal
 
 def calculate_theoretical_frequency(mass_u, charge_e, V_rad, r_char, r_in, r_out):
     """Calculate theoretical axial frequency for Orbitrap.
@@ -56,10 +57,36 @@ def _prepare_signal(signal):
     return detrended * window
 
 
+def _resample_uniform(signal, time):
+    """Ensure the signal is sampled on an approximately uniform grid.
+
+    Returns the (maybe resampled) signal, matching time vector, dt, and a flag
+    indicating whether resampling occurred. This protects the FFT estimate from
+    RK45's adaptive output cadence.
+    """
+    if len(time) < 2:
+        raise ValueError("Time vector must contain at least two samples")
+    dt = np.diff(time)
+    median_dt = float(np.median(dt))
+    if median_dt <= 0:
+        raise ValueError("Non-positive median timestep detected")
+
+    if np.allclose(dt, median_dt, rtol=NON_UNIFORM_TOL, atol=0.0):
+        return signal, time, median_dt, False
+
+    n_uniform = int(np.round((time[-1] - time[0]) / median_dt)) + 1
+    uniform_time = time[0] + np.arange(n_uniform) * median_dt
+    # Numerical guard: ensure last sample covers the end of the window
+    if uniform_time[-1] < time[-1]:
+        uniform_time = np.append(uniform_time, time[-1])
+    resampled_signal = np.interp(uniform_time, time, signal)
+    return resampled_signal, uniform_time, median_dt, True
+
+
 def _measure_axis_frequency(signal, time, f_theory):
     """Measure dominant frequency for a detrended axis signal."""
-    cleaned = _prepare_signal(signal)
-    dt = time[1] - time[0]
+    uniform_signal, uniform_time, dt, _ = _resample_uniform(signal, time)
+    cleaned = _prepare_signal(uniform_signal)
     fft_vals = fft(cleaned)
     freqs = fftfreq(len(cleaned), dt)
     pos_mask = freqs > 0
@@ -74,7 +101,7 @@ def _measure_axis_frequency(signal, time, f_theory):
             freqs_band = freqs_pos[band_mask]
             fft_band = fft_mag[band_mask]
             peak_idx = np.argmax(fft_band)
-            if fft_band[peak_idx] >= BAND_PROMINENCE_RATIO * np.max(fft_mag):
+            if fft_band[peak_idx] > 0.0:
                 return freqs_band[peak_idx], fft_band[peak_idx]
 
     peak_idx = np.argmax(fft_mag)

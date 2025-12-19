@@ -159,6 +159,7 @@ public:
         double min_step_used = std::numeric_limits<double>::max();
         double max_step_used = 0.0;
         double avg_error = 0.0;
+        double sum_step_used = 0.0;  ///< Accumulated dt of accepted steps
     };
     
     const StepStats& get_stats() const { return stats_; }

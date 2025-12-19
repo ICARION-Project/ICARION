@@ -454,6 +454,7 @@ void RK45Strategy::step(
             stats_.max_step_used = std::max(stats_.max_step_used, dt_work);
             stats_.avg_error = (stats_.avg_error * (stats_.accepted_steps - 1) + error)
                              / stats_.accepted_steps;
+            stats_.sum_step_used += dt_work;
 
             double dt_next = compute_new_step(dt_work, error, dt_min, dt_max);
             dt_variable = dt_next;
@@ -653,6 +654,7 @@ void RK45Strategy::step_adaptive(
             stats_.max_step_used = std::max(stats_.max_step_used, dt);
             stats_.avg_error = (stats_.avg_error * (stats_.accepted_steps - 1) + error) 
                              / stats_.accepted_steps;
+            stats_.sum_step_used += dt;
             
             // Compute new step size for next step
             double dt_next = compute_new_step(dt, error, dt_min, dt_max);

@@ -9,6 +9,7 @@
 #include "core/log/Logger.h"
 #include "core/types/IonEnsemble.h"
 #include "core/integrator/strategies/RK45Strategy.h"
+#include "core/integrator/strategies/RK4Strategy.h"
 #include <algorithm>
 #include <vector>
 #include <iostream>
@@ -58,6 +59,21 @@ SimulationEngine::SimulationEngine(
     
     if (!integrator_) {
         throw std::invalid_argument("SimulationEngine: IntegrationStrategy cannot be null");
+    }
+
+    // Capture RK45 runtime settings for metadata
+    if (auto* rk45 = dynamic_cast<RK45Strategy*>(integrator_.get())) {
+        auto cfg = rk45->get_config();
+        config_.simulation.rk45_runtime_settings = config::SimulationConfig::RK45RuntimeSettings{
+            cfg.atol,
+            cfg.rtol,
+            cfg.safety_factor,
+            cfg.min_step_factor,
+            cfg.max_step_factor,
+            cfg.max_step_increase,
+            cfg.max_step_decrease,
+            cfg.absolute_min_step_s
+        };
     }
 
     parallel_enabled_ = config_.simulation.enable_openmp && !integrator_->is_adaptive();

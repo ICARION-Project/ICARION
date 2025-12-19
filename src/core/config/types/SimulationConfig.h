@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <optional>
 
 namespace ICARION::config {
 
@@ -30,6 +31,17 @@ struct SimulationConfig {
     // === Integrator ===
     std::string integrator = "RK4";     ///< Default integrator (can be overridden per-domain)
     double rk45_min_step_s = 0.0;       ///< Absolute minimum dt for RK45 (0 = disabled, use relative factor)
+    struct RK45RuntimeSettings {
+        double atol = 0.0;
+        double rtol = 0.0;
+        double safety_factor = 0.0;
+        double min_step_factor = 0.0;
+        double max_step_factor = 0.0;
+        double max_step_increase = 0.0;
+        double max_step_decrease = 0.0;
+        double absolute_min_step_s = 0.0;
+    };
+    std::optional<RK45RuntimeSettings> rk45_runtime_settings; ///< Populated at runtime from RK45Strategy (not user-configurable)
     
     // === Execution mode ===
     bool enable_gpu = false;            ///< GPU acceleration requested

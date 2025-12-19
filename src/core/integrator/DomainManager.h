@@ -157,6 +157,32 @@ public:
      */
     const config::IFieldModel* field_model(int idx) const;
 
+    /**
+     * @brief Access boundary action for a domain (may be null)
+     */
+    BoundaryAction* boundary_action(int idx) const;
+
+    /**
+     * @brief Compute inward surface normal for a global position on boundary.
+     */
+    Vec3 surface_normal_global(const Vec3& global_pos, int domain_idx) const;
+
+    /**
+     * @brief Compute boundary intersection for a segment in global coordinates.
+     *
+     * @param start_global Segment start
+     * @param end_global Segment end
+     * @param domain_idx Domain to test against
+     * @param intersection_global Output intersection (global) if hit
+     * @param normal_global Output inward normal (global) if hit
+     * @return true if intersection detected
+     */
+    bool boundary_intersection_global(const Vec3& start_global,
+                                      const Vec3& end_global,
+                                      int domain_idx,
+                                      Vec3& intersection_global,
+                                      Vec3& normal_global) const;
+
 private:
     const std::vector<config::DomainConfig>& domains_;  ///< Reference to domain list (not owned, SSOT)
     std::vector<std::unique_ptr<BoundaryAction>> boundary_actions_;  ///< Boundary actions per domain

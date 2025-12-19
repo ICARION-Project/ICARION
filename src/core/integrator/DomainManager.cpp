@@ -66,6 +66,43 @@ const config::IFieldModel* DomainManager::field_model(int idx) const {
     return field_models_[idx].get();
 }
 
+BoundaryAction* DomainManager::boundary_action(int idx) const {
+    if (idx < 0 || idx >= static_cast<int>(boundary_actions_.size())) {
+        return nullptr;
+    }
+    return boundary_actions_[idx].get();
+}
+
+Vec3 DomainManager::surface_normal_global(const Vec3& global_pos, int domain_idx) const {
+    if (domain_idx < 0 || domain_idx >= static_cast<int>(geometries_.size())) {
+        return Vec3{0.0, 0.0, 0.0};
+    }
+    Vec3 local = geometries_[static_cast<size_t>(domain_idx)]->global_to_local_pos(global_pos);
+    Vec3 n_local = geometries_[static_cast<size_t>(domain_idx)]->surface_normal(local);
+    return geometries_[static_cast<size_t>(domain_idx)]->local_to_global_vel(n_local); // rotation only
+}
+
+bool DomainManager::boundary_intersection_global(const Vec3& start_global,
+                                                 const Vec3& end_global,
+                                                 int domain_idx,
+                                                 Vec3& intersection_global,
+                                                 Vec3& normal_global) const {
+    if (domain_idx < 0 || domain_idx >= static_cast<int>(geometries_.size())) {
+        return false;
+    }
+    const auto& geom = geometries_[static_cast<size_t>(domain_idx)];
+    Vec3 start_local = geom->global_to_local_pos(start_global);
+    Vec3 end_local = geom->global_to_local_pos(end_global);
+    Vec3 hit_local;
+    if (!geom->first_boundary_intersection(start_local, end_local, hit_local)) {
+        return false;
+    }
+    intersection_global = geom->local_to_global_pos(hit_local);
+    Vec3 n_local = geom->surface_normal(hit_local);
+    normal_global = geom->local_to_global_vel(n_local);
+    return true;
+}
+
 Vec3 DomainManager::global_to_local_pos(const Vec3& pos, int domain_idx) const {
     if (domain_idx < 0 || domain_idx >= static_cast<int>(geometries_.size())) {
         throw std::out_of_range("DomainManager::global_to_local_pos: invalid index");

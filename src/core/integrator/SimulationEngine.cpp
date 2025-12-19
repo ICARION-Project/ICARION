@@ -434,6 +434,16 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
 
     update_space_charge_models(ensemble);
 
+    // Capture pre-integration positions for boundary intersection
+    std::vector<Vec3> pos_before;
+    pos_before.reserve(n_ions);
+    const auto* pos_x_before = ensemble.pos_x_data();
+    const auto* pos_y_before = ensemble.pos_y_data();
+    const auto* pos_z_before = ensemble.pos_z_data();
+    for (size_t i = 0; i < n_ions; ++i) {
+        pos_before.emplace_back(pos_x_before[i], pos_y_before[i], pos_z_before[i]);
+    }
+
     auto* pos_x = ensemble.pos_x_data();
     auto* pos_y = ensemble.pos_y_data();
     auto* pos_z = ensemble.pos_z_data();
@@ -511,12 +521,51 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
                 new_domain_idx = domain_manager_->find_domain_index(pos_after);
             }
             if (new_domain_idx < 0) {
-                active[i] = 0;
-                ensemble.set_death_time(i, current_time_);
+                int prev_dom = ensemble.domain_index(i);
+                bool handled = false;
+                if (prev_dom >= 0) {
+                    if (auto* action = domain_manager_->boundary_action(prev_dom)) {
+                        IonState ion = ensemble.ion_state(i);
+                        Vec3 hit = pos_after;
+                        Vec3 normal = domain_manager_->surface_normal_global(pos_after, prev_dom);
+                        domain_manager_->boundary_intersection_global(pos_before[i], pos_after, prev_dom, hit, normal);
+                        action->apply(ion, normal, hit,
+                                      config_.domains[static_cast<size_t>(prev_dom)].environment.temperature_K,
+                                      current_time_);
+                        ensemble.apply_ion_state(i, ion);
+                        active[i] = ion.active ? 1 : 0;
+                        handled = true;
+                        if (ion.active) {
+                            // If still outside after action, deactivate
+                            int dom_check = domain_manager_->find_domain_index(ensemble.get_pos(i));
+                            if (dom_check < 0) {
+                                active[i] = 0;
+                                ensemble.set_death_time(i, current_time_);
+                            }
+                        }
+                    }
+                }
+                if (!handled) {
+                    active[i] = 0;
+                    ensemble.set_death_time(i, current_time_);
+                }
                 continue;
             }
             if (new_domain_idx != ensemble.domain_index(i)) {
                 const auto& new_dom = config_.domains[new_domain_idx];
+                // Apply boundary action on entry
+                if (auto* action = domain_manager_->boundary_action(new_domain_idx)) {
+                    IonState ion = ensemble.ion_state(i);
+                    Vec3 hit = pos_after;
+                    Vec3 normal = domain_manager_->surface_normal_global(pos_after, new_domain_idx);
+                    domain_manager_->boundary_intersection_global(pos_before[i], pos_after, new_domain_idx, hit, normal);
+                    action->apply(ion, normal, hit, new_dom.environment.temperature_K, current_time_);
+                    ensemble.apply_ion_state(i, ion);
+                    active[i] = ion.active ? 1 : 0;
+                    if (!ion.active) {
+                        continue;
+                    }
+                }
                 ensemble.update_domain_cache(i, new_domain_idx,
                     new_dom.environment.temperature_K,
                     new_dom.environment.particle_density_m_3,
@@ -693,6 +742,7 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
 
     const auto* active = ensemble.active_data();
     const auto* born = ensemble.born_data();
+    const bool use_omp = parallel_enabled_;
 
     #pragma omp parallel if(use_omp)
     {
@@ -752,6 +802,7 @@ void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
     const size_t n = ensemble.size();
     const auto* active = ensemble.active_data();
     const auto* born = ensemble.born_data();
+    const bool use_omp = parallel_enabled_;
 
     #pragma omp parallel if(use_omp)
     {

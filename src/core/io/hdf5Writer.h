@@ -18,6 +18,7 @@
 #include <H5Cpp.h>
 #include <vector>
 #include <string>
+#include <cstdint>
 
 namespace ICARION::io {
 
@@ -84,6 +85,31 @@ public:
         const std::string& filename,
         const std::vector<double>& times,
         const std::vector<core::IonEnsemble>& trajectories
+    );
+
+    /**
+     * @brief Append multiple trajectory snapshots using flattened buffers (SoA)
+     *
+     * @param filename HDF5 file to append to
+     * @param times Vector of simulation times [s] (size = n_steps)
+     * @param n_ions Number of ions per step (constant across steps)
+     * @param positions Flattened positions [n_steps * n_ions * 3]
+     * @param velocities Flattened velocities [n_steps * n_ions * 3]
+     * @param domain_indices Flattened domain indices [n_steps * n_ions]
+     * @param species_indices Flattened species pool indices [n_steps * n_ions]
+     *
+     * Faster path for buffered SoA output without IonEnsemble copies.
+     * Species indices correspond to the pool written in /ions/.
+     */
+    static void append_trajectory_batch_flat(
+        const std::string& filename,
+        const std::vector<double>& times,
+        size_t n_ions,
+        const std::vector<double>& positions,
+        const std::vector<double>& velocities,
+        const std::vector<int>& domain_indices,
+        const std::vector<uint32_t>& species_indices,
+        const std::vector<std::string>* species_pool = nullptr
     );
     
     /**

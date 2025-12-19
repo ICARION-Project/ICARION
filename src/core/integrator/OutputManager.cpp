@@ -9,6 +9,9 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 // Git hash from CMake (via compile definition)
 #ifndef GIT_HASH
@@ -63,10 +66,10 @@ OutputManager::OutputManager(
     double write_interval_dt,
     size_t buffer_max
 ) : hdf5_filename_(hdf5_filename),
-    log_filename_(log_filename),
     write_interval_dt_(write_interval_dt),
     next_write_time_(0.0),
-    buffer_max_(buffer_max)
+    buffer_max_(buffer_max),
+    log_filename_(log_filename)
 {
     if (hdf5_filename_.empty()) {
         throw std::invalid_argument("OutputManager: HDF5 filename cannot be empty");
@@ -150,6 +153,7 @@ void OutputManager::initialize(
     
     initialized_ = true;
     next_write_time_ = write_interval_dt_;
+    species_pool_ = ensemble.species_pool();
 }
 
 void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
@@ -168,9 +172,41 @@ void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
         flush();
     }
     
-    // Buffer snapshot (SoA)
+    // Initialize shape on first use
+    if (n_ions_ == 0) {
+        n_ions_ = ensemble.size();
+    } else if (ensemble.size() != n_ions_) {
+        throw std::runtime_error("OutputManager: Ion count changed during simulation");
+    }
+
+    // Buffer snapshot (flattened)
     times_buffer_.push_back(t);
-    trajectory_buffer_.push_back(ensemble);
+    const auto* pos_x = ensemble.pos_x_data();
+    const auto* pos_y = ensemble.pos_y_data();
+    const auto* pos_z = ensemble.pos_z_data();
+    const auto* vel_x = ensemble.vel_x_data();
+    const auto* vel_y = ensemble.vel_y_data();
+    const auto* vel_z = ensemble.vel_z_data();
+    const auto* domain_idx = ensemble.domain_index_data();
+    const auto* species_idx = ensemble.species_id_indices();
+
+    positions_buffer_.reserve(positions_buffer_.size() + n_ions_ * 3);
+    velocities_buffer_.reserve(velocities_buffer_.size() + n_ions_ * 3);
+    domain_buffer_.reserve(domain_buffer_.size() + n_ions_);
+    species_buffer_.reserve(species_buffer_.size() + n_ions_);
+
+    for (size_t i = 0; i < n_ions_; ++i) {
+        positions_buffer_.push_back(pos_x[i]);
+        positions_buffer_.push_back(pos_y[i]);
+        positions_buffer_.push_back(pos_z[i]);
+
+        velocities_buffer_.push_back(vel_x[i]);
+        velocities_buffer_.push_back(vel_y[i]);
+        velocities_buffer_.push_back(vel_z[i]);
+
+        domain_buffer_.push_back(domain_idx[i]);
+        species_buffer_.push_back(species_idx[i]);
+    }
 }
 
 void OutputManager::log_progress(const std::string& message) {
@@ -201,11 +237,12 @@ bool OutputManager::should_write_before_add(double t_current) const {
         return false;
     }
 
-    // Rough byte estimate: time + IonEnsemble payloads
+    // Rough byte estimate: flattened buffers
     size_t bytes = sizeof(double) * times_buffer_.capacity();
-    for (const auto& ens : trajectory_buffer_) {
-        bytes += ens.memory_footprint();
-    }
+    bytes += sizeof(double) * positions_buffer_.capacity();
+    bytes += sizeof(double) * velocities_buffer_.capacity();
+    bytes += sizeof(int) * domain_buffer_.capacity();
+    bytes += sizeof(uint32_t) * species_buffer_.capacity();
     return bytes >= buffer_byte_cap_;
 }
 
@@ -215,9 +252,10 @@ void OutputManager::flush() {
     }
     if (buffer_byte_cap_ > 0) {
         size_t bytes = sizeof(double) * times_buffer_.capacity();
-        for (const auto& ens : trajectory_buffer_) {
-            bytes += ens.memory_footprint();
-        }
+        bytes += sizeof(double) * positions_buffer_.capacity();
+        bytes += sizeof(double) * velocities_buffer_.capacity();
+        bytes += sizeof(int) * domain_buffer_.capacity();
+        bytes += sizeof(uint32_t) * species_buffer_.capacity();
         if (bytes > buffer_byte_cap_) {
             throw std::runtime_error("OutputManager: Buffer byte cap exceeded (" + std::to_string(bytes) +
                                      " > " + std::to_string(buffer_byte_cap_) + ")");
@@ -229,15 +267,23 @@ void OutputManager::flush() {
     
     try {
         // Write all buffered snapshots in ONE batch operation
-        io::HDF5Writer::append_trajectory_batch(
+        io::HDF5Writer::append_trajectory_batch_flat(
             hdf5_filename_,
             times_buffer_,
-            trajectory_buffer_
+            n_ions_,
+            positions_buffer_,
+            velocities_buffer_,
+            domain_buffer_,
+            species_buffer_,
+            species_pool_
         );
         
         // Clear buffers
         times_buffer_.clear();
-        trajectory_buffer_.clear();
+        positions_buffer_.clear();
+        velocities_buffer_.clear();
+        domain_buffer_.clear();
+        species_buffer_.clear();
         
         // Update next write time (avoid drift with adaptive timesteps)
         // Use last flushed time as anchor, not incremental addition
@@ -257,8 +303,7 @@ void OutputManager::finalize(double t_final, const core::IonEnsemble& final_ense
 
     // Ensure last snapshot present
     if (times_buffer_.empty() || times_buffer_.back() < t_final) {
-        times_buffer_.push_back(t_final);
-        trajectory_buffer_.push_back(final_ensemble);
+        log_step(t_final, final_ensemble);
     }
 
     // Flush remaining data

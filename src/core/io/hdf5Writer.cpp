@@ -460,6 +460,180 @@ void HDF5Writer::append_trajectory_batch(
     }
 }
 
+void HDF5Writer::append_trajectory_batch_flat(
+    const std::string& filename,
+    const std::vector<double>& times,
+    size_t n_ions,
+    const std::vector<double>& positions,
+    const std::vector<double>& velocities,
+    const std::vector<int>& domain_indices,
+    const std::vector<uint32_t>& species_indices,
+    const std::vector<std::string>* species_pool
+) {
+    if (times.empty()) {
+        log::Logger::hdf5()->warn("Skipping trajectory batch append - no data");
+        return;
+    }
+    const size_t n_steps = times.size();
+    const size_t expected_vec = n_steps * n_ions;
+    const size_t expected_vec3 = expected_vec * 3;
+    if (positions.size() != expected_vec3 ||
+        velocities.size() != expected_vec3 ||
+        domain_indices.size() != expected_vec ||
+        species_indices.size() != expected_vec) {
+        throw std::invalid_argument("HDF5Writer::append_trajectory_batch_flat: buffer size mismatch");
+    }
+
+    try {
+        H5::H5File file(filename, H5F_ACC_RDWR);
+        H5::Group traj_group = file.openGroup("/trajectory");
+
+        auto append_1d_batch = [&](const std::string& name, const void* data, H5::PredType type, size_t count) {
+            H5::DataSet dataset;
+            if (traj_group.nameExists(name)) {
+                dataset = traj_group.openDataSet(name);
+                H5::DataSpace filespace = dataset.getSpace();
+                hsize_t old_dim = filespace.getSimpleExtentNpoints();
+                hsize_t new_dim = old_dim + count;
+                dataset.extend(&new_dim);
+
+                filespace = dataset.getSpace();
+                hsize_t start[1] = {old_dim};
+                hsize_t write_count[1] = {count};
+                H5::DataSpace memspace(1, write_count);
+                filespace.selectHyperslab(H5S_SELECT_SET, write_count, start);
+                dataset.write(data, type, memspace, filespace);
+            } else {
+                hsize_t dims[1] = {count};
+                hsize_t max_dims[1] = {H5S_UNLIMITED};
+                H5::DataSpace space(1, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[1] = {std::min(count, size_t(1000))};
+                plist.setChunk(1, chunk);
+                plist.setDeflate(2);
+                dataset = traj_group.createDataSet(name, type, space, plist);
+                dataset.write(data, type);
+            }
+        };
+
+        auto append_3d_batch = [&](const std::string& name, const std::vector<double>& data,
+                                   size_t dim0, size_t dim1, size_t dim2) {
+            H5::DataSet dataset;
+            if (traj_group.nameExists(name)) {
+                dataset = traj_group.openDataSet(name);
+                H5::DataSpace filespace = dataset.getSpace();
+                hsize_t old_dims[3];
+                filespace.getSimpleExtentDims(old_dims);
+
+                hsize_t new_dims[3] = {old_dims[0] + dim0, old_dims[1], old_dims[2]};
+                dataset.extend(new_dims);
+
+                filespace = dataset.getSpace();
+                hsize_t start[3] = {old_dims[0], 0, 0};
+                hsize_t count[3] = {dim0, dim1, dim2};
+                H5::DataSpace memspace(3, count);
+                filespace.selectHyperslab(H5S_SELECT_SET, count, start);
+                dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE, memspace, filespace);
+            } else {
+                hsize_t dims[3] = {dim0, dim1, dim2};
+                hsize_t max_dims[3] = {H5S_UNLIMITED, dim1, dim2};
+                H5::DataSpace space(3, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[3] = {std::min(dim0, size_t(100)), dim1, dim2};
+                plist.setChunk(3, chunk);
+                plist.setDeflate(2);
+                dataset = traj_group.createDataSet(name, H5::PredType::NATIVE_DOUBLE, space, plist);
+                dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE);
+            }
+        };
+
+        auto append_2d_batch_int = [&](const std::string& name, const void* data, H5::PredType type,
+                                       size_t dim0, size_t dim1) {
+            H5::DataSet dataset;
+            if (traj_group.nameExists(name)) {
+                dataset = traj_group.openDataSet(name);
+                H5::DataSpace filespace = dataset.getSpace();
+                hsize_t old_dims[2];
+                filespace.getSimpleExtentDims(old_dims);
+
+                hsize_t new_dims[2] = {old_dims[0] + dim0, old_dims[1]};
+                dataset.extend(new_dims);
+
+                filespace = dataset.getSpace();
+                hsize_t start[2] = {old_dims[0], 0};
+                hsize_t count[2] = {dim0, dim1};
+                H5::DataSpace memspace(2, count);
+                filespace.selectHyperslab(H5S_SELECT_SET, count, start);
+                dataset.write(data, type, memspace, filespace);
+            } else {
+                hsize_t dims[2] = {dim0, dim1};
+                hsize_t max_dims[2] = {H5S_UNLIMITED, dim1};
+                H5::DataSpace space(2, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[2] = {std::min(dim0, size_t(100)), dim1};
+                plist.setChunk(2, chunk);
+                plist.setDeflate(2);
+                dataset = traj_group.createDataSet(name, type, space, plist);
+                dataset.write(data, type);
+            }
+        };
+
+        append_1d_batch("time", times.data(), H5::PredType::NATIVE_DOUBLE, n_steps);
+        append_3d_batch("positions", positions, n_steps, n_ions, 3);
+        append_3d_batch("velocities", velocities, n_steps, n_ions, 3);
+        append_2d_batch_int("domain_indices", domain_indices.data(), H5::PredType::NATIVE_INT, n_steps, n_ions);
+        append_2d_batch_int("species_id_indices", species_indices.data(), H5::PredType::NATIVE_UINT32, n_steps, n_ions);
+
+        // Compatibility: also write species_ids (varlen strings) if pool available
+        if (species_pool && !species_pool->empty()) {
+            std::vector<const char*> species_ids;
+            species_ids.reserve(expected_vec);
+            for (size_t idx : species_indices) {
+                if (idx < species_pool->size()) {
+                    species_ids.push_back(species_pool->at(idx).c_str());
+                } else {
+                    species_ids.push_back("");
+                }
+            }
+
+            H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+            H5::DataSet dataset_species;
+            if (traj_group.nameExists("species_ids")) {
+                dataset_species = traj_group.openDataSet("species_ids");
+                H5::DataSpace filespace = dataset_species.getSpace();
+                hsize_t old_dims[2];
+                filespace.getSimpleExtentDims(old_dims);
+
+                hsize_t new_dims[2] = {old_dims[0] + n_steps, old_dims[1]};
+                dataset_species.extend(new_dims);
+
+                filespace = dataset_species.getSpace();
+                hsize_t start[2] = {old_dims[0], 0};
+                hsize_t count[2] = {n_steps, n_ions};
+                H5::DataSpace memspace(2, count);
+                filespace.selectHyperslab(H5S_SELECT_SET, count, start);
+                dataset_species.write(species_ids.data(), str_type, memspace, filespace);
+            } else {
+                hsize_t dims[2] = {n_steps, n_ions};
+                hsize_t max_dims[2] = {H5S_UNLIMITED, n_ions};
+                H5::DataSpace space(2, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[2] = {std::min(n_steps, size_t(100)), n_ions};
+                plist.setChunk(2, chunk);
+                plist.setDeflate(2);
+                dataset_species = traj_group.createDataSet("species_ids", str_type, space, plist);
+                dataset_species.write(species_ids.data(), str_type);
+            }
+        }
+
+        H5Fflush(file.getId(), H5F_SCOPE_GLOBAL);
+        file.close();
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to append trajectory batch (flat SoA): {}", e.getCDetailMsg());
+        throw;
+    }
+}
+
 void HDF5Writer::update_death_times(
     const std::string& filename,
     const core::IonEnsemble& final_ensemble

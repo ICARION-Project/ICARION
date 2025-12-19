@@ -27,6 +27,7 @@
 #include <memory>
 #include <fstream>
 #include <mutex>
+#include <cstdint>
 
 namespace ICARION::io { class HDF5Writer; }
 
@@ -193,8 +194,14 @@ private:
     size_t buffer_max_;
     
     // HDF5 buffers
+    // Flattened buffers (avoid full IonEnsemble copies)
+    size_t n_ions_ = 0;
     std::vector<double> times_buffer_;
-    std::vector<core::IonEnsemble> trajectory_buffer_;
+    std::vector<double> positions_buffer_;   // contiguous [steps * n_ions * 3]
+    std::vector<double> velocities_buffer_;  // contiguous [steps * n_ions * 3]
+    std::vector<int> domain_buffer_;         // [steps * n_ions]
+    std::vector<uint32_t> species_buffer_;   // [steps * n_ions] (pool indices)
+    const std::vector<std::string>* species_pool_ = nullptr; // non-owning; set on init
     size_t buffer_byte_cap_ = 0;  ///< Optional byte cap; 0 disables
     
     // Text logging (optional)

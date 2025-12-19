@@ -293,9 +293,9 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     initialize(ensemble);
     
     // 2. Main time loop using SoA
-    current_dt_ = config_.simulation.dt_s;
     current_time_ = 0.0;
     current_step_ = 0;
+    dt_per_ion_.assign(ensemble.size(), config_.simulation.dt_s);
     
     output_manager_->log_progress("Starting main simulation loop (SoA)");
     
@@ -319,9 +319,8 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     };
     
     while (should_continue()) {
-        double dt_next_hint = current_dt_;
         // Process one timestep using SoA
-        double new_time = process_timestep(ensemble, current_dt_, dt_next_hint);
+        double new_time = process_timestep(ensemble);
         
         // Log trajectory snapshot (write every write_interval steps)
         if (current_step_ == 0 || current_step_ % config_.simulation.write_interval == 0 ||
@@ -332,9 +331,6 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
         
         // Update time and step counter
         current_time_ = new_time;
-        if (integrator_->is_adaptive()) {
-            current_dt_ = dt_next_hint;
-        }
         current_step_++;
         
         // Progress logging (every 10%)
@@ -418,10 +414,13 @@ void SimulationEngine::update_space_charge_models(core::IonEnsemble& ensemble) {
     }
 }
 
-double SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt, double& dt_next_hint_out) {
+double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
     const size_t n_ions = ensemble.size();
-    std::vector<double> dt_used_per_ion(n_ions, dt);
-    double dt_next_hint = dt;
+    if (dt_per_ion_.size() != n_ions) {
+        dt_per_ion_.assign(n_ions, config_.simulation.dt_s);
+    }
+    std::vector<double> dt_used_per_ion = dt_per_ion_;
+    std::vector<double> dt_next_per_ion = dt_per_ion_;
 
     if (rng_by_ion_.size() != n_ions) {
         PROFILE_SCOPE_IF_ENABLED("RNG Initialization");
@@ -488,10 +487,10 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt
     double max_dt_used = perform_integration(
         ensemble,
         current_time_,
-        dt,
+        dt_per_ion_,
         integration_domains,
         dt_used_per_ion,
-        dt_next_hint);
+        dt_next_per_ion);
 
     // Apply stochastic processes using the actual dt used by the integrator
     perform_collisions(ensemble, dt_used_per_ion, integration_domains);
@@ -542,7 +541,7 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt
         }
     }
 
-    dt_next_hint_out = dt_next_hint;
+    dt_per_ion_.swap(dt_next_per_ion);
 
     double new_time = current_time_;
     const double* time_ptr = ensemble.time_data();
@@ -558,15 +557,33 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble, double dt
 
 double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
                                            double t,
-                                           double dt,
+                                           const std::vector<double>& dt_per_ion,
                                            const std::vector<int>& domain_indices,
                                            std::vector<double>& dt_used_per_ion,
-                                           double& dt_next_hint) {
-    double max_dt_used = dt;
-    dt_next_hint = dt;
+                                           std::vector<double>& dt_next_per_ion) {
+    double max_dt_used = 0.0;
 
-    if (integrator_->step_batch(ensemble, t, dt, force_registries_, domain_indices)) {
-        return max_dt_used;
+    // Only run batch if dt is uniform across active ions
+    bool uniform_dt = false;
+    double dt_batch = 0.0;
+    if (integrator_->supports_batch()) {
+        uniform_dt = true;
+        for (size_t i = 0; i < domain_indices.size(); ++i) {
+            if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+            if (dt_batch == 0.0) {
+                dt_batch = dt_per_ion[i];
+            } else if (dt_per_ion[i] != dt_batch) {
+                uniform_dt = false;
+                break;
+            }
+        }
+        if (uniform_dt && dt_batch > 0.0) {
+            if (integrator_->step_batch(ensemble, t, dt_batch, force_registries_, domain_indices)) {
+                std::fill(dt_used_per_ion.begin(), dt_used_per_ion.end(), dt_batch);
+                std::fill(dt_next_per_ion.begin(), dt_next_per_ion.end(), dt_batch);
+                return dt_batch;
+            }
+        }
     }
 
     auto* rk45 = integrator_->is_adaptive()
@@ -586,6 +603,7 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
         if (!registry) {
             continue;
         }
+        const double dt = dt_per_ion[i];
         integrator_->step(ensemble, i, t, dt, *registry);
 
         if (rk45) {
@@ -596,8 +614,12 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
                 max_dt_used = std::max(max_dt_used, used);
             }
             if (next > 0.0) {
-                dt_next_hint = std::min(dt_next_hint, next);
+                dt_next_per_ion[i] = next;
             }
+        } else {
+            dt_used_per_ion[i] = dt;
+            dt_next_per_ion[i] = dt;
+            max_dt_used = std::max(max_dt_used, dt);
         }
     }
     return max_dt_used;

@@ -43,6 +43,7 @@ namespace ICARION::io {
 static void write_string_vector(H5::Group& group, const std::string& name, const std::vector<std::string>& data);
 static void write_array_int(H5::Group& group, const std::string& name, const std::vector<int>& data);
 static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains);
+static std::string read_file_if_small(const std::string& path, size_t max_bytes);
 static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains);
 static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains);
 
@@ -726,6 +727,30 @@ void HDF5Writer::write_reproducibility_metadata(
     H5::Group field_hash_group = hash_group.createGroup("field_arrays");
     write_string_vector(field_hash_group, "files", field_paths);
     write_string_vector(field_hash_group, "sha256", field_hashes);
+
+    // Optional: embed small external inputs for maximal reproducibility
+    H5::Group blobs = repro.createGroup("input_blobs");
+    const size_t MAX_EMBED_BYTES = 5 * 1024 * 1024; // 5 MB cap
+    if (!config.species_database_path.empty()) {
+        auto blob = read_file_if_small(config.species_database_path, MAX_EMBED_BYTES);
+        if (!blob.empty()) {
+            write_string(blobs, "species_db_json", blob);
+        } else {
+            write_string(blobs, "species_db_json", "{}");
+        }
+    } else {
+        write_string(blobs, "species_db_json", "{}");
+    }
+    if (!config.reaction_database_path.empty()) {
+        auto blob = read_file_if_small(config.reaction_database_path, MAX_EMBED_BYTES);
+        if (!blob.empty()) {
+            write_string(blobs, "reaction_db_json", blob);
+        } else {
+            write_string(blobs, "reaction_db_json", "{}");
+        }
+    } else {
+        write_string(blobs, "reaction_db_json", "{}");
+    }
     
     log::Logger::hdf5()->debug("Wrote reproducibility metadata with file hashes");
 }
@@ -1204,6 +1229,21 @@ static std::vector<std::string> collect_field_array_paths(const std::vector<conf
         }
     }
     return paths;
+}
+
+static std::string read_file_if_small(const std::string& path, size_t max_bytes) {
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    if (!in) return {};
+    std::streamsize size = in.tellg();
+    if (size < 0 || static_cast<size_t>(size) > max_bytes) {
+        return {};
+    }
+    in.seekg(0, std::ios::beg);
+    std::string buffer(static_cast<size_t>(size), '\0');
+    if (in.read(&buffer[0], size)) {
+        return buffer;
+    }
+    return {};
 }
 
 void HDF5Writer::write_vec3(H5::Group& group, const std::string& name, const Vec3& vec) {

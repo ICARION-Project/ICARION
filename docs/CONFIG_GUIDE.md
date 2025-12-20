@@ -957,6 +957,8 @@ See `schema/output.schema.json` for all options.
 
 See `schema/domain.schema.json`, `schema/geometry.schema.json`, `schema/environment.schema.json` for details.
 
+**Performance note:** Domain lookup uses an axial/radial prefilter for cylindrical domains; complex geometries (e.g., Orbitrap) fall back to linear scan. Avoid excessive domain slicing unless necessary.
+
 ### Boundary Types
 
 | Type | Description | Use Case |

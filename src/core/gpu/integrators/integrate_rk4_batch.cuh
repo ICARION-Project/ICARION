@@ -6,6 +6,7 @@
 
 #include "core/types/Vec3.h"
 #include "core/types/gpu/IonState_GPU.h"
+#include "core/gpu/damping/DeviceDamping.h"
 #include <cuda_runtime.h>
 
 namespace icarion {
@@ -35,6 +36,7 @@ void integrate_rk4_batch(
     const Vec3& E_field,
     const Vec3& B_field,
     double dt,
+    const DeviceDamping& damping,
     cudaStream_t stream = 0
 );
 
@@ -59,6 +61,7 @@ void integrate_rk4_batch_with_fields(
     IonStateGPU& ions_out,
     const FieldArrayGPU& field_array,
     double dt,
+    const DeviceDamping& damping,
     cudaStream_t stream = 0
 );
 

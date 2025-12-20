@@ -95,7 +95,8 @@ __global__ void integrate_rk4_batch_kernel(
     
     // Integration parameters
     double dt,
-    int N
+    int N,
+    DeviceDamping damping
 ) {
     // Grid-stride loop
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += gridDim.x * blockDim.x) {
@@ -146,6 +147,15 @@ __global__ void integrate_rk4_batch_kernel(
         Vec3 pos_new = pos0 + (k1_vel + k2_vel * 2.0 + k3_vel * 2.0 + k4_vel) * (dt / 6.0);
         Vec3 vel_new = vel0 + (k1_acc + k2_acc * 2.0 + k3_acc * 2.0 + k4_acc) * (dt / 6.0);
         
+        // Apply linear damping (v <- v * exp(-nu*dt)) if enabled
+        if (damping.enabled) {
+            float nu = damping.nu_per_ion ? damping.nu_per_ion[i] : damping.nu_const;
+            if (nu > 0.0f) {
+                double factor = exp(-static_cast<double>(nu) * dt);
+                vel_new = vel_new * factor;
+            }
+        }
+
         // Store result
         x_out[i] = pos_new.x;
         y_out[i] = pos_new.y;
@@ -163,6 +173,7 @@ void integrate_rk4_batch(
     const Vec3& E_field,
     const Vec3& B_field,
     double dt,
+    const DeviceDamping& damping,
     cudaStream_t stream
 ) {
     if (ions_in.count == 0) {
@@ -195,7 +206,7 @@ void integrate_rk4_batch(
         nullptr, E_field, B_field,
         
         // Parameters
-        dt, N
+        dt, N, damping
     );
     
     // Check for kernel launch errors
@@ -213,6 +224,7 @@ void integrate_rk4_batch_with_fields(
     IonStateGPU& ions_out,
     const FieldArrayGPU& field_array,
     double dt,
+    const DeviceDamping& damping,
     cudaStream_t stream
 ) {
     if (ions_in.count == 0) {
@@ -257,7 +269,7 @@ void integrate_rk4_batch_with_fields(
         d_field_array, zero, zero,
         
         // Parameters
-        dt, N
+        dt, N, damping
     );
     
     // Synchronize stream before freeing device memory

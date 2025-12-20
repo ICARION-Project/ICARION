@@ -18,3 +18,9 @@ add_executable(test_adaptive_interpolation test_adaptive_interpolation.cpp)
 target_link_libraries(test_adaptive_interpolation PRIVATE icarion_core Catch2::Catch2WithMain)
 target_include_directories(test_adaptive_interpolation PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_adaptive_interpolation COMMAND test_adaptive_interpolation)
+
+# GPU Damping Kernel Test
+add_executable(test_gpu_damping test_gpu_damping.cpp)
+target_link_libraries(test_gpu_damping PRIVATE icarion_core Catch2::Catch2WithMain)
+target_include_directories(test_gpu_damping PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_gpu_damping COMMAND test_gpu_damping)

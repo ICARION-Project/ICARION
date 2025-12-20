@@ -7,6 +7,7 @@
 #include "core/gpu/integrators/integrate_boris_batch.cuh"
 #include "core/gpu/boundaries/check_boundaries_batch.cuh"
 #include "core/gpu/fields/FieldArrayGPU_conversion.h"
+#include "core/gpu/kernels/damping.cuh"
 #include "fieldsolver/utils/GridFieldProvider.h"
 #include "core/io/fieldArrayLoader.h"
 #include <chrono>
@@ -40,10 +41,16 @@ GPUIntegrationHelper::GPUIntegrationHelper(
     , allocated_capacity_(0)
     , field_array_gpu_{}
     , has_gpu_fields_(false)
+    , damping_{}
+    , d_nu_per_ion_(nullptr)
+    , nu_capacity_(0)
     , threshold_(threshold)
     , enabled_(true)
     , stats_{}
 {
+    damping_.enabled = 0;
+    damping_.nu_const = 0.0f;
+    damping_.nu_per_ion = nullptr;
 }
 
 GPUIntegrationHelper::~GPUIntegrationHelper() {
@@ -55,6 +62,11 @@ GPUIntegrationHelper::~GPUIntegrationHelper() {
     }
     if (has_gpu_fields_) {
         free_field_array_gpu(field_array_gpu_);
+    }
+    if (d_nu_per_ion_) {
+        cudaFree(d_nu_per_ion_);
+        d_nu_per_ion_ = nullptr;
+        nu_capacity_ = 0;
     }
 }
 
@@ -73,6 +85,38 @@ const FieldArray* GPUIntegrationHelper::try_extract_field_array(
     
     // Extract FieldArray pointer (returns nullptr if using FieldSnapshot)
     return grid_provider->get_field_array();
+}
+
+void GPUIntegrationHelper::disable_damping() {
+    damping_.enabled = 0;
+    damping_.nu_const = 0.0f;
+    damping_.nu_per_ion = nullptr;
+}
+
+void GPUIntegrationHelper::set_damping_constant(double nu_const) {
+    damping_.enabled = 1;
+    damping_.nu_const = static_cast<float>(nu_const);
+    damping_.nu_per_ion = nullptr;
+}
+
+void GPUIntegrationHelper::set_damping_per_ion(const std::vector<float>& nu_per_ion) {
+    if (nu_per_ion.empty()) {
+        disable_damping();
+        return;
+    }
+    size_t N = nu_per_ion.size();
+    if (!d_nu_per_ion_ || nu_capacity_ < N) {
+        if (d_nu_per_ion_) {
+            cudaFree(d_nu_per_ion_);
+        }
+        CUDA_CHECK(cudaMalloc(&d_nu_per_ion_, N * sizeof(float)));
+        nu_capacity_ = N;
+    }
+    CUDA_CHECK(cudaMemcpyAsync(d_nu_per_ion_, nu_per_ion.data(), N * sizeof(float),
+                               cudaMemcpyHostToDevice, context_.get_stream()));
+    damping_.enabled = 1;
+    damping_.nu_const = 0.0f;
+    damping_.nu_per_ion = d_nu_per_ion_;
 }
 
 bool GPUIntegrationHelper::integrate_batch_rk4(
@@ -160,6 +204,7 @@ bool GPUIntegrationHelper::integrate_batch_rk4(
                 ions_gpu_out_,
                 field_array_gpu_,
                 dt,
+                damping_,
                 context_.get_stream()
             );
         } else {
@@ -172,6 +217,7 @@ bool GPUIntegrationHelper::integrate_batch_rk4(
                 E_zero,
                 B_zero,
                 dt,
+                damping_,
                 context_.get_stream()
             );
         }

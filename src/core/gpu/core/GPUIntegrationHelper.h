@@ -7,6 +7,7 @@
 #include "core/gpu/core/GPUContext.h"
 #include "core/gpu/core/GPUMemoryPool.h"
 #include "core/gpu/fields/FieldArrayGPU.h"
+#include "core/gpu/damping/DeviceDamping.h"
 #include "core/types/IonState.h"
 #include "core/types/gpu/IonState_GPU.h"
 #include <vector>
@@ -120,6 +121,11 @@ public:
      * @brief Check if GPU is enabled and operational
      */
     bool is_enabled() const { return enabled_; }
+
+    // Damping controls
+    void disable_damping();
+    void set_damping_constant(double nu_const);
+    void set_damping_per_ion(const std::vector<float>& nu_per_ion);
     
     /**
      * @brief Get GPU threshold
@@ -188,6 +194,11 @@ private:
     FieldArrayGPU field_array_gpu_;
     bool has_gpu_fields_;
     const FieldArray* last_field_array_ = nullptr;
+
+    // Damping state/buffers
+    DeviceDamping damping_;
+    float* d_nu_per_ion_ = nullptr;
+    size_t nu_capacity_ = 0;
     
     size_t threshold_;
     bool enabled_;

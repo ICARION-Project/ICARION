@@ -8,7 +8,7 @@
 using ICARION::integrator::DomainManager;
 using ICARION::config::DomainConfig;
 using ICARION::config::Instrument;
-using ICARION::config::BoundaryType;
+using ICARION::boundary::BoundaryType;
 using ICARION::Vec3;
 
 namespace {
@@ -28,7 +28,7 @@ DomainConfig make_cylinder(const std::string& name, double z0, double length, do
 int expected_idx(const std::vector<DomainConfig>& domains, const Vec3& p) {
     for (size_t i = 0; i < domains.size(); ++i) {
         const auto& g = domains[i].geometry;
-        double z0 = g.origin_m[2];
+        double z0 = g.origin_m.z;
         double z1 = z0 + g.length_m;
         double z_min = std::min(z0, z1);
         double z_max = std::max(z0, z1);

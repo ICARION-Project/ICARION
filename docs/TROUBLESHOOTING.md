@@ -176,7 +176,7 @@ time ./icarion_main config.json  # Should be ~4-5× faster
 3. **GPU acceleration** (N > 5k ions recommended; Boris starts ~2.5k):
    ```json
    "simulation": {
-     "enable_gpu": true  // Automatic dispatch at 5000 ions threshold
+     "enable_gpu": true  // Ignored in v1.0 runtime (GPU path disabled; CPU only)
    }
    ```
    - Boris integrator: GPU beneficial at ~2500 ions

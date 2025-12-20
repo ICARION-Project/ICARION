@@ -887,7 +887,7 @@ This section provides a quick reference for all configuration sections. For comp
   "dt_s": 1e-9,
   "integrator": "RK4",           // RK4, RK45, Boris
   "write_interval": 100,
-  "enable_gpu": false,
+  "enable_gpu": false,           // Ignored in v1.0 (GPU runtime disabled)
   "rng_seed": 42
 }
 ```
@@ -1332,7 +1332,7 @@ Use the global `simulation.integrator` as default, but override for specific dom
 
 4. **Check units**: All values in SI units (meters, seconds, Pascal, Kelvin)
 
-5. **Enable GPU** for large simulations (`enable_gpu: true`)
+5. **Enable GPU** for large simulations (`enable_gpu: true`) — ignored in v1.0 (runtime GPU path is disabled; CPU only)
 
 ---
 

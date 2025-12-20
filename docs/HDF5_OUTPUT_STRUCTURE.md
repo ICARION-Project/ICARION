@@ -78,7 +78,7 @@ Configuration parameters extracted from `FullConfig`.
 | `collision_model` | string | Collision model (EHSS, HSS, Langevin) | - |
 | `enable_reactions` | bool | Reactions enabled? | - |
 | `enable_space_charge` | bool | Space charge enabled? | - |
-| `enable_gpu` | bool | GPU acceleration enabled? | - |
+| `enable_gpu` | bool | GPU acceleration enabled? (ignored in v1.0 runtime; CPU only) | - |
 | `output_file` | string | Output file path | - |
 | `config_json` | string | Embedded resolved config snapshot (validated + CLI overrides) | - |
 | `integrator_params/name` | string | Integrator name | - |

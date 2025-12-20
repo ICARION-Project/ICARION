@@ -671,7 +671,7 @@ ICARION's GPU acceleration is designed for **easy extensibility**. This guide sh
 
 `IntegrationStrategyFactory` emits the GPU wrapper automatically whenever `simulation.enable_gpu` is true (and CUDA is available); the wrapper calls `IIntegrationStrategy::step_batch()` internally and falls back to the CPU strategy if the batch conditions are not met.
 
-**Note:** GPU features require CUDA toolkit and `enable_gpu: true` in config. Automatic CPU fallback on errors or below-threshold counts.
+**Note:** In v1.0 the runtime GPU path is disabled (CPU-only), even if `enable_gpu` is set. CUDA builds still compile GPU code for development; CPU fallback always wins.
 
 ### Prerequisites
 

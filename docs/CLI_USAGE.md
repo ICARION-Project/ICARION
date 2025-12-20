@@ -256,7 +256,7 @@ Can be specified multiple times to override multiple values.
 - `simulation.write_interval` - Output write interval
 - `simulation.rng_seed` - Random number seed
 - `simulation.integrator` - Integration method (RK4, RK45, Boris)
-- `simulation.enable_gpu` - Enable GPU acceleration (true/false)
+- `simulation.enable_gpu` - Enable GPU acceleration (true/false) — ignored at runtime in v1.0 (GPU path disabled)
 - `simulation.enable_openmp` - Enable OpenMP parallelization (true/false)
 
 **Physics parameters:**

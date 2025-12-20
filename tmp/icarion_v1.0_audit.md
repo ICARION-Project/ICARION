@@ -35,8 +35,8 @@
 - ✅ Metadata records git hash, build info, RNG scheme, config JSON embedding (`hdf5Writer.cpp:60-210`).
 
 - **Release Readiness**
-- ❌ Blockers for v1.0: GPU path is hard-disabled at runtime; full GPU force coverage (SC/damping/magnetic/stochastic) deferred. Adaptive RK45 now forbidden with space charge—needs proper stage-sync or documented restriction; resolve SSOT/env-cache desync.
+- ❌ Blockers for v1.0: GPU path is hard-disabled at runtime (CPU-only ship); full GPU force coverage (SC/damping/magnetic/stochastic) deferred. Adaptive RK45 with space charge is forbidden (needs proper stage-sync); resolve SSOT/env-cache desync.
 - ⚠ v1.1: spatial index for domains, persist GPU field uploads across domain switches, quiet DampingForce logs; consider compression/streaming for very large embedded field grids.
 - ✅ Boundary actions are applied; CPU collision/reaction kernels and electric-only force paths are usable for single-domain, fixed-`dt` studies; per-ion times/species indices are written; stage-synchronous SC works for uniform RK4/RK45; external inputs now embedded.
 
-Verdict: I would not recommend publication at this stage, because GPU support still drops key forces, space-charge handling is incomplete for adaptive/GPU paths, and external inputs are not embedded for reproducibility. Stage-synchronous SC for uniform RK4/RK45 and boundary/output fixes help, but main blockers remain.
+Verdict: I would not recommend publication at this stage, because GPU is effectively disabled (no accelerated path), adaptive RK45+space-charge is unsupported, and SSOT/env-cache remains approximate. Stage-synchronous SC for uniform RK4/RK45 and embedding of external inputs help, but main blockers remain.

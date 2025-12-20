@@ -4,7 +4,7 @@
     "dt_s": 1e-9,
     "write_interval": 1000,
     "integrator": "RK4",
-    "enable_gpu": true,
+    "enable_gpu": false,
     "enable_openmp": true,
     "rng_seed": 123
   },

@@ -1,10 +1,12 @@
 {
   "simulation": {
     "total_time_s": 2e-3,
-    "dt_s": 1e-9,
-    "write_interval": 10,
+    "dt_s": 1e-8,
+    "write_interval": 100,
     "integrator": "RK4",
-    "rng_seed": 42
+    "rng_seed": 42,
+    "enable_gpu": false,
+    "enable_openmp": true
   },
   "physics": {
     "collision_model": "HSS",
@@ -13,7 +15,7 @@
   },
   "output": {
     "folder": "../results/lqit",
-    "trajectory_file": "lqit_trajectories.h5",
+    "trajectory_file": "lqit_trajectories_constant_ac_gentle_voltage.h5",
     "print_progress": true
   },
   "species_database": "species_database_lqit.json",
@@ -59,7 +61,7 @@
         }
       },
       {
-        "id": "Mass88_CCS50",
+        "id": "Mass88_CCS25",
         "count": 100,
         "position": {
           "type": "gaussian",
@@ -154,6 +156,16 @@
         "_comment": "He at 1e-2 Pa - typical LQIT buffer gas pressure"
       },
       "fields": {
+          "waveforms": {
+            "ac_ramp": {
+              "type": "linear",
+              "start": 0.0,
+              "end": 0.5,
+              "start_time_s": 0.0,
+              "end_time_s": 2e-3,
+              "clamp": true
+            }
+          },
         "RF": {
           "voltage_V": 50.0,
           "frequency_Hz": 2e6,
@@ -161,11 +173,11 @@
           "_comment": "q = 4*e*V/(m*Ω²*r₀²) = 0.08 - 0.10 for studies ions (m/z 80 - m/z 96) - stable trapping in first stability region"
         },
         "DC": {
-          "axial_V": -10.0,
+          "axial_V": 10.0,
           "_comment": "Weak DC for axial confinement in harmonic potential"
         },
         "AC": {
-          "voltage_V": 0.01,
+          "voltage_V": 0.005,
           "frequency_Hz": 67500.0,
           "phase_rad": 0.0,
           "_comment": "No AC applied for mobility selection"

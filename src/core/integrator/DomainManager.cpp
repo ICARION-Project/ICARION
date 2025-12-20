@@ -8,6 +8,7 @@
 #include "core/config/types/OrbitrapGeometry.h"
 #include <stdexcept>
 #include <cmath>
+#include <algorithm>
 
 namespace ICARION {
 namespace integrator {
@@ -35,20 +36,76 @@ DomainManager::DomainManager(
         );
         if (domain.instrument == config::Instrument::Orbitrap) {
             geometries_.push_back(std::make_unique<config::OrbitrapGeometry>(domain));
+            has_orbitrap_ = true;
         } else {
             geometries_.push_back(std::make_unique<config::CylindricalGeometry>(domain));
+            // Precompute axial span for cylindrical domains
+            double z0 = domain.geometry.origin_m.z;
+            double z1 = z0 + domain.geometry.length_m;
+            spans_.push_back(DomainSpan{
+                std::min(z0, z1) - DOMAIN_BOUNDARY_EPSILON,
+                std::max(z0, z1) + DOMAIN_BOUNDARY_EPSILON,
+                domain.geometry.radius_m + DOMAIN_BOUNDARY_EPSILON,
+                static_cast<int>(spans_.size())  // will fix idx below
+            });
         }
     }
+
+    // Fix span indices to match domain ordering
+    for (size_t i = 0, j = 0; i < domains_.size(); ++i) {
+        if (domains_[i].instrument == config::Instrument::Orbitrap) continue;
+        if (j < spans_.size()) {
+            spans_[j].idx = static_cast<int>(i);
+            ++j;
+        }
+    }
+    std::sort(spans_.begin(), spans_.end(),
+              [](const DomainSpan& a, const DomainSpan& b) { return a.z_min < b.z_min; });
 }
 
 int DomainManager::find_domain_index(const Vec3& pos) const {
-    for (size_t i = 0; i < domains_.size(); ++i) {
-        // Use geometry strategy directly; domain_index may be unset in tests
-        if (geometries_[i]->contains(pos)) {
-            return static_cast<int>(i);
+    // Fallback to linear scan if index not applicable
+    auto linear_lookup = [&]() -> int {
+        for (size_t i = 0; i < domains_.size(); ++i) {
+            if (geometries_[i]->contains(pos)) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    };
+
+    if (has_orbitrap_ || spans_.empty()) {
+        return linear_lookup();
+    }
+
+    // Axial prefilter: find spans whose z-range contains pos.z
+    // spans_ sorted by z_min
+    auto it = std::lower_bound(spans_.begin(), spans_.end(), pos.z,
+                               [](const DomainSpan& span, double z) { return span.z_max < z; });
+    for (; it != spans_.end(); ++it) {
+        if (pos.z < it->z_min) {
+            break;  // no further matches
+        }
+        // Optional radial check before full geometry
+        if ((pos.x * pos.x + pos.y * pos.y) > it->radius * it->radius) {
+            continue;
+        }
+        int idx = it->idx;
+        if (idx >= 0 && idx < static_cast<int>(geometries_.size()) && geometries_[idx]->contains(pos)) {
+            return idx;
         }
     }
-    return -1;
+
+    // Fallback if not found via spans
+    return linear_lookup();
+
+    // Original linear scan (kept for reference)
+    // for (size_t i = 0; i < domains_.size(); ++i) {
+    //     if (geometries_[i]->contains(pos)) {
+    //         return static_cast<int>(i);
+    //     }
+    // }
+    // return -1;
 }
 
 const config::DomainConfig& DomainManager::get_domain(int idx) const {

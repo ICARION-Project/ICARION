@@ -18,9 +18,8 @@ e = 1.602176634e-19  # C - elementary charge
 # Mason-Schamp parameters
 K0_H3Op_He = 24.1e-4  # m²/(V·s) - H3O+ in He reduced mobility (from species_database_v1.json)
 M_H3Op = 19.02 * amu  # kg - H3O+ mass
-M_Hep = 4.003 * amu # kg - He mass
+M_Hep = 4.003 * amu  # kg - He mass
 LOSCHMIDT = 2.6867774e25  # m^-3 - number density at STP
-P0 = 101325.0  # Pa
 T0 = 273.15  # K
 
 def analyze_drift(h5_file):
@@ -65,15 +64,13 @@ def analyze_drift(h5_file):
     # Calculate E/N in Townsend units
     E_N_Td = (E_Vm / N_m3) * 1e21  # 1 Td = 1e-21 V·m²
     
-    # Calculate effective temperature T_eff = T + M/(3*kB) * (K0 * E * N0/N)^2
+    # Effective temperature correction (matches future damping force scaling)
     N_ratio = LOSCHMIDT / N_m3
-    v_drift_field = K0_H3Op_He * E_Vm * N_ratio  # drift velocity at low field
+    v_drift_field = K0_H3Op_He * E_Vm * N_ratio
     T_heating = (M_Hep / (3 * kB)) * v_drift_field**2
     T_eff = T_K + T_heating
-    
-    # Mason-Schamp with effective temperature correction
-    # K(T_eff) = K0 * (T0/T_eff)^(1/2) * (P/P0)
-    # v = K(T_eff) * E * (N0/N)
+
+    # Mason-Schamp with effective-temperature-adjusted mobility
     K_eff = K0_H3Op_He * np.sqrt(T0 / T_eff)
     v_expected = K_eff * E_Vm * N_ratio
     

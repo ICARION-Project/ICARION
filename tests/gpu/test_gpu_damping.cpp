@@ -2,6 +2,7 @@
 // Copyright (c) 2025 ICARION
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <cmath>
 #include <vector>
 #include "core/gpu/core/GPUContext.h"
@@ -15,6 +16,7 @@ using icarion::gpu::ion_state_conversion::upload_ions;
 using icarion::gpu::ion_state_conversion::download_ions;
 using icarion::gpu::launch_damping_kernel;
 using ICARION::core::IonState;
+using Catch::Approx;
 
 TEST_CASE("GPU damping kernel matches analytic solution", "[gpu][damping]") {
     auto ctx = GPUContext::create(0);

@@ -163,6 +163,13 @@ void SimulationEngine::initialize(const core::IonEnsemble& ensemble) {
             break;
         }
     }
+
+    // Warn about environment cache approximation for collisions/reactions
+    if (config_.domains.size() > 1 &&
+        config_.physics.collision_model != config::CollisionModel::NoCollisions) {
+        output_manager_->log_progress(
+            "Warning: Collisions/reactions use pre-step environment; mid-step boundary crossings do not refresh gas properties (approximate SSOT). Use small dt across sharp domain changes.");
+    }
 }
 
 void SimulationEngine::initialize_openmp_settings() {

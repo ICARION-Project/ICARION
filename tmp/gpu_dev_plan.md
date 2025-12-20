@@ -17,11 +17,12 @@ Goals
 - Persist device field uploads across domain switches; cache by (provider ptr, domain id).
 - Unify integrator dispatch: no duplicate selection logic in GPUIntegrationStrategy; reuse SimulationEngine integrator choice.
 
-4) Feature enablement sequence (target v1.0)
-- Multi-domain E/B: support multiple electric field forces with domain offsets; optional static B-field via provider.
-- Damping on GPU: port friction kernel with Teff scaling; share CCS lookup path with CPU.
-- Space charge on GPU: either GPU P³M or CPU SC + GPU E/B hybrid; must be stage-synchronous (RK4 first).
-- Boundary actions on GPU: wire absorption/cylindrical helper into timestep.
+4) Feature enablement sequence (target v1.0) with concrete deliverables
+- Multi-domain E/B: accept multiple ElectricFieldForces and domain offsets; extend GPUIntegrationHelper to take per-ion domain offsets. Tests: CPU vs GPU drift for 2-domain E-only.
+- Damping on GPU: implement friction kernel (Teff scaling) on device; share CCS lookup (device table) with CPU data; add kernel path in GPUIntegrationHelper. Tests: heating curve vs CPU, mobility match within tolerance.
+- Space charge on GPU: Phase 1 hybrid (CPU SC field compute per stage, GPU integrates E+B+D with injected SC field arrays); Phase 2 GPU P³M kernel. Tests: single-cell SC force vs CPU, stage-synchronous drift with SC.
+- Magnetic: allow static B provider (no map uploads) in GPU helper; reject maps until upload path exists. Tests: cyclotron freq vs CPU.
+- Boundary actions: wire absorption/cylindrical helper into GPU timestep; fall back to CPU for others.
 
 5) Performance & validation
 - Benchmark CPU vs GPU across ion counts; measure PCIe overhead with/without cached fields.

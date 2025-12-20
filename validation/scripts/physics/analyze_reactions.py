@@ -12,7 +12,13 @@ from typing import Dict, Iterable, List, Tuple
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
 
+# Shared HDF5 helpers (species IDs)
+COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids  # noqa: E402
 K_B = 1.380649e-23  # Boltzmann constant [J/K]
 E_CHARGE = 1.602176634e-19  # Elementary charge [C]
 FIT_MIN_FRACTION = 0.02  # ignore tail frames with <2% of ions to reduce noise
@@ -33,17 +39,14 @@ def load_species_counts(h5_path: Path):
 
     with h5py.File(h5_path, "r") as handle:
         times = handle["trajectory/time"][:]
-        raw = handle["trajectory/species_ids"][:]
+        raw = load_species_ids(handle)
         if raw.ndim == 1:
             raw = raw[None, :]
         frames: List[Counter] = []
         for frame in raw:
             names = []
             for value in frame:
-                if isinstance(value, bytes):
-                    names.append(value.decode().strip())
-                else:
-                    names.append(str(value).strip())
+                names.append(str(value).strip())
             counts = Counter(names)
             counts.pop("", None)  # remove inactive slots
             frames.append(counts)

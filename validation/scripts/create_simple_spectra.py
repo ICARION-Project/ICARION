@@ -8,8 +8,15 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import sys
 from scipy.fft import fft, fftfreq
 from scipy.signal import find_peaks, windows
+
+# Shared HDF5 helpers (species IDs)
+COMMON_DIR = Path(__file__).resolve().parents[1] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids  # noqa: E402
 
 # Set style for publication-quality plots
 plt.style.use('default')
@@ -66,7 +73,9 @@ def create_simple_tof_spectrum():
             
             if file_info['use_multi']:
                 # Multi-species file: process each species separately
-                species_ids = f['trajectory/species_ids'][:]  # Shape: (time, particles)
+                species_ids = load_species_ids(f)  # Shape: (time, particles) or (particles,)
+                if species_ids.ndim == 1:
+                    species_ids = species_ids[np.newaxis, :]
                 
                 for i, (species_name, mass_da) in enumerate(zip(species_names, masses_da)):
                     # Find particles of this species

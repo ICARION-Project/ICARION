@@ -17,6 +17,13 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 import matplotlib.pyplot as plt
+import sys
+
+# Shared HDF5 helpers (species IDs)
+COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids  # noqa: E402
 
 # ============================================================================
 # CONFIGURATION
@@ -203,7 +210,9 @@ def analyze_thermalization(h5_file, mixture_name, T_expected, logf):
     with h5py.File(h5_file, 'r') as f:
         velocities = f['trajectory/velocities'][:]  # (n_frames, n_ions, 3)
         times = f['trajectory/time'][:]  # (n_frames,)
-        species_ids = f['trajectory/species_ids'][:]  # (n_frames, n_ions)
+        species_ids = load_species_ids(f)  # (n_frames, n_ions) or (n_ions,)
+        if species_ids.ndim == 1:
+            species_ids = species_ids[np.newaxis, :]
         
         n_frames, n_ions, _ = velocities.shape
         
@@ -212,7 +221,7 @@ def analyze_thermalization(h5_file, mixture_name, T_expected, logf):
         n_active = np.zeros(n_frames)
         
         for i in range(n_frames):
-            active_mask = np.array([s != b'' for s in species_ids[i, :]])
+            active_mask = np.array([s != '' for s in species_ids[i, :]])
             n_active[i] = np.sum(active_mask)
             
             if n_active[i] > 0:

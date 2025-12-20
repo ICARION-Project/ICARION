@@ -22,6 +22,13 @@ from pathlib import Path
 from datetime import datetime
 import matplotlib.pyplot as plt
 from scipy import stats
+import sys
+
+# Shared HDF5 helpers (species IDs)
+COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids  # noqa: E402
 
 # ============================================================================
 # CONFIGURATION
@@ -203,7 +210,9 @@ def analyze_drift_velocity(h5_file, mixture_name, logf):
     with h5py.File(h5_file, 'r') as f:
         positions = f['trajectory/positions'][:]  # (n_frames, n_ions, 3)
         times = f['trajectory/time'][:]  # (n_frames,)
-        species_ids = f['trajectory/species_ids'][:]  # (n_frames, n_ions) - species ID string or b'' if dead
+        species_ids = load_species_ids(f)  # (n_frames, n_ions) - string labels
+        if species_ids.ndim == 1:
+            species_ids = species_ids[np.newaxis, :]
         
         # Filter: only active ions (species_id != b'')
         n_frames, n_ions, _ = positions.shape

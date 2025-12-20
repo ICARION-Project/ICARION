@@ -10,6 +10,13 @@ import h5py
 import matplotlib.pyplot as plt
 from pathlib import Path
 import os
+import sys
+
+# Shared HDF5 helpers (species IDs)
+COMMON_DIR = Path(__file__).resolve().parents[1] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids  # noqa: E402
 
 # Set publication-quality plotting style
 plt.style.use('seaborn-v0_8-paper')
@@ -62,7 +69,9 @@ def create_corrected_tof_spectrum():
                     species_names = f['metadata/species/names'][:]
                     masses_kg = f['metadata/species/mass_kg'][:]
                     masses_da = masses_kg / 1.66054e-27
-                    species_ids = f['trajectory/species_ids'][:]
+                    species_ids = load_species_ids(f)
+                    if species_ids.ndim == 1:
+                        species_ids = species_ids[np.newaxis, :]
                     
                     print(f"Found {len(species_names)} species with masses: {masses_da}")
                     
@@ -261,7 +270,9 @@ def create_corrected_orbitrap_spectrum():
             species_names = f['metadata/species/names'][:]
             masses_kg = f['metadata/species/mass_kg'][:]
             masses_da = masses_kg / 1.66054e-27
-            species_ids = f['trajectory/species_ids'][:]
+            species_ids = load_species_ids(f)
+            if species_ids.ndim == 1:
+                species_ids = species_ids[np.newaxis, :]
             
             print(f"Found {len(species_names)} species: {[n.decode() if isinstance(n, bytes) else n for n in species_names]}")
             print(f"Masses: {masses_da}")

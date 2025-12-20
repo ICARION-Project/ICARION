@@ -20,6 +20,13 @@ import numpy as np
 from scipy.fft import fft, fftfreq
 from pathlib import Path
 import matplotlib.pyplot as plt
+import sys
+
+# Shared helpers (species IDs)
+COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids  # noqa: E402
 
 AXIS_INDICES = {'x': 0, 'y': 1, 'z': 2}
 DEFAULT_AXIAL_AXIS = 'z'
@@ -148,8 +155,10 @@ def analyze_trajectory(h5_path, config_path=None, axis_override=None):
         positions = f['trajectory/positions'][:]  # (n_steps, n_ions, 3)
         time = f['trajectory/time'][:]
         species_labels = None
-        if 'trajectory/species_ids' in f:
-            raw_labels = f['trajectory/species_ids'][0]
+        if 'trajectory/species_ids' in f or 'trajectory/species_id_indices' in f:
+            raw_labels = load_species_ids(f)
+            if raw_labels.ndim == 2:
+                raw_labels = raw_labels[0, :]
             species_labels = [_normalize_species_label(lbl) for lbl in raw_labels]
     if len(time) < 2:
         raise ValueError("Trajectory must contain at least two timesteps")

@@ -23,6 +23,13 @@ import h5py
 import numpy as np
 import sys
 from pathlib import Path
+import json
+
+# Shared HDF5 helpers (species IDs, embedded inputs)
+COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids, load_config_json, load_species_db_json  # noqa: E402
 
 
 def _decode_species_id(value):
@@ -66,10 +73,9 @@ def analyze_tof_trajectory(h5_path, config_path=None):
         if positions.ndim == 2:
             positions = positions[:, np.newaxis, :]
 
-        if 'ions/initial_species_id' in f:
-            raw_species = f['ions/initial_species_id'][:]
-        else:
-            raw_species = f['trajectory/species_ids'][0, :]
+        raw_species = load_species_ids(f)
+        if raw_species.ndim == 2:
+            raw_species = raw_species[0, :]
 
     ion_species = [_decode_species_id(s) for s in raw_species]
     if len(ion_species) != n_ions:
@@ -77,19 +83,33 @@ def analyze_tof_trajectory(h5_path, config_path=None):
 
     # Read config
     if config_path is None:
-        config_path = str(h5_path).replace('.h5', '.json').replace('results/v1.0_test/instruments/', 'configs/instruments/')
+        # Prefer embedded config if present
+        with h5py.File(h5_path, 'r') as f:
+            embedded_cfg = load_config_json(f)
+        if embedded_cfg:
+            config = embedded_cfg
+            config_path = None
+        else:
+            config_path = str(h5_path).replace('.h5', '.json').replace('results/v1.0_test/instruments/', 'configs/instruments/')
+    if config_path:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
 
-    import json
-    with open(config_path, 'r') as f:
-        config = json.load(f)
-
-    V_acc = config['domains'][0]['fields']['DC']['axial_V']
-    L_acc = config['domains'][0]['geometry']['acc_length_m']
-    L_total = config['domains'][0]['geometry']['length_m']
+    domain0 = config['domains'][0]
+    fields = domain0.get('fields', {})
+    dc = fields.get('DC') or fields.get('dc') or {}
+    V_acc = dc.get('axial_V')
+    L_acc = domain0.get('geometry', {}).get('acc_length_m')
+    L_total = domain0.get('geometry', {}).get('length_m')
 
     species_db = {}
-    if config.get('species_database_path'):
-        with open(config['species_database_path'], 'r') as f:
+    with h5py.File(h5_path, 'r') as f:
+        embedded_species_db = load_species_db_json(f)
+    if embedded_species_db:
+        species_db = embedded_species_db.get('species', {})
+    elif config.get('species_database_path') or config.get('species_database'):
+        db_path = config.get('species_database_path') or config.get('species_database')
+        with open(db_path, 'r') as f:
             raw_db = json.load(f)
         species_db = raw_db.get('species', {})
 

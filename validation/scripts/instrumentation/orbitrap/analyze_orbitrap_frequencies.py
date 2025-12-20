@@ -9,7 +9,14 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 from pathlib import Path
+import sys
 from scipy import signal
+
+# Shared helpers (species IDs)
+COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids  # noqa: E402
 
 # Data directory
 DATA_DIR = Path("../results/v1.0_test/instruments/orbitrap")
@@ -28,10 +35,12 @@ def measure_axial_frequency(h5_file, species_filter=None):
         # Read trajectory
         positions = f['/trajectory/positions'][:]  # [time, ions, xyz]
         time = f['/trajectory/time'][:]
-        species_ids = f['/trajectory/species_ids'][:]  # [time, ions]
+        species_ids = load_species_ids(f)  # [time, ions] or [ions]
+        if species_ids.ndim == 1:
+            species_ids = species_ids[np.newaxis, :]
         
         # Read species metadata
-        species_names = [s.decode() for s in f['/metadata/species/names'][:]]
+        species_names = [s.decode() if isinstance(s, (bytes, bytearray)) else str(s) for s in f['/metadata/species/names'][:]]
         
         # Get unique species in this file
         unique_species = np.unique(species_ids[0, :])  # Species from first timestep

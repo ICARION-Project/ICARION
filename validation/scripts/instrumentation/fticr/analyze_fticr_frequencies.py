@@ -12,8 +12,15 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import sys
 from scipy import fft
 from scipy.signal import find_peaks
+
+# Allow importing shared helpers (species IDs, embedded inputs)
+COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids  # noqa: E402
 
 # Constants
 Q_E = 1.602176634e-19  # Elementary charge
@@ -27,21 +34,52 @@ SPECIES_MASSES = {
     "ReserpineH+": 609.0,
 }
 
+_IRREGULAR_SAMPLING_WARNED = set()
+
+
+def _enforce_uniform_sampling(times, positions, trajectory_path):
+    """Detect irregular timestamps and decimate to a uniform grid for FFTs."""
+    if times.size < 3:
+        return times, positions
+
+    diffs = np.diff(times)
+    median_dt = np.median(diffs)
+    if median_dt <= 0:
+        return times, positions
+
+    jitter = np.median(np.abs(diffs - median_dt))
+    if jitter <= 0.05 * median_dt:
+        return times, positions
+
+    threshold = 0.5 * median_dt
+    keep = [0]
+    last_t = times[0]
+    for idx in range(1, len(times)):
+        if times[idx] - last_t >= threshold:
+            keep.append(idx)
+            last_t = times[idx]
+
+    if len(keep) < 3:
+        return times, positions
+
+    keep_idx = np.array(keep, dtype=int)
+    key = str(trajectory_path)
+    if key not in _IRREGULAR_SAMPLING_WARNED:
+        print(
+            f"    ⚠️  Detected irregular sampling in {Path(trajectory_path).name}: "
+            f"{len(times)} snapshots → {keep_idx.size}, median Δt={median_dt*1e9:.3f} ns"
+        )
+        _IRREGULAR_SAMPLING_WARNED.add(key)
+
+    return times[keep_idx], positions[keep_idx]
+
 def _load_species_labels(h5_file):
     """Return 1D array of species labels for each ion in the trajectory."""
-    if 'ions/initial_species_id' in h5_file:
-        raw = h5_file['ions/initial_species_id'][:]
-    elif '/trajectory/species_ids' in h5_file:
-        raw = h5_file['/trajectory/species_ids'][0, :]
-    else:
-        raise KeyError("No species identifiers found in trajectory file")
-
-    def _normalize(entry):
-        if isinstance(entry, (bytes, bytearray)):
-            return entry.decode()
-        return str(entry)
-
-    return np.array([_normalize(val) for val in raw])
+    species = load_species_ids(h5_file)
+    # Use the first time slice if 2D (time, ion)
+    if species.ndim == 2:
+        return species[0, :]
+    return species
 
 
 def measure_cyclotron_frequency(trajectory_file, species_id=None, expected_freq=None, search_window=0.3):
@@ -52,9 +90,10 @@ def measure_cyclotron_frequency(trajectory_file, species_id=None, expected_freq=
     Returns: (freq_Hz, radius_m, period_s)
     """
     with h5py.File(trajectory_file, 'r') as f:
-        # Read trajectory data
+        # Read trajectory data and enforce uniform sampling for FFT stability
         pos = f['/trajectory/positions'][:]  # [time, ions, xyz]
         times = f['/trajectory/time'][:]
+        times, pos = _enforce_uniform_sampling(times, pos, trajectory_file)
         
         # Get species IDs if multi-species
         multi_species = species_id is not None
@@ -69,7 +108,13 @@ def measure_cyclotron_frequency(trajectory_file, species_id=None, expected_freq=
         x = pos[:, :, 0]  # [time, ions]
         y = pos[:, :, 1]
 
-        dt = times[1] - times[0]
+        if times.size < 2:
+            raise ValueError("Trajectory file has fewer than two time samples")
+
+        diffs = np.diff(times)
+        if np.any(diffs <= 0):
+            raise ValueError("Trajectory time axis is not strictly increasing")
+        dt = np.median(diffs)
 
         if multi_species:
             # Use whichever axial projection carries the strongest signal to avoid

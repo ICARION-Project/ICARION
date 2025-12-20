@@ -12,6 +12,12 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
 
+# Shared HDF5 helpers (species IDs)
+COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
+if str(COMMON_DIR) not in sys.path:
+    sys.path.append(str(COMMON_DIR))
+from hdf5_utils import load_species_ids  # noqa: E402
+
 def analyze_mass_scan(h5_file):
     """Analyze mass scan trajectory to find ejection frequencies"""
     
@@ -48,9 +54,11 @@ def analyze_mass_scan(h5_file):
             })
         
         # Read ion metadata
-        species_names = [s.decode('utf-8') for s in f['ions/initial_species_id'][:]]
+        species_names = load_species_ids(f)
+        if species_names.ndim == 2:
+            species_names = species_names[0, :]
         species_masses = f['metadata/species/mass_kg'][:]
-        species_ids = [s.decode('utf-8') for s in f['metadata/species/names'][:]]
+        species_ids = [s.decode('utf-8') if isinstance(s, (bytes, bytearray)) else str(s) for s in f['metadata/species/names'][:]]
     
     # Group ions by species
     unique_species = {}

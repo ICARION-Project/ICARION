@@ -10,7 +10,7 @@ using ICARION::integrator::DomainManager;
 using ICARION::config::DomainConfig;
 using ICARION::config::Instrument;
 using ICARION::config::BoundaryActionType;
-using ICARION::Vec3;
+using ICARION::core::Vec3;
 
 namespace {
 

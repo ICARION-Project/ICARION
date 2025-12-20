@@ -28,7 +28,7 @@
 - ✅ SoA layouts and batch hooks exist, offering a path to vectorization once blockers are fixed.
 
 **I/O & Reproducibility**
-- ❌ SSOT is claimed but environment is cached in `IonEnsemble` and manually updated (`SimulationEngine.cpp:475-483`); missed updates desync from config.
+- ⚠ Environment cache in `IonEnsemble` is now refreshed from domain config each step and on domain switch, but SSOT still relies on manual updates; mid-step domain changes for collisions/reactions remain approximate.
 - ✅ HDF5 embeds species/reaction DBs and field arrays as blobs (plus hashes) alongside config/per-ion times; external inputs are preserved for reruns (file size cost).
 - ✅ Species IDs now stored as indices in trajectory output; flattened buffers avoid per-step varlen strings (performance win).
 - ✅ Metadata records git hash, build info, RNG scheme, config JSON embedding (`hdf5Writer.cpp:60-210`).

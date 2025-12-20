@@ -452,6 +452,20 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
         dt_per_ion_.assign(n_ions, config_.simulation.dt_s);
     }
 
+    // Refresh environment cache from SSOT domains (prevents drift)
+    {
+        const auto* temp = ensemble.temperature_data();
+        (void)temp;  // suppress unused in release
+        for (size_t i = 0; i < n_ions; ++i) {
+            int dom = ensemble.domain_index(i);
+            if (dom < 0 || static_cast<size_t>(dom) >= config_.domains.size()) continue;
+            const auto& env = config_.domains[static_cast<size_t>(dom)].environment;
+            ensemble.temperature_data()[i] = env.temperature_K;
+            ensemble.gas_density_data()[i] = env.particle_density_m_3;
+            ensemble.neutral_mass_data()[i] = env.gas_mass_kg;
+        }
+    }
+
     bool has_space_charge = false;
     for (const auto& reg : force_registries_) {
         if (reg && reg->space_charge_model()) {

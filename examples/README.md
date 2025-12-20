@@ -8,7 +8,7 @@ Example configurations demonstrating mass spectrometry instruments and simulatio
 ./build/src/icarion_main examples/<folder>/<config>.json
 ```
 
-Results written to `results/`. GPU-accelerated when `enable_gpu: true` and N ≥ 5000 ions (Boris threshold ~2500).
+Results written to `results/`. GPU flag is ignored in v1.0 (runtime GPU path disabled; CPU-only).
 
 ## Instrument Examples
 
@@ -46,7 +46,7 @@ Basic structure (see `schema/` for full specification):
   "simulation": {
     "total_time_s": 1e-4,
     "dt_s": 1e-9,
-    "enable_gpu": true,
+    "enable_gpu": false,
     "integrator": "RK4"
   },
   "physics": {

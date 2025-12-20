@@ -57,10 +57,11 @@ def analyze_lqit_stability(h5_file):
     z = positions[:, :, 2]
     r = np.sqrt(x**2 + y**2)
     
-    # Check confinement (ions inside trap)
-    # Trap extends from origin_m[2] to origin_m[2] + length_m
-    z_min_trap = origin_m[2]
-    z_max_trap = origin_m[2] + length_m
+    # Check confinement; origin defines one end of the trap, not the midpoint
+    z_start = origin_m[2]
+    z_end = z_start + length_m
+    z_min_trap = min(z_start, z_end)
+    z_max_trap = max(z_start, z_end)
     
     r_max = r.max(axis=0)  # Max radius for each ion
     z_min = z.min(axis=0)  # Min z for each ion

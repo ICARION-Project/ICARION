@@ -55,13 +55,11 @@ def analyze_single_file(h5_file):
     # Calculate E/N in Td
     E_N_Td = (E_Vm / N_m3) * 1e21
     
-    # Calculate T_eff with He mass
+    # Mason-Schamp with effective-temperature scaling
     N_ratio = LOSCHMIDT / N_m3
     v_drift_field = K0_H3Op_He * E_Vm * N_ratio
     T_heating = (M_He / (3 * kB)) * v_drift_field**2
     T_eff = T_K + T_heating
-    
-    # Mason-Schamp with T_eff correction
     K_eff = K0_H3Op_He * (T0 / T_eff)**0.5
     v_expected = K_eff * E_Vm * N_ratio
     
@@ -178,7 +176,7 @@ def main(results_dir):
     print("Analysis Complete")
     print("="*80)
     print("\nNote: ✅ = error < 10%, ⚠️ = error >= 10%")
-    print(f"All results use T_eff correction with He mass")
+    print("All results use T_eff correction with He mass")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

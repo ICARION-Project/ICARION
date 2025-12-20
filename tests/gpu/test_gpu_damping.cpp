@@ -15,6 +15,7 @@ using icarion::gpu::ion_state_conversion::upload_ions;
 using icarion::gpu::ion_state_conversion::download_ions;
 using icarion::gpu::launch_damping_kernel;
 using ICARION::core::IonState;
+using Catch::Approx;
 
 TEST_CASE("GPU damping kernel matches analytic solution", "[gpu][damping]") {
     auto ctx = GPUContext::create(0);

@@ -16,6 +16,7 @@
 - GPU boundary helper (absorption/cylindrical) not wired into timestep loop
 - EHSS mobility overestimates drift speed (~23% in simple H3O+/N2 test); thermalization is correct
 - Full JSON config is written as a snapshot file next to output; HDF5 still stores selected fields only
+- Space charge is not supported with adaptive RK45 (use fixed-step RK4 if SC is enabled; the engine rejects SC+RK45).
 
 **Breaking/Behavior Notes**
 - Domain configs use `environment`, `geometry.origin_m`, and lowercase field keys (`dc`, `rf`, `ac`)

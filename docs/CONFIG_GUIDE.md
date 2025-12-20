@@ -894,6 +894,8 @@ This section provides a quick reference for all configuration sections. For comp
 
 See `schema/simulation.schema.json` for all options.
 
+**Integrator caveat:** Space charge is **not supported** with adaptive RK45. Use fixed-step RK4 (or disable space charge) if SC is enabled; otherwise the engine will refuse to run.
+
 ### Physics Section
 
 **Required:** `collision_model`

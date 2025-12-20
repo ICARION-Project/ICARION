@@ -102,3 +102,10 @@ target_link_libraries(test_domain_manager_lookup PRIVATE icarion_core Catch2::Ca
 target_include_directories(test_domain_manager_lookup PRIVATE ${PROJECT_SOURCE_DIR}/src)
 add_test(NAME test_domain_manager_lookup COMMAND test_domain_manager_lookup)
 set_tests_properties(test_domain_manager_lookup PROPERTIES LABELS "unit;domain" TIMEOUT 30)
+
+# Domain lookup benchmark (not run by default)
+add_executable(benchmark_domain_lookup benchmark_domain_lookup.cpp)
+target_link_libraries(benchmark_domain_lookup PRIVATE icarion_core Catch2::Catch2WithMain)
+target_include_directories(benchmark_domain_lookup PRIVATE ${PROJECT_SOURCE_DIR}/src)
+add_test(NAME benchmark_domain_lookup COMMAND benchmark_domain_lookup "[benchmark][domain]")
+set_tests_properties(benchmark_domain_lookup PROPERTIES LABELS "benchmark;domain" TIMEOUT 60)

@@ -1279,6 +1279,10 @@ Use the global `simulation.integrator` as default, but override for specific dom
 "physics": { "collision_model": "EHSS" }
 ```
 
+### Environment cache and boundaries
+
+- Collisions/reactions use the gas environment cached at the start of the macro-timestep (and after explicit domain switches). Mid-step boundary crossings are applied only after integration, so stochastic rates during that step still use the pre-step environment. Keep `timestep` small across sharp pressure/temperature jumps or accept this approximation.
+
 ---
 
 ## Troubleshooting

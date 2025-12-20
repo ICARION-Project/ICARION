@@ -24,6 +24,22 @@ Goals
 - Magnetic: allow static B provider (no map uploads) in GPU helper; reject maps until upload path exists. Tests: cyclotron freq vs CPU.
 - Boundary actions: wire absorption/cylindrical helper into GPU timestep; fall back to CPU for others.
 
+4a) Kernel/interface sketch (Damping)
+- Inputs per ion: pos (x,y,z), vel (vx,vy,vz), mass, charge, CCS lookup (per-species table or per-ion CCS), Teff flag, gas params (T, density, gas mass), dt.
+- Force: F_damp = - (m / tau) * v with tau from mobility/CCS; scale mobility by sqrt(T0/Teff) with Teff = T + m_gas/(3*kB)*|v_drift|^2 (reuse CPU formula).
+- Output: updated velocities (and optionally positions if fused with E/B), optional energy stats.
+- Integration: either fuse into existing RK4/RK45 kernels (E + D) or run a separate damping step per stage.
+
+4b) Kernel/interface sketch (Hybrid space charge)
+- CPU computes SC field grids stage-synchronously. GPU ingests SC grid (Ex,Ey,Ez) as extra provider and sums E_total = E_field + E_SC.
+- GPUIntegrationHelper: add hooks to upload SC grids, cache uploads keyed by pointer/hash to avoid re-upload if unchanged.
+- Tests: single-particle SC force vs CPU; stage-synchronous drift with SC matches CPU tolerance.
+
+4c) Data/memory considerations
+- Device species table: mass, charge, CCS_HSS/EHSS per gas; gas properties per domain.
+- Align SoA buffers for coalesced access; reuse ion_state buffers for v/p.
+- Per-stage SC uploads are heavy: prefer pinned host buffers and reuse device allocations.
+
 5) Performance & validation
 - Benchmark CPU vs GPU across ion counts; measure PCIe overhead with/without cached fields.
 - Add GPU unit/acceptance tests: E-only drift, damping heating, simple SC force spot-check (if implemented).

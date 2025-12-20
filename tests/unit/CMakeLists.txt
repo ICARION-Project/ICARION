@@ -95,3 +95,10 @@ set_tests_properties(benchmark_openmp_soa PROPERTIES
     LABELS "benchmark;soa;openmp;performance"
     TIMEOUT 180
 )
+
+# Domain lookup test
+add_executable(test_domain_manager_lookup test_domain_manager_lookup.cpp)
+target_link_libraries(test_domain_manager_lookup PRIVATE icarion_core Catch2::Catch2WithMain)
+target_include_directories(test_domain_manager_lookup PRIVATE ${PROJECT_SOURCE_DIR}/src)
+add_test(NAME test_domain_manager_lookup COMMAND test_domain_manager_lookup)
+set_tests_properties(test_domain_manager_lookup PROPERTIES LABELS "unit;domain" TIMEOUT 30)

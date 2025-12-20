@@ -40,7 +40,7 @@ DomainManager::DomainManager(
         } else {
             geometries_.push_back(std::make_unique<config::CylindricalGeometry>(domain));
             // Precompute axial span for cylindrical domains
-            double z0 = domain.geometry.origin_m[2];
+            double z0 = domain.geometry.origin_m.z;
             double z1 = z0 + domain.geometry.length_m;
             spans_.push_back(DomainSpan{
                 std::min(z0, z1) - DOMAIN_BOUNDARY_EPSILON,

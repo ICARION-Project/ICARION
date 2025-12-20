@@ -10,6 +10,7 @@
 #include "core/types/IonEnsemble.h"
 #include "core/integrator/strategies/RK45Strategy.h"
 #include "core/integrator/strategies/RK4Strategy.h"
+#include "core/integrator/strategies/GPUIntegrationStrategy.h"
 #include <algorithm>
 #include <vector>
 #include <iostream>
@@ -219,9 +220,6 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
 
     output_manager_->log_progress("GPU: Experimental path (E/B-only). Space-charge, damping, magnetic forces, and multi-domain batches are NOT supported; falling back to CPU in those cases.");
     bool friction_damping_present = false;
-    bool hs_damping_present = false;
-    double friction_nu_const = 0.0;
-    double hs_nu_const = 0.0;
 
     // Validate force setup: only a single ElectricFieldForce per domain, no space charge
     auto gpu_forces_supported = [&]() -> bool {
@@ -235,8 +233,6 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
                     const auto name = f->name();
                     if (name.find("Friction") != std::string::npos) {
                         friction_damping_present = true;
-                    } else if (name.find("HardSphere") != std::string::npos) {
-                        hs_damping_present = true;
                     }
                 }
             }
@@ -318,60 +314,7 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         // This avoids coupling to SpaceChargeConfig which may not exist yet.
         // Full integration with DomainConfig.space_charge pending.
 
-        // Optional: map Friction damping to GPU constant nu (best-effort, single species)
-        if (friction_damping_present && integrator_) {
-            double nu_const = 0.0;
-            if (!config_.ions.species.empty()) {
-                const auto& sp = config_.ions.species.front();
-                const double q = sp.charge_C;
-                const double m = sp.mass_kg > 0.0 ? sp.mass_kg : sp.mass_Da * AMU;
-                const double K0_cm2_Vs = sp.reduced_mobility_cm2_Vs;
-                if (q != 0.0 && m > 0.0 && K0_cm2_Vs > 0.0) {
-                    nu_const = q / (K0_cm2_Vs * 1e-4 * m);
-                }
-            }
-            auto* gpu_strategy = dynamic_cast<GPUIntegrationStrategy*>(integrator_.get());
-            if (gpu_strategy && nu_const > 0.0) {
-                gpu_strategy->set_gpu_damping_constant(nu_const);
-                output_manager_->log_progress("GPU: Friction damping mapped to GPU constant nu");
-            }
-        }
-
-        // Optional: map HardSphere damping to GPU constant nu (assumes single gas/species)
-        if (hs_damping_present && integrator_) {
-            double nu_hs = 0.0;
-            if (!config_.ions.species.empty() && !config_.domains.empty()) {
-                const auto& sp = config_.ions.species.front();
-                const auto& env = config_.domains.front().environment;
-                const double m_ion = sp.mass_kg > 0.0 ? sp.mass_kg : sp.mass_Da * AMU;
-                const double m_neutral = env.gas_mass_kg;
-                const double gas_density = env.particle_density_m_3;
-                double sigma = sp.ccs_m2 > 0.0 ? sp.ccs_m2 : sp.cross_section_m2;
-                if (!env.gas_mixture.empty()) {
-                    double weighted_sigma = 0.0;
-                    double frac_sum = 0.0;
-                    for (const auto& comp : env.gas_mixture) {
-                        double s = comp.cross_section_m2 > 0.0 ? comp.cross_section_m2 : sigma;
-                        weighted_sigma += comp.mole_fraction * s;
-                        frac_sum += comp.mole_fraction;
-                    }
-                    if (frac_sum > 0.0) {
-                        sigma = weighted_sigma / frac_sum;
-                    }
-                }
-                if (m_ion > 0.0 && m_neutral > 0.0 && gas_density > 0.0 && sigma > 0.0) {
-                    const double kB = 1.380649e-23;
-                    double mu = (m_ion * m_neutral) / (m_ion + m_neutral);
-                    double v_rel = std::sqrt(8.0 * kB * env.temperature_K / (M_PI * mu));
-                    nu_hs = gas_density * sigma * v_rel * m_neutral / (m_neutral + m_ion);
-                }
-            }
-            auto* gpu_strategy = dynamic_cast<GPUIntegrationStrategy*>(integrator_.get());
-            if (gpu_strategy && nu_hs > 0.0) {
-                gpu_strategy->set_gpu_damping_constant(nu_hs);
-                output_manager_->log_progress("GPU: HardSphere damping mapped to GPU constant nu");
-            }
-        }
+        (void)friction_damping_present; // GPU runtime disabled
     }
     catch (const std::exception& e) {
         output_manager_->log_progress(std::string("GPU: Initialization failed: ") + e.what());

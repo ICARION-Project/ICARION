@@ -207,6 +207,8 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
     }
 
     output_manager_->log_progress("GPU: Experimental path (E/B-only). Space-charge, damping, magnetic forces, and multi-domain batches are NOT supported; falling back to CPU in those cases.");
+    bool friction_damping_present = false;
+    double friction_nu_const = 0.0;
 
     // Validate force setup: only a single ElectricFieldForce per domain, no space charge
     auto gpu_forces_supported = [&]() -> bool {
@@ -215,6 +217,11 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
             if (!reg) continue;
             if (reg->space_charge_model()) return false;
             const auto& forces = reg->forces();
+            for (const auto& f : forces) {
+                if (dynamic_cast<physics::DampingForce*>(f.get())) {
+                    friction_damping_present = true;  // only mapped for Friction model
+                }
+            }
             if (forces.size() != 1) return false;
             if (forces.front()->name().find("ElectricField") != 0) return false;
         }
@@ -292,6 +299,25 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         // via lazy initialization in try_gpu_space_charge().
         // This avoids coupling to SpaceChargeConfig which may not exist yet.
         // Full integration with DomainConfig.space_charge pending.
+
+        // Optional: map Friction damping to GPU constant nu (best-effort, single species)
+        if (friction_damping_present && integrator_) {
+            double nu_const = 0.0;
+            if (!config_.ions.species.empty()) {
+                const auto& sp = config_.ions.species.front();
+                const double q = sp.charge_C;
+                const double m = sp.mass_kg > 0.0 ? sp.mass_kg : sp.mass_Da * AMU;
+                const double K0_cm2_Vs = sp.reduced_mobility_cm2_Vs;
+                if (q != 0.0 && m > 0.0 && K0_cm2_Vs > 0.0) {
+                    nu_const = q / (K0_cm2_Vs * 1e-4 * m);
+                }
+            }
+            auto* gpu_strategy = dynamic_cast<GPUIntegrationStrategy*>(integrator_.get());
+            if (gpu_strategy && nu_const > 0.0) {
+                gpu_strategy->set_gpu_damping_constant(nu_const);
+                output_manager_->log_progress("GPU: Friction damping mapped to GPU constant nu");
+            }
+        }
     }
     catch (const std::exception& e) {
         output_manager_->log_progress(std::string("GPU: Initialization failed: ") + e.what());

@@ -36,6 +36,7 @@ void GPUIntegrationStrategy::set_gpu_damping_constant(double nu_const) {
 #ifdef ICARION_USE_GPU
     if (gpu_helper_) {
         gpu_helper_->set_damping_constant(nu_const);
+        gpu_damping_enabled_ = true;
     }
 #else
     (void)nu_const;
@@ -46,6 +47,7 @@ void GPUIntegrationStrategy::set_gpu_damping_per_ion(const std::vector<float>& n
 #ifdef ICARION_USE_GPU
     if (gpu_helper_) {
         gpu_helper_->set_damping_per_ion(nu_per_ion);
+        gpu_damping_enabled_ = true;
     }
 #else
     (void)nu_per_ion;
@@ -180,7 +182,7 @@ bool GPUIntegrationStrategy::step_batch(
         log_gpu_reject("space-charge present");
         return run_cpu_fallback(ensemble, t, dt, registries, domain_indices);
     }
-    if (has_damping) {
+    if (has_damping && !gpu_damping_enabled_) {
         log_gpu_reject("damping force present");
         return run_cpu_fallback(ensemble, t, dt, registries, domain_indices);
     }

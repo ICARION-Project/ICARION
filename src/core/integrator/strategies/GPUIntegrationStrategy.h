@@ -63,6 +63,7 @@ private:
     bool warned_multiple_domains_ = false;
     bool warned_force_mix_ = false;
     bool warned_experimental_ = false;
+    bool gpu_damping_enabled_ = false;
 #ifdef ICARION_USE_GPU
     std::shared_ptr<icarion::gpu::GPUContext> gpu_context_;
     std::shared_ptr<icarion::gpu::GPUIntegrationHelper> gpu_helper_;

@@ -4,11 +4,12 @@
 #include <catch2/catch_test_macros.hpp>
 #include "core/integrator/DomainManager.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/types/Vec3.h"
 
 using ICARION::integrator::DomainManager;
 using ICARION::config::DomainConfig;
 using ICARION::config::Instrument;
-using ICARION::boundary::BoundaryType;
+using ICARION::config::BoundaryActionType;
 using ICARION::Vec3;
 
 namespace {
@@ -20,7 +21,7 @@ DomainConfig make_cylinder(const std::string& name, double z0, double length, do
     d.geometry.origin_m = {0.0, 0.0, z0};
     d.geometry.length_m = length;
     d.geometry.radius_m = radius;
-    d.boundary.type = BoundaryType::Absorb;
+    d.boundary.type = BoundaryActionType::Absorption;
     d.finalize();
     return d;
 }

@@ -189,6 +189,15 @@ private:
     std::vector<std::unique_ptr<config::IFieldModel>> field_models_; ///< Field models per domain (analytical fallback)
     std::vector<std::unique_ptr<config::IDomainGeometry>> geometries_; ///< Geometry strategy per domain
     std::mt19937 rng_;  ///< Random number generator for boundary actions
+
+    struct DomainSpan {
+        double z_min;
+        double z_max;
+        double radius;
+        int idx;
+    };
+    std::vector<DomainSpan> spans_;  ///< Sorted by z_min for fast axial prefilter (cylindrical domains only)
+    bool has_orbitrap_ = false;      ///< If any domain is orbitrap -> fallback to linear scan
     
 };
 

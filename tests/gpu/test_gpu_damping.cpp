@@ -2,6 +2,7 @@
 // Copyright (c) 2025 ICARION
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <cmath>
 #include <vector>
 #include "core/gpu/core/GPUContext.h"

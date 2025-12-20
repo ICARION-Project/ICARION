@@ -10,6 +10,7 @@
 #include "core/types/IonEnsemble.h"
 #include "core/integrator/strategies/RK45Strategy.h"
 #include "core/integrator/strategies/RK4Strategy.h"
+#include "core/integrator/rk45_coefficients.h"
 #include "core/integrator/strategies/GPUIntegrationStrategy.h"
 #include <algorithm>
 #include <vector>
@@ -900,50 +901,53 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
             };
 
             // Dormand-Prince coefficients (from RK45Strategy)
-            constexpr double c2 = 1.0 / 5.0;
-            constexpr double c3 = 3.0 / 10.0;
-            constexpr double c4 = 4.0 / 5.0;
-            constexpr double c5 = 8.0 / 9.0;
-            constexpr double c6 = 1.0;
-            constexpr double c7 = 1.0;
+            using Coef = rk45::Coefficients;
+            constexpr double c2 = Coef::c2;
+            constexpr double c3 = Coef::c3;
+            constexpr double c4 = Coef::c4;
+            constexpr double c5 = Coef::c5;
+            constexpr double c6 = Coef::c6;
+            constexpr double c7 = Coef::c7;
 
-            constexpr double a21 = 1.0 / 5.0;
-            constexpr double a31 = 3.0 / 40.0;
-            constexpr double a32 = 9.0 / 40.0;
-            constexpr double a41 = 44.0 / 45.0;
-            constexpr double a42 = -56.0 / 15.0;
-            constexpr double a43 = 32.0 / 9.0;
-            constexpr double a51 = 19372.0 / 6561.0;
-            constexpr double a52 = -25360.0 / 2187.0;
-            constexpr double a53 = 64448.0 / 6561.0;
-            constexpr double a54 = -212.0 / 729.0;
-            constexpr double a61 = 9017.0 / 3168.0;
-            constexpr double a62 = -355.0 / 33.0;
-            constexpr double a63 = 46732.0 / 5247.0;
-            constexpr double a64 = 49.0 / 176.0;
-            constexpr double a65 = -5103.0 / 18656.0;
-            constexpr double a71 = 35.0 / 384.0;
-            constexpr double a72 = 0.0;
-            constexpr double a73 = 500.0 / 1113.0;
-            constexpr double a74 = 125.0 / 192.0;
-            constexpr double a75 = -2187.0 / 6784.0;
-            constexpr double a76 = 11.0 / 84.0;
+            constexpr double a21 = Coef::a21;
+            constexpr double a31 = Coef::a31;
+            constexpr double a32 = Coef::a32;
+            constexpr double a41 = Coef::a41;
+            constexpr double a42 = Coef::a42;
+            constexpr double a43 = Coef::a43;
+            constexpr double a51 = Coef::a51;
+            constexpr double a52 = Coef::a52;
+            constexpr double a53 = Coef::a53;
+            constexpr double a54 = Coef::a54;
+            constexpr double a61 = Coef::a61;
+            constexpr double a62 = Coef::a62;
+            constexpr double a63 = Coef::a63;
+            constexpr double a64 = Coef::a64;
+            constexpr double a65 = Coef::a65;
+            constexpr double a71 = Coef::a71;
+            constexpr double a72 = Coef::a72;
+            constexpr double a73 = Coef::a73;
+            constexpr double a74 = Coef::a74;
+            constexpr double a75 = Coef::a75;
+            constexpr double a76 = Coef::a76;
 
-            constexpr double b41 = 35.0 / 384.0;
-            constexpr double b42 = 0.0;
-            constexpr double b43 = 500.0 / 1113.0;
-            constexpr double b44 = 125.0 / 192.0;
-            constexpr double b45 = -2187.0 / 6784.0;
-            constexpr double b46 = 11.0 / 84.0;
-            constexpr double b47 = 0.0;
+            // b5 weights (5th order) for positions/velocities
+            constexpr double b41 = Coef::b5_1;
+            constexpr double b42 = Coef::b5_2;
+            constexpr double b43 = Coef::b5_3;
+            constexpr double b44 = Coef::b5_4;
+            constexpr double b45 = Coef::b5_5;
+            constexpr double b46 = Coef::b5_6;
+            constexpr double b47 = Coef::b5_7;
 
-            constexpr double b51 = 5179.0 / 57600.0;
-            constexpr double b52 = 0.0;
-            constexpr double b53 = 7571.0 / 16695.0;
-            constexpr double b54 = 393.0 / 640.0;
-            constexpr double b55 = -92097.0 / 339200.0;
-            constexpr double b56 = 187.0 / 2100.0;
-            constexpr double b57 = 1.0 / 40.0;
+            // b4 weights (4th order) used for error estimate
+            constexpr double b51 = Coef::b4_1;
+            constexpr double b52 = Coef::b4_2;
+            constexpr double b53 = Coef::b4_3;
+            constexpr double b54 = Coef::b4_4;
+            constexpr double b55 = Coef::b4_5;
+            constexpr double b56 = Coef::b4_6;
+            constexpr double b57 = Coef::b4_7;
 
             // k1
             for (size_t i = 0; i < n; ++i) {

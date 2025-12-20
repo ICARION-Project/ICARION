@@ -30,6 +30,7 @@
 **I/O & Reproducibility**
 - ⚠ Environment cache in `IonEnsemble` is now refreshed from domain config each step and on domain switch and documented as a macro-step approximation (CONFIG_GUIDE.md); mid-step domain changes for collisions/reactions remain approximate.
 - ✅ HDF5 embeds config JSON plus species/reaction DBs and field arrays as blobs (plus hashes); external inputs are preserved for reruns (file size cost).
+- ✅ Validation/analysis scripts now consume embedded inputs and new `species_id_indices` (schema-safe helpers added); legacy `species_ids` assumptions pruned.
 - ✅ Species IDs now stored as indices in trajectory output; flattened buffers avoid per-step varlen strings (performance win).
 - ✅ Metadata records git hash, build info, RNG scheme, config JSON embedding (`hdf5Writer.cpp:60-210`).
 

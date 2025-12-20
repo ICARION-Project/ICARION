@@ -6,6 +6,8 @@
 #include "IIntegrationStrategy.h"
 #include "core/log/Logger.h"
 #include "core/physics/forces/ElectricFieldForce.h"
+#include "core/physics/forces/DampingForce.h"
+#include "core/physics/forces/MagneticFieldForce.h"
 #include <memory>
 
 #ifdef ICARION_USE_GPU
@@ -54,6 +56,7 @@ private:
     bool adaptive_ = false;
     bool warned_multiple_domains_ = false;
     bool warned_force_mix_ = false;
+    bool warned_experimental_ = false;
 #ifdef ICARION_USE_GPU
     std::shared_ptr<icarion::gpu::GPUContext> gpu_context_;
     std::shared_ptr<icarion::gpu::GPUIntegrationHelper> gpu_helper_;

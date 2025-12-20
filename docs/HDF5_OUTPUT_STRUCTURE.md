@@ -140,6 +140,22 @@ Information required to reproduce the simulation exactly.
 
 ---
 
+**Subgroup:** `/metadata/reproducibility/input_blobs/`
+
+Embedded copies of external inputs (for reruns without external files).
+
+| Name | Type | Description |
+|------|------|-------------|
+| `config_json` | string | Full config JSON (or `{}` if unavailable) |
+| `species_db_json` | string | Embedded species database (or `{}`) |
+| `reaction_db_json` | string | Embedded reaction database (or `{}`) |
+| `field_arrays/blob_<i>` | uint8 array | Raw bytes of field array file *i* (if embedded) |
+| `field_arrays/blob_<i>_filename` | string | Original path of field array file *i* |
+
+All inputs are embedded unconditionally; downstream scripts should prefer these blobs over external files for reproducibility.
+
+---
+
 ### `/metadata/system/`
 
 System information where simulation was executed.

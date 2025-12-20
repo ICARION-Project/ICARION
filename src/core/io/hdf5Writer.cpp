@@ -910,9 +910,23 @@ void HDF5Writer::write_reproducibility_metadata(
     write_string_vector(field_hash_group, "files", field_paths);
     write_string_vector(field_hash_group, "sha256", field_hashes);
 
-    // Optional: embed small external inputs for maximal reproducibility
+    // Optional: embed external inputs for maximal reproducibility
     H5::Group blobs = repro.createGroup("input_blobs");
     const size_t MAX_EMBED_BYTES = std::numeric_limits<size_t>::max(); // Embed regardless of size
+
+    // Config JSON
+    if (!config.config_file_path.empty()) {
+        auto blob = read_file_if_small(config.config_file_path, MAX_EMBED_BYTES);
+        if (!blob.empty()) {
+            write_string(blobs, "config_json", blob);
+        } else {
+            write_string(blobs, "config_json", "{}");
+        }
+    } else {
+        write_string(blobs, "config_json", "{}");
+    }
+
+    // Species / reaction DBs
     if (!config.species_database_path.empty()) {
         auto blob = read_file_if_small(config.species_database_path, MAX_EMBED_BYTES);
         if (!blob.empty()) {

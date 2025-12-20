@@ -32,6 +32,26 @@ GPUIntegrationStrategy::GPUIntegrationStrategy(
 #endif
 }
 
+void GPUIntegrationStrategy::set_gpu_damping_constant(double nu_const) {
+#ifdef ICARION_USE_GPU
+    if (gpu_helper_) {
+        gpu_helper_->set_damping_constant(nu_const);
+    }
+#else
+    (void)nu_const;
+#endif
+}
+
+void GPUIntegrationStrategy::set_gpu_damping_per_ion(const std::vector<float>& nu_per_ion) {
+#ifdef ICARION_USE_GPU
+    if (gpu_helper_) {
+        gpu_helper_->set_damping_per_ion(nu_per_ion);
+    }
+#else
+    (void)nu_per_ion;
+#endif
+}
+
 void GPUIntegrationStrategy::step(core::IonEnsemble& ensemble,
                                   size_t ion_idx,
                                   double t,

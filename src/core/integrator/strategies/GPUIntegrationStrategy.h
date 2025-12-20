@@ -8,6 +8,7 @@
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/physics/forces/DampingForce.h"
 #include "core/physics/forces/MagneticFieldForce.h"
+#include <vector>
 #include <memory>
 
 #ifdef ICARION_USE_GPU
@@ -24,6 +25,11 @@ public:
     GPUIntegrationStrategy(Kind kind,
                            std::unique_ptr<IIntegrationStrategy> cpu_fallback,
                            size_t gpu_threshold = 5000);
+
+    // Optional damping configuration (constant or per-ion nu) for GPU path.
+    // No effect if GPU helper is unavailable.
+    void set_gpu_damping_constant(double nu_const);
+    void set_gpu_damping_per_ion(const std::vector<float>& nu_per_ion);
 
     void step(core::IonEnsemble& ensemble,
               size_t ion_idx,

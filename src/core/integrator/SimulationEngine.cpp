@@ -34,6 +34,17 @@ namespace integrator {
 using physics::PhysicsRng;
 namespace {
 constexpr int kOmpChunk = 128;
+
+bool adaptive_space_charge_enabled() {
+    const char* env = std::getenv("ICARION_ADAPTIVE_SC");
+    if (!env) {
+        return true;
+    }
+    // Any of "0", "false", "off" disables; everything else enables.
+    std::string val(env);
+    std::transform(val.begin(), val.end(), val.begin(), ::tolower);
+    return !(val == "0" || val == "false" || val == "off");
+}
 }
 
 SimulationEngine::SimulationEngine(
@@ -159,11 +170,19 @@ void SimulationEngine::initialize(const core::IonEnsemble& ensemble) {
     initialize_gpu(config_.simulation.enable_gpu);
 #endif
 
-    // Warn if space charge present but updated only once per macro step
+    // Warn about space charge update cadence
     for (const auto& registry : force_registries_) {
         if (registry && registry->space_charge_model()) {
             space_charge_stale_warned_ = true;
-            output_manager_->log_progress("Warning: Space-charge fields are updated once per timestep, not per RK substep; fast-changing clouds may be inaccurate.");
+            if (integrator_ && integrator_->is_adaptive()) {
+                if (!adaptive_space_charge_enabled()) {
+                    output_manager_->log_progress("Warning: Space charge + adaptive RK45 disabled via ICARION_ADAPTIVE_SC=0; fields updated once per macro-step.");
+                } else {
+                    output_manager_->log_progress("Info: Space charge + adaptive RK45 will rebuild fields at each RK stage (performance heavy).");
+                }
+            } else {
+                output_manager_->log_progress("Warning: Space-charge fields are updated once per macro-step; fast-changing clouds may be inaccurate unless using RK4/RK45 stage-refresh paths.");
+            }
             break;
         }
     }
@@ -498,6 +517,9 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
             has_space_charge = true;
             break;
         }
+    }
+    if (has_space_charge && integrator_->is_adaptive() && !adaptive_space_charge_enabled()) {
+        throw std::runtime_error("Space charge with adaptive integrator (RK45) disabled via ICARION_ADAPTIVE_SC=0.");
     }
 
     std::vector<double> dt_used_per_ion = dt_per_ion_;

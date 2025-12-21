@@ -36,3 +36,8 @@ Plan
 Risks
 - Performance hit: SC rebuilds per stage and per retry; adaptive steps may be slower than fixed dt for SC-heavy runs.
 - Complexity: touching RK45 internals and SimulationEngine loop; needs thorough testing.
+
+Notes (current implementation)
+- Adaptive SC path can be disabled via `ICARION_ADAPTIVE_SC=0` (reverts to legacy throw); default is enabled.
+- SC fields are rebuilt at every RK stage on accept/reject attempts; expect substantial cost vs fixed-step RK4.
+- Initial validation: `test_simulation_engine_adaptive_sc` covers enabled path and env guard. Further physics validation still required.

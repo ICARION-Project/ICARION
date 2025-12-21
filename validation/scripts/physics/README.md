@@ -30,6 +30,15 @@ These are **NOT CTests** - they are long-running (up to 30 minutes), high-accura
   - `validation/figures/physics/combined_drift_validation.png`
   - `validation/logs/COMBINED_DRIFT_VALIDATION.txt`
 
+### Adaptive SC Parity (`validate_space_charge_adaptive_parity.py`)
+- **Runtime**: ~1 minute
+- **Physics**: Stage-synchronous adaptive RK45 space charge vs. fixed-step RK4 (Direct SC)
+- **Tests**:
+  - Small cloud (200 ions), no external fields
+  - Reference RK4 (dt=5e-11 s, t=5e-8 s) vs. adaptive RK45 (dt=5e-9 s)
+- **Output**:
+  - `validation/logs/ADAPTIVE_SC_PARITY.txt`
+
 ## Running Validations
 
 From repository root:

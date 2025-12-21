@@ -11,11 +11,22 @@
       },
       "CCS_reference_gas": "He",
       "name": "Hydronium ion",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/H3O+.json",
       "note": "CCS_HSS values are MOBILITY CCS Ω(1,1) from Mason-Schamp, NOT geometrical hard-sphere! HSS collision rate should use mobility CCS to account for Langevin enhancement."
+    },
+    "AcetonitrileH+": {
+      "mass_amu": 42.04,
+      "charge": 1,
+      "mobility_cm2Vs":  16.28,
+      "CCS_A2": 34.5,
+      "name": "Acetonitrile protonated",
+      "reference_temperature_K": 298.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/AcetonitrileH+.json"
     },
     "AcetoneH+": {
       "mass_amu": 59.07,
@@ -23,7 +34,7 @@
       "mobility_cm2Vs": 13.06,
       "CCS_A2": 40.7,
       "name": "Acetone protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/AcetoneH+.json"
@@ -34,7 +45,7 @@
       "mobility_cm2Vs": 11.67,
       "CCS_A2": 47.2,
       "name": "Butanone protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/ButanoneH+.json"
@@ -45,7 +56,7 @@
       "mobility_cm2Vs": 10.41,
       "CCS_A2": 52.6,
       "name": "Pentanone protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/PentanoneH+.json"
@@ -56,7 +67,7 @@
       "mobility_cm2Vs": 10.25,
       "CCS_A2": 53.7,
       "name": "Pentanal protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/PentanalH+.json"
@@ -67,7 +78,7 @@
       "mobility_cm2Vs": 6.307,
       "CCS_A2": 85.8,
       "name": "2,6-DTBPH protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/26DTBPH+.json"
@@ -83,7 +94,7 @@
       "mobility_cm2Vs": 4.51,
       "CCS_A2": 137.1,
       "name": "Caffeine protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/CaffeineH+.json"
@@ -94,7 +105,7 @@
       "mobility_cm2Vs": 4.434,
       "CCS_A2": 190.7,
       "name": "Dexamethasone protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/DexamethasoneH+.json"
@@ -105,7 +116,7 @@
       "mobility_cm2Vs": 4.467,
       "CCS_A2": 189.6,
       "name": "Betamethasone protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/BetamethasoneH+.json"
@@ -116,7 +127,7 @@
       "mobility_cm2Vs": 3.02,
       "CCS_A2": 254.3,
       "name": "Reserpine protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/ReserpineH+.json"
@@ -127,7 +138,7 @@
       "mobility_cm2Vs": 19.5,
       "CCS_A2": 50.24,
       "name": "Argon ion",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325
     },
     "He": {

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_5Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_10Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_15Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_20Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_25Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_30Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_35Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_40Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_45Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_50Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_55Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_60Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_65Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_70Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_75Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_80Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_85Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_90Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_95Td.json"
+./build/src/icarion_main "tmp/ims_en_sweep/configs/ims_en_100Td.json"

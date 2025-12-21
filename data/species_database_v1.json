@@ -61,6 +61,17 @@
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/PentanoneH+.json"
     },
+    "HexanoneH+": {
+      "mass_amu": 101.14,
+      "charge": 1,
+      "mobility_cm2Vs": 9.248,
+      "CCS_A2": 59.1,
+      "name": "Hexanone protonated",
+      "reference_temperature_K": 298.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/HexanoneH+.json"
+    },
     "PentanalH+": {
       "mass_amu": 87.0,
       "charge": 1,

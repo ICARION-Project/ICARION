@@ -1,5 +1,5 @@
 #!/bin/bash
-# Unified ICARION performance benchmark runner (CPU + GPU)
+# Unified ICARION performance benchmark runner (CPU-only in v1.0; GPU runtime-disabled)
 
 set -euo pipefail
 
@@ -36,17 +36,17 @@ print_usage() {
 Usage: $(basename "$0") [options] [category ...]
 
 Options:
-  --cpu-only        Run only CPU benchmark categories
-  --gpu-only        Run only GPU benchmark categories (requires USE_GPU_ACCEL=ON)
+  --cpu-only        Run only CPU benchmark categories (default)
+  --gpu-only        (ignored in v1.0) GPU runtime is disabled; GPU categories are skipped
   -h, --help        Show this help and exit
 
 Categories:
   CPU: ${CPU_DEFAULT_CATEGORIES[*]}
-  GPU: ${GPU_DEFAULT_CATEGORIES[*]}
+  GPU: ${GPU_DEFAULT_CATEGORIES[*]} (retained for future releases; skipped in v1.0)
   Special aliases:
-    all       Run all CPU categories and GPU categories (GPU section skipped if disabled)
+    all       Run all CPU categories (GPU section skipped in v1.0)
     cpu_all   Run all CPU categories
-    gpu_all   Run all GPU categories (requires GPU build)
+    gpu_all   (ignored in v1.0) Run GPU categories when backend is re-enabled
 EOF
 }
 
@@ -63,7 +63,7 @@ dedupe_array() {
   _arr=("${_unique[@]:-}")
 }
 
-MODE="all" # all|cpu|gpu
+MODE="cpu" # all|cpu|gpu (default to CPU-only; GPU runtime-disabled in v1.0)
 USER_CATEGORIES=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -91,13 +91,12 @@ declare -a GPU_SELECTED=()
 
 if [ ${#USER_CATEGORIES[@]} -eq 0 ]; then
   CPU_SELECTED=("${CPU_DEFAULT_CATEGORIES[@]}")
-  GPU_SELECTED=("${GPU_DEFAULT_CATEGORIES[@]}")
+  GPU_SELECTED=()
 else
   for category in "${USER_CATEGORIES[@]}"; do
     case "$category" in
       all)
         CPU_SELECTED+=("${CPU_DEFAULT_CATEGORIES[@]}")
-        GPU_SELECTED+=("${GPU_DEFAULT_CATEGORIES[@]}")
         ;;
       cpu_all)
         CPU_SELECTED+=("${CPU_DEFAULT_CATEGORIES[@]}")
@@ -128,6 +127,15 @@ fi
 
 dedupe_array CPU_SELECTED
  dedupe_array GPU_SELECTED
+
+# GPU runtime is disabled in v1.0; honor CPU selections only and skip GPU categories.
+if [[ "$MODE" == "gpu" ]] || [[ ${#GPU_SELECTED[@]} -gt 0 ]]; then
+  echo "GPU benchmarks are runtime-disabled for v1.0 (enable_gpu falls back to CPU). Skipping GPU categories." >&2
+  if [[ "$MODE" == "gpu" ]]; then
+    exit 0
+  fi
+  GPU_SELECTED=()
+fi
 
 if [ ! -x "$ICARION_BIN" ]; then
   echo "Error: ICARION binary not found at $ICARION_BIN" >&2

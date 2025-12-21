@@ -15,7 +15,10 @@ import numpy as np
 import sys
 
 # Shared HDF5 helpers (species IDs)
-COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
+COMMON_DIR = Path(__file__).resolve().parents[1] / "common"
+if not COMMON_DIR.exists():
+    # Fallback for historical layout
+    COMMON_DIR = Path(__file__).resolve().parents[2] / "common"
 if str(COMMON_DIR) not in sys.path:
     sys.path.append(str(COMMON_DIR))
 from hdf5_utils import load_species_ids  # noqa: E402

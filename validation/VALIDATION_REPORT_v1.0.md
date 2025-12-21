@@ -31,7 +31,7 @@ ICARION v1.0 has been validated across six comprehensive test suites covering co
 - ✅ RF confinement: VALIDATED (LQIT, Quadrupole)
 - ✅ Magnetic fields: VALIDATED (FTICR, Orbitrap)
 - ⚠️ **High E/N limitation (>100 Td):** Field-dependent mobility not captured (constant-CCS model)
-- 🛈 **Expectation management:** ICARION v1.0 prioritizes physical correctness and modularity. Performance optimization and GPU offloading remain active development areas; the GPU backend is functional but not yet optimized for large-scale production runs.
+- 🛈 **Expectation management:** ICARION v1.0 prioritizes physical correctness and modularity. Performance optimization and GPU offloading remain active development areas; the GPU backend is compiled but runtime-disabled for v1.0 (any `enable_gpu=true` falls back to CPU).
 
 ---
 
@@ -1911,61 +1911,7 @@ All performance characterization runs use the v1.0 release binary (`build/src/ic
 
 ### 10.8 GPU / Hybrid Benchmarks
 
-**Environment:** CUDA backend on the same Ryzen 9 7950X host via WSL2 passthrough (RTX 4090, driver 560.35). All configs live under `validation/configs/performance/gpu/`, and results are logged to `validation/results/v1.0_test/performance/gpu_logs/` together with `gpu_performance_timings.csv`.
-
-#### 10.8.1 RK4 Scaling (CPU vs GPU)
-
-| Ion count | CPU RK4 (s) | GPU RK4 (s) | Speedup (GPU vs CPU) |
-|-----------|-------------|-------------|-----------------------|
-| 1 000 | 12.161 | 16.935 | 0.72× |
-| 5 000 | 45.022 | 60.768 | 0.74× |
-| 10 000 | 80.009 | 98.641 | 0.81× |
-| 50 000 | 239.519 | 362.056 | 0.66× |
-| 100 000 | 439.075 | 702.916 | 0.62× |
-
-**Observations:** The refreshed measurements still show the CUDA execution trailing the OpenMP build by 20–40 %, with GPU/CPU speedup ratios stuck below 0.8× even at 100 k ions. Launch latency and diagnostics keep the wall time above four minutes for the largest case (702 s), so “GPU slower today” remains the accurate release note.
-
-#### 10.8.2 Integrator Comparison (N = 10 k)
-
-| Integrator | Wall time (s) |
-|------------|---------------|
-| RK4 (GPU) | 95.79 |
-| RK45 (GPU) | 346.64 |
-| Boris (GPU) | 341.44 |
-
-**Observations:** RK4 remains the only practical production integrator on GPU. RK45 and Boris both require ~5.7 minutes for the 10 k-ion IMS cell—3.5× slower than RK4—so they stay relegated to diagnostics and specialized studies.
-
-#### 10.8.3 GPU Threshold Experiments
-
-| Case | N ions | Configured threshold | Measured time (s) | Notes |
-|------|--------|----------------------|-------------------|-------|
-| RK4 | 4 000 | 5 000 | 53.77 | CPU path (below threshold) |
-| RK4 | 4 500 | 5 000 | 57.58 | CPU path (below threshold) |
-| RK4 | 5 000 | 5 000 | 59.75 | GPU engages exactly at threshold |
-| RK4 | 5 500 | 5 000 | 62.62 | GPU stays active (+5 % per extra 500 ions) |
-| RK4 | 6 000 | 5 000 | 64.93 | GPU stays active (+8 % per extra 1 k ions) |
-| RK45 | 4 000 | 5 000 | 160.18 | CPU path (below threshold) |
-| RK45 | 4 500 | 5 000 | 178.41 | CPU path (below threshold) |
-| RK45 | 5 000 | 5 000 | 184.07 | GPU engages at threshold |
-| RK45 | 5 500 | 5 000 | 199.82 | GPU active, +8 % |
-| RK45 | 6 000 | 5 000 | 221.71 | GPU active, +13 % |
-| Boris | 2 000 | 5 000 | 91.48 | GPU kicked in early (logic bug) |
-| Boris | 2 250 | 5 000 | 100.46 | GPU active well below threshold |
-| Boris | 2 500 | 5 000 | 108.45 | GPU active, similar penalty |
-| Boris | 2 750 | 5 000 | 114.17 | GPU active, similar penalty |
-| Boris | 3 000 | 5 000 | 130.65 | GPU active, similar penalty |
-
-**Observations:** RK4 continues to honor the 5 k switch exactly and adds ~5–8 % wall time per additional 500–1 000 ions once the GPU is hot. RK45 mirrors that behavior but at triple the absolute runtime. Boris still violates the heuristic by enabling CUDA below 2.5 k ions, so the control-logic bug remains open.
-
-#### 10.8.4 Long Trajectories on GPU (100 µs, N = 10 k)
-
-| Integrator | Wall time (s) |
-|------------|---------------|
-| RK4 | 216.71 |
-| RK45 | 680.03 |
-| Boris | 632.99 |
-
-**Observations:** The 100 µs IMS trajectory still demands several real minutes per run: GPU RK4 now lands at 3.6 min while RK45 and Boris exceed 10 min. Even with the streamlined logging pass the CUDA backend offers no wall-clock advantage for these long workloads.
+GPU backend is compiled but runtime-disabled for v1.0 (any `enable_gpu=true` falls back to CPU). The GPU/hybrid benchmark configs and scripts remain in `validation/configs/performance/gpu/` and `validation/scripts/performance/` for future releases but are **not executed** for v1.0 and should be skipped in validation runs and reports.
 
 ### 10.9 Artifacts and Reproducibility
 
@@ -2000,7 +1946,7 @@ These steps keep the benchmarking chapter honest about today’s limitations whi
 | Reactions | 7 | 100% | - | ✅ | ✅ Complete |
 | Space Charge | 9 | 100% | 1 plot | ✅ | ✅ Complete |
 | Performance Benchmarks (CPU) | 24 configs + thread sweep | 100% | 6 tables | ✅ | ✅ Complete (baseline + long-run) |
-| GPU / Hybrid Performance | 31 configs | 100% | 4 tables | ✅ | ⚠️ GPU slower on WSL (documented) |
+| GPU / Hybrid Performance | 31 configs | N/A | - | 🚫 | Skipped in v1.0 (GPU runtime-disabled) |
 
 ### Critical Bugs Resolved
 

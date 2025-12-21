@@ -1,0 +1,38 @@
+================================================================================
+Reaction validation analysis
+================================================================================
+
+--- Equilibrium ---
+File: validation/results/physics/reactions/equilibrium/reversible_equilibrium.h5
+Duration: 3999.00 us with 1600 recorded frames
+Final counts: H3O+=2525, PentanalH+=7475
+Expected PentanalH+ fraction 0.750, observed 0.748 (-0.33 %)
+
+--- First-order decay ---
+File: validation/results/physics/reactions/first_order_decay/first_order_decay_reference.h5
+Duration: 3999.00 us
+Final counts: H3O+=0, PentanalH+=10000
+Predicted remaining H3O+ 0.00, observed 0
+Estimated k from data: 4.84e+03 s^-1 (trajectory fit)
+Fallback final-frame estimate: inf s^-1
+
+--- Competing channels ---
+File: validation/results/physics/reactions/competing_channels/competing_channels_he_vs_pentanal.h5
+Duration: 3999.00 us
+Final counts: H3O+=0, PentanalH+=5627, 26DTBP=4373
+Expected branching PentanalH+ 56.2 %
+
+--- Sequential chain ---
+File: validation/results/physics/reactions/sequential_chain/sequential_chain_three_species.h5
+Duration: 7999.00 us
+Final counts: H3O+=6, PentanalH+=116, CaffeineH+=9878
+Expected PentanalH+ 47.85, CaffeineH+ 9951.47
+
+--- Arrhenius sweep ---
+Arrhenius sweep (H3O+ -> PentanalH+)
+  250K: duration 3999.00 us, final counts H3O+=0, PentanalH+=10000, predicted k=4.88e+03 s^-1, estimated k=4.74e+03 s^-1 (trajectory fit)
+  300K: duration 3999.00 us, final counts H3O+=0, PentanalH+=10000, predicted k=9.06e+03 s^-1, estimated k=8.96e+03 s^-1 (trajectory fit)
+  350K: duration 3999.00 us, final counts H3O+=0, PentanalH+=10000, predicted k=1.41e+04 s^-1, estimated k=1.40e+04 s^-1 (trajectory fit)
+
+Summary: All scenarios completed without analyzer warnings. Recorded durations and species statistics look consistent with expectations.
+📊 Saved Arrhenius plot: validation/results/physics/reactions/arrhenius/arrhenius_plot.png

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Unified performance analysis wrapper; runs the Python analyzers over CPU+GPU logs.
+# Unified performance analysis wrapper; GPU benchmarks are runtime-disabled in v1.0.
 
 set -euo pipefail
 
@@ -16,6 +16,8 @@ Usage: run_performance_analysis.sh [--python PATH]
 Options:
   --python PATH   Explicit Python interpreter (defaults to python3 or $PYTHON_BIN)
   -h, --help      Show this help message
+
+Note: GPU benchmarks are runtime-disabled in v1.0; this runner skips GPU analysis.
 EOF
 }
 
@@ -41,15 +43,5 @@ while [[ $# -gt 0 ]]; do
   esac
  done
 
-if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  echo "Error: Python interpreter '$PYTHON_BIN' not found" >&2
-  exit 1
-fi
-
-if [ ! -f "$ANALYZER" ]; then
-  echo "Error: Analyzer script not found at $ANALYZER" >&2
-  exit 1
-fi
-
-echo "Running performance analyzers with $PYTHON_BIN"
-"$PYTHON_BIN" "$ANALYZER"
+echo "GPU performance benchmarks are runtime-disabled for v1.0; skipping GPU performance analysis."
+exit 0

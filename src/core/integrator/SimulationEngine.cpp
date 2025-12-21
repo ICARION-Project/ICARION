@@ -628,7 +628,6 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
                 bool bridged = false;
                 if (prev_dom >= 0 && static_cast<size_t>(prev_dom + 1) < config_.domains.size()) {
                     const auto& cur_dom = config_.domains[static_cast<size_t>(prev_dom)];
-                    const auto& next_dom = config_.domains[static_cast<size_t>(prev_dom + 1)];
                     const double cur_end = cur_dom.geometry.origin_m.z + cur_dom.geometry.length_m;
                     if (pos_after.z >= cur_end) {
                         new_domain_idx = prev_dom + 1;
@@ -647,7 +646,6 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
                     new_domain_idx == cur_dom_idx &&
                     static_cast<size_t>(cur_dom_idx + 1) < config_.domains.size()) {
                     const auto& cur_dom = config_.domains[static_cast<size_t>(cur_dom_idx)];
-                    const auto& next_dom = config_.domains[static_cast<size_t>(cur_dom_idx + 1)];
                     const double local_z = pos_after.z - cur_dom.geometry.origin_m.z;
                     const double tol = 1e-9;
                     if (local_z >= cur_dom.geometry.length_m - tol) {
@@ -1238,15 +1236,6 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
             constexpr double b45 = Coef::b5_5;
             constexpr double b46 = Coef::b5_6;
             constexpr double b47 = Coef::b5_7;
-
-            // b4 weights (4th order) used for error estimate
-            constexpr double b51 = Coef::b4_1;
-            constexpr double b52 = Coef::b4_2;
-            constexpr double b53 = Coef::b4_3;
-            constexpr double b54 = Coef::b4_4;
-            constexpr double b55 = Coef::b4_5;
-            constexpr double b56 = Coef::b4_6;
-            constexpr double b57 = Coef::b4_7;
 
             // k1
             for (size_t i = 0; i < n; ++i) {

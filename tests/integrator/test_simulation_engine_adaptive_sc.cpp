@@ -195,3 +195,50 @@ TEST_CASE("SimulationEngine adaptive SC: constant SC field influences trajectory
     REQUIRE(sc_model->updates() >= 6); // at least one per RK stage
     REQUIRE_THAT(result[0].t, WithinRel(cfg.simulation.dt_s, 1e-6));
 }
+
+TEST_CASE("SimulationEngine adaptive SC: reject when accept_at_dt_min disabled", "[simulation][adaptive_sc]") {
+    unsetenv("ICARION_ADAPTIVE_SC");
+
+    config::FullConfig cfg;
+    cfg.simulation.total_time_s = 1e-6;
+    cfg.simulation.dt_s = 1e-6;
+    cfg.simulation.compute_derived();
+    cfg.physics.collision_model = config::CollisionModel::NoCollisions;
+    cfg.physics.enable_reactions = false;
+    cfg.physics.enable_space_charge = true;
+    cfg.output.folder = "/tmp";
+    cfg.output.trajectory_file = "adaptive_sc_reject.h5";
+
+    config::DomainConfig dom;
+    dom.name = "test";
+    dom.instrument = config::Instrument::IMS;
+    dom.geometry.length_m = 0.1;
+    dom.geometry.radius_m = 0.05;
+    dom.environment.temperature_K = 300.0;
+    dom.environment.pressure_Pa = 100.0;
+    dom.finalize();
+    cfg.domains.push_back(dom);
+
+    auto sc_model = std::make_shared<ConstantSpaceChargeModel>(core::Vec3{0.0, 0.0, 1e8});
+    auto registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
+    registry->set_space_charge_model(sc_model);
+
+    RK45Strategy::AdaptiveConfig rk_cfg;
+    rk_cfg.atol = 1e-30;
+    rk_cfg.rtol = 1e-30;
+    rk_cfg.absolute_min_step_s = cfg.simulation.dt_s;
+    rk_cfg.accept_at_dt_min = false;
+    rk_cfg.max_step_decrease = 0.1;
+    rk_cfg.safety_factor = 0.9;
+    auto integrator = std::make_shared<RK45Strategy>(rk_cfg);
+    auto reaction_handler = std::make_shared<NoReactionHandler>();
+
+    SimulationEngine engine(cfg, {registry}, integrator, nullptr, reaction_handler);
+
+    core::IonState ion = make_ion();
+    ion.vel = {0.0, 0.0, 0.0};
+    std::vector<core::IonState> ions{ion};
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
+
+    REQUIRE_THROWS(engine.run(ensemble));
+}

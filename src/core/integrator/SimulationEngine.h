@@ -154,6 +154,7 @@ private:
     double current_time_ = 0.0;
     int current_step_ = 0;
     std::vector<double> dt_per_ion_;
+    double adaptive_sc_last_error_ = 1.0;  ///< PI controller memory for space-charge + RK45 path
     
     // Per-ion RNG states (persistent across timesteps!)
     std::vector<physics::PhysicsRng> rng_by_ion_;

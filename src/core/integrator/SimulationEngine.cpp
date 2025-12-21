@@ -11,7 +11,9 @@
 #include "core/integrator/strategies/RK45Strategy.h"
 #include "core/integrator/strategies/RK4Strategy.h"
 #include "core/integrator/rk45_coefficients.h"
+#include <array>
 #include "core/integrator/strategies/GPUIntegrationStrategy.h"
+#include <cmath>
 #include <algorithm>
 #include <vector>
 #include <iostream>
@@ -497,9 +499,6 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
             break;
         }
     }
-    if (has_space_charge && integrator_ && integrator_->is_adaptive()) {
-        throw std::runtime_error("Space charge with adaptive integrator (RK45) is not supported: fields would be stale within substeps. Use fixed-step RK4 or disable space charge.");
-    }
 
     std::vector<double> dt_used_per_ion = dt_per_ion_;
     std::vector<double> dt_next_per_ion = dt_per_ion_;
@@ -844,6 +843,284 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
 
             dt_per_ion_.assign(n, dt_batch);
             max_dt_used = dt_batch;
+            return max_dt_used;
+        }
+    }
+
+    // Space-charge aware adaptive RK45 (stage-synchronous field rebuild, single global dt)
+    if (has_space_charge && integrator_->is_adaptive()) {
+        auto* rk45_ptr = dynamic_cast<RK45Strategy*>(integrator_.get());
+        if (rk45_ptr) {
+            using Coef = rk45::Coefficients;
+            constexpr double PI_BETA = 0.04;
+            constexpr double PI_ALPHA = 0.2 - PI_BETA * 0.75;
+            constexpr double REJECTION_EXPONENT = 0.2;
+            constexpr double MIN_ERROR_THRESHOLD = 1e-10;
+            constexpr double ERROR_ACCEPTANCE_THRESHOLD = 1.0;
+            constexpr double DT_MIN_TOLERANCE = 1.001;
+            constexpr int MAX_REJECT_ATTEMPTS = 10;
+
+            const auto cfg = rk45_ptr->get_config();
+
+            const size_t n = ensemble.size();
+            auto* pos_x = ensemble.pos_x_data();
+            auto* pos_y = ensemble.pos_y_data();
+            auto* pos_z = ensemble.pos_z_data();
+            auto* vel_x = ensemble.vel_x_data();
+            auto* vel_y = ensemble.vel_y_data();
+            auto* vel_z = ensemble.vel_z_data();
+            auto* mass = ensemble.mass_data();
+
+            std::vector<double> base_px(pos_x, pos_x + n);
+            std::vector<double> base_py(pos_y, pos_y + n);
+            std::vector<double> base_pz(pos_z, pos_z + n);
+            std::vector<double> base_vx(vel_x, vel_x + n);
+            std::vector<double> base_vy(vel_y, vel_y + n);
+            std::vector<double> base_vz(vel_z, vel_z + n);
+
+            std::vector<Vec3> kv[7];
+            std::vector<Vec3> ka[7];
+            for (int s = 0; s < 7; ++s) {
+                kv[s].assign(n, Vec3{0.0, 0.0, 0.0});
+                ka[s].assign(n, Vec3{0.0, 0.0, 0.0});
+            }
+
+            auto restore_base = [&]() {
+                for (size_t i = 0; i < n; ++i) {
+                    pos_x[i] = base_px[i];
+                    pos_y[i] = base_py[i];
+                    pos_z[i] = base_pz[i];
+                    vel_x[i] = base_vx[i];
+                    vel_y[i] = base_vy[i];
+                    vel_z[i] = base_vz[i];
+                }
+            };
+
+            auto compute_accels_rk = [&](double t_stage, std::vector<Vec3>& acc_out) {
+                double saved_time = current_time_;
+                current_time_ = t_stage;
+                update_space_charge_models(ensemble);
+                current_time_ = saved_time;
+                const bool use_omp = parallel_enabled_;
+                #pragma omp parallel if(use_omp)
+                {
+                    #pragma omp for schedule(guided, kOmpChunk)
+                    for (int i = 0; i < static_cast<int>(n); ++i) {
+                        if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                        const auto& reg = force_registries_[domain_indices[i]];
+                        if (!reg) continue;
+                        physics::ForceContext ctx;
+                        ctx.domain = reg->domain();
+                        ctx.field_model = reg->field_model();
+                        ctx.ion_ensemble = &ensemble;
+                        ctx.ion_index = static_cast<size_t>(i);
+                        Vec3 F = reg->compute_total_force(ensemble, static_cast<size_t>(i), t_stage, ctx);
+                        const double inv_m = 1.0 / mass[i];
+                        acc_out[static_cast<size_t>(i)] = F * inv_m;
+                    }
+                }
+            };
+
+            // Seed dt from the first active ion; fall back to configured dt
+            double dt_seed = 0.0;
+            for (size_t i = 0; i < n; ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                dt_seed = dt_per_ion[i];
+                break;
+            }
+            if (dt_seed <= 0.0) {
+                dt_seed = config_.simulation.dt_s;
+            }
+
+            const double dt_initial = dt_seed;
+            const double dt_min = std::max(dt_initial * cfg.min_step_factor, cfg.absolute_min_step_s);
+            const double dt_max = dt_initial * cfg.max_step_factor;
+
+            double dt_work = dt_initial;
+            double prev_error = adaptive_sc_last_error_;
+            bool accepted = false;
+            int attempts = 0;
+            double error = 1.0;
+            double dt_next = dt_initial;
+
+            auto compute_new_step = [&](double current_dt, double err) {
+                double factor;
+                if (err > 1.0) {
+                    factor = cfg.safety_factor * std::pow(1.0 / err, REJECTION_EXPONENT);
+                } else {
+                    factor = cfg.safety_factor * std::pow(prev_error / err, PI_BETA) *
+                             std::pow(1.0 / err, PI_ALPHA);
+                }
+                factor = std::max(factor, cfg.max_step_decrease);
+                factor = std::min(factor, cfg.max_step_increase);
+                double dt_new = current_dt * factor;
+                dt_new = std::max(dt_new, dt_min);
+                dt_new = std::min(dt_new, dt_max);
+                return dt_new;
+            };
+
+            auto stage_apply = [&](size_t i, const Vec3& pos, const Vec3& vel) {
+                pos_x[i] = pos.x;
+                pos_y[i] = pos.y;
+                pos_z[i] = pos.z;
+                vel_x[i] = vel.x;
+                vel_y[i] = vel.y;
+                vel_z[i] = vel.z;
+            };
+
+            while (!accepted && attempts < MAX_REJECT_ATTEMPTS) {
+                restore_base();
+
+                // k1
+                for (size_t i = 0; i < n; ++i) {
+                    kv[0][i] = Vec3{base_vx[i], base_vy[i], base_vz[i]};
+                }
+                compute_accels_rk(t, ka[0]);
+
+                // k2
+                for (size_t i = 0; i < n; ++i) {
+                    if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                    Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} + kv[0][i] * (dt_work * Coef::a21);
+                    Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} + ka[0][i] * (dt_work * Coef::a21);
+                    stage_apply(i, pos, vel);
+                    kv[1][i] = vel;
+                }
+                compute_accels_rk(t + Coef::c2 * dt_work, ka[1]);
+
+                // k3
+                for (size_t i = 0; i < n; ++i) {
+                    if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                    Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                        (kv[0][i] * Coef::a31 + kv[1][i] * Coef::a32) * dt_work;
+                    Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                        (ka[0][i] * Coef::a31 + ka[1][i] * Coef::a32) * dt_work;
+                    stage_apply(i, pos, vel);
+                    kv[2][i] = vel;
+                }
+                compute_accels_rk(t + Coef::c3 * dt_work, ka[2]);
+
+                // k4
+                for (size_t i = 0; i < n; ++i) {
+                    if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                    Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                        (kv[0][i] * Coef::a41 + kv[1][i] * Coef::a42 + kv[2][i] * Coef::a43) * dt_work;
+                    Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                        (ka[0][i] * Coef::a41 + ka[1][i] * Coef::a42 + ka[2][i] * Coef::a43) * dt_work;
+                    stage_apply(i, pos, vel);
+                    kv[3][i] = vel;
+                }
+                compute_accels_rk(t + Coef::c4 * dt_work, ka[3]);
+
+                // k5
+                for (size_t i = 0; i < n; ++i) {
+                    if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                    Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                        (kv[0][i] * Coef::a51 + kv[1][i] * Coef::a52 + kv[2][i] * Coef::a53 + kv[3][i] * Coef::a54) * dt_work;
+                    Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                        (ka[0][i] * Coef::a51 + ka[1][i] * Coef::a52 + ka[2][i] * Coef::a53 + ka[3][i] * Coef::a54) * dt_work;
+                    stage_apply(i, pos, vel);
+                    kv[4][i] = vel;
+                }
+                compute_accels_rk(t + Coef::c5 * dt_work, ka[4]);
+
+                // k6
+                for (size_t i = 0; i < n; ++i) {
+                    if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                    Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                        (kv[0][i] * Coef::a61 + kv[1][i] * Coef::a62 + kv[2][i] * Coef::a63 + kv[3][i] * Coef::a64 + kv[4][i] * Coef::a65) * dt_work;
+                    Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                        (ka[0][i] * Coef::a61 + ka[1][i] * Coef::a62 + ka[2][i] * Coef::a63 + ka[3][i] * Coef::a64 + ka[4][i] * Coef::a65) * dt_work;
+                    stage_apply(i, pos, vel);
+                    kv[5][i] = vel;
+                }
+                compute_accels_rk(t + Coef::c6 * dt_work, ka[5]);
+
+                // k7
+                for (size_t i = 0; i < n; ++i) {
+                    if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                    Vec3 pos = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                        (kv[0][i] * Coef::a71 + kv[1][i] * Coef::a72 + kv[2][i] * Coef::a73 +
+                         kv[3][i] * Coef::a74 + kv[4][i] * Coef::a75 + kv[5][i] * Coef::a76) * dt_work;
+                    Vec3 vel = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                        (ka[0][i] * Coef::a71 + ka[1][i] * Coef::a72 + ka[2][i] * Coef::a73 +
+                         ka[3][i] * Coef::a74 + ka[4][i] * Coef::a75 + ka[5][i] * Coef::a76) * dt_work;
+                    stage_apply(i, pos, vel);
+                    kv[6][i] = vel;
+                }
+                compute_accels_rk(t + Coef::c7 * dt_work, ka[6]);
+
+                double max_error = 0.0;
+
+                for (size_t i = 0; i < n; ++i) {
+                    if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                    Vec3 pos5 = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                        (kv[0][i] * Coef::b5_1 + kv[1][i] * Coef::b5_2 + kv[2][i] * Coef::b5_3 +
+                         kv[3][i] * Coef::b5_4 + kv[4][i] * Coef::b5_5 + kv[5][i] * Coef::b5_6 +
+                         kv[6][i] * Coef::b5_7) * dt_work;
+                    Vec3 vel5 = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                        (ka[0][i] * Coef::b5_1 + ka[1][i] * Coef::b5_2 + ka[2][i] * Coef::b5_3 +
+                         ka[3][i] * Coef::b5_4 + ka[4][i] * Coef::b5_5 + ka[5][i] * Coef::b5_6 +
+                         ka[6][i] * Coef::b5_7) * dt_work;
+
+                    Vec3 pos4 = Vec3{base_px[i], base_py[i], base_pz[i]} +
+                        (kv[0][i] * Coef::b4_1 + kv[1][i] * Coef::b4_2 + kv[2][i] * Coef::b4_3 +
+                         kv[3][i] * Coef::b4_4 + kv[4][i] * Coef::b4_5 + kv[5][i] * Coef::b4_6 +
+                         kv[6][i] * Coef::b4_7) * dt_work;
+                    Vec3 vel4 = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
+                        (ka[0][i] * Coef::b4_1 + ka[1][i] * Coef::b4_2 + ka[2][i] * Coef::b4_3 +
+                         ka[3][i] * Coef::b4_4 + ka[4][i] * Coef::b4_5 + ka[5][i] * Coef::b4_6 +
+                         ka[6][i] * Coef::b4_7) * dt_work;
+
+                    pos_x[i] = pos5.x;
+                    pos_y[i] = pos5.y;
+                    pos_z[i] = pos5.z;
+                    vel_x[i] = vel5.x;
+                    vel_y[i] = vel5.y;
+                    vel_z[i] = vel5.z;
+
+                    const Vec3 pos0{base_px[i], base_py[i], base_pz[i]};
+                    const Vec3 vel0{base_vx[i], base_vy[i], base_vz[i]};
+
+                    auto scaled_err = [&](double y5, double y4, double y0) {
+                        double err_abs = std::fabs(y5 - y4);
+                        double scale = cfg.atol + cfg.rtol * std::fabs(y0);
+                        return err_abs / scale;
+                    };
+
+                    max_error = std::max(max_error, scaled_err(pos5.x, pos4.x, pos0.x));
+                    max_error = std::max(max_error, scaled_err(pos5.y, pos4.y, pos0.y));
+                    max_error = std::max(max_error, scaled_err(pos5.z, pos4.z, pos0.z));
+                    max_error = std::max(max_error, scaled_err(vel5.x, vel4.x, vel0.x));
+                    max_error = std::max(max_error, scaled_err(vel5.y, vel4.y, vel0.y));
+                    max_error = std::max(max_error, scaled_err(vel5.z, vel4.z, vel0.z));
+                }
+
+                error = std::max(max_error, MIN_ERROR_THRESHOLD);
+
+                if (error <= ERROR_ACCEPTANCE_THRESHOLD || dt_work <= dt_min * DT_MIN_TOLERANCE) {
+                    accepted = true;
+                    dt_next = compute_new_step(dt_work, error);
+                    const double dt_used = dt_work;
+                    for (size_t i = 0; i < n; ++i) {
+                        if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                        dt_used_per_ion[i] = dt_used;
+                        dt_next_per_ion[i] = dt_next;
+                    }
+                    dt_per_ion_.assign(n, dt_next);
+                    adaptive_sc_last_error_ = error;
+                    max_dt_used = dt_used;
+                } else {
+                    dt_work = compute_new_step(dt_work, error);
+                    prev_error = error;
+                    attempts++;
+                }
+            }
+
+            if (!accepted) {
+                throw std::runtime_error("Adaptive RK45 with space charge failed to converge after " +
+                                         std::to_string(MAX_REJECT_ATTEMPTS) + " attempts");
+            }
+
             return max_dt_used;
         }
     }

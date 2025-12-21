@@ -1,7 +1,7 @@
 ================================================================================
 GAS MIXTURE MOBILITY VALIDATION: Blanc's Law
 ================================================================================
-Start time: 2025-12-15 11:26:57
+Start time: 2025-12-21 08:25:34
 
 Purpose: Validate HSS collision model for gas mixtures
 Theory: Blanc's Law - 1/K_mix = Σ(x_i / K_i)
@@ -74,7 +74,7 @@ Theory (Blanc's Law):
 📊 Analyzing: drift_50He_50N2.h5
   Ions: 500/500 active
   Drift velocity (fit):          63.9 m/s  ← PRIMARY
-  Drift velocity (instant):      63.8 ±   15.4 m/s  (noisy)
+  Drift velocity (instant):      63.8 ±   15.5 m/s  (noisy)
   R² (fit quality):          1.0000
   Expected:       62.9 m/s
   Error:         1.6%  ✅
@@ -96,7 +96,7 @@ Theory (Blanc's Law):
 📊 Analyzing: drift_25He_75N2.h5
   Ions: 500/500 active
   Drift velocity (fit):          46.9 m/s  ← PRIMARY
-  Drift velocity (instant):      46.9 ±   15.3 m/s  (noisy)
+  Drift velocity (instant):      47.0 ±   15.3 m/s  (noisy)
   R² (fit quality):          1.0000
   Expected:       45.5 m/s
   Error:         3.2%  ✅
@@ -118,7 +118,7 @@ Theory (Blanc's Law):
 📊 Analyzing: drift_0He_100N2.h5
   Ions: 500/500 active
   Drift velocity (fit):          37.1 m/s  ← PRIMARY
-  Drift velocity (instant):      37.0 ±   14.8 m/s  (noisy)
+  Drift velocity (instant):      37.0 ±   15.0 m/s  (noisy)
   R² (fit quality):          1.0000
   Expected:       35.6 m/s
   Error:         4.1%  ✅
@@ -138,8 +138,8 @@ VALIDATION SUMMARY
   ✓ Saved: /home/chsch95/ICARION/validation/figures/gas_mixture_mobility_validation.png
 
 ================================================================================
-End time: 2025-12-15 16:41:17
-Duration: 18859.8 seconds
+End time: 2025-12-21 13:25:22
+Duration: 17988.3 seconds
 Log file: /home/chsch95/ICARION/validation/logs/GAS_MIXTURE_MOBILITY_VALIDATION.txt
 Figures:  /home/chsch95/ICARION/validation/figures/gas_mixture_mobility_validation.png
 ================================================================================

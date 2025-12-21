@@ -1,7 +1,7 @@
 ================================================================================
 COMBINED DRIFT VALIDATION: E-field + Gas Flow
 ================================================================================
-Start time: 2025-12-20 21:09:41
+Start time: 2025-12-20 22:14:32
 
 Purpose: Validate combined drift: v_drift = μ·E + v_gas
 Theory: Linear superposition of mobility and convection
@@ -108,7 +108,7 @@ Key Findings:
   - Drift velocity follows μ·E once sufficient collisions occur
   - Ready to reintroduce axial gas flow after baseline pass
 
-End time: 2025-12-20 21:11:36
+End time: 2025-12-20 22:16:24
 Log file: /home/chsch95/ICARION/validation/logs/COMBINED_DRIFT_VALIDATION.txt
 Figures:  /home/chsch95/ICARION/validation/figures/physics/combined_drift_validation.png
 ================================================================================

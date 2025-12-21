@@ -1,7 +1,7 @@
 ================================================================================
 GAS MIXTURE THERMALIZATION VALIDATION
 ================================================================================
-Start time: 2025-12-15 16:41:18
+Start time: 2025-12-21 13:25:23
 
 Purpose: Validate HSS collision model thermalization in gas mixtures
 Method: Cold start (0.1 K) → thermalize to ambient (300 K)
@@ -84,30 +84,3 @@ Collision time:      0.01 µs
 
 ▶ Running simulation: config_0He_100N2.json
   Total time: 0.011 ms (2000 collision times)
-  ✓ Simulation complete
-
-📊 Analyzing: therm_0He_100N2.h5
-  Ions active (final): 500/500
-  Temperature (final): 300.2 ± 10.9 K
-  Expected:            300.0 K
-  Error:               0.1%  ✅
-
-================================================================================
-VALIDATION SUMMARY
-================================================================================
-  100He_0N2      : ✅    0.1% error
-  75He_25N2      : ✅    0.1% error
-  50He_50N2      : ✅    0.7% error
-  25He_75N2      : ✅    0.1% error
-  0He_100N2      : ✅    0.1% error
-
-✅ ALL VALIDATIONS PASSED (5/5)
-
-📈 Creating validation plot...
-  ✓ Saved: /home/chsch95/ICARION/validation/figures/mixture_thermalization_validation.png
-
-================================================================================
-End time: 2025-12-15 21:45:06
-Duration: 18228.3 seconds
-Log file: /home/chsch95/ICARION/validation/logs/MIXTURE_THERMALIZATION_VALIDATION.txt
-================================================================================

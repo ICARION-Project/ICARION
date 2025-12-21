@@ -4,7 +4,7 @@ REACTION KINETICS VALIDATION
 Project root: /home/chsch95/ICARION
 Icarion binary: /home/chsch95/ICARION/build/src/icarion_main
 Dry run: False
-Start: 2025-12-15T22:08:57.449747
+Start: 2025-12-20T22:39:51.594725
 
 --- Scenario: equilibrium ---
 Reversible first-order pair expected to settle at a 75/25 split.
@@ -57,4 +57,4 @@ Arrhenius sweep for H3O+ -> PentanalH+ across 250/300/350 K.
 
 All requested scenarios finished.
 Next step: use analyze_reactions.py for quantitative fits once time-resolved species data is available.
-End: 2025-12-15T22:52:28.704108
+End: 2025-12-20T22:58:34.392225

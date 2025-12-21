@@ -894,7 +894,7 @@ This section provides a quick reference for all configuration sections. For comp
 
 See `schema/simulation.schema.json` for all options.
 
-**Integrator caveat:** Space charge is **not supported** with adaptive RK45. Use fixed-step RK4 (or disable space charge) if SC is enabled; otherwise the engine will refuse to run.
+**Integrator caveat:** Adaptive RK45 can run with space charge if `ICARION_ADAPTIVE_SC` is not set to `0`. Fields are rebuilt at every RK stage (expensive). Set `ICARION_ADAPTIVE_SC=0` to force the legacy guard (single SC update per macro-step) or use fixed-step RK4 for faster SC runs.
 
 ### Physics Section
 

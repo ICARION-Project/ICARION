@@ -211,7 +211,7 @@ time ./icarion_main config.json  # Should be ~4-5× faster
 **Solution:**
 - Increase timestep: `dt_s = 1e-9` (1 ns) for typical ion dynamics
 - Reduce simulation time to minimum needed
-- Use RK45 adaptive integrator for efficiency
+- Use RK45 adaptive integrator for efficiency; if space charge is enabled and you need deterministic behavior, leave `ICARION_ADAPTIVE_SC` unset (default) to get stage-synchronous SC. Set `ICARION_ADAPTIVE_SC=0` to fall back to macro-step SC updates (faster, less accurate).
 
 #### 2. Very Low Pressure with Small Timestep
 

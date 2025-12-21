@@ -16,17 +16,17 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 - **Stable surface:** JSON configuration schema is considered stable for v1.x.
 - **Internal API:** C++ headers/classes are internal and may evolve between minor releases.
 - **License:** MIT (see `LICENSE`); third-party dependencies listed in `CMakeLists.txt` and `cmake/`.
-- **Experimental components (off-path for v1.0 results):** GPU EHSS geometry upload, GPU space-charge P³M, and adaptive field interpolation are present but incomplete and should be treated as experimental.
+- **Experimental components (off-path for v1.0 results):** GPU EHSS geometry upload, GPU space-charge P³M, and adaptive field interpolation are present but incomplete and are hard-disabled at runtime in v1.0 (any `enable_gpu=true` runs on CPU).
 
 # What & Who
 
 - **What is ICARION?** Modular ion trajectory simulator (C++17) for mass spectrometry, ion mobility devices and ion optics with collision and reaction support.
 - **What can it do in v1.0?** IMS, RF quadrupole, Orbitrap, TOF, LQIT, FT-ICR; EHSS/HSS stochastic collision models Friction/Langevin/HardSphere deterministic collision models; Arrhenius reactions; RK4/RK45/Boris integrators; HDF5 with reproducibility metadata and config snapshot.
-- **What can it not do yet?** No full-field solver, no optimizer loop, limited GPU coverage (see below).
+- **What can it not do yet?** No full-field solver, no optimizer loop, limited GPU coverage (see below), magnetic field map providers not wired (analytical/uniform B only).
 - **Who is it for?** Researchers/engineers needing reproducible ion mobility / MS simulations with configurable physics and domains.
 - **Expectation management:** ICARION prioritizes physical correctness and modularity. Performance optimization and GPU offloading are active development areas.
 - **Integrator note:** RK45 now keeps per-ion adaptive state and is OpenMP-safe; batch paths (CPU/GPU) require uniform `dt` across active ions.
-- **GPU status:** GPU support is provided as an **experimental backend**. While functional, it is not yet optimized for large-scale production simulations.
+- **GPU status:** GPU codepaths are compiled but runtime-disabled for v1.0; `enable_gpu=true` is ignored and falls back to CPU. The backend remains experimental for developers only.
 - **Output memory guard:** Set `output.buffer_byte_cap` (bytes) to cap in-memory trajectory buffering and fail fast before OOM; `0` disables the cap.
 
 # Minimal Example (IMS)
@@ -52,7 +52,7 @@ Run produces `results/ims/ims_trajectories.h5` (plus a config snapshot `ims_traj
 - Ion–neutral reactions with temperature-dependent rates
 - Mason–Schamp CCS/mobility conversion
 - Domain-dependent gas environments
-- DC, RF, AC, magnetic fields (all electric fields either analytical or initialized from precomputed field arrays)
+- DC, RF, AC, magnetic fields (magnetic maps are not wired; analytical/uniform B only; electric fields either analytical or initialized from precomputed field arrays)
 
 ## Instruments
 
@@ -68,7 +68,7 @@ Run produces `results/ims/ims_trajectories.h5` (plus a config snapshot `ims_traj
 - fixed-step RK4, adaptive RK45, Boris pusher
 - Deterministic + stochastic collision loop
 - OpenMP support (multi-core CPU)
-- GPU support (enable_gpu = true)
+- GPU support (compiled, but runtime-disabled in v1.0; `enable_gpu` falls back to CPU)
 
 ## Input System
 
@@ -84,7 +84,7 @@ SSOT architecture:
 - Open-source HDF5 format with hierarchical structure
 - Chunked, extendable datasets
 - Species metadata only once (reduces file size)
-- Selected config/system metadata stored for reproducibility (full JSON not embedded in v1.0; full config snapshot now written alongside output as `<basename>.config.json`)
+- Config, species/reaction DBs, and field arrays are embedded in HDF5 (larger files but self-contained) plus a `<basename>.config.json` snapshot; structured metadata groups remain for quick inspection.
 
 ---
 

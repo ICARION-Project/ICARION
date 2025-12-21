@@ -31,13 +31,13 @@ For fast CI/CD regression tests (<5s), see `tests/` directory (CTests).
 | Space Charge | Coulomb expansion, solver parity | 8 | σ(t), ΔE/E | `scripts/run_spacecharge_tests.sh` | ⏳ Planned |
 | Reaction Kinetics | 1st-order + bimolecular | 6 | N(t) vs rate equations | `scripts/run_reactions_tests.sh` | ⏳ Planned |
 | Performance (CPU) | Scaling + model overhead | 18 | wallclock vs N, model | `scripts/performance/run_performance_suite.sh` | ✅ Complete |
-| Performance (GPU) | Speedup vs CPU, thresholds | 31 | GPU/CPU speedup | `scripts/performance/run_performance_suite.sh --gpu-only` | 🔄 In progress |
+| Performance (GPU) | Speedup vs CPU, thresholds (runtime-disabled in v1.0) | 31 | GPU/CPU speedup | `scripts/performance/run_performance_suite.sh --gpu-only` | 🚫 Skipped (GPU hard-disabled) |
 
 **How to run (short version):**
 - Single study: `./scripts/run_thermalization_tests.sh full`
 - All instruments: `./scripts/run_instrument_suite.sh`
 - Full physics sweep: `./scripts/run_physics_suite.sh`
-- Performance benchmarks: `./scripts/performance/run_performance_suite.sh [--gpu-only]`
+- Performance benchmarks (CPU-only in v1.0): `./scripts/performance/run_performance_suite.sh [--cpu-only]` (GPU path is runtime-disabled)
 - End-to-end: `./scripts/run_all_validation.sh` (chains everything; expects a built `../build/src/icarion_main`)
 
 **Example outputs / metrics:**
@@ -58,7 +58,7 @@ For fast CI/CD regression tests (<5s), see `tests/` directory (CTests).
 | **4** | **Reactions** | 6 | **COMPLETE** | First-order (3), bimolecular (3) kinetics |
 | **5** | **Space Charge** | 8 | **COMPLETE** | Coulomb expansion, Direct vs Grid (N=1000 threshold) |
 | **6** | **Performance** | 18 | **COMPLETE** | CPU: Ion scaling, collision/SC overhead benchmarks |
-| **7** | **GPU Performance** | 31 | 🔄 **IN PROGRESS** | GPU vs CPU, integrator comparison, thresholds |
+| **7** | **GPU Performance** | 31 | 🚫 **SKIPPED** | GPU backend is runtime-disabled in v1.0; keep configs for future re-enable |
 | **8** | **Physics Validations** | 3 | ✅ **NEW** | Gas flow transport (SIFT-MS physics), E=0 validation |
 
 
@@ -282,48 +282,9 @@ From thermalization validation:
 
 ---
 
-## 🚀 SESSION 7: GPU PERFORMANCE BENCHMARKS (Status: 🔄 IN PROGRESS)
+## 🚀 SESSION 7: GPU PERFORMANCE BENCHMARKS (Status: 🚫 SKIPPED in v1.0)
 
-### **Overview:**
-
-GPU acceleration validation for integrators (RK4, RK45, Boris) across different ion counts.
-Phase 11 GPU implementation includes smart dispatch with dynamic thresholds.
-
-### **Benchmark Categories (31 configs):**
-
-#### **1. GPU vs CPU Scaling (10 configs)**
-- **Ion counts:** N = 1k, 5k, 10k, 50k, 100k
-- **Integrator:** RK4
-- **Modes:** CPU (enable_gpu: false) + GPU (enable_gpu: true)
-- **Validates:** Speedup ratio at different scales
-
-#### **2. Integrator Comparison (3 configs)**
-- **Integrators:** RK4, RK45, Boris
-- **Ion count:** N = 10,000
-- **Mode:** GPU only
-- **Validates:** Relative GPU performance (Boris fastest, RK45 slowest)
-
-#### **3. Threshold Validation (15 configs)**
-- **RK4/RK45:** N = 4k, 4.5k, 5k, 5.5k, 6k (threshold = 5000)
-- **Boris:** N = 2k, 2.25k, 2.5k, 2.75k, 3k (threshold = 2500)
-- **Validates:** Smart dispatch threshold effectiveness
-
-#### **4. Long Simulation Efficiency (3 configs)**
-- **Simulation time:** 100 µs (10× longer)
-- **Integrators:** RK4, RK45, Boris
-- **Ion count:** N = 10,000
-- **Validates:** GPU efficiency over extended runtime
-
-### **Expected GPU Performance:**
-
-| Integrator | Threshold | Expected Speedup | Force Evals |
-|------------|-----------|------------------|-------------|
-| **RK4**    | 5000      | 3-5×             | 4 per step  |
-| **RK45**   | 5000      | 4-6×             | 6-7 per step (adaptive) |
-| **Boris**  | 2500      | 5-10×            | 1 per step (symplectic) |
-
-**Note:** Boris has lower threshold (2500) due to computational simplicity (single force eval).
-RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evaluations.
+GPU backend is compiled but runtime-disabled for v1.0 (any `enable_gpu=true` falls back to CPU). The 31 GPU performance configs and scripts remain in `validation/scripts/performance/` for future releases; skip them for v1.0 validation runs.
 
 ---
 
@@ -362,14 +323,11 @@ RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evalu
     thermalization/transport/spacecharge/reactions outputs (or accepts explicit
     `--*-dir` overrides) and replays all post-processing with one command.
 
-🚀 **GPU Performance (Session 7):**
-- `scripts/generate_gpu_performance_configs.py` - GPU benchmark suite (31 configs)
-- `scripts/performance/run_performance_suite.sh` - Unified CPU+GPU benchmark runner (defaults to all categories, honors `--cpu-only`, `--gpu-only`, and category filters; logs land under `validation/results/v1.0_test/performance/{logs,gpu_logs}`)
-- `scripts/performance/run_performance_analysis.sh` - Central analyzer wrapper that regenerates the CPU/GPU plots/tables in one command
-- `scripts/analyze_gpu_performance.py` - Speedup analysis and plotting
-- `scripts/analyze_quadrupole_stability_map.py` - Stability map analysis
-- `scripts/generate_fticr_configs.py` - FT-ICR cyclotron frequency (5 configs)
-- `scripts/analyze_fticr_frequencies.py` - Cyclotron frequency analysis
+🚫 **GPU Performance (Session 7):** GPU backend is runtime-disabled in v1.0; keep configs/scripts for future releases but skip GPU runs and analysis.
+- `scripts/generate_gpu_performance_configs.py` - GPU benchmark suite (31 configs, retained for later)
+- `scripts/performance/run_performance_suite.sh` - CPU benchmark runner (GPU categories skipped in v1.0; logs under `validation/results/v1.0_test/performance/logs`)
+- `scripts/performance/run_performance_analysis.sh` - Stub that skips GPU analysis for v1.0
+- `scripts/analyze_gpu_performance.py` - Speedup analysis (not run in v1.0)
 
 🔄 **Transport (Session 3):**
 - `scripts/generate_transport_drift_configs.py` - Drift velocity vs E/N
@@ -380,9 +338,9 @@ RK45 is adaptive but still uses standard threshold (5000) due to 6-7 force evalu
 - `scripts/run_spacecharge_tests.sh` - Coulomb expansion tests
 - `scripts/run_reactions_tests.sh` - Kinetics validation
 
-⏳ **Performance (Session 6):**
-- `scripts/performance/run_performance_suite.sh` - Same unified runner as above; exercises CPU categories by default and auto-skips GPU sections unless `USE_GPU_ACCEL=ON`
-- `scripts/performance/run_performance_analysis.sh` - Companion analyzer that sweeps the latest logs to refresh performance CSVs/plots
+⏳ **Performance (Session 6, CPU-only in v1.0):**
+- `scripts/performance/run_performance_suite.sh` - CPU categories; GPU sections are skipped because runtime GPU is disabled
+- `scripts/performance/run_performance_analysis.sh` - Skips GPU analysis for v1.0
 
 ⏳ **Orchestration:**
 - `scripts/run_all_validation.sh` - Master script for full suite

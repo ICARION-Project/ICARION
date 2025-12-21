@@ -1,5 +1,5 @@
 **Physical Correctness**
-- ⚠ Space-charge fields refresh at each RK4/RK45 stage for uniform dt runs (stage-synchronous); adaptive RK45 and non-uniform dt still use a single update per macro-step, and GPU has no space-charge support.
+- ⚠ Space-charge fields refresh at each RK4/RK45 stage on CPU; adaptive RK45 now runs stage-synchronously when `ICARION_ADAPTIVE_SC` is enabled (default). GPU still has no space-charge path, and non-uniform GPU dt paths drop SC entirely.
 - ❌ GPU integration ignores everything except a single electric field provider: `GPUIntegrationStrategy` requires exactly one `ElectricFieldForce` with a provider and applies only E/B; damping, space charge, magnetic forces, and composites are dropped (`GPUIntegrationStrategy.cpp:119-133`). Magnetic instruments and space-charge runs on GPU are invalid.
 - ✅ Boundary actions are now invoked on exit/entry using geometry intersections (`SimulationEngine.cpp:507-612`); collisions/reactions still use pre-step environments.
 - ❌ Collisions/reactions use pre-integration domain/environment (`SimulationEngine.cpp:443-497`); if an ion crosses a boundary mid-step, gas properties for stochastic events are wrong.
@@ -10,7 +10,7 @@
 **Numerical Soundness**
 - ✅ Trajectory output now stores per-ion times and species indices (flattened buffers); snapshots no longer mix adaptive-step states without timestamps.
 - ❌ GPU collision batching discards per-ion RNG streams and uses helper RNG (`GPUCollisionHandler.cpp:84-121`), breaking CPU/GPU parity and reproducibility.
-- ⚠ Collisions/reactions assume constant `dt_used_per_ion` within the pre-step domain; mid-step domain changes or adaptive `dt` may bias rates because environments aren’t recomputed for substeps. Space-charge substep syncing only covers uniform RK4/RK45; adaptive RK45 still lags.
+- ⚠ Collisions/reactions assume constant `dt_used_per_ion` within the pre-step domain; mid-step domain changes or adaptive `dt` may bias rates because environments aren’t recomputed for substeps. Space-charge substep syncing covers RK4 and adaptive RK45 on CPU; GPU still lags/drops SC.
 - ✅ CPU RNG seeding is deterministic per ion (`SimulationEngine.cpp:430-433`); RK45 error control clamps `dt` sensibly (`RK45Strategy.cpp`).
 
 **Architecture & Maintainability**
@@ -35,8 +35,8 @@
 - ✅ Metadata records git hash, build info, RNG scheme, config JSON embedding (`hdf5Writer.cpp:60-210`).
 
 - **Release Readiness**
-- ❌ Blockers for v1.0: GPU path is hard-disabled at runtime (CPU-only ship); full GPU force coverage (SC/damping/magnetic/stochastic) deferred. Adaptive RK45 with space charge is forbidden (needs proper stage-sync); resolve SSOT/env-cache desync.
+- ❌ Blockers for v1.0: GPU path is hard-disabled at runtime (CPU-only ship); full GPU force coverage (SC/damping/magnetic/stochastic) deferred. GPU SC absent; SSOT/env-cache remains a macro-step approximation.
 - ⚠ v1.1: spatial index for domains, persist GPU field uploads across domain switches, quiet DampingForce logs; consider compression/streaming for very large embedded field grids.
-- ✅ Boundary actions are applied; CPU collision/reaction kernels and electric-only force paths are usable for single-domain, fixed-`dt` studies; per-ion times/species indices are written; stage-synchronous SC works for uniform RK4/RK45; external inputs now embedded.
+- ✅ Boundary actions are applied; CPU collision/reaction kernels and electric-only force paths are usable for single-domain studies; per-ion times/species indices are written; stage-synchronous SC works for RK4/RK45 on CPU (adaptive enabled by default via `ICARION_ADAPTIVE_SC`); external inputs now embedded.
 
 Verdict: I would not recommend publication at this stage, because GPU is effectively disabled (no accelerated path), adaptive RK45+space-charge is unsupported, and SSOT/env-cache remains approximate. Stage-synchronous SC for uniform RK4/RK45 and embedding of external inputs help, but main blockers remain.

@@ -467,8 +467,9 @@ void RK45Strategy::step(core::IonEnsemble &ensemble, size_t ion_idx, double t,
 
     double error = estimate_error(y4, y5, y0);
 
-    if (error <= ERROR_ACCEPTANCE_THRESHOLD ||
-        dt_work <= dt_min * DT_MIN_TOLERANCE) {
+    const bool force_accept = config_.accept_at_dt_min &&
+        (dt_work <= dt_min * DT_MIN_TOLERANCE);
+    if (error <= ERROR_ACCEPTANCE_THRESHOLD || force_accept) {
       ion = y4;
       step_accepted = true;
 
@@ -679,9 +680,10 @@ void RK45Strategy::step_adaptive(IonState &ion, double t, double &dt_inout,
     // =====================================================================
 
     double error = estimate_error(y4, y5, y0);
+    const bool force_accept = config_.accept_at_dt_min &&
+        (dt <= dt_min * DT_MIN_TOLERANCE);
 
-    if (error <= ERROR_ACCEPTANCE_THRESHOLD ||
-        dt <= dt_min * DT_MIN_TOLERANCE) {
+    if (error <= ERROR_ACCEPTANCE_THRESHOLD || force_accept) {
       // Accept step
       ion = y4; // Use 4th-order solution
       step_accepted = true;

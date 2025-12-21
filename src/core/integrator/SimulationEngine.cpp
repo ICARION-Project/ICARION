@@ -1118,7 +1118,9 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
 
                 error = std::max(max_error, MIN_ERROR_THRESHOLD);
 
-                if (error <= ERROR_ACCEPTANCE_THRESHOLD || dt_work <= dt_min * DT_MIN_TOLERANCE) {
+                const bool force_accept = cfg.accept_at_dt_min &&
+                    (dt_work <= dt_min * DT_MIN_TOLERANCE);
+                if (error <= ERROR_ACCEPTANCE_THRESHOLD || force_accept) {
                     accepted = true;
                     dt_next = compute_new_step(dt_work, error);
                     const double dt_used = dt_work;

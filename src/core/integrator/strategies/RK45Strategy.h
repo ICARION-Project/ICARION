@@ -58,6 +58,7 @@ public:
     double max_step_decrease = 0.1; ///< Limit shrinkage per step
     double absolute_min_step_s =
         0.0; ///< Optional absolute dt floor (0 = disabled)
+    bool accept_at_dt_min = true; ///< Accept step when dt reaches dt_min even if error>1
   };
 
   /**

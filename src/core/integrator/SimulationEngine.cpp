@@ -916,30 +916,31 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
                 }
             };
 
-            auto compute_accels_rk = [&](double t_stage, std::vector<Vec3>& acc_out) {
-                double saved_time = current_time_;
-                current_time_ = t_stage;
-                update_space_charge_models(ensemble);
-                current_time_ = saved_time;
-                const bool use_omp = parallel_enabled_;
-                #pragma omp parallel if(use_omp)
-                {
-                    #pragma omp for schedule(guided, kOmpChunk)
-                    for (int i = 0; i < static_cast<int>(n); ++i) {
-                        if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
-                        const auto& reg = force_registries_[domain_indices[i]];
-                        if (!reg) continue;
-                        physics::ForceContext ctx;
-                        ctx.domain = reg->domain();
-                        ctx.field_model = reg->field_model();
-                        ctx.ion_ensemble = &ensemble;
-                        ctx.ion_index = static_cast<size_t>(i);
-                        Vec3 F = reg->compute_total_force(ensemble, static_cast<size_t>(i), t_stage, ctx);
-                        const double inv_m = 1.0 / mass[i];
-                        acc_out[static_cast<size_t>(i)] = F * inv_m;
-                    }
-                }
-            };
+    auto compute_accels_rk = [&](double t_stage, std::vector<Vec3>& acc_out) {
+        double saved_time = current_time_;
+        current_time_ = t_stage;
+        update_space_charge_models(ensemble);
+        current_time_ = saved_time;
+        const bool use_omp = parallel_enabled_;
+        // Deterministic order: split into chunks but avoid nondeterministic reductions
+        #pragma omp parallel if(use_omp)
+        {
+            #pragma omp for schedule(static)
+            for (int i = 0; i < static_cast<int>(n); ++i) {
+                if (domain_indices[i] < 0 || !ensemble.is_active(i)) continue;
+                const auto& reg = force_registries_[domain_indices[i]];
+                if (!reg) continue;
+                physics::ForceContext ctx;
+                ctx.domain = reg->domain();
+                ctx.field_model = reg->field_model();
+                ctx.ion_ensemble = &ensemble;
+                ctx.ion_index = static_cast<size_t>(i);
+                Vec3 F = reg->compute_total_force(ensemble, static_cast<size_t>(i), t_stage, ctx);
+                const double inv_m = 1.0 / mass[i];
+                acc_out[static_cast<size_t>(i)] = F * inv_m;
+            }
+        }
+    };
 
             // Seed dt from the first active ion; fall back to configured dt
             double dt_seed = 0.0;
@@ -1129,6 +1130,12 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
                     dt_per_ion_.assign(n, dt_next);
                     adaptive_sc_last_error_ = error;
                     max_dt_used = dt_used;
+                    if (dt_work <= dt_min * DT_MIN_TOLERANCE) {
+                        output_manager_->log_progress(
+                            "Adaptive SC: accepted step at dt_min (dt=" + std::to_string(dt_work) +
+                            ", dt_min=" + std::to_string(dt_min) +
+                            ", error=" + std::to_string(error) + ")");
+                    }
                 } else {
                     dt_work = compute_new_step(dt_work, error);
                     prev_error = error;
@@ -1137,8 +1144,11 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
             }
 
             if (!accepted) {
-                throw std::runtime_error("Adaptive RK45 with space charge failed to converge after " +
-                                         std::to_string(MAX_REJECT_ATTEMPTS) + " attempts");
+                std::ostringstream oss;
+                oss << "Adaptive RK45 with space charge failed to converge after "
+                    << MAX_REJECT_ATTEMPTS << " attempts (last dt=" << dt_work
+                    << ", last error=" << error << ", dt_min=" << dt_min << ")";
+                throw std::runtime_error(oss.str());
             }
 
             return max_dt_used;

@@ -39,6 +39,15 @@ These are **NOT CTests** - they are long-running (up to 30 minutes), high-accura
 - **Output**:
   - `validation/logs/ADAPTIVE_SC_PARITY.txt`
 
+### Adaptive SC Microbench (`bench_space_charge_adaptive.py`)
+- **Runtime**: ~2–3 minutes
+- **Physics**: SC rebuild/rejection overhead for adaptive RK45 (CPU Direct/Grid)
+- **Tests**:
+  - N = 1k, 5k, 10k ions; no external fields
+  - dt = 5e-9 s, t = 5e-7 s
+- **Output**:
+  - `validation/logs/ADAPTIVE_SC_BENCH.txt`
+
 ## Running Validations
 
 From repository root:

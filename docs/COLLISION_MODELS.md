@@ -9,7 +9,7 @@ ICARION implements multiple collision models for ion-neutral interactions. This 
 | Model | Status | Use Case | Validation |
 |-------|--------|----------|------------|
 | **NoCollisions** | **PRODUCTION READY** | Vacuum simulations | N/A |
-| **Friction** | **PRODUCTION READY** | All simulations | Validated |
+| **Friction** | **PRODUCTION (mobility required; CCS fallback approximate)** | High-pressure / low E/N drift; use only when reduced mobility is known | Validated (1–10 Td); CCS fallback is approximate |
 | **HSS** | **PRODUCTION READY** | Stochastic collisions | Validated |
 | **EHSS** | **PRODUCTION (mobility bias noted)** | Molecular structure resolved scattering | Thermalization validated; mobility overestimates |
 | **HSD** | **EXPERIMENTAL** | Deterministic hard sphere | Partially validated |
@@ -19,20 +19,19 @@ ICARION implements multiple collision models for ion-neutral interactions. This 
 
 ## Production-Ready Models
 
-### 1. Friction (CollisionModel::Friction) **Recommended for high pressure simulations**
+### 1. Friction (CollisionModel::Friction) **Recommended for high pressure, low-to-moderate E/N drift when mobility is known**
 
 **Formula:** γ = q/(K·m) where K = K₀·(n₀/n)
 
 **Advantages:**
 - Based on experimentally measured or literature mobility (K₀)
 - Mason-Schamp equation foundation
-- **Exact agreement** with IMS drift measurements (356 m/s measured vs 356 m/s theory in N2)
-- Works for all gas types (polar and non-polar)
+- Validated in IMS drift window 1–10 Td at 100–5000 Pa
 - Density correction included automatically
 
 **Validation:**
-- H3O+ in N2 at 1000 Pa: Within ±40% tolerance (test_ims_drift.cpp)
-- Consistent with literature mobility values in N2
+- IMS drift (N2): Validated 1–10 Td, 100–5000 Pa
+- Outside this envelope the surrogate over-predicts velocity; use stochastic models instead
 - Model provides good approximation, but does not account for diffusion (no randomization)
 
 **Usage:**
@@ -42,9 +41,13 @@ config::CollisionModel::Friction
 ```
 
 **When to use:**
-- At high pressures (> 100 mbar) and when only mobility is of interest, not the actual ion cloud shape
-- IMS, DTIMS
-- Any simulation where experimental mobility is known and diffusion is not critical
+- At high pressures (> 100 mbar) and low-to-moderate E/N (validated 1–10 Td)
+- IMS, DTIMS where experimental reduced mobility is known
+- When diffusion is not critical
+
+**Important limitations:**
+- Requires `ion.reduced_mobility_cm2_Vs`; when missing, the code falls back to CCS-derived damping (approximate) and emits debug logs to stderr.
+- Not validated for high E/N; prefer HSS/EHSS for diffusion or outside the validated envelope.
 
 ---
 

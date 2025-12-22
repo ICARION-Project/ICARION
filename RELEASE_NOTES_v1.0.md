@@ -7,12 +7,17 @@
 - New tests: RK45 per-ion dt/OpenMP determinism, SimulationEngine per-ion dt, batch dt fallback, RNG determinism across compaction, GPU EHSS mapping/parity.
 - Forces/Integrator: RK45 uses the SoA force path end-to-end; forces implement `compute_soa` and space-charge indexing is corrected (no AoS staging).
 
+## Validation (CPU v1.0)
+- Full physics validation is available in `validation/VALIDATION_REPORT_v1.0.md` (thermalization, IMS, Orbitrap, LQIT, quadrupole, FT-ICR, drift/gas flow, reactions, space charge, CPU performance).
+- GPU performance suite is skipped because the runtime GPU path is disabled in v1.0; configs remain for future releases.
+
 ## Known Limitations
 - **RK45 performance/architecture:** RK45 now uses the SoA force path (no AoS staging) and per-ion state caches; adaptive remains serial-only by design. SimulationEngine remains monolithic. No performance regressions are measured in CI; see `validation/` for performance/physics sweeps.
 - **External inputs embedding:** Config, species/reaction databases, and field arrays are now embedded verbatim in HDF5 alongside SHA256 hashes (larger files); per-ion seeds are not stored (only the seed scheme is recorded).
 - **GPU status:** GPU collision (EHSS/HSS) and GPU integration are experimental and runtime-disabled for v1.0; any GPU request is ignored and falls back to CPU.
 - **Magnetic field providers:** Analytical/uniform B-fields work; external B-field map providers are stubbed out and not wired in v1.0.
 - **Batch constraints:** Batch integration/collision runs only when active ions share a uniform `dt`; mixed-dt runs fallback to per-ion paths.
+- **Friction collision model:** Requires reduced mobility input; when absent, it falls back to CCS-based damping (approximate) and emits debug logs. Validated for low-to-moderate E/N (1–10 Td at 100–5000 Pa); use stochastic models outside this envelope or when diffusion matters.
 
 ## Reproducibility
 - HDF5 metadata includes: resolved config JSON (runtime), RK45 runtime tolerances, RNG scheme/seed, physics handler names and GPU thresholds, domain/species/reaction counts, SHA256 hashes for config/species/reaction DBs and field array files, buffer cap setting.

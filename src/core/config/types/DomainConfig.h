@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #ifndef ICARION_CONFIG_DOMAIN_CONFIG_H
 #define ICARION_CONFIG_DOMAIN_CONFIG_H
@@ -7,6 +7,7 @@
 #include "GeometryConfig.h"
 #include "EnvironmentConfig.h"
 #include "FieldsConfig.h"
+#include "BoundaryConfig.h"
 #include "SolverEnums.h"
 #include "core/config/types/InstrumentTypes.h"
 #include "core/utils/mathUtils.h"
@@ -36,9 +37,9 @@ struct DomainConfig {
     GeometryConfig geometry;
     EnvironmentConfig environment;
     FieldsConfig fields;
+    BoundaryConfig boundary;                            ///< Boundary action configuration
     
     // === Solver ===
-    // FUTURE: Allow per-domain solver selection via SolverModule
     SolverType solver = SolverType::RK4;                ///< Integrator for this domain
     
     // === Coordinate transforms (for multi-domain) ===
@@ -91,6 +92,7 @@ struct DomainConfig {
         result.merge(geometry.validate());
         result.merge(environment.validate());
         result.merge(fields.validate());
+        result.merge(boundary.validate());
         
         // Instrument-specific validation (warnings only for missing typical fields)
         switch (instrument) {

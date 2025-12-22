@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file OUCollisionHandler.h
@@ -68,8 +68,8 @@ namespace ICARION::physics {
  * handler.handle_collision(ion, dt, rng, env);  // SSOT!
  * ```
  * 
- * ⚠️ **CRITICAL:** Gamma coefficient MUST match the damping coefficient
- * used in DampingForce! Mismatch leads to incorrect equilibrium temperature.
+ * Gamma coefficient should match the damping coefficient used in DampingForce;
+ * otherwise equilibrium temperature will be off.
  * 
  * @see DampingForce for deterministic damping models
  * @see apply_ou_velocity_kick() for underlying implementation
@@ -83,7 +83,7 @@ public:
      * @param apply_damping If true, applies full OU (damping + thermalization).
      *                      If false, applies only thermal kicks (for use with DampingForce).
      * 
-     * ⚠️ **IMPORTANT:** This gamma must equal the damping coefficient used in
+     *  **IMPORTANT:** This gamma must equal the damping coefficient used in
      * DampingForce, otherwise equilibrium temperature will be wrong!
      * 
      * **Usage:**
@@ -95,31 +95,14 @@ public:
     explicit OUCollisionHandler(double gamma_coefficient, bool apply_damping = true);
     
     /**
-     * @brief Apply OU thermal kick for single timestep
-     * 
-     * **Algorithm:**
-     * 1. Compute thermal velocity: v_th = √(kB·T/m)
-     * 2. Compute kick amplitude: A = v_th · √(1 - exp(-2·γ·dt))
-     * 3. Sample 3D Gaussian noise: N(0,1)
-     * 4. Apply kick: Δv = A · N(0,1)
-     * 
-     * **SSOT:** Reads temperature directly from `env`:
-     * - env.temperature_K → thermal velocity scale
-     * 
-     * @param[in,out] ion Ion state (velocity modified by thermal kick)
-     * @param[in] dt Timestep [s]
-     * @param[in,out] rng Random number generator
-     * @param[in] env Environment configuration (SSOT!)
-     * 
-     * @return true (always "collides" - continuous process)
-     * 
-     * @note Unlike EHSS/HSS, this is a continuous stochastic process,
-     *       not a discrete collision event. Return value always true.
+     * @brief Apply OU thermal kick for single timestep (SoA)
+     *
+     * Return value always true (continuous process).
      */
     bool handle_collision(
-        IonState& ion,
+        core::IonCollisionData& view,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env
     ) override;
     

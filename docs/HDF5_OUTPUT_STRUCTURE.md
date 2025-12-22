@@ -1,8 +1,9 @@
 # HDF5 Output Structure
 
-**Version:** 1.0 (FullConfig-based)  
-**Last Updated:** 2025-11-21  
-**Status:** Implemented
+**Version:** 1.0  
+**Last Updated:** December 2025  
+**Status:** Implemented (v1.0); waveform library stored (v1.1); full config/species/reaction DBs and field arrays are embedded in HDF5 (snapshot also written alongside output, larger files).  
+**Implementation:** Writer is SoA-native (IonEnsemble) in v1.0; legacy AoS calls still accepted for compatibility.
 
 ---
 
@@ -21,7 +22,7 @@ ICARION writes simulation results to HDF5 files with a hierarchical structure de
 ```
 simulation.h5
 ├── metadata/
-│   ├── config/                    # Configuration parameters
+│   ├── config/                    # Selected configuration parameters
 │   ├── reproducibility/           # Git hash, RNG seed, build info
 │   ├── system/                    # System information
 │   ├── species/                   # Species database (tabular)
@@ -38,6 +39,7 @@ simulation.h5
 │   ├── initial_pos_x/y/z          # Initial position [N]
 │   ├── initial_vel_x/y/z          # Initial velocity [N]
 │   ├── birth_time_s               # Birth time [N]
+│   ├── death_time_s               # Death time [N] (-1 if still alive)
 │   └── charge_C                   # Charge [N]
 └── domains/
     ├── domain_0/
@@ -47,7 +49,7 @@ simulation.h5
     │   ├── geometry/              # Geometric parameters
     │   ├── environment/           # Gas conditions
     │   ├── fields/                # Electric fields
-    │   │   ├── waveforms/         # Waveform library (v1.1, if present)
+    │   │   ├── waveforms/         # Waveform library (if present)
     │   │   ├── dc/                # DC field values (t=0 if waveform)
     │   │   ├── rf/                # RF field values (t=0 if waveform)
     │   │   └── ac/                # AC field values (t=0 if waveform)
@@ -76,10 +78,32 @@ Configuration parameters extracted from `FullConfig`.
 | `collision_model` | string | Collision model (EHSS, HSS, Langevin) | - |
 | `enable_reactions` | bool | Reactions enabled? | - |
 | `enable_space_charge` | bool | Space charge enabled? | - |
-| `enable_gpu` | bool | GPU acceleration enabled? | - |
+| `enable_gpu` | bool | GPU acceleration enabled? (ignored in v1.0 runtime; CPU only) | - |
 | `output_file` | string | Output file path | - |
+| `config_json` | string | Embedded resolved config snapshot (validated + CLI overrides) | - |
+| `integrator_params/name` | string | Integrator name | - |
+| `integrator_params/rk45_min_step_s` | double | Absolute min step for RK45 (if set) | s |
+| `integrator_params/openmp_enabled` | bool | OpenMP enabled flag | - |
+| `integrator_params/rk45_atol` | double | RK45 absolute tolerance (default if RK45) | - |
+| `integrator_params/rk45_rtol` | double | RK45 relative tolerance (default if RK45) | - |
+| `integrator_params/rk45_safety_factor` | double | RK45 safety factor (default) | - |
+| `integrator_params/rk45_min_step_factor` | double | RK45 minimum step scaling factor | - |
+| `integrator_params/rk45_max_step_factor` | double | RK45 maximum step scaling factor | - |
+| `integrator_params/rk45_max_step_increase` | double | RK45 max growth per step | - |
+| `integrator_params/rk45_max_step_decrease` | double | RK45 max shrink per step | - |
+| `integrator_params/rk45_absolute_min_step_s` | double | RK45 absolute min step (config/strategy default) | s |
+| `integrator_params/gpu_collision_threshold` | int | Minimum ions for GPU collision dispatch (default 5000) | - |
+| `integrator_params/gpu_space_charge_threshold` | int | Minimum ions for GPU space-charge dispatch (default 1000, 0 if GPU disabled) | - |
+| `derived_summary/num_domains` | int | Number of domains in config | - |
+| `derived_summary/num_species_db` | int | Species entries loaded | - |
+| `derived_summary/num_reactions_db` | int | Reactions loaded | - |
+| `physics/collision_handler` | string | Collision handler (HSS, EHSS, etc.) | - |
+| `physics/reaction_handler` | string | Reaction handler (or None) | - |
+| `physics/reaction_gpu_threshold` | int | Minimum ions for GPU reaction dispatch (default 2000) | - |
+| `physics/collision_gpu_threshold` | int | Minimum ions for GPU collision dispatch (default 5000) | - |
+| `physics/collision_mixture_limit` | string | Max mixture components in GPU helper (default 8) | - |
 
-**Note:** Complete JSON configuration may be added in future versions.
+**Note:** Full resolved config snapshot is embedded as `config_json` (identical to the `.config.json` snapshot written alongside the HDF5). Selected key fields remain broken out as individual datasets for fast access.
 
 ---
 
@@ -94,23 +118,41 @@ Information required to reproduce the simulation exactly.
 | `global_seed` | uint | RNG seed for entire simulation |
 | `rng_algorithm` | string | RNG algorithm (std::mt19937_64) |
 | `seed_scheme` | string | Per-ion seeding method |
+| `per_ion_rng_scope` | string | Subsystems using per-ion RNG (collisions, reactions, stochastic forces) |
 | `git_hash` | string | Git commit hash of ICARION |
 | `git_dirty` | bool | Uncommitted changes present? |
 | `code_version` | string | ICARION version (e.g., "1.0.0") |
 | `build_type` | string | Release or Debug |
 | `compiler_cxx` | string | C++ compiler version |
-| `build_info` | string | Complete build information |
+| `build_info` | string | Build flags summary (type, OpenMP, CUDA, mode) |
 | `cuda_version` | string | CUDA version (if enabled) |
 | `gpu_arch` | string | GPU architecture (if enabled) |
-| `openmp_threads` | int | Number of OpenMP threads |
+| `openmp_enabled` | bool | OpenMP enabled at build time? |
+| `openmp_threads` | int | Number of OpenMP threads (1 if disabled) |
 
 **Subgroup:** `/metadata/reproducibility/input_hash/`
 
 | Name | Type | Description |
 |------|------|-------------|
 | `config_sha256` | string | SHA256 hash of config file |
-| `species_db_sha256` | string | SHA256 hash of species database |
-| `reaction_db_sha256` | string | SHA256 hash of reaction database |
+| `species_db_sha256` | string | SHA256 hash of species database (N/A if not provided) |
+| `reaction_db_sha256` | string | SHA256 hash of reaction database (N/A if not provided) |
+
+---
+
+**Subgroup:** `/metadata/reproducibility/input_blobs/`
+
+Embedded copies of external inputs (for reruns without external files).
+
+| Name | Type | Description |
+|------|------|-------------|
+| `config_json` | string | Full config JSON (or `{}` if unavailable) |
+| `species_db_json` | string | Embedded species database (or `{}`) |
+| `reaction_db_json` | string | Embedded reaction database (or `{}`) |
+| `field_arrays/blob_<i>` | uint8 array | Raw bytes of field array file *i* (if embedded) |
+| `field_arrays/blob_<i>_filename` | string | Original path of field array file *i* |
+
+All inputs are embedded unconditionally; downstream scripts should prefer these blobs over external files for reproducibility.
 
 ---
 
@@ -191,9 +233,14 @@ Reaction database in tabular format.
 **Note:** Only reactions involving species present in the simulation are written (reactants must be in initial ions). This reduces file size for large reaction networks (e.g., 1000+ reactions).
 
 **Reaction Types:**
-- `0` = Three-body
-- `1` = Charge transfer
-- `2` = Proton transfer
+- `0` = ChargeTransfer
+- `1` = ProtonTransfer
+- `2` = Association (two-body)
+- `3` = Dissociation
+- `4` = Switching
+- `5` = Unknown
+
+**Note:** Current implementation writes type `2` (Association) for all reactions; type-specific IDs are not yet persisted.
 
 ### `/metadata/completion/`
 
@@ -280,7 +327,8 @@ Per-ion metadata (initial conditions and properties).
 | `initial_vel_x` | double | [N] | Initial x velocity | m/s |
 | `initial_vel_y` | double | [N] | Initial y velocity | m/s |
 | `initial_vel_z` | double | [N] | Initial z velocity | m/s |
-| `birth_time_s` | double | [N] | Birth time | s |
+| `birth_time_s` | double | [N] | Birth time (0 for initial ions) | s |
+| `death_time_s` | double | [N] | Death time (-1 if ion still alive at end) | s |
 | `charge_C` | double | [N] | Particle charge | C |
 
 **N** = Number of ions
@@ -336,7 +384,7 @@ Configuration for each instrument domain.
 
 Contains subgroups for DC, RF, and AC fields with voltage, frequency, and phase parameters. 
 
-**v1.1 Extension:** If time-varying waveforms are used, a `/fields/waveforms/` subgroup is created with one group per named waveform containing its type and parameters. DC/RF/AC fields store the t=0 evaluation for backward compatibility.
+**Waveform Support:** If time-varying waveforms are used, a `/fields/waveforms/` subgroup is created with one group per named waveform containing its type and parameters. DC/RF/AC fields store the t=0 evaluation for backward compatibility.
 
 ---
 
@@ -445,15 +493,18 @@ Typical file sizes for various simulations:
 | LQIT | 10,000 | 10,000 | 2.4 GB | 600 MB |
 | TOF large | 100,000 | 50,000 | 120 GB | 30 GB |
 
-**Storage formula:**
+**Storage formula (trajectory data only):**
 ```
-size_bytes ≈ (N_ions × N_timesteps × 7 × 8) / compression_ratio
+size_bytes ≈ (N_ions × N_timesteps × 6 × 8 + N_timesteps × 8) / compression_ratio
 ```
 
 where:
-- 7 datasets per timestep (time, pos[3], vel[3])
-- 8 bytes per double
+- 6 values per ion per timestep: pos[3], vel[3] (doubles)
+- 1 time value per timestep (double)
+- Additional: species_ids (strings), domain_indices (ints)
+- 8 bytes per double, 4 bytes per int
 - Typical compression ratio: 3-5x
+- **Note:** Metadata (config, species, reactions, domains) adds ~1-2 MB overhead
 
 ---
 
@@ -497,30 +548,6 @@ end
 
 ---
 
-## Format Versioning
-
-**Current Version:** 1.0
-
-### Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2024-10 | Initial format (legacy GlobalParams) |
-| 2.0 | 2025-11 | FullConfig-based, added metadata groups |
-
-### Version Detection
-
-```python
-with h5py.File('simulation.h5', 'r') as f:
-    if '/metadata/config/format_version' in f:
-        version = f['/metadata/config/format_version'][()].decode()
-        print(f"HDF5 format version: {version}")
-    else:
-        print("Legacy format (v1.0)")
-```
-
----
-
 ## Best Practices
 
 ### For Users
@@ -543,10 +570,6 @@ with h5py.File('simulation.h5', 'r') as f:
 
 - HDF5 Documentation: https://portal.hdfgroup.org/
 - h5py User Guide: https://docs.h5py.org/
-- ICARION Config Schema: [`docs/INPUT_SCHEMA.md`](docs/INPUT_SCHEMA.md )
-- Example Scripts: `examples/analyze_trajectory.py`
+- ICARION Config Schema: [`CONFIG_GUIDE.md`](CONFIG_GUIDE.md)
 
 ---
-
-**Questions or Issues?**  
-https://github.com/ICARION-Project/ICARION/issues

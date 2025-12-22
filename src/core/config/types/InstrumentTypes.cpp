@@ -1,27 +1,6 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   ------------------------------------------------
- *   Modular framework for simulating ion trajectories in custom
- *   electric fields and background gas environments.
- *
- *   @file       InstrumentTypes.cpp
- *   @brief      Implementation of instrument types and functions
- *
- *   @details
- *   Implements functions for mapping between instrument type enums and their string representations.
- *
- *   @date       2025-11-14
- *   @version    1.0.0
- *   @authors    ICARION Development Team
- *
- * =====================================================================
- */
- 
 #include "core/config/types/InstrumentTypes.h"
 
 #include <algorithm>

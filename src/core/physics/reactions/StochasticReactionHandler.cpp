@@ -1,10 +1,5 @@
-// StochasticReactionHandler.cpp
-// Implementation of stochastic reaction handler
-//
-// SSOT Design: Reads all parameters directly from databases and EnvironmentConfig.
-// No parameter duplication!
-//
-// Created: 2025-11-22 (Phase 3 Refactor)
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "StochasticReactionHandler.h"
 #include "core/log/Logger.h"
@@ -20,13 +15,22 @@ StochasticReactionHandler::StochasticReactionHandler(bool enable_logging)
 {}
 
 bool StochasticReactionHandler::handle_reaction(
-    IonState& ion,
+    core::IonReactionData& view,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const config::ReactionDatabase& reaction_db,
     const config::SpeciesDatabase& species_db,
     const config::EnvironmentConfig& env
 ) {
+    IonState ion;
+    ion.pos = view.kin.pos();
+    ion.vel = view.kin.vel();
+    ion.mass_kg = view.kin.get_mass();
+    ion.ion_charge_C = view.kin.get_charge();
+    ion.species_id = view.species_id();
+    ion.CCS_m2 = view.get_CCS();
+    ion.reduced_mobility_cm2_Vs = view.get_mobility();
+    
     // SSOT: Read temperature/density directly from EnvironmentConfig
     const double T_K = env.temperature_K;
     const double n_m3 = env.particle_density_m_3;
@@ -104,7 +108,14 @@ bool StochasticReactionHandler::handle_reaction(
             
             // SSOT: Update ion from SpeciesDatabase
             update_ion_species(ion, selected_reaction->product, species_db);
-            
+            view.set_species_id(ion.species_id);
+            view.kin.set_mass(ion.mass_kg);
+            view.kin.set_charge(ion.ion_charge_C);
+            view.kin.set_pos(ion.pos);
+            view.kin.set_vel(ion.vel);
+            view.set_CCS(ion.CCS_m2);
+            view.set_mobility(ion.reduced_mobility_cm2_Vs);
+
             stats_.total_reactions++;
             return true;
         }
@@ -114,6 +125,13 @@ bool StochasticReactionHandler::handle_reaction(
     // But if we do due to floating-point errors, select last channel
     const auto* last_reaction = applicable_reactions.back();
     update_ion_species(ion, last_reaction->product, species_db);
+    view.set_species_id(ion.species_id);
+    view.kin.set_mass(ion.mass_kg);
+    view.kin.set_charge(ion.ion_charge_C);
+    view.kin.set_pos(ion.pos);
+    view.kin.set_vel(ion.vel);
+    view.set_CCS(ion.CCS_m2);
+    view.set_mobility(ion.reduced_mobility_cm2_Vs);
     stats_.total_reactions++;
     return true;
 }
@@ -140,13 +158,13 @@ double StochasticReactionHandler::compute_effective_rate(
     double particle_density,
     const std::unordered_map<std::string, double>& concentrations
 ) const {
-    // ✅ STEP 1: Compute temperature-dependent rate constant k(T)
+    // STEP 1: Compute temperature-dependent rate constant k(T)
     // Models: Constant, Arrhenius, Modified Arrhenius
     double k_T = reaction.compute_rate_constant(temperature);
     
-    // ✅ STEP 2: Apply order terms (concentration dependencies)
+    // STEP 2: Apply order terms (concentration dependencies)
     // Optimization 3: Dimensional consistency check
-    // ⚠️ IMPORTANT: rate_constant must have correct dimensions!
+    // IMPORTANT: rate_constant must have correct dimensions!
     // - 1st order (exponent=1): k [m³/s]   → k_eff = k(T) * [X]    [s⁻¹]
     // - 2nd order (exponent=2): k [m⁶/s]   → k_eff = k(T) * [X]²   [s⁻¹]
     // User is responsible for providing k with correct dimensional units!
@@ -163,7 +181,14 @@ double StochasticReactionHandler::compute_effective_rate(
             if (it != concentrations.end()) {
                 conc_m3 = it->second;
             } else {
-                conc_m3 = particle_density;
+                static bool warned = false;
+                if (!warned && enable_logging_) {
+                    log::debug_log(
+                        "[StochasticReactionHandler] No concentration for '" + term.species +
+                        "' in mixture; assuming zero (was buffer gas density)");
+                    warned = true;
+                }
+                conc_m3 = 0.0;  // Do not silently use buffer gas density
             }
         }
 

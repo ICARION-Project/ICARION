@@ -1,29 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   ICARION: A Modular Framework for Ion Collision and Reaction Integration
- * =====================================================================
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        IonState.h
- *   @brief       Defines struct to store ion parameters.
- *
- *   @details
- *   Encapsulates an ion’s position, velocity, and physical attributes for
- *   use in simulation. Supports arithmetic operations for integration schemes
- *   and optional reaction metadata.
- *
- *   @date        2025-10-06
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -47,13 +23,11 @@ namespace core {
  * - Chemical: species identity, reaction history
  * - Simulation: activity status, domain location, birth time
  * 
- * Supports vector arithmetic for Runge-Kutta integrators (RK4, RK45).
- * CUDA-compatible via __host__ __device__ annotations.
- * Units are SI unless otherwise noted (exceptions: mobility in cm²/(V·s), CCS in m²).
+ * Supports vector arithmetic for Runge-Kutta integrators (RK4, RK45). Units are SI unless
+ * otherwise noted (mobility in cm²/(V·s), CCS in m²).
  * 
- * @note Cache line aligned (64 bytes) to prevent false sharing in OpenMP parallel loops.
- *       Each IonState occupies its own cache line(s), eliminating cache coherency traffic
- *       between threads processing adjacent ions.
+ * @note alignas(64) is a best-effort CPU hint; GPU code uses the separate IonState_GPU
+ *       layout. Cache alignment effects vary by compiler/ABI.
  */
 struct alignas(64) IonState {
     // Kinematic parameters
@@ -67,6 +41,7 @@ struct alignas(64) IonState {
     double      ion_charge_C;             ///< Ion charge [C] (typically ±1.602e-19 C)
     double      CCS_m2;                   ///< Collision cross-section [m²]
     double      birth_time_s;             ///< Time when ion was created [s] (0 for initial ions)
+    double      death_time_s = -1.0;      ///< Time when ion was deactivated [s] (-1 = still alive)
     int         history_index = -1;       ///< Index in trajectory history buffer
     bool active = true;                   ///< false if ion was lost (boundary/detector)
     bool born = false;                    ///< true if created by reaction during simulation

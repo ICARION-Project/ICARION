@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file test_simulation_engine_soa.cpp
@@ -14,6 +14,7 @@
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/integrator/strategies/RK4Strategy.h"
 #include "core/config/types/FullConfig.h"
+#include <filesystem>
 
 using namespace ICARION;
 using namespace ICARION::integrator;
@@ -53,6 +54,7 @@ FullConfig create_test_config() {
     cfg.output.folder = "/tmp/test_soa";
     cfg.output.trajectory_file = "test_trajectory.h5";
     cfg.output.print_progress = false;
+    std::filesystem::create_directories(cfg.output.folder);
     
     return cfg;
 }
@@ -87,7 +89,7 @@ TEST_CASE("SimulationEngine SoA - Basic construction and run", "[soa][integratio
     auto config = create_test_config();
     
     // Create force registry (minimal - no forces)
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<ForceRegistry>> force_registries = {force_registry};
     
     // Create integrator
@@ -101,15 +103,18 @@ TEST_CASE("SimulationEngine SoA - Basic construction and run", "[soa][integratio
         auto ions_aos = create_test_ions(10);
         auto ions_soa_init = create_test_ions(10);  // Fresh copy for SoA test
         
-        // Run with AoS (first engine instance)
-        auto result_aos = engine.run(ions_aos);
+        // Run using SoA conversion (legacy AoS input converted once)
+        auto ensemble_aos = IonEnsemble::from_legacy(ions_aos);
+        auto result_aos_ens = engine.run(ensemble_aos);
+        auto result_aos = result_aos_ens.to_legacy();
         
         // Create fresh engine for SoA test to avoid OutputManager finalize issue
         SimulationEngine engine_soa(config, force_registries, integrator);
         
         // Convert to SoA and run
         auto ensemble = IonEnsemble::from_legacy(ions_soa_init);
-        auto result_soa = engine_soa.run_soa(ensemble);
+        auto result_soa_ens = engine_soa.run(ensemble);
+        auto result_soa = result_soa_ens.to_legacy();
         
         // Results should be identical (Phase 2 uses same underlying code)
         REQUIRE(result_aos.size() == result_soa.size());

@@ -1,114 +1,63 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   ------------------------------------------------
- *   Modular framework for simulating ion trajectories in custom
- *   electric fields and background gas environments.
- *
- *   @file       RK4Strategy.cpp
- *   @brief      RK4 integration implementation
- *
- *   @date       2025-11-22
- *   @version    1.0.0
- *   @authors    ICARION Development Team
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "RK4Strategy.h"
 #include "core/physics/forces/ForceContext.h"
+#include "core/types/IonEnsemble.h"
 
 namespace ICARION {
 namespace integrator {
 
-void RK4Strategy::step(
-    IonState& ion,
-    double t,
-    double dt,
-    const physics::ForceRegistry& force_registry,
-    const std::vector<IonState>& all_ions
-) {
-    // Create context (SSOT: domain from ForceRegistry)
-    physics::ForceContext ctx;
-    ctx.domain = force_registry.domain();  // Get domain from registry
-    ctx.all_ions = &all_ions;
-    ctx.field_provider = nullptr;  // Not using field provider for now
-    
-    // =========================================================================
-    // STAGE 1: k1 = f(t, y)
-    // =========================================================================
-    Vec3 F1 = force_registry.compute_total_force(ion, t, ctx);
-    Vec3 a1 = F1 / ion.mass_kg;  // acceleration = F/m
-    
-    Vec3 k1_vel = ion.vel;       // k1 for position: dx/dt = v
-    Vec3 k1_acc = a1;            // k1 for velocity: dv/dt = a
-    
-    // =========================================================================
-    // STAGE 2: k2 = f(t + dt/2, y + k1*dt/2)
-    // =========================================================================
-    IonState ion_temp2 = ion;
-    ion_temp2.pos = ion.pos + k1_vel * (dt * 0.5);  // x + k1_vel * dt/2
-    ion_temp2.vel = ion.vel + k1_acc * (dt * 0.5);  // v + k1_acc * dt/2
-    
-    Vec3 F2 = force_registry.compute_total_force(ion_temp2, t + dt * 0.5, ctx);
-    Vec3 a2 = F2 / ion_temp2.mass_kg;
-    
-    Vec3 k2_vel = ion_temp2.vel;  // k2 for position: dx/dt at midpoint
-    Vec3 k2_acc = a2;             // k2 for velocity: dv/dt at midpoint
-    
-    // =========================================================================
-    // STAGE 3: k3 = f(t + dt/2, y + k2*dt/2)
-    // =========================================================================
-    IonState ion_temp3 = ion;
-    ion_temp3.pos = ion.pos + k2_vel * (dt * 0.5);  // x + k2_vel * dt/2
-    ion_temp3.vel = ion.vel + k2_acc * (dt * 0.5);  // v + k2_acc * dt/2
-    
-    Vec3 F3 = force_registry.compute_total_force(ion_temp3, t + dt * 0.5, ctx);
-    Vec3 a3 = F3 / ion_temp3.mass_kg;
-    
-    Vec3 k3_vel = ion_temp3.vel;  // k3 for position: dx/dt at midpoint
-    Vec3 k3_acc = a3;             // k3 for velocity: dv/dt at midpoint
-    
-    // =========================================================================
-    // STAGE 4: k4 = f(t + dt, y + k3*dt)
-    // =========================================================================
-    IonState ion_temp4 = ion;
-    ion_temp4.pos = ion.pos + k3_vel * dt;  // x + k3_vel * dt
-    ion_temp4.vel = ion.vel + k3_acc * dt;  // v + k3_acc * dt
-    
-    Vec3 F4 = force_registry.compute_total_force(ion_temp4, t + dt, ctx);
-    Vec3 a4 = F4 / ion_temp4.mass_kg;
-    
-    Vec3 k4_vel = ion_temp4.vel;  // k4 for position: dx/dt at endpoint
-    Vec3 k4_acc = a4;             // k4 for velocity: dv/dt at endpoint;
-    
-    // =========================================================================
-    // FINAL UPDATE: y_new = y + (k1 + 2*k2 + 2*k3 + k4) * dt/6
-    // =========================================================================
-    // Position update: x_new = x + (k1_vel + 2*k2_vel + 2*k3_vel + k4_vel) * dt/6
-    ion.pos = ion.pos + (k1_vel + k2_vel * 2.0 + k3_vel * 2.0 + k4_vel) * (dt / 6.0);
-    
-    // Velocity update: v_new = v + (k1_acc + 2*k2_acc + 2*k3_acc + k4_acc) * dt/6
-    ion.vel = ion.vel + (k1_acc + k2_acc * 2.0 + k3_acc * 2.0 + k4_acc) * (dt / 6.0);
-    
-    // Note: mass and charge remain constant during integration
+namespace {
+IonState make_state_from_ensemble(const core::IonEnsemble& ensemble, size_t i) {
+    IonState s;
+    s.pos = ensemble.get_pos(i);
+    s.vel = ensemble.get_vel(i);
+    s.mass_kg = ensemble.mass_data()[i];
+    s.ion_charge_C = ensemble.charge_data()[i];
+    s.active = ensemble.active_data()[i] != 0;
+    s.born = ensemble.born_data()[i] != 0;
+    s.birth_time_s = ensemble.birth_time(i);
+    s.death_time_s = ensemble.death_time(i);
+    s.t = ensemble.time(i);
+    s.CCS_m2 = ensemble.CCS(i);
+    s.reduced_mobility_cm2_Vs = ensemble.mobility(i);
+    s.current_domain_index = ensemble.domain_index(i);
+    s.species_id = ensemble.species_id(i);
+    return s;
 }
 
-// ============================================================================
-// Phase 3B: SoA-optimized RK4 implementation
-// ============================================================================
+void write_state_to_scratch(const IonState& state,
+                            double temperature,
+                            double gas_density,
+                            double neutral_mass,
+                            core::IonEnsemble& scratch) {
+    scratch.resize(1);
+    scratch.set_pos(0, state.pos);
+    scratch.set_vel(0, state.vel);
+    scratch.mass_data()[0] = state.mass_kg;
+    scratch.charge_data()[0] = state.ion_charge_C;
+    scratch.active_data()[0] = state.active ? 1 : 0;
+    scratch.born_data()[0] = state.born ? 1 : 0;
+    scratch.birth_time_data()[0] = state.birth_time_s;
+    scratch.death_time_data()[0] = state.death_time_s;
+    scratch.time_data()[0] = state.t;
+    scratch.CCS_data()[0] = state.CCS_m2;
+    scratch.mobility_data()[0] = state.reduced_mobility_cm2_Vs;
+    scratch.update_species(0, state.species_id, state.mass_kg, state.ion_charge_C,
+                           state.CCS_m2, state.reduced_mobility_cm2_Vs);
+    scratch.domain_index_data()[0] = state.current_domain_index;
+    scratch.temperature_data()[0] = temperature;
+    scratch.gas_density_data()[0] = gas_density;
+    scratch.neutral_mass_data()[0] = neutral_mass;
+}
+}  // namespace
 
-void RK4Strategy::step_soa(
-    core::IonEnsemble& ensemble,
-    size_t ion_idx,
-    double t,
-    double dt,
-    const physics::ForceRegistry& force_registry
-) {
+void RK4Strategy::step(core::IonEnsemble& ensemble,
+                       size_t ion_idx,
+                       double t,
+                       double dt,
+                       const physics::ForceRegistry& force_registry) {
     // Get direct array pointers (cache-friendly)
     auto* pos_x = ensemble.pos_x_data();
     auto* pos_y = ensemble.pos_y_data();
@@ -117,69 +66,66 @@ void RK4Strategy::step_soa(
     auto* vel_y = ensemble.vel_y_data();
     auto* vel_z = ensemble.vel_z_data();
     auto* mass = ensemble.mass_data();
-    auto* charge = ensemble.charge_data();
     
     const size_t i = ion_idx;
     const double inv_mass = 1.0 / mass[i];
+
+    IonState state = make_state_from_ensemble(ensemble, i);
+    core::IonEnsemble scratch;
+    scratch.reserve(1);
+    const double temp = ensemble.temperature(i);
+    const double gas_density = ensemble.gas_density(i);
+    const double neutral_mass = ensemble.neutral_mass(i);
     
     // Create force context (domain from ForceRegistry)
     physics::ForceContext ctx;
     ctx.domain = force_registry.domain();
-    ctx.all_ions = nullptr;  // Space charge requires conversion (TODO: Phase 3C)
-    ctx.field_provider = nullptr;
-    
-    // Temporary IonState for force evaluation (minimal overhead)
-    IonState ion_temp;
-    ion_temp.mass_kg = mass[i];
-    ion_temp.ion_charge_C = charge[i];
+    ctx.all_ions = nullptr;
+    ctx.field_provider = nullptr;  // No field provider hookup in RK4
+    ctx.field_model = force_registry.field_model();
+    ctx.ion_ensemble = &scratch;
+    ctx.ion_index = 0;
+
+    auto eval_acc = [&](const Vec3& pos, const Vec3& vel, double t_eval) {
+        state.pos = pos;
+        state.vel = vel;
+        write_state_to_scratch(state, temp, gas_density, neutral_mass, scratch);
+        Vec3 F = force_registry.compute_total_force(scratch, 0, t_eval, ctx);
+        return F * inv_mass;
+    };
     
     // =========================================================================
     // STAGE 1: k1 = f(t, y)
     // =========================================================================
-    ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]);
-    ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]);
-    
-    Vec3 F1 = force_registry.compute_total_force(ion_temp, t, ctx);
-    Vec3 a1 = F1 * inv_mass;
-    
-    Vec3 k1_vel = ion_temp.vel;
-    Vec3 k1_acc = a1;
+    Vec3 pos0{pos_x[i], pos_y[i], pos_z[i]};
+    Vec3 vel0{vel_x[i], vel_y[i], vel_z[i]};
+
+    Vec3 k1_vel = vel0;
+    Vec3 k1_acc = eval_acc(pos0, vel0, t);
     
     // =========================================================================
     // STAGE 2: k2 = f(t + dt/2, y + k1*dt/2)
     // =========================================================================
-    ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]) + k1_vel * (dt * 0.5);
-    ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]) + k1_acc * (dt * 0.5);
-    
-    Vec3 F2 = force_registry.compute_total_force(ion_temp, t + dt * 0.5, ctx);
-    Vec3 a2 = F2 * inv_mass;
-    
-    Vec3 k2_vel = ion_temp.vel;
-    Vec3 k2_acc = a2;
+    Vec3 pos_stage2 = pos0 + k1_vel * (dt * 0.5);
+    Vec3 vel_stage2 = vel0 + k1_acc * (dt * 0.5);
+    Vec3 k2_vel = vel_stage2;
+    Vec3 k2_acc = eval_acc(pos_stage2, vel_stage2, t + dt * 0.5);
     
     // =========================================================================
     // STAGE 3: k3 = f(t + dt/2, y + k2*dt/2)
     // =========================================================================
-    ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]) + k2_vel * (dt * 0.5);
-    ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]) + k2_acc * (dt * 0.5);
-    
-    Vec3 F3 = force_registry.compute_total_force(ion_temp, t + dt * 0.5, ctx);
-    Vec3 a3 = F3 * inv_mass;
-    
-    Vec3 k3_vel = ion_temp.vel;
-    Vec3 k3_acc = a3;
+    Vec3 pos_stage3 = pos0 + k2_vel * (dt * 0.5);
+    Vec3 vel_stage3 = vel0 + k2_acc * (dt * 0.5);
+    Vec3 k3_vel = vel_stage3;
+    Vec3 k3_acc = eval_acc(pos_stage3, vel_stage3, t + dt * 0.5);
     
     // =========================================================================
     // STAGE 4: k4 = f(t + dt, y + k3*dt)
     // =========================================================================
-    ion_temp.pos = Vec3(pos_x[i], pos_y[i], pos_z[i]) + k3_vel * dt;
-    ion_temp.vel = Vec3(vel_x[i], vel_y[i], vel_z[i]) + k3_acc * dt;
-    
-    Vec3 F4 = force_registry.compute_total_force(ion_temp, t + dt, ctx);
-    Vec3 a4 = F4 * inv_mass;
-    
-    Vec3 k4_vel = ion_temp.vel;
-    Vec3 k4_acc = a4;
+    Vec3 pos_stage4 = pos0 + k3_vel * dt;
+    Vec3 vel_stage4 = vel0 + k3_acc * dt;
+    Vec3 k4_vel = vel_stage4;
+    Vec3 k4_acc = eval_acc(pos_stage4, vel_stage4, t + dt);
     
     // =========================================================================
     // FINAL UPDATE: Direct array write (cache-friendly!)

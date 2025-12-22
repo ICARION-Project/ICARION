@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
@@ -9,11 +9,13 @@
 #include "core/config/types/ReactionConfig.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/config/types/SpeciesConfig.h"
-#include "core/physics/collisions/collisionHelpers.h"
+#include "core/types/IonEnsemble.h"
+#include "core/types/CollisionTypes.h"
 #include "utils/constants.h"
 
 using Catch::Approx;
 using namespace ICARION;
+using ICARION::physics::PhysicsRng;
 
 TEST_CASE("StochasticReactionHandler uses mixture partial densities", "[reaction][multigas]") {
     // Species DB
@@ -65,19 +67,28 @@ TEST_CASE("StochasticReactionHandler uses mixture partial densities", "[reaction
     int count_B = 0;
     int count_C = 0;
 
-    for (int i = 0; i < trials; ++i) {
-        IonState ion;
-        ion.species_id = "A+";
-        ion.mass_kg = db.get("A+").mass_kg;
-        ion.ion_charge_C = db.get("A+").charge_C;
-        ion.CCS_m2 = db.get("A+").CCS_m2;
-        ion.reduced_mobility_cm2_Vs = db.get("A+").mobility_m2Vs / CM2_TO_M2;
+    IonState ion_A;
+    ion_A.species_id = "A+";
+    ion_A.mass_kg = db.get("A+").mass_kg;
+    ion_A.ion_charge_C = db.get("A+").charge_C;
+    ion_A.CCS_m2 = db.get("A+").CCS_m2;
+    ion_A.reduced_mobility_cm2_Vs = db.get("A+").mobility_m2Vs / CM2_TO_M2;
+    ion_A.active = true; ion_A.born = true;
 
-        EhssRng rng(static_cast<uint64_t>(42 + i));
-        bool reacted = handler.handle_reaction(ion, 1e-7, rng, rxn_db, db, env);
+    IonState ion_B = ion_A; ion_B.species_id = "B+";
+    IonState ion_C = ion_A; ion_C.species_id = "C+";
+
+    for (int i = 0; i < trials; ++i) {
+        // Ensure species pool contains reactant and products
+        core::IonEnsemble ensemble = core::IonEnsemble::from_legacy({ion_A, ion_B, ion_C});
+        auto view = ensemble.reaction_data(0);
+
+        PhysicsRng rng(static_cast<uint64_t>(42 + i));
+        bool reacted = handler.handle_reaction(view, 1e-7, rng, rxn_db, db, env);
         if (reacted) {
-            if (ion.species_id == "B+") count_B++;
-            if (ion.species_id == "C+") count_C++;
+            const std::string product = view.species_id();
+            if (product == "B+") count_B++;
+            if (product == "C+") count_C++;
         }
     }
 

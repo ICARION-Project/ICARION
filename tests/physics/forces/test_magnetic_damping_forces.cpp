@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
@@ -8,6 +8,7 @@
 #include "core/physics/forces/DampingForce.h"
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/Vec3.h"
 #include "core/config/types/FieldsConfig.h"
 #include "core/config/types/EnvironmentConfig.h"
@@ -29,6 +30,14 @@ IonState make_ion(double vx, double vy, double vz, double mass_amu = 100.0, doub
     ion.mass_kg = mass_amu * AMU_TO_KG;
     ion.ion_charge_C = charge_e * ELEM_CHARGE_C;
     return ion;
+}
+
+template <typename ForceType>
+Vec3 compute_force(const ForceType& force, const IonState& ion, ForceContext ctx, double t = 0.0) {
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    return force.compute(ens, 0, t, ctx);
 }
 
 // ============================================================================
@@ -66,7 +75,7 @@ TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]"
     
     SECTION("Stationary ion: zero force") {
         IonState ion = make_ion(0, 0, 0);
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         REQUIRE(F.x == Approx(0.0).margin(1e-25));
         REQUIRE(F.y == Approx(0.0).margin(1e-25));
@@ -75,7 +84,7 @@ TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]"
     
     SECTION("Velocity parallel to B-field: zero force") {
         IonState ion = make_ion(0, 0, 1000);  // v along z, B along z
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         REQUIRE(std::fabs(F.x) < 1e-20);
         REQUIRE(std::fabs(F.y) < 1e-20);
@@ -88,7 +97,7 @@ TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]"
         //     = (0*1 - 0*0, 0*0 - 1000*1, 1000*0 - 0*0) = (0, -1000, 0)
         // F = q·(v×B) = e·(0, -1000, 0)
         IonState ion = make_ion(1000, 0, 0);
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         double expected_F_y = -ELEM_CHARGE_C * 1000.0 * 1.0;  // q·v·B (negative!)
         
@@ -106,7 +115,7 @@ TEST_CASE("MagneticFieldForce - Lorentz force F = q(v×B)", "[forces][magnetic]"
         MagneticFieldForce force_y(config_y);
         
         IonState ion = make_ion(100, 0, 0);
-        Vec3 F = force_y.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force_y, ion, ctx);
         
         REQUIRE(F.z > 0.0);  // Force in +z direction
     }
@@ -125,7 +134,7 @@ TEST_CASE("MagneticFieldForce - Cyclotron motion", "[forces][magnetic]") {
     
     IonState ion = make_ion(1000, 0, 0, 100.0);  // 100 amu, v_x = 1 km/s
     
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    Vec3 F = compute_force(force, ion, ctx);
     
     // F should be perpendicular to v
     double F_dot_v = F.x * ion.vel.x + F.y * ion.vel.y + F.z * ion.vel.z;
@@ -151,12 +160,12 @@ TEST_CASE("MagneticFieldForce - Linear gradient field", "[forces][magnetic]") {
         // At z=0: B = 1 T
         IonState ion1 = make_ion(1000, 0, 0);
         ion1.pos.z = 0.0;
-        Vec3 F1 = force.compute(ion1, 0.0, ctx);
+        Vec3 F1 = compute_force(force, ion1, ctx);
         
         // At z=10m: B = 1 + 0.1*10 = 2 T
         IonState ion2 = make_ion(1000, 0, 0);
         ion2.pos.z = 10.0;
-        Vec3 F2 = force.compute(ion2, 0.0, ctx);
+        Vec3 F2 = compute_force(force, ion2, ctx);
         
         // Force should be twice as strong (F ∝ B)
         REQUIRE(F2.y == Approx(2.0 * F1.y));
@@ -172,7 +181,7 @@ TEST_CASE("MagneticFieldForce - Disabled force", "[forces][magnetic]") {
     ForceContext ctx;
     
     IonState ion = make_ion(1000, 0, 0);
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    Vec3 F = compute_force(force, ion, ctx);
     
     REQUIRE(F.x == Approx(0.0).margin(1e-25));
     REQUIRE(F.y == Approx(0.0).margin(1e-25));
@@ -199,12 +208,13 @@ TEST_CASE("DampingForce - Friction model (mobility-based)", "[forces][damping]")
     SECTION("Force opposes velocity") {
         IonState ion = make_ion(1000, 0, 0);  // v_x = 1 km/s, m = 100 Da
         ion.reduced_mobility_cm2_Vs = 2.0;  // Need mobility for Friction model
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         // F = -γ·m·v [N] where γ = q/(K·m)
         // K = K₀ · (n/n₀) where n = gas_density, n₀ = LOSCHMIDT_CONSTANT
         double K0_m2_Vs = ion.reduced_mobility_cm2_Vs * 1e-4;
-        double K_m2_Vs = K0_m2_Vs * LOSCHMIDT_CONSTANT / env.particle_density_m_3;
+        double teff_scale = std::sqrt(STP_TEMP / env.temperature_K);
+        double K_m2_Vs = K0_m2_Vs * teff_scale * LOSCHMIDT_CONSTANT / env.particle_density_m_3;
         double gamma = ion.ion_charge_C / (K_m2_Vs * ion.mass_kg);
         double expected_F_x = -gamma * ion.mass_kg * 1000.0;
         
@@ -217,8 +227,8 @@ TEST_CASE("DampingForce - Friction model (mobility-based)", "[forces][damping]")
         IonState ion1 = make_ion(500, 0, 0);
         IonState ion2 = make_ion(1000, 0, 0);
         
-        Vec3 F1 = force.compute(ion1, 0.0, ctx);
-        Vec3 F2 = force.compute(ion2, 0.0, ctx);
+        Vec3 F1 = compute_force(force, ion1, ctx);
+        Vec3 F2 = compute_force(force, ion2, ctx);
         
         // F2 should be twice F1 (F = -γ·m·v, so F ∝ v)
         REQUIRE(F2.x == Approx(2.0 * F1.x));
@@ -226,7 +236,7 @@ TEST_CASE("DampingForce - Friction model (mobility-based)", "[forces][damping]")
     
     SECTION("Stationary ion: zero force") {
         IonState ion = make_ion(0, 0, 0);
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         REQUIRE(F.x == Approx(0.0).margin(1e-25));
         REQUIRE(F.y == Approx(0.0).margin(1e-25));
@@ -252,8 +262,8 @@ TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]"
     SECTION("Force opposes velocity (deterministic)") {
         IonState ion = make_ion(1000, 0, 0);  // v_x = 1 km/s
         ion.CCS_m2 = 1e-18;  // 100 Ų
-        
-        Vec3 F = force.compute(ion, 0.0, ctx);
+
+        Vec3 F = compute_force(force, ion, ctx);
         
         // F = -γ·m·v where γ = n·σ·v_th·m_reduced/m_ion
         // Should be negative (opposes motion) and deterministic
@@ -262,7 +272,7 @@ TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]"
         REQUIRE(F.z == Approx(0.0).margin(1e-25));
         
         // Check determinism: repeated calls give same result
-        Vec3 F2 = force.compute(ion, 0.0, ctx);
+        Vec3 F2 = compute_force(force, ion, ctx);
         REQUIRE(F2.x == Approx(F.x));
     }
     
@@ -270,10 +280,10 @@ TEST_CASE("DampingForce - HardSphere model (deterministic)", "[forces][damping]"
         IonState ion = make_ion(500, 0, 0);
         ion.CCS_m2 = 1e-18;  // 100 Ų
         
-        Vec3 F1 = force.compute(ion, 0.0, ctx);
+        Vec3 F1 = compute_force(force, ion, ctx);
         
         ion.vel.x = 1000.0;  // Double velocity
-        Vec3 F2 = force.compute(ion, 0.0, ctx);
+        Vec3 F2 = compute_force(force, ion, ctx);
         
         // F ∝ v (F = -γ·m·v with constant γ)
         REQUIRE(F2.x == Approx(2.0 * F1.x));
@@ -293,7 +303,7 @@ TEST_CASE("DampingForce - No damping", "[forces][damping]") {
     
     SECTION("Always returns zero force") {
         IonState ion = make_ion(1000, 500, 250);
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = compute_force(force, ion, ctx);
         
         REQUIRE(F.x == Approx(0.0).margin(1e-25));
         REQUIRE(F.y == Approx(0.0).margin(1e-25));
@@ -324,8 +334,8 @@ TEST_CASE("Combined Magnetic + Damping", "[forces][combined]") {
     IonState ion = make_ion(1000, 500, 0);  // Velocity in x-y plane
     ion.reduced_mobility_cm2_Vs = 2.0;  // Need mobility
     
-    Vec3 F_mag = mag_force.compute(ion, 0.0, ctx);
-    Vec3 F_damp = damp_force.compute(ion, 0.0, ctx);
+    Vec3 F_mag = compute_force(mag_force, ion, ctx);
+    Vec3 F_damp = compute_force(damp_force, ion, ctx);
     Vec3 F_total = F_mag + F_damp;
     
     SECTION("Magnetic force perpendicular to velocity") {

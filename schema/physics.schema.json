@@ -23,6 +23,12 @@
       "default": false,
       "description": "Enable space-charge (Coulomb) forces between ions"
     },
+
+    "enable_space_charge_gpu": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable GPU implementation of space-charge solver"
+    },
     
     "enable_ou_thermalization": {
       "type": "boolean",

@@ -1,10 +1,5 @@
-// ReactionHandlerFactory.h
-// Factory for creating reaction handlers
-//
-// SSOT Design: Factory reads enable_reactions directly from PhysicsConfig.
-// No intermediate conversion or parameter copies.
-//
-// Created: 2025-11-22 (Phase 3 Refactor)
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -45,28 +40,23 @@ class ReactionHandlerFactory {
 public:
     /**
      * @brief Create reaction handler from config
-     * 
+     *
      * @param config Physics configuration (contains enable_reactions flag)
      * @param enable_logging Enable debug logging (optional)
-     * 
-     * @return Reaction handler instance (nullptr if reactions disabled)
-     * 
+     * @param enable_gpu Request GPU backend (requires CUDA build)
+     * @param gpu_seed RNG seed for GPU helper
+     * @param gpu_threshold Minimum ensemble size for GPU dispatch
+     *
+     * @return Reaction handler instance (NoReactionHandler if disabled)
+     *
      * **SSOT:** Reads `config.enable_reactions` directly (no conversion!).
-     * 
-     * **Behavior:**
-     * - If `enable_reactions == false`: Returns nullptr
-     * - If `enable_reactions == true`: Returns StochasticReactionHandler
-     * 
-     * **Future Extension:**
-     * Could add more reaction models:
-     * - temperature-dependent rates
-     * - ChemicalNetworkHandler (multi-step reactions)
-     * 
-     * For now: Simple enable/disable flag (YAGNI principle).
      */
     static std::unique_ptr<IReactionHandler> create(
         const config::PhysicsConfig& config,
-        bool enable_logging = false
+        bool enable_logging = false,
+        bool enable_gpu = false,
+        unsigned long long gpu_seed = 0,
+        size_t gpu_threshold = 2000
     );
 };
 

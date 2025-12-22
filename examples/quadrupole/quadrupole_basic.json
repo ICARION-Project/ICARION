@@ -1,0 +1,68 @@
+{
+  "simulation": {
+    "total_time_s": 5e-5,
+    "dt_s": 1e-9,
+    "write_interval": 50,
+    "integrator": "RK4",
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "NoCollisions",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "output": {
+    "folder": "results/quadrupole",
+    "trajectory_file": "quadrupole_trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "CaffeineH+",
+        "count": 50,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0],
+          "std": [0.0005, 0.0005, 0.001]
+        },
+        "velocity": {
+          "type": "kinetic",
+          "energy_eV": 1.0,
+          "direction": [0.0, 0.0, 1.0],
+          "spread_angle_deg": 5.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "Quadrupole_MassFilter",
+      "instrument": "Quadrupole",
+      "geometry": {
+        "origin_m": [0.0, 0.0, -0.025],
+        "length_m": 0.05,
+        "radius_m": 0.005
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 0.001,
+        "gas_species": "N2"
+      },
+      "fields": {
+        "RF": {
+          "voltage_V": 100.0,
+          "frequency_Hz": 2e6,
+          "phase_rad": 0.0
+        },
+        "DC": {
+          "quad_V": 0.0,
+          "axial_V": 500.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    }
+  ]
+}

@@ -5,11 +5,72 @@
       "charge": 1,
       "mobility_cm2Vs": 24.1,
       "CCS_A2": 24.9,
+      "CCS_HSS": {
+        "He": 25.56,
+        "N2": 104.02
+      },
+      "CCS_reference_gas": "He",
       "name": "Hydronium ion",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
-      "geometry_file": "molecules/H3O+.json"
+      "geometry_file": "molecules/H3O+.json",
+      "note": "CCS_HSS values are MOBILITY CCS Ω(1,1) from Mason-Schamp, NOT geometrical hard-sphere! HSS collision rate should use mobility CCS to account for Langevin enhancement."
+    },
+    "AcetonitrileH+": {
+      "mass_amu": 42.04,
+      "charge": 1,
+      "mobility_cm2Vs":  16.28,
+      "CCS_A2": 34.5,
+      "name": "Acetonitrile protonated",
+      "reference_temperature_K": 298.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/AcetonitrileH+.json"
+    },
+    "AcetoneH+": {
+      "mass_amu": 59.07,
+      "charge": 1,
+      "mobility_cm2Vs": 13.06,
+      "CCS_A2": 40.7,
+      "name": "Acetone protonated",
+      "reference_temperature_K": 298.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/AcetoneH+.json"
+    },
+    "ButanoneH+": {
+      "mass_amu": 73.09,
+      "charge": 1,
+      "mobility_cm2Vs": 11.67,
+      "CCS_A2": 47.2,
+      "name": "Butanone protonated",
+      "reference_temperature_K": 298.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/ButanoneH+.json"
+    },
+    "PentanoneH+": {
+      "mass_amu": 87.11,
+      "charge": 1,
+      "mobility_cm2Vs": 10.41,
+      "CCS_A2": 52.6,
+      "name": "Pentanone protonated",
+      "reference_temperature_K": 298.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/PentanoneH+.json"
+    },
+    "HexanoneH+": {
+      "mass_amu": 101.14,
+      "charge": 1,
+      "mobility_cm2Vs": 9.248,
+      "CCS_A2": 59.1,
+      "name": "Hexanone protonated",
+      "reference_temperature_K": 298.15,
+      "reference_pressure_Pa": 101325,
+      "ccs_method": "trajectory (MobCal-MPI 2.0)",
+      "geometry_file": "molecules/HexanoneH+.json"
     },
     "PentanalH+": {
       "mass_amu": 87.0,
@@ -17,21 +78,26 @@
       "mobility_cm2Vs": 10.25,
       "CCS_A2": 53.7,
       "name": "Pentanal protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/PentanalH+.json"
     },
-    "2,6-DTBPH+": {
+    "26DTBPH+": {
       "mass_amu": 192.0,
       "charge": 1,
-      "mobility_cm2Vs": 6.25,
-      "CCS_A2": 87.02,
+      "mobility_cm2Vs": 6.307,
+      "CCS_A2": 85.8,
       "name": "2,6-DTBPH protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/26DTBPH+.json"
+    },
+    "26DTBP": {
+      "mass_amu": 191.0,
+      "charge": 0,
+      "name": "2,6-di-tert-butylphenol"
     },
     "CaffeineH+": {
       "mass_amu": 195.08,
@@ -39,7 +105,7 @@
       "mobility_cm2Vs": 4.51,
       "CCS_A2": 137.1,
       "name": "Caffeine protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/CaffeineH+.json"
@@ -50,7 +116,7 @@
       "mobility_cm2Vs": 4.434,
       "CCS_A2": 190.7,
       "name": "Dexamethasone protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/DexamethasoneH+.json"
@@ -61,7 +127,7 @@
       "mobility_cm2Vs": 4.467,
       "CCS_A2": 189.6,
       "name": "Betamethasone protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/BetamethasoneH+.json"
@@ -72,10 +138,19 @@
       "mobility_cm2Vs": 3.02,
       "CCS_A2": 254.3,
       "name": "Reserpine protonated",
-      "reference_temperature_K": 273.15,
+      "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/ReserpineH+.json"
+    },
+    "Ar+": {
+      "mass_amu": 39.95,
+      "charge": 1,
+      "mobility_cm2Vs": 19.5,
+      "CCS_A2": 50.24,
+      "name": "Argon ion",
+      "reference_temperature_K": 298.15,
+      "reference_pressure_Pa": 101325
     },
     "He": {
       "mass_amu": 4.003,

@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #ifndef ICARION_CONFIG_GEOMETRY_CONFIG_H
 #define ICARION_CONFIG_GEOMETRY_CONFIG_H
@@ -47,9 +47,7 @@ struct GeometryConfig {
      * Simple cylindrical approximation for now.
      */
     void compute_bounds() {
-        // Basic cylindrical bounding box
-        // For more complex geometries, this can be overridden
-        // must be changed for Orbitrap! #todo
+        // Basic cylindrical bounding box; Orbitrap needs a tighter bounding box if used.
         double r = (radius_m > 0.0) ? radius_m : 
                    (radius_out_m > 0.0) ? radius_out_m : 0.01;
         double l = (length_m > 0.0) ? length_m : 0.01;

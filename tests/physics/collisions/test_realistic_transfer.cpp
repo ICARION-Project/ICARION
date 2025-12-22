@@ -1,12 +1,20 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Test: Energy transfer with SAMPLED neutrals (realistic)
 
-#include "core/physics/collisions/collisionHelpers.h"
+#include "core/physics/collisions/core/CollisionKernels.h"
+#include "core/physics/collisions/core/VelocitySampling.h"
+#include "core/types/CollisionTypes.h"
 #include "utils/constants.h"
 #include <iostream>
 #include <iomanip>
 #include <cmath>
 
 using namespace ICARION;
+using namespace ICARION::physics::collision_core;
+using ICARION::physics::PhysicsRng;
+using ICARION::physics::EHSSParams;
 
 int main() {
     EHSSParams p;
@@ -20,7 +28,7 @@ int main() {
     p.sigma_eff = 25e-20;
     p.Rn = std::sqrt(p.sigma_eff / M_PI);
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     
     // Test: Ion with high energy, neutral SAMPLED from Maxwell-Boltzmann
     const int N_trials = 10000;
@@ -33,7 +41,7 @@ int main() {
     
     for (int i = 0; i < N_trials; ++i) {
         Vec3 v_ion{v_ion_init, 0.0, 0.0};
-        Vec3 v_neutral = sample_neutral_velocity(p, rng);
+        Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng);
         
         // Lab frame energies
         double E_ion_before = 0.5 * p.mi * (v_ion.x*v_ion.x + v_ion.y*v_ion.y + v_ion.z*v_ion.z);
@@ -43,7 +51,7 @@ int main() {
         sum_E_neutral_before += E_neutral_before;
         
         // Collision
-        Vec3 v_ion_after = collide_hs_cpu(v_ion, v_neutral, p, rng);
+        Vec3 v_ion_after = CollisionKernels::hss_collision(v_ion, v_neutral, p.mi, p.mn, rng);
         
         // Neutral velocity after (from momentum conservation)
         Vec3 momentum = v_ion * p.mi + v_neutral * p.mn;
@@ -117,11 +125,13 @@ int main() {
         #pragma omp parallel for reduction(+:sum_E)
         for (int ion_idx = 0; ion_idx < N_IONS_TEST; ++ion_idx) {
             Vec3 v_ion_local{v_ion_init, 0.0, 0.0};
-            EhssRng rng_local(1000 + ion_idx);
+            PhysicsRng rng_local(1000 + ion_idx);
             
             for (int i = 0; i < N_coll; ++i) {
-                Vec3 v_neutral = sample_neutral_velocity(p, rng_local);
-                v_ion_local = collide_hs_cpu(v_ion_local, v_neutral, p, rng_local);
+                Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(
+                    p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng_local
+                );
+                v_ion_local = CollisionKernels::hss_collision(v_ion_local, v_neutral, p.mi, p.mn, rng_local);
             }
             
             double E = 0.5 * p.mi * (v_ion_local.x*v_ion_local.x + v_ion_local.y*v_ion_local.y + v_ion_local.z*v_ion_local.z);

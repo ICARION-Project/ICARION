@@ -1,8 +1,10 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "EHSSCollisionHandler.h"
-#include "collisionHelpers.h"
+#include "core/physics/collisions/core/CollisionKernels.h"
+#include "core/physics/collisions/core/VelocitySampling.h"
+#include "core/physics/collisions/core/CollisionGeometry.h"
 #include "utils/constants.h"
 #include "core/log/Logger.h"
 #include <cmath>
@@ -15,11 +17,11 @@ namespace {
 namespace ICARION::physics {
 
 EHSSCollisionHandler::EHSSCollisionHandler(
-    const GeometryMap& geometry_map,
+    GeometryMap geometry_map,
     bool enable_logging,
     const config::SpeciesDatabase* species_db
 )
-    : geometry_map_(geometry_map)  // Store reference (no copy!)
+    : geometry_map_(std::move(geometry_map))  // Store copy (move to avoid unnecessary copying)
     , enable_logging_(enable_logging)
     , species_db_(species_db)
 {
@@ -29,11 +31,18 @@ EHSSCollisionHandler::EHSSCollisionHandler(
 }
 
 bool EHSSCollisionHandler::handle_collision(
-    IonState& ion,
+    core::IonCollisionData& view,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
+    IonState ion;
+    ion.vel = view.kin.vel();
+    ion.mass_kg = view.kin.get_mass();
+    ion.ion_charge_C = view.kin.get_charge();
+    ion.CCS_m2 = view.get_CCS();
+    ion.species_id = view.species_id();
+
     // Mixture-aware handling
     auto do_collision = [&](double n, double T_K, double m_neutral, const Vec3& v_gas, double neutral_radius) -> bool {
         const double sigma_eff = compute_effective_ccs(ion, neutral_radius, "");
@@ -51,7 +60,9 @@ bool EHSSCollisionHandler::handle_collision(
         p.Rn = neutral_radius;
         p.sigma_eff = sigma_eff;
 
-        const Vec3 v_neutral = sample_neutral_velocity(p, rng);
+        const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(
+            T_K, m_neutral, v_gas, rng
+        );
         const Vec3 v_rel = ion.vel - v_neutral;
         const double v_rel_mag = norm(v_rel);
         if (v_rel_mag < MIN_RELATIVE_VELOCITY) {
@@ -67,14 +78,17 @@ bool EHSSCollisionHandler::handle_collision(
         Vec3 v_post;
         if (it != geometry_map_.end() && !it->second.first.empty()) {
             const auto& [centers, radii] = it->second;
-            v_post = collide_ehss_cpu_geometry_given_neutral(
-                ion.vel, v_neutral, p, centers, radii, rng
+            // Compute ion radius from CCS or geometry
+            double ion_radius = std::sqrt(ion.CCS_m2 / M_PI);
+            v_post = collision_core::CollisionKernels::ehss_collision(
+                ion.vel, v_neutral, p.mi, m_neutral, ion_radius, centers, radii, rng
             );
         } else {
             throw std::runtime_error("[EHSSCollisionHandler] No geometry for species '" + ion.species_id + "'");
         }
 
         ion.vel = v_post;
+        view.kin.set_vel(ion.vel);
         stats_.total_collisions++;
         return true;
     };
@@ -147,7 +161,7 @@ double EHSSCollisionHandler::compute_effective_ccs(
             const auto& map = it->second.ccs_ehss_m2;
             auto itg = map.find(gas_id);
             if (itg != map.end() && itg->second > 0.0) {
-                return itg->second;  // ✅ Precomputed CCS (from ccs_precompute tool)
+                return itg->second;  // Precomputed CCS (from ccs_precompute tool)
             }
         }
     }
@@ -157,12 +171,12 @@ double EHSSCollisionHandler::compute_effective_ccs(
     if (it_geom != geometry_map_.end() && !it_geom->second.first.empty()) {
         const auto& [centers, radii] = it_geom->second;
         // Orientation-averaged projection approximation (OAPA)
-        EhssRng rng(12345);
+        PhysicsRng rng(12345);
         double A_sum = 0.0;
         double Rmat[3][3];
         const int n_orientations = 64;
         for (int k = 0; k < n_orientations; ++k) {
-            rand_rotation(rng, Rmat);
+            collision_core::CollisionGeometry::generate_random_rotation(rng, Rmat);
             double Rmax = 0.0;
             for (size_t i = 0; i < radii.size(); ++i) {
                 Vec3 c{

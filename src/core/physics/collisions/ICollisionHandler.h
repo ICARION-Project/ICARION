@@ -1,30 +1,23 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file ICollisionHandler.h
  * @brief Interface for stochastic collision models
  * 
- * Defines the abstract interface for handling discrete collision events in ion trajectory simulations.
- * This interface supports EHSS (structure-resolved), HSS (isotropic), and OU (thermal kicks) models.
- * 
- * **Design Philosophy (SSOT):**
- * - Handlers read environment parameters directly from `EnvironmentConfig` (no parameter copies)
- * - No intermediate structs or conversions (single source of truth)
- * - Clean separation: stochastic collisions (ICollisionHandler) vs deterministic damping (DampingForce)
- * 
- * @date 2025-11-21
- * @version 1.0
+ * Discrete collision handlers (EHSS, HSS, OU) update ion velocity stochastically
+ * using environment parameters supplied at call time. Deterministic damping lives in
+ * DampingForce.
  */
 
 #pragma once
 
-#include "core/types/IonState.h"
 #include "core/types/IonEnsemble.h"  // For IonCollisionData view
 #include "core/config/types/EnvironmentConfig.h"
-#include "core/physics/collisions/collisionHelpers.h"  // EhssRng
+#include "core/types/CollisionTypes.h"  // PhysicsRng
 #include <string>
 #include <cstddef>
+#include <vector>
 
 namespace ICARION::physics {
 
@@ -63,47 +56,7 @@ public:
     virtual ~ICollisionHandler() = default;
     
     /**
-     * @brief Handle collision for single timestep
-     * 
-     * Determines if collision occurs (probabilistic) and updates ion velocity accordingly.
-     * 
-     * **SSOT Pattern:**
-     * Environment parameters (temperature, pressure, density, etc.) are read directly
-     * from `env` parameter. No parameter copies or intermediate structs.
-     * 
-     * @param[in,out] ion Ion state (velocity modified in-place if collision occurs)
-     * @param[in] dt Timestep [s]
-     * @param[in,out] rng Random number generator
-     * @param[in] env Environment configuration (SSOT - direct reference!)
-     * 
-     * @return true if collision occurred, false otherwise
-     * 
-     * @note Thread-safety: Not thread-safe! Each thread needs separate handler + RNG instance.
-     * 
-     * @example
-     * ```cpp
-     * config::EnvironmentConfig env;
-     * env.temperature_K = 300.0;
-     * env.pressure_Pa = 101325.0;
-     * 
-     * EhssRng rng(12345);
-     * IonState ion;
-     * 
-     * bool collision_occurred = handler->handle_collision(ion, 1e-9, rng, env);
-     * ```
-     */
-    virtual bool handle_collision(
-        IonState& ion,
-        double dt,
-        EhssRng& rng,
-        const config::EnvironmentConfig& env
-    ) = 0;
-    
-    /**
-     * @brief Handle collision using SoA view (Phase 3 - cache-optimized)
-     * 
-     * Zero-copy access to ion data via view struct.
-     * Default implementation converts to IonState and calls handle_collision().
+     * @brief Handle collision using SoA view (cache-optimized hot path)
      * 
      * @param[in,out] view Ion collision data view (velocity modified in-place)
      * @param[in] dt Timestep [s]
@@ -111,29 +64,13 @@ public:
      * @param[in] env Environment configuration
      * 
      * @return true if collision occurred, false otherwise
-     * 
-     * @note Override this for optimal SoA performance. Default wrapper provided for compatibility.
      */
-    virtual bool handle_collision_soa(
+    virtual bool handle_collision(
         core::IonCollisionData& view,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env
-    ) {
-        // Default: convert to IonState and call legacy method
-        IonState ion;
-        ion.pos = view.kin.pos();
-        ion.vel = view.kin.vel();
-        ion.mass_kg = view.kin.get_mass();
-        ion.ion_charge_C = view.kin.get_charge();
-        ion.CCS_m2 = view.get_CCS();
-        
-        bool result = handle_collision(ion, dt, rng, env);
-        
-        // Write back modified velocity
-        view.kin.set_vel(ion.vel);
-        return result;
-    }
+    ) = 0;
     
     /**
      * @brief Get collision model name
@@ -153,6 +90,36 @@ public:
      * @brief Reset statistics counters
      */
     virtual void reset_stats() {}
+
+    /**
+     * @brief Whether this handler exposes a batch path (e.g., GPU).
+     */
+    virtual bool supports_batch() const { return false; }
+
+    /**
+     * @brief Optional batch API for accelerators.
+     *
+     * @param ensemble Ion ensemble (SoA) to mutate.
+     * @param ion_indices Indices participating in this batch (typically same domain).
+     * @param dt Timestep.
+     * @param env Domain environment.
+     * @param rng_pool Per-ion RNGs for CPU fallback (GPU implementations may ignore).
+     * @return true if the handler processed the batch (GPU, etc.), false to request CPU fallback.
+     */
+    virtual bool handle_batch(
+        core::IonEnsemble& ensemble,
+        const std::vector<size_t>& ion_indices,
+        double dt,
+        const config::EnvironmentConfig& env,
+        std::vector<physics::PhysicsRng>& rng_pool
+    ) {
+        (void)ensemble;
+        (void)ion_indices;
+        (void)dt;
+        (void)env;
+        (void)rng_pool;
+        return false;
+    }
 };
 
 } // namespace ICARION::physics

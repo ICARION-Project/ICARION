@@ -1,20 +1,5 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   Command-line argument parser - Implementation
- *
- *   @file        cli_parser.cpp
- *   @brief       Parse and validate command-line arguments
- *
- *   @date        2025-11-10
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "cli_parser.h"
 #include <cxxopts.hpp>
@@ -94,7 +79,9 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         ("o,output", "Override output HDF5 filename", 
          cxxopts::value<std::string>(), "FILE")
         ("output-dir", "Override output directory", 
-         cxxopts::value<std::string>(), "DIR");
+         cxxopts::value<std::string>(), "DIR")
+        ("buffer-byte-cap", "Cap in-memory trajectory buffer (bytes, 0 = unlimited)", 
+         cxxopts::value<uint64_t>(), "BYTES");
     
     // === Config overrides (Phase 1: ACTIVE) ===
     parser.add_options("Advanced")
@@ -116,7 +103,9 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         ("benchmark", "Print detailed timing statistics for simulation phases")
         ("profile", "Enable profiling instrumentation (for performance analysis)")
         ("profile-output", "Write profiling data to FILE (json or csv) [default: profile.json]",
-         cxxopts::value<std::string>(), "FILE");
+         cxxopts::value<std::string>(), "FILE")
+        ("threads", "Number of OpenMP threads for CPU parallelization (overrides OMP_NUM_THREADS)",
+         cxxopts::value<int>(), "N");
     
     // Parse
     cxxopts::ParseResult result;
@@ -135,6 +124,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         std::cout << "\nExamples:\n";
         std::cout << "  icarion config.json\n";
         std::cout << "  icarion --verbose config.json\n";
+        std::cout << "  icarion --threads 8 config.json  # Use 8 CPU threads\n";
         std::cout << "  icarion --log-level DEBUG --log-file debug.log config.json\n";
         std::cout << "  icarion --output custom.h5 config.json\n";
         std::cout << "  icarion --set simulation.dt_s=1e-10 config.json\n";
@@ -232,6 +222,10 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     if (result.count("output-dir")) {
         opts.output_dir = result["output-dir"].as<std::string>();
     }
+
+    if (result.count("buffer-byte-cap")) {
+        opts.buffer_byte_cap = result["buffer-byte-cap"].as<uint64_t>();
+    }
     
     // === Parse config overrides (Phase 1: ACTIVE) ===
     if (result.count("set")) {
@@ -258,6 +252,15 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     } else if (opts.profile || opts.benchmark) {
         // Default output file if profiling is enabled
         opts.profile_output = "profile.json";
+    }
+    
+    if (result.count("threads")) {
+        int num_threads = result["threads"].as<int>();
+        if (num_threads <= 0) {
+            std::cerr << "Error: Invalid thread count " << num_threads << " (must be > 0)\n";
+            std::exit(1);
+        }
+        opts.num_threads = num_threads;
     }
     
     return opts;
@@ -336,15 +339,16 @@ Hierarchical Structure:
 /metadata/
   /config/
     format_version      string      Config format version
-    config_json         string      Full FullConfig as JSON (TODO: serializer)
+    config_json         string      Full FullConfig as JSON (TODO(v1.1): serializer)
     dt_s                float64     Timestep [s]
     total_time_s        float64     Total simulation time [s]
     total_steps         int32       Number of integration steps
     write_interval      int32       Output write interval
     integrator          string      Solver type (RK4, RK45, Leapfrog, etc.)
     collision_model     string      Collision model (EHSS, HSS, etc.)
-    enable_reactions    bool        Chemical reactions enabled?
-    enable_space_charge bool        Space charge enabled?
+    enable_reactions        bool        Chemical reactions enabled?
+    enable_space_charge     bool        Space charge enabled?
+    enable_space_charge_gpu bool        Prefer GPU space charge (if available)?
     enable_gpu          bool        GPU acceleration enabled?
   
   /reproducibility/
@@ -417,7 +421,8 @@ Hierarchical Structure:
   initial_vel_x         float64[N]      Initial x velocity [m/s]
   initial_vel_y         float64[N]      Initial y velocity [m/s]
   initial_vel_z         float64[N]      Initial z velocity [m/s]
-  birth_time_s          float64[N]      Ion birth time [s]
+  birth_time_s          float64[N]      Ion birth time [s] (0 for initial ions)
+  death_time_s          float64[N]      Ion death time [s] (-1 if still alive)
   charge_C              float64[N]      Ion charge [C]
 
 /domains/                           # Per-domain configuration hierarchy

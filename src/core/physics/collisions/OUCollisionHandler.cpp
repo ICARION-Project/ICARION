@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "OUCollisionHandler.h"
-#include "collisionHelpers.h"
+#include "core/physics/collisions/core/CollisionKernels.h"
 #include <stdexcept>
 
 namespace ICARION::physics {
@@ -17,21 +17,24 @@ OUCollisionHandler::OUCollisionHandler(double gamma_coefficient, bool apply_damp
 }
 
 bool OUCollisionHandler::handle_collision(
-    IonState& ion,
+    core::IonCollisionData& view,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
-    // ===================================================================
-    // READ TEMPERATURE DIRECTLY FROM ENV (SSOT!)
-    // ===================================================================
+    IonState ion;
+    ion.vel = view.kin.vel();
+    ion.mass_kg = view.kin.get_mass();
+    ion.ion_charge_C = view.kin.get_charge();
+    ion.CCS_m2 = view.get_CCS();
+
     const double T_K = env.temperature_K;
-    
-    // Apply Ornstein-Uhlenbeck velocity kick
-    // Uses existing helper function from collisionHelpers.h
-    // apply_damping_ controls whether damping is applied (false when using DampingForce)
-    apply_ou_velocity_kick(ion, rng, dt, gamma_, T_K, env.gas_velocity_m_s, apply_damping_);
-    
+
+    collision_core::CollisionKernels::ou_velocity_update(
+        ion, rng, dt, gamma_, T_K, env.gas_velocity_m_s, apply_damping_
+    );
+
+    view.kin.set_vel(ion.vel);
     return true;  // Always "collides" (continuous process)
 }
 

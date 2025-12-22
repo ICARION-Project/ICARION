@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -104,8 +104,8 @@ public:
      * to recompute local coordinates.
      */
     void sync_from_ion() {
-        pos_local_ = ion_.pos;
-        vel_local_ = ion_.vel;
+        pos_local_ = domain_manager_.global_to_local_pos(ion_.pos, domain_idx_);
+        vel_local_ = domain_manager_.global_to_local_vel(ion_.vel, domain_idx_);
     }
 
 private:

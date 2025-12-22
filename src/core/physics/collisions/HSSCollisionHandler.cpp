@@ -1,11 +1,13 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "HSSCollisionHandler.h"
-#include "collisionHelpers.h"
+#include "core/physics/collisions/core/CollisionKernels.h"
+#include "core/physics/collisions/core/VelocitySampling.h"
 #include "utils/constants.h"
 #include "core/log/Logger.h"
 #include <cmath>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -20,23 +22,47 @@ HSSCollisionHandler::HSSCollisionHandler(bool enable_logging, const config::Spec
 {}
 
 bool HSSCollisionHandler::handle_collision(
-    IonState& ion,
+    core::IonCollisionData& view,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
+    // Build lightweight IonState view for reuse of scalar helpers
+    IonState ion;
+    ion.vel = view.kin.vel();
+    ion.mass_kg = view.kin.get_mass();
+    ion.ion_charge_C = view.kin.get_charge();
+    ion.CCS_m2 = view.get_CCS();
+    ion.species_id = view.species_id();
+
     // Mixture-aware path
     if (!env.gas_mixture.empty()) {
-        Vec3 v_rel_bulk = ion.vel - env.gas_velocity_m_s;
-        double v_rel_mag = norm(v_rel_bulk);
-        if (v_rel_mag < MIN_RELATIVE_VELOCITY) {
-            return false;
-        }
-
-        std::vector<double> k_values;
-        k_values.reserve(env.gas_mixture.size());
+        // FIXED ALGORITHM (Dec 5, 2025):
+        // 1. Sample neutral velocities for each component FIRST
+        // 2. Calculate collision rates using ACTUAL relative velocities (not thermal average)
+        // 3. This accounts for ion drift velocity increasing collision rates
+        //
+        // The key insight: collision rate depends on |v_ion - v_neutral|, not just <v_rel>
+        // When ion drifts at high speed, collision rate increases proportionally!
+        
+        // Step 1: Sample neutral velocities and compute actual collision rates
+        struct ComponentCollisionData {
+            size_t component_idx;
+            double k_i;              // Collision rate for this component
+            Vec3 v_neutral;          // Sampled neutral velocity
+            double sigma_i;          // Cross section
+        };
+        
+        std::vector<ComponentCollisionData> collision_data;
+        collision_data.reserve(env.gas_mixture.size());
         double k_total = 0.0;
-        for (const auto& comp : env.gas_mixture) {
+        
+        for (size_t i = 0; i < env.gas_mixture.size(); ++i) {
+            const auto& comp = env.gas_mixture[i];
+            double n_i = comp.density_m3;
+            if (n_i <= 0.0) continue;
+            
+            // Get CCS
             double sigma_i = (comp.cross_section_m2 > 0.0) ? comp.cross_section_m2 : ion.CCS_m2;
             if (species_db_) {
                 auto it_spec = species_db_->species.find(ion.species_id);
@@ -45,129 +71,117 @@ bool HSSCollisionHandler::handle_collision(
                     auto it_g = map.find(comp.species);
                     if (it_g != map.end() && it_g->second > 0.0) {
                         sigma_i = it_g->second;
-                    } else if (sigma_i > 0.0) {
                         std::string key = ion.species_id + ":" + comp.species;
                         if (!warned_missing_sigma_.count(key)) {
-                            ICARION::log::debug_log(
-                                "[HSSCollisionHandler] Warning: No CCS_HSS for gas '" + comp.species +
-                                "' and species '" + ion.species_id + "'; using ion.CCS_m2 fallback");
+                            ICARION::log::Logger::main()->info(
+                                "[HSS] Using precomputed CCS for {}:{} = {:.1f} Å²",
+                                ion.species_id, comp.species, sigma_i * 1e20);
                             warned_missing_sigma_.insert(key);
+                        }
+                    } else {
+                        // Try automatic derivation if no precomputed CCS
+                        if (it_spec->second.CCS_m2 > 0.0 && 
+                            it_spec->second.ccs_reference_gas.has_value()) {
+                            double derived = derive_ccs_for_target_gas(
+                                it_spec->second.CCS_m2,
+                                *it_spec->second.ccs_reference_gas,
+                                comp.species
+                            );
+                            if (derived > 0.0) {
+                                sigma_i = derived;
+                                std::string key = ion.species_id + ":" + comp.species;
+                                if (!warned_missing_sigma_.count(key)) {
+                                    ICARION::log::Logger::main()->info(
+                                        "[HSS] Derived CCS for {}:{} = {:.1f} Å² (from {} reference)",
+                                        ion.species_id, comp.species, derived * 1e20, 
+                                        *it_spec->second.ccs_reference_gas);
+                                    warned_missing_sigma_.insert(key);
+                                }
+                            }
+                        } else if (sigma_i > 0.0) {
+                            std::string key = ion.species_id + ":" + comp.species;
+                            if (!warned_missing_sigma_.count(key)) {
+                                ICARION::log::debug_log(
+                                    "[HSSCollisionHandler] Warning: No CCS_HSS for gas '" + comp.species +
+                                    "' and species '" + ion.species_id + "'; using ion.CCS_m2 fallback");
+                                warned_missing_sigma_.insert(key);
+                            }
                         }
                     }
                 }
             }
-            double n_i = comp.density_m3;
-            if (sigma_i <= 0.0 || n_i <= 0.0) {
-                k_values.push_back(0.0);
-                continue;
+            
+            if (sigma_i <= 0.0) {
+                throw std::runtime_error(
+                    "[HSS] Missing CCS for ion '" + ion.species_id +
+                    "' and gas '" + comp.species + "'; set ion.CCS_m2 or gas cross_section_m2");
             }
+            
+            // Sample neutral velocity for this component
+            const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(
+                env.temperature_K, comp.mass_kg, env.gas_velocity_m_s, rng
+            );
+            
+            // Compute ACTUAL relative velocity (accounts for ion drift!)
+            const Vec3 v_rel = ion.vel - v_neutral;
+            const double v_rel_mag = norm(v_rel);
+            
+            if (v_rel_mag < MIN_RELATIVE_VELOCITY) {
+                continue;  // Skip this component
+            }
+            
+            // Collision rate using actual relative velocity (like single-gas path)
             double k_i = n_i * sigma_i * v_rel_mag;
-            k_values.push_back(k_i);
+            
+            collision_data.push_back({i, k_i, v_neutral, sigma_i});
             k_total += k_i;
         }
 
-        if (k_total <= 0.0) {
-            throw std::runtime_error("[HSSCollisionHandler] No valid sigma in gas mixture for species '" + ion.species_id + "'");
+        if (k_total <= 0.0 || collision_data.empty()) {
+            return false;  // No valid collisions possible
         }
 
+        // Step 2: Decide if collision occurs (using total rate)
         double P_total = 1.0;
         if (k_total * dt <= 50.0) {
             P_total = 1.0 - std::exp(-k_total * dt);
         }
         if (rng.uniform01() >= P_total) {
-            return false;
+            return false;  // No collision
         }
 
+        // Step 3: Select which component to collide with (weighted by k_i)
         double r = rng.uniform01() * k_total;
-        size_t idx = 0;
+        size_t selected_idx = 0;
         double cum = 0.0;
-        for (; idx < k_values.size(); ++idx) {
-            cum += k_values[idx];
-            if (r < cum) break;
-        }
-        if (idx >= env.gas_mixture.size()) {
-            idx = env.gas_mixture.size() - 1;
-        }
-        const auto& comp = env.gas_mixture[idx];
-
-        EHSSParams p;
-        p.n = comp.density_m3;
-        p.dt = dt;
-        p.mi = ion.mass_kg;
-        p.mn = comp.mass_kg;
-        p.kB = BOLTZMANN_CONSTANT;
-        p.Tn = env.temperature_K;
-        p.ubx = env.gas_velocity_m_s.x;
-        p.uby = env.gas_velocity_m_s.y;
-        p.ubz = env.gas_velocity_m_s.z;
-        // Get CCS: try precomputed, then derive, then fallback
-        p.sigma_eff = 0.0;
-        
-        // 1. Try precomputed CCS_HSS map (BEST)
-        if (species_db_) {
-            auto it_spec = species_db_->species.find(ion.species_id);
-            if (it_spec != species_db_->species.end()) {
-                const auto& map = it_spec->second.ccs_hss_m2;
-                auto it_g = map.find(comp.species);
-                if (it_g != map.end() && it_g->second > 0.0) {
-                    p.sigma_eff = it_g->second;  // ✅ Precomputed
-                }
-                // 2. Try automatic derivation (GOOD)
-                else if (it_spec->second.CCS_m2 > 0.0 && 
-                         it_spec->second.ccs_reference_gas.has_value()) {
-                    double derived = derive_ccs_for_target_gas(
-                        it_spec->second.CCS_m2,
-                        *it_spec->second.ccs_reference_gas,
-                        comp.species
-                    );
-                    if (derived > 0.0) {
-                        p.sigma_eff = derived;  // ⚠️ Derived
-                        std::string key = ion.species_id + ":" + comp.species;
-                        if (!warned_missing_sigma_.count(key)) {
-                            ICARION::log::Logger::get("collision")->info(
-                                "[HSS] Derived CCS for {}:{} = {:.2f} Å² (from {} reference)",
-                                ion.species_id, comp.species, derived * 1e20,
-                                *it_spec->second.ccs_reference_gas
-                            );
-                            warned_missing_sigma_.insert(key);
-                        }
-                    }
-                }
+        for (size_t j = 0; j < collision_data.size(); ++j) {
+            cum += collision_data[j].k_i;
+            if (r < cum) {
+                selected_idx = j;
+                break;
             }
         }
         
-        // 3. Fallback: component CCS or ion reference CCS
-        if (p.sigma_eff <= 0.0) {
-            p.sigma_eff = (comp.cross_section_m2 > 0.0) ? comp.cross_section_m2 : ion.CCS_m2;
-            if (p.sigma_eff > 0.0) {
-                std::string key = ion.species_id + ":" + comp.species;
-                if (!warned_missing_sigma_.count(key)) {
-                    ICARION::log::Logger::get("collision")->warn(
-                        "[HSS] Using fallback CCS ({:.2f} Å²) for gas {} - may be inaccurate!",
-                        p.sigma_eff * 1e20, comp.species
-                    );
-                    warned_missing_sigma_.insert(key);
-                }
-            }
-        }
-        if (p.sigma_eff <= 0.0) {
-            throw std::runtime_error("[HSSCollisionHandler] Missing CCS for species '" + ion.species_id +
-                                     "' in gas '" + comp.species + "'");
-        }
-        p.Rn = comp.radius_m > 0.0 ? comp.radius_m : std::sqrt(std::max(p.sigma_eff, 0.0) / M_PI);
+        const auto& selected = collision_data[selected_idx];
+        const auto& comp = env.gas_mixture[selected.component_idx];
 
-        const Vec3 v_neutral = sample_neutral_velocity(p, rng);
-        const Vec3 v_rel = ion.vel - v_neutral;
-        const double v_rel_mag_actual = norm(v_rel);
-        if (v_rel_mag_actual < MIN_RELATIVE_VELOCITY) {
-            return false;
-        }
-
-        const Vec3 v_post = collide_hs_cpu(ion.vel, v_neutral, p, rng);
-        ion.vel = v_post;
+        // Step 4: Apply collision using the SAME neutral we sampled earlier
+        // (This ensures consistency with the collision rate calculation)
+        const Vec3 v_post = collision_core::CollisionKernels::hss_collision(
+            ion.vel,                // Ion velocity (lab frame)
+            selected.v_neutral,     // Neutral velocity we sampled earlier
+            ion.mass_kg,            // Ion mass
+            comp.mass_kg,           // Neutral mass
+            rng                     // RNG
+        );
+        
+        // Write back velocity to SoA view
+        view.kin.set_vel(v_post);
+        
         // For single-threaded tests, update collision statistics
         stats_.total_collisions++;
         collisions_by_species_[comp.species]++;
+        
         return true;
     }
 
@@ -182,8 +196,55 @@ bool HSSCollisionHandler::handle_collision(
     const double m_neutral = env.gas_mass_kg;
     const Vec3 v_gas = env.gas_velocity_m_s;
     
-    // Use stored effective cross-section
-    const double sigma_eff = ion.CCS_m2;
+    // Get gas-specific CCS (CRITICAL FIX: don't use ion.CCS_m2 which is for reference gas!)
+    double sigma_eff = ion.CCS_m2;  // Fallback
+    
+    if (species_db_) {
+        auto it_spec = species_db_->species.find(ion.species_id);
+        if (it_spec != species_db_->species.end()) {
+            const auto& map = it_spec->second.ccs_hss_m2;
+            auto it_g = map.find(env.gas_species);
+            if (it_g != map.end() && it_g->second > 0.0) {
+                sigma_eff = it_g->second;  // Use gas-specific CCS
+                static bool logged = false;
+                if (!logged) {
+                    ICARION::log::Logger::main()->info(
+                        "[HSS] Single-gas: Using CCS_HSS[{}][{}] = {:.1f} Å²",
+                        ion.species_id, env.gas_species, sigma_eff * 1e20);
+                    logged = true;
+                }
+            } else if (it_spec->second.CCS_m2 > 0.0 && 
+                       it_spec->second.ccs_reference_gas.has_value() &&
+                       *it_spec->second.ccs_reference_gas != env.gas_species) {
+                // Try auto-derivation if gas doesn't match reference
+                double derived = derive_ccs_for_target_gas(
+                    it_spec->second.CCS_m2,
+                    *it_spec->second.ccs_reference_gas,
+                    env.gas_species
+                );
+                if (derived > 0.0) {
+                    sigma_eff = derived;
+                    ICARION::log::Logger::main()->info(
+                        "[HSS] Single-gas path: Derived CCS for {}:{} = {:.1f} Å² (from {} reference)",
+                        ion.species_id, env.gas_species, derived * 1e20, 
+                        *it_spec->second.ccs_reference_gas);
+                }
+            }
+        } else {
+            static bool logged = false;
+            if (!logged) {
+                ICARION::log::Logger::main()->warn(
+                    "[HSS] Single-gas: Species '{}' not found in database!", ion.species_id);
+                logged = true;
+            }
+        }
+    } else {
+        static bool logged = false;
+        if (!logged) {
+            ICARION::log::Logger::main()->warn("[HSS] Single-gas: species_db_ is NULL!");
+            logged = true;
+        }
+    }
     
     if (sigma_eff <= 0.0) {
         return false;  // Invalid CCS
@@ -204,7 +265,9 @@ bool HSSCollisionHandler::handle_collision(
     p.Rn = std::sqrt(sigma_eff / M_PI);  // Effective neutral radius from CCS
     
     // Sample neutral velocity from Maxwell-Boltzmann distribution FIRST
-    const Vec3 v_neutral = sample_neutral_velocity(p, rng);
+    const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(
+        T_K, m_neutral, v_gas, rng
+    );
     
     // Compute relative velocity with the ACTUAL neutral we sampled
     const Vec3 v_rel = ion.vel - v_neutral;
@@ -229,15 +292,17 @@ bool HSSCollisionHandler::handle_collision(
     // ==================================================================="
     
     // Apply isotropic hard-sphere collision
-    const Vec3 v_post = collide_hs_cpu(
+    const Vec3 v_post = collision_core::CollisionKernels::hss_collision(
         ion.vel,      // Ion velocity (lab frame)
         v_neutral,    // Neutral velocity (lab frame)
-        p,            // Parameters
+        ion.mass_kg,  // Ion mass
+        m_neutral,    // Neutral mass
         rng           // RNG
     );
     
     // Update ion velocity
     ion.vel = v_post;
+    view.kin.set_vel(ion.vel);
     
     // Update statistics (for single-threaded tests)
     stats_.total_collisions++;

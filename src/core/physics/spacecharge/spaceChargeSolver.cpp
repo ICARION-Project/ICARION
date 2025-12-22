@@ -1,25 +1,6 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        spaceChargeSolver.cpp
- *   @brief       Fast Poisson-based solver for self-consistent space-charge fields.
- *
- *   @details
- *   Implements a SpaceChargeSolver class that uses a Poisson solver on a 3D grid to
- *  compute the electric field due to space charge from ion distributions. 
- *
- *   @date        <2025-10-18>
- *   @version     1.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #include "spaceChargeSolver.h"
 #include <iostream>
 #include "core/log/Logger.h"
@@ -72,7 +53,7 @@ SpaceChargeSolver::SpaceChargeSolver(int Nx, int Ny, int Nz,
                                ", dy=" + std::to_string(dy) + ", dz=" + std::to_string(dz));
     }
     
-    // Warning for very coarse grids
+    // Warning for very coarse grids (accuracy may be limited)
     if (Nx < 16 || Ny < 16 || Nz < 16) {
         ICARION::log::debug_log(std::string("[SpaceChargeSolver] WARNING: Low resolution grid (") + 
                                std::to_string(Nx) + "x" + std::to_string(Ny) + "x" + std::to_string(Nz) + 
@@ -114,6 +95,29 @@ bool SpaceChargeSolver::needsUpdate(const std::vector<IonState>& ions) const {
     return max_movement > m_movement_threshold;
 }
 
+bool SpaceChargeSolver::needsUpdate(const ICARION::core::IonEnsemble& ions) const {
+    if (m_last_ion_positions.empty() || m_last_ion_positions.size() != ions.size()) {
+        return true;
+    }
+
+    double max_movement = 0.0;
+    const auto* active = ions.active_data();
+    const auto* born = ions.born_data();
+    const auto* pos_x = ions.pos_x_data();
+    const auto* pos_y = ions.pos_y_data();
+    const auto* pos_z = ions.pos_z_data();
+
+    for (size_t i = 0; i < ions.size() && i < m_last_ion_positions.size(); ++i) {
+        if (active[i] == 0 || born[i] == 0) continue;
+        Vec3 displacement{pos_x[i] - m_last_ion_positions[i].x,
+                          pos_y[i] - m_last_ion_positions[i].y,
+                          pos_z[i] - m_last_ion_positions[i].z};
+        double movement = norm(displacement);
+        max_movement = std::max(max_movement, movement);
+    }
+    return max_movement > m_movement_threshold;
+}
+
 void SpaceChargeSolver::update(const std::vector<IonState>& ions)
 {
     const size_t num_ions = ions.size();
@@ -138,8 +142,8 @@ void SpaceChargeSolver::update(const std::vector<IonState>& ions)
         return; // Use cached field from previous update
     }
     
-    // 1. Charge deposition
-    auto rho = deposit_charge(ions, m_grid);
+    // 1. Charge deposition (box grid; no geometry masking)
+    auto rho = deposit_charge(ions, m_grid, m_geometry_mask);
     m_solver.setSourceTerm(rho);
 
     // 2. Optimized solve for few ions, many timesteps
@@ -188,6 +192,74 @@ void SpaceChargeSolver::update(const std::vector<IonState>& ions)
     m_last_ion_positions.reserve(ions.size());
     for (const auto& ion : ions) {
         m_last_ion_positions.push_back(ion.pos);
+    }
+}
+
+void SpaceChargeSolver::update(const ICARION::core::IonEnsemble& ions)
+{
+    const size_t num_ions = ions.size();
+    m_step_counter++;
+
+    bool should_update = false;
+
+    if (num_ions <= static_cast<size_t>(ADAPTIVE_THRESHOLD)) {
+        if (m_high_performance) {
+            should_update = (m_step_counter % m_update_frequency == 0) || needsUpdate(ions);
+        } else {
+            should_update = needsUpdate(ions);
+        }
+    } else {
+        should_update = (m_step_counter % m_update_frequency == 0);
+    }
+
+    if (!should_update) {
+        return;
+    }
+
+    auto rho = deposit_charge(ions, m_grid, m_geometry_mask);
+    m_solver.setSourceTerm(rho);
+
+    double tolerance;
+    int max_iter;
+
+    if (num_ions <= 1000) {
+        if (m_high_performance) {
+            tolerance = 1e-4;
+            max_iter = 200;
+        } else {
+            tolerance = 1e-6;
+            max_iter = 400;
+        }
+    } else if (num_ions <= 10000) {
+        tolerance = 1e-6;
+        max_iter = 500;
+    } else if (num_ions <= 100000) {
+        tolerance = 1e-4;
+        max_iter = 300;
+        if (num_ions != m_last_ion_count) {
+            ICARION::log::debug_log(std::string("[SpaceCharge] Medium solve for ") + std::to_string(num_ions) + " ions");
+        }
+    } else {
+        tolerance = 1e-3;
+        max_iter = 100;
+        if (num_ions != m_last_ion_count) {
+            ICARION::log::debug_log(std::string("[SpaceCharge] Fast solve for ") + std::to_string(num_ions) + " ions");
+        }
+    }
+
+    m_solver.solve(EPSILON_0, tolerance, max_iter);
+    m_solver.computeElectricField();
+
+    m_field_cache_valid = false;
+    m_last_ion_count = num_ions;
+
+    m_last_ion_positions.clear();
+    m_last_ion_positions.reserve(num_ions);
+    const auto* pos_x = ions.pos_x_data();
+    const auto* pos_y = ions.pos_y_data();
+    const auto* pos_z = ions.pos_z_data();
+    for (size_t i = 0; i < num_ions; ++i) {
+        m_last_ion_positions.push_back(Vec3{pos_x[i], pos_y[i], pos_z[i]});
     }
 }
 

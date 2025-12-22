@@ -1,12 +1,13 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file EHSSCollisionHandler.h
  * @brief Explicit Hard-Sphere Scattering (EHSS) collision handler
  * 
  * Implements structure-resolved hard-sphere scattering using atom-centered spheres.
- * Uses molecular geometry (atom positions and radii) for accurate collision cross-sections.
+ * Uses molecular geometry (atom positions and radii) for collision detection; falls back
+ * to CCS if geometry is missing.
  * 
  * **Physics:**
  * - Samples impact parameter and molecular orientation randomly
@@ -26,6 +27,7 @@
 #pragma once
 
 #include "ICollisionHandler.h"
+#include "core/types/IonState.h"
 #include "core/types/Vec3.h"
 #include "core/config/types/SpeciesConfig.h"
 #include <vector>
@@ -57,15 +59,7 @@ using GeometryMap = std::unordered_map<std::string, GeometryData>;
  * Implements structure-resolved collision model using atom-centered hard spheres.
  * Provides accurate collision cross-sections for complex molecular geometries.
  * 
- * **Use cases:**
- * - Polyatomic ions with non-spherical geometries
- * - Accurate mobility calculations
- * - Cross-section validation studies
- * 
- * **Performance:**
- * - Slower than HSS (isotropic) due to geometry sampling
- * - O(N_atoms) collision detection per event
- * - Recommended for N_atoms < 50
+ * Recommended when geometry is available and accurate scattering is needed; slower than\n+ * HSS due to per-atom checks.
  * 
  * **SSOT Pattern:**
  * ```cpp
@@ -88,49 +82,24 @@ public:
     /**
      * @brief Construct EHSS handler
      * 
-     * @param geometry_map Map of species → (atom_centers, atom_radii) [REFERENCE stored, not copied!]
+     * @param geometry_map Map of species → (atom_centers, atom_radii) [COPIED to handler]
      * @param enable_logging Enable debug logging (writes CSV file with collision details)
-     * 
-     * ⚠️ **IMPORTANT:** `geometry_map` must outlive this handler instance (stores reference!)
      * 
      * @throws std::invalid_argument if geometry_map is empty
      */
     explicit EHSSCollisionHandler(
-        const GeometryMap& geometry_map,
+        GeometryMap geometry_map,
         bool enable_logging = false,
         const config::SpeciesDatabase* species_db = nullptr
     );
     
     /**
-     * @brief Handle EHSS collision for single timestep
-     * 
-     * **Algorithm:**
-     * 1. Look up geometry for ion species (fallback to ion.CCS_m2 if not found)
-     * 2. Compute collision probability from mean free path
-     * 3. If collision occurs:
-     *    - Sample neutral velocity from Maxwell-Boltzmann distribution
-     *    - Sample random molecular orientation
-     *    - Detect collision with atom-centered spheres
-     *    - Apply hard-sphere momentum transfer in COM frame
-     * 
-     * **SSOT:** Reads gas properties directly from `env`:
-     * - env.temperature_K → thermal velocity
-     * - env.pressure_Pa → particle density
-     * - env.neutral_mass_kg → reduced mass
-     * - env.gas_velocity_m_s → bulk flow
-     * - env.neutral_radius_m → fallback CCS if no geometry
-     * 
-     * @param[in,out] ion Ion state (velocity modified if collision occurs)
-     * @param[in] dt Timestep [s]
-     * @param[in,out] rng Random number generator
-     * @param[in] env Environment configuration (SSOT!)
-     * 
-     * @return true if collision occurred, false otherwise
+     * @brief Handle EHSS collision for single timestep (SoA)
      */
     bool handle_collision(
-        IonState& ion,
+        core::IonCollisionData& view,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env
     ) override;
     
@@ -140,7 +109,7 @@ public:
     void reset_stats() override { stats_ = {}; }
     
 private:
-    const GeometryMap& geometry_map_;  ///< Reference to geometry map (no copy!)
+    const GeometryMap geometry_map_;  ///< Copy of geometry map (owned by handler)
     bool enable_logging_;
     const config::SpeciesDatabase* species_db_ = nullptr;
     mutable CollisionStats stats_;

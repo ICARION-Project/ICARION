@@ -38,3 +38,27 @@ target_include_directories(test_multi_gas_reaction PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 add_test(NAME MultiGasReaction COMMAND test_multi_gas_reaction)
+
+# AoS vs SoA parity for reactions
+add_executable(test_reaction_soa_parity test_reaction_soa_parity.cpp)
+target_link_libraries(test_reaction_soa_parity PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_reaction_soa_parity PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME ReactionSoAParity COMMAND test_reaction_soa_parity)
+
+# GPU reaction parity
+add_executable(test_gpu_reaction_parity test_gpu_reaction_parity.cpp)
+target_link_libraries(test_gpu_reaction_parity PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_gpu_reaction_parity PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME GPUReactionParity COMMAND test_gpu_reaction_parity)

@@ -1,28 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   Core field sampling utilities
- *
- *   @file        fieldSampling.h
- *   @brief       Field interpolation and sampling functions
- *
- *   @details
- * Provides trilinear interpolation for electric fields on structured grids.
- * Used by both pre-computed field arrays (Core-only) and live FieldServer
- * (Full build with fieldsolver).
- *
- *   @date        2025-11-10
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -66,14 +43,15 @@ struct FieldSnapshot {
 };
 
 /**
- * @brief Sample electric field using trilinear interpolation
+ * @brief Sample electric field using trilinear interpolation (host-only helper)
  * 
  * @param snapshot Field snapshot containing grid data
  * @param pos Position to sample at (in meters)
  * @return Interpolated field E(pos) in V/m
  * 
- * Uses trilinear interpolation between the 8 nearest grid points.
- * Clamps to grid bounds if position is outside.
+ * Uses trilinear interpolation between the 8 nearest grid points. Clamps to grid
+ * bounds if position is outside. Intended for simple host-side sampling of stored
+ * snapshots; not wired into the main simulation loop.
  */
 Vec3d sample_field(const FieldSnapshot& snapshot, const Vec3d& pos);
 

@@ -1,19 +1,5 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   Numerical Safety Guards
- *
- *   @file        numericalSafetyGuards.h
- *   @brief       Provides NaN/Inf detection and handling for numerical stability
- *
- *   Implements comprehensive numerical safety checks to prevent
- *   simulation crashes due to extreme fields, damping, or numerical
- *   instabilities.
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -31,21 +17,21 @@ using ICARION::core::Vec3;
 using ICARION::core::IonState;
 
 /**
- * @brief Configuration for numerical safety checks
+ * @brief Configuration for numerical safety checks (CPU-only helper)
  */
 struct NumericalSafetyConfig {
     bool enable_nan_checks = true;         ///< Enable NaN/Inf detection
     bool enable_bounds_checks = true;      ///< Enable position/velocity bounds checking
-    bool enable_logging = false;           ///< Log safety violations (performance impact)
+    bool enable_logging = false;           ///< Log safety violations (performance impact; avoid in tight loops)
     
     // Bounds for reasonable values
     double max_position_m = 1.0;           ///< Maximum position magnitude (m)
-    double max_velocity_ms = 1e6;          ///< Maximum velocity magnitude (m/s) 
+    double max_velocity_ms = 1e6;          ///< Maximum velocity magnitude (m/s)
     double max_acceleration_ms2 = 1e12;    ///< Maximum acceleration magnitude (m/s²)
     
     // Error handling behavior
     bool throw_on_violation = true;        ///< Throw exception on safety violation
-    bool attempt_recovery = false;         ///< Attempt to recover invalid values
+    bool attempt_recovery = false;         ///< Attempt to recover invalid values (best-effort, coarse)
 };
 
 /**
@@ -98,7 +84,7 @@ inline bool is_vec3_within_bounds(const Vec3Type& vec, double max_magnitude) {
 }
 
 /**
- * @brief Comprehensive safety check for ion state
+ * @brief Comprehensive safety check for ion state (CPU helper; not on hot paths)
  * 
  * @param ion Ion state to check
  * @param config Safety configuration
@@ -182,10 +168,7 @@ bool check_ion_safety(const IonStateType& ion,
                 std::cerr << "WARNING: " << msg << std::endl;
             }
             
-            // Position bounds violation is usually not fatal - just log
-            if (config.enable_logging) {
-                return true; // Continue simulation but log warning
-            }
+            // Position bounds violation is not treated as fatal here; caller may still continue.\n+            return true;
         }
         
         if (!is_vec3_within_bounds(ion.vel, config.max_velocity_ms)) {

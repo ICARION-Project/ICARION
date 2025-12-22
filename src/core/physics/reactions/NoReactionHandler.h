@@ -1,7 +1,5 @@
-// NoReactionHandler.h
-// Null object pattern for disabled reactions
-//
-// Created: 2025-11-22 (Phase 3 Refactor)
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -34,12 +32,12 @@ namespace physics {
 class NoReactionHandler : public IReactionHandler {
 public:
     bool handle_reaction(
-        IonState& ion,
-        double dt,
-        EhssRng& rng,
-        const config::ReactionDatabase& reaction_db,
-        const config::SpeciesDatabase& species_db,
-        const config::EnvironmentConfig& env
+        core::IonReactionData&,
+        double,
+        PhysicsRng&,
+        const config::ReactionDatabase&,
+        const config::SpeciesDatabase&,
+        const config::EnvironmentConfig&
     ) override {
         // No-op: reactions disabled
         return false;

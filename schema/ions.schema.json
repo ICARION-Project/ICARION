@@ -46,12 +46,22 @@
   "definitions": {
     "IonSpeciesConfig": {
       "type": "object",
-      "required": ["id", "count", "position", "velocity"],
+      "required": ["count", "position", "velocity"],
+      "oneOf": [
+        { "required": ["id"] },
+        { "required": ["species_id"] }
+      ],
       "additionalProperties": false,
       "properties": {
         "id": {
           "type": "string",
           "description": "Species ID (must exist in species database)",
+          "pattern": "^[A-Za-z0-9+\\-_]+$",
+          "minLength": 1
+        },
+        "species_id": {
+          "type": "string",
+          "description": "Species ID (alias for id; must exist in species database)",
           "pattern": "^[A-Za-z0-9+\\-_]+$",
           "minLength": 1
         },

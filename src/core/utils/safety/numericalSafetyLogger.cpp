@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #include "numericalSafetyLogger.h"
 #include <iostream>
 #include <iomanip>
@@ -15,7 +18,7 @@ NumericalSafetyLogger::NumericalSafetyLogger(const std::string& log_file, bool v
     : log_file_path_(log_file), enabled_(true), verbose_mode_(verbose),
       max_history_size_(10000), buffer_size_(1000), buffer_count_(0) {
     
-    // Initialize log file
+    // Initialize log file (best-effort; disable if it fails)
     log_file_.open(log_file_path_, std::ios::out | std::ios::app);
     if (!log_file_.is_open()) {
         std::cerr << "Warning: Could not open numerical safety log file: " << log_file_path_ << std::endl;
@@ -29,6 +32,7 @@ NumericalSafetyLogger::NumericalSafetyLogger(const std::string& log_file, bool v
         std::chrono::steady_clock::now().time_since_epoch()).count() << " ms\n";
     log_file_ << "Verbose Mode: " << (verbose_mode_ ? "Enabled" : "Disabled") << "\n";
     log_file_ << "Buffer Size: " << buffer_size_ << "\n";
+    log_file_ << "Note: Logging is intended for debugging and may impact performance.\n";
     log_file_ << "=======================================================\n\n";
     log_file_.flush();
     

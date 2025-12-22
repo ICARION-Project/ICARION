@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "PhysicsConfigLoader.h"
 
@@ -23,6 +23,10 @@ PhysicsConfig PhysicsConfigLoader::load(const Json::Value& json) {
     
     if (json.isMember("enable_space_charge") && json["enable_space_charge"].isBool()) {
         config.enable_space_charge = json["enable_space_charge"].asBool();
+    }
+    
+    if (json.isMember("enable_space_charge_gpu") && json["enable_space_charge_gpu"].isBool()) {
+        config.enable_space_charge_gpu = json["enable_space_charge_gpu"].asBool();
     }
     
     // Thermalization

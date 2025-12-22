@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file CollisionHandlerFactory.h
@@ -15,10 +15,10 @@
  * - Handlers maintain SSOT principle by taking EnvironmentConfig references
  * 
  * **Collision Model Routing:**
- * - **Stochastic (ICollisionHandler):** EHSS, HSS
- * - **Deterministic (DampingForce):** Friction, Langevin, HSD
- * - **Special:** NoCollisions → nullptr (no collision handling)
- * - **OU Thermalization:** Handled separately via enable_ou_thermalization flag
+ * - Stochastic (ICollisionHandler): EHSS, HSS
+ * - Deterministic (DampingForce): Friction, Langevin, HSD
+ * - NoCollisions → nullptr (no collision handling)
+ * - OU thermalization handled separately via enable_ou_thermalization flag
  * 
  * **Usage:**
  * ```cpp
@@ -43,6 +43,7 @@
 #include "EHSSCollisionHandler.h"
 #include "HSSCollisionHandler.h"
 #include "OUCollisionHandler.h"
+#include "GPUCollisionHandler.h"
 #include "core/config/types/PhysicsConfig.h"
 #include "core/config/types/SpeciesConfig.h"
 #include <memory>
@@ -84,7 +85,10 @@ public:
         const GeometryMap* geometry_map = nullptr,
         double gamma_for_ou = 0.0,
         bool enable_logging = false,
-        const config::SpeciesDatabase* species_db = nullptr
+        const config::SpeciesDatabase* species_db = nullptr,
+        bool enable_gpu = false,
+        unsigned long long gpu_seed = 42,
+        size_t gpu_threshold = 5000
     );
 
 private:

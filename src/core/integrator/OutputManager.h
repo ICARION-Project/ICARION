@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file OutputManager.h
@@ -12,21 +12,22 @@
  * - Periodic HDF5 writes (time-based or size-based)
  * - Metadata export (species, parameters, git hash, version)
  * - Text logging (progress, statistics, completion summary)
+ * - Config snapshot written separately by main.cpp (not handled here)
  * 
- * Wraps both HDF5Writer v2 and RunLogger for unified output API.
+ * Wraps both HDF5Writer and RunLogger for unified output API.
  */
 
 #pragma once
 
 #include "core/config/types/FullConfig.h"
-#include "core/types/IonState.h"
-#include "core/types/IonEnsemble.h"  // For SoA support (Phase 5)
+#include "core/types/IonEnsemble.h"
 #include "core/log/Logger.h"
 #include <string>
 #include <vector>
 #include <memory>
 #include <fstream>
 #include <mutex>
+#include <cstdint>
 
 namespace ICARION::io { class HDF5Writer; }
 
@@ -48,12 +49,6 @@ namespace integrator {
  * **Memory Usage Warning:**
  * Current implementation stores full IonState vectors in RAM.
  * For large ensembles (>100k ions), this can consume significant memory.
- * 
- * TODO(v1.1): Implement memory-efficient output modes:
- * - positions_only mode (skip velocity, skip inactive ions)
- * - reduced_precision mode (float instead of double)
- * - sparse_logging mode (log every N-th ion)
- * - streaming mode (extendible datasets, no buffering)
  * 
  * **Text Logging (optional):**
  * - Progress messages ("50% completed")
@@ -103,19 +98,8 @@ public:
      * 
      * Must be called before log_step().
      */
-    void initialize(const config::FullConfig& config, 
-                    const std::vector<IonState>& ions);
-    
-    /**
-     * @brief Log timestep snapshot (legacy AoS variant)
-     * @param t Current simulation time [s]
-     * @param ions Current ion states
-     * 
-     * Appends snapshot to buffer. Triggers flush if:
-     * - Buffer is full (size >= buffer_max)
-     * - Time interval exceeded (t >= next_write_time)
-     */
-    void log_step(double t, const std::vector<IonState>& ions);
+    void initialize(const config::FullConfig& config,
+                    const core::IonEnsemble& ensemble);
     
     /**
      * @brief Log timestep snapshot (SoA variant - Phase 5)
@@ -125,7 +109,7 @@ public:
      * Direct SoA→HDF5 writing without to_legacy() conversion.
      * Appends snapshot to buffer. Same trigger logic as log_step().
      */
-    void log_step_soa(double t, const core::IonEnsemble& ensemble);
+    void log_step(double t, const core::IonEnsemble& ensemble);
     
     /**
      * @brief Log progress message (to text log only)
@@ -146,6 +130,11 @@ public:
      * - Time interval exceeded (t_current >= next_write_time_)
      */
     bool should_write(double t_current) const;
+    
+    /**
+     * @brief Set maximum buffer size in bytes to guard against OOM.
+     */
+    void set_buffer_byte_cap(size_t bytes) { buffer_byte_cap_ = bytes; }
     
 private:
     /**
@@ -171,27 +160,11 @@ public:
     void flush();
     
     /**
-     * @brief Finalize output (write remaining data, close files)
-     * @param t_final Final simulation time [s]
-     * @param final_ions Final ion states
-     * 
-     * Performs:
-     * 1. Flush remaining HDF5 buffers
-     * 2. Write completion metadata to HDF5 (success flag, active ions count)
-     * 3. Write text log completion summary (if enabled)
-     * 
-     * Should be called at end of simulation (after last log_step()).
-     */
-    void finalize(double t_final, const std::vector<IonState>& final_ions);
-    
-    /**
-     * @brief Finalize and close output files (SoA variant - Phase 5)
+     * @brief Finalize and close output files (SoA variant)
      * @param t_final Final simulation time [s]
      * @param final_ensemble Final ion ensemble states
-     * 
-     * Direct SoA finalization without conversion.
      */
-    void finalize_soa(double t_final, const core::IonEnsemble& final_ensemble);
+    void finalize(double t_final, const core::IonEnsemble& final_ensemble);
     
     /**
      * @brief Get HDF5 filename
@@ -221,8 +194,16 @@ private:
     size_t buffer_max_;
     
     // HDF5 buffers
+    // Flattened buffers (avoid full IonEnsemble copies)
+    size_t n_ions_ = 0;
     std::vector<double> times_buffer_;
-    std::vector<std::vector<IonState>> trajectory_buffer_;
+    std::vector<double> per_ion_time_buffer_;   // [steps * n_ions]
+    std::vector<double> positions_buffer_;   // contiguous [steps * n_ions * 3]
+    std::vector<double> velocities_buffer_;  // contiguous [steps * n_ions * 3]
+    std::vector<int> domain_buffer_;         // [steps * n_ions]
+    std::vector<uint32_t> species_buffer_;   // [steps * n_ions] (pool indices)
+    const std::vector<std::string>* species_pool_ = nullptr; // non-owning; set on init
+    size_t buffer_byte_cap_ = 0;  ///< Optional byte cap; 0 disables
     
     // Text logging (optional)
     std::string log_filename_;

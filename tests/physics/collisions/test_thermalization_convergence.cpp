@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file test_thermalization_convergence.cpp
@@ -13,6 +13,7 @@
 #include "core/physics/collisions/EHSSCollisionHandler.h"
 #include "core/physics/collisions/geometryUtils.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "utils/constants.h"
 #include <iostream>
@@ -29,6 +30,18 @@ double thermal_energy_eV(double T_K) {
 
 GeometryMap load_h3o_geometry() {
     return ICARION::physics::load_geometry_map({"H3O+"}, "../../../../data/molecules");
+}
+
+static bool run_collision(EHSSCollisionHandler& handler,
+                          IonState& ion,
+                          double dt,
+                          PhysicsRng& rng,
+                          const EnvironmentConfig& env) {
+    auto ens = IonEnsemble::from_legacy({ion});
+    auto view = ens.collision_data(0);
+    bool res = handler.handle_collision(view, dt, rng, env);
+    ion.vel = view.kin.vel();
+    return res;
 }
 
 int main() {
@@ -76,11 +89,11 @@ int main() {
             ion.pos = Vec3{0.0, 0.0, 0.0};
             ion.vel = Vec3{v_init, 0.0, 0.0};
             
-            EhssRng rng(42 + ion_idx);
+            PhysicsRng rng(42 + ion_idx);
             
             int collision_count = 0;
             for (int i = 0; i < N_STEPS; ++i) {
-                bool collided = handler.handle_collision(ion, dt, rng, env);
+                bool collided = run_collision(handler, ion, dt, rng, env);
                 if (collided) collision_count++;
             }
             
@@ -123,11 +136,11 @@ int main() {
             ion.pos = Vec3{0.0, 0.0, 0.0};
             ion.vel = Vec3{v_init, 0.0, 0.0};
             
-            EhssRng rng(1000 + ion_idx);
+            PhysicsRng rng(1000 + ion_idx);
             
             int collision_count = 0;
             for (int i = 0; i < N_STEPS; ++i) {
-                bool collided = handler.handle_collision(ion, dt, rng, env);
+                bool collided = run_collision(handler, ion, dt, rng, env);
                 if (collided) collision_count++;
             }
             
@@ -175,10 +188,10 @@ int main() {
             ion.pos = Vec3{0.0, 0.0, 0.0};
             ion.vel = Vec3{v_init, 0.0, 0.0};
             
-            EhssRng rng(2000 + ion_idx);
+            PhysicsRng rng(2000 + ion_idx);
             
             for (int i = 0; i < N_STEPS; ++i) {
-                handler.handle_collision(ion, dt, rng, env);
+                run_collision(handler, ion, dt, rng, env);
             }
             
             double v2 = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;

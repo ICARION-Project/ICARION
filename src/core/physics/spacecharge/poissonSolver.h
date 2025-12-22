@@ -1,30 +1,6 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        poissonSolver.h
- *   @brief       Solves the Poisson or Laplace equation on a 3D grid.
- *
- *   @details
- *  Implements a Poisson solver using Gauss-Seidel iteration to compute
- *  the electric potential φ from the charge density ρ. Supports Dirichlet
- *  and Neumann boundary conditions. Can be used for static field solutions
- * as well as dynamic space-charge calculations during simulations.
- *
- *   @date        <2025-10-18>
- *   @version     1.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
 #pragma once
 #include "core/types/Grid3D.h"
 #include "fieldsolver/utils/grid/BoundaryConditions.h"
@@ -40,9 +16,11 @@
  *     ∇²φ = -ρ/ε₀       (Poisson)
  *     ∇²φ = 0            (Laplace)
  *
- * Supports Dirichlet and Neumann boundary conditions.
- * Used both for static field computations (ICARION_FieldSolver)
- * and dynamic space-charge updates (ICARION_Simulator).
+ * Current CPU implementation supports Dirichlet/Neumann boundary conditions via
+ * explicit masks and uses Gauss-Seidel or Red-Black SOR iterations. Periodic/GPU/FFT
+ * paths are stubbed for future work; callers should expect the GS/SOR pipeline.
+ * Used by the CPU space-charge solver; geometry awareness is provided externally by
+ * building grids from IDomainGeometry bounding boxes and applying Dirichlet masks.
  */
 class PoissonSolver {
 public:

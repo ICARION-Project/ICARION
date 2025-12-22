@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "MagneticFieldForce.h"
 #include "core/utils/mathUtils.h"
@@ -39,7 +39,27 @@ MagneticFieldForce::MagneticFieldForce(std::shared_ptr<::IFieldProvider> field_p
 // IForce Interface Implementation
 // ============================================================================
 
-Vec3 MagneticFieldForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
+Vec3 MagneticFieldForce::compute(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                                 const ForceContext& ctx) const {
+    ForceState state{};
+    state.pos = ensemble.get_pos(ion_idx);
+    state.vel = ensemble.get_vel(ion_idx);
+    state.mass_kg = ensemble.mass_data()[ion_idx];
+    state.ion_charge_C = ensemble.charge_data()[ion_idx];
+    state.CCS_m2 = ensemble.CCS(ion_idx);
+    state.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+    state.species_id = ensemble.species_id(ion_idx);
+    state.active = ensemble.active_data()[ion_idx] != 0;
+    state.born = ensemble.born_data()[ion_idx] != 0;
+    state.current_domain_index = ensemble.domain_index(ion_idx);
+    state.birth_time_s = ensemble.birth_time(ion_idx);
+    state.ensemble_index = ion_idx;
+
+    return compute_soa(state, t, ctx);
+}
+
+Vec3 MagneticFieldForce::compute_soa(const ForceState& state, double t,
+                                     const ForceContext& ctx) const {
     (void)t;  // Magnetic field is time-independent (for now)
     
     // Check if force is enabled (SSOT: read from config)
@@ -52,16 +72,18 @@ Vec3 MagneticFieldForce::compute(const IonState& ion, double t, const ForceConte
     
     // Priority: context field provider > constructor field provider > analytical
     if (ctx.field_provider) {
-        B_field = ctx.field_provider->get_E(ion.pos);  // get_E() used for B-field
+        // Experimental: magnetic field provider not wired in v1.0
+        // B_field = ctx.field_provider->get_B(state.pos);
     } else if (use_field_provider_ && field_provider_) {
-        B_field = field_provider_->get_E(ion.pos);
+        // Experimental: magnetic field provider not wired in v1.0
+        // B_field = field_provider_->get_B(state.pos);
     } else {
-        B_field = compute_analytical_field(ion.pos);
+        B_field = compute_analytical_field(state.pos);
     }
     
     // F = q * (v × B) - Lorentz force
-    Vec3 v_cross_B = cross(ion.vel, B_field);
-    return v_cross_B * ion.ion_charge_C;
+    Vec3 v_cross_B = cross(state.vel, B_field);
+    return v_cross_B * state.ion_charge_C;
 }
 
 std::string MagneticFieldForce::name() const {

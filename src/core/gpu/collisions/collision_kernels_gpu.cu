@@ -1,0 +1,726 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
+/**
+ * @file collision_kernels_gpu.cu
+ * @brief GPU collision kernel implementations (experimental GPU HSS/EHSS)
+ * @details Currently used via GPUCollisionHelper; geometry mapping is
+ *          rudimentary and results are not validated against the CPU path.
+ */
+
+#include "collision_kernels_gpu.cuh"
+#include <cmath>
+
+// ============================================================================
+// Constants and Helper Functions (global scope for kernel access)
+// ============================================================================
+
+// Physical constants
+constexpr double BOLTZMANN_CONSTANT = 1.380649e-23; // J/K
+constexpr double PI = 3.14159265358979323846;
+constexpr double TWO_PI = 2.0 * PI;
+
+// Numerical safety thresholds
+constexpr double MIN_VELOCITY_MAG = 1e-12;  // m/s
+constexpr double MIN_CONTACT_DIST_SQ = 1e-24;  // m²
+
+// EHSS parameters
+constexpr int MAX_COLLISION_ATTEMPTS = 256;
+constexpr double BMAX_EXPANSION_FACTOR = 1.5;
+
+// ============================================================================
+// Device Helper Functions
+// ============================================================================
+
+/**
+ * @brief Sample velocity component from Maxwell-Boltzmann distribution
+ * 
+ * Uses Box-Muller transform: v ~ N(0, sqrt(kT/m))
+ */
+__device__ inline double sample_maxwell_boltzmann_component(
+    curandState* state,
+    double temperature_K,
+    double mass_kg
+) {
+    double sigma = sqrt(BOLTZMANN_CONSTANT * temperature_K / mass_kg);
+    double u1 = curand_uniform_double(state);
+    double u2 = curand_uniform_double(state);
+    // Guard against u1 = 0 (which would give log(0) = -inf)
+    if (u1 < 1e-10) u1 = 1e-10;
+    return sigma * sqrt(-2.0 * log(u1)) * cos(TWO_PI * u2);
+}
+
+/**
+ * @brief Sample isotropic unit vector (uniform on sphere)
+ * 
+ * Marsaglia (1972) method: rejection sampling on unit sphere
+ * Correct formula from original paper
+ */
+__device__ inline void sample_isotropic_direction(
+    curandState* state,
+    double& x,
+    double& y,
+    double& z
+) {
+    double s;
+    do {
+        x = 2.0 * curand_uniform_double(state) - 1.0;
+        y = 2.0 * curand_uniform_double(state) - 1.0;
+        s = x * x + y * y;
+    } while (s >= 1.0 || s < 1e-10);
+    
+    // Marsaglia (1972): uniform distribution on unit sphere
+    double factor = sqrt(1.0 - s);  // = sqrt(1 - x² - y²)
+    x = 2.0 * x * factor;
+    y = 2.0 * y * factor;
+    z = 1.0 - 2.0 * s;
+    // Result: x² + y² + z² = 1 (unit sphere)
+}
+
+/**
+ * @brief Normalize vector in-place
+ */
+__device__ inline void normalize(double& x, double& y, double& z) {
+    double mag = sqrt(x * x + y * y + z * z);
+    if (mag > MIN_VELOCITY_MAG) {
+        x /= mag;
+        y /= mag;
+        z /= mag;
+    }
+}
+
+/**
+ * @brief Dot product
+ */
+__device__ inline double dot(double x1, double y1, double z1,
+                              double x2, double y2, double z2) {
+    return x1 * x2 + y1 * y2 + z1 * z2;
+}
+
+/**
+ * @brief Cross product: (x3, y3, z3) = (x1, y1, z1) × (x2, y2, z2)
+ */
+__device__ inline void cross(double x1, double y1, double z1,
+                              double x2, double y2, double z2,
+                              double& x3, double& y3, double& z3) {
+    x3 = y1 * z2 - z1 * y2;
+    y3 = z1 * x2 - x1 * z2;
+    z3 = x1 * y2 - y1 * x2;
+}
+
+/**
+ * @brief Rotate vector by Euler angles (Z-Y-Z convention)
+ */
+__device__ inline void rotate_euler_zyz(
+    double x, double y, double z,
+    double alpha, double beta, double gamma,
+    double& x_rot, double& y_rot, double& z_rot
+) {
+    // Rotation matrix elements (Z-Y-Z Euler angles)
+    double ca = cos(alpha), sa = sin(alpha);
+    double cb = cos(beta),  sb = sin(beta);
+    double cg = cos(gamma), sg = sin(gamma);
+    
+    double r11 = ca * cb * cg - sa * sg;
+    double r12 = -ca * cb * sg - sa * cg;
+    double r13 = ca * sb;
+    double r21 = sa * cb * cg + ca * sg;
+    double r22 = -sa * cb * sg + ca * cg;
+    double r23 = sa * sb;
+    double r31 = -sb * cg;
+    double r32 = sb * sg;
+    double r33 = cb;
+    
+    x_rot = r11 * x + r12 * y + r13 * z;
+    y_rot = r21 * x + r22 * y + r23 * z;
+    z_rot = r31 * x + r32 * y + r33 * z;
+}
+
+// ============================================================================
+// Kernel Implementations (use global helpers and constants)
+// ============================================================================
+
+__global__ void init_curand_states(
+    curandState* states,
+    unsigned long long seed,
+    int n_threads
+) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid < n_threads) {
+        curand_init(seed, tid, 0, &states[tid]);
+    }
+}
+
+__global__ void hss_collision_kernel(
+    double* vx_inout,
+    double* vy_inout,
+    double* vz_inout,
+    const double* mass,
+    const double* ccs,
+    const uint8_t* active,
+    curandState* curand_states,
+    const icarion::gpu::EnvironmentParams_GPU env,
+    double dt,
+    int n_ions
+) {
+    constexpr int MAX_COMPONENTS = icarion::gpu::MAX_GPU_GAS_COMPONENTS;
+
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = gridDim.x * blockDim.x;
+    curandState local_state = curand_states[tid];
+    
+    for (int i = tid; i < n_ions; i += stride) {
+        if (!active[i]) continue;
+        
+        double vx = vx_inout[i];
+        double vy = vy_inout[i];
+        double vz = vz_inout[i];
+        double m_ion = mass[i];
+        double sigma = ccs[i];
+
+        if (env.num_components <= 0) {
+            double vn_x = env.gas_velocity_x + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            double vn_y = env.gas_velocity_y + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            double vn_z = env.gas_velocity_z + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            
+            double vrel_x = vx - vn_x;
+            double vrel_y = vy - vn_y;
+            double vrel_z = vz - vn_z;
+            double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+            if (vrel_mag < MIN_VELOCITY_MAG) continue;
+            
+            double number_density = env.pressure_Pa / (BOLTZMANN_CONSTANT * env.temperature_K);
+            double collision_rate = vrel_mag * sigma * number_density;
+            double collision_prob = 1.0 - exp(-collision_rate * dt);
+            
+            double u = curand_uniform_double(&local_state);
+            if (u >= collision_prob) continue;
+            
+            double m_neutral = env.neutral_mass_kg;
+            double m_total = m_ion + m_neutral;
+            double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
+            double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
+            double vcm_z = (m_ion * vz + m_neutral * vn_z) / m_total;
+            
+            double nx, ny, nz;
+            sample_isotropic_direction(&local_state, nx, ny, nz);
+            
+            double vrel_scattered_x = nx * vrel_mag;
+            double vrel_scattered_y = ny * vrel_mag;
+            double vrel_scattered_z = nz * vrel_mag;
+            
+            double reduced_mass_factor = m_neutral / m_total;
+            vx = vcm_x + vrel_scattered_x * reduced_mass_factor;
+            vy = vcm_y + vrel_scattered_y * reduced_mass_factor;
+            vz = vcm_z + vrel_scattered_z * reduced_mass_factor;
+            
+            vx_inout[i] = vx;
+            vy_inout[i] = vy;
+            vz_inout[i] = vz;
+            continue;
+        }
+
+        double rates[MAX_COMPONENTS] = {0.0};
+        double vn_x_arr[MAX_COMPONENTS] = {0.0};
+        double vn_y_arr[MAX_COMPONENTS] = {0.0};
+        double vn_z_arr[MAX_COMPONENTS] = {0.0};
+        double mass_arr[MAX_COMPONENTS] = {0.0};
+        int num_components = env.num_components;
+        if (num_components > MAX_COMPONENTS) {
+            num_components = MAX_COMPONENTS;
+        }
+        double total_rate = 0.0;
+        
+        for (int c = 0; c < num_components; ++c) {
+            double density = env.component_density_m3[c];
+            if (density <= 0.0) {
+                continue;
+            }
+            double neutral_mass = env.component_mass_kg[c] > 0.0
+                ? env.component_mass_kg[c]
+                : env.neutral_mass_kg;
+            double sigma_comp = env.component_cross_section_m2[c] > 0.0
+                ? env.component_cross_section_m2[c]
+                : sigma;
+            
+            double vn_x = env.gas_velocity_x + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, neutral_mass);
+            double vn_y = env.gas_velocity_y + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, neutral_mass);
+            double vn_z = env.gas_velocity_z + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, neutral_mass);
+            
+            double vrel_x = vx - vn_x;
+            double vrel_y = vy - vn_y;
+            double vrel_z = vz - vn_z;
+            double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+            if (vrel_mag < MIN_VELOCITY_MAG) {
+                continue;
+            }
+            
+            double rate = density * sigma_comp * vrel_mag;
+            rates[c] = rate;
+            vn_x_arr[c] = vn_x;
+            vn_y_arr[c] = vn_y;
+            vn_z_arr[c] = vn_z;
+            mass_arr[c] = neutral_mass;
+            total_rate += rate;
+        }
+        
+        if (total_rate <= 0.0) {
+            continue;
+        }
+        
+        double collision_prob = (total_rate * dt <= 50.0)
+            ? 1.0 - exp(-total_rate * dt)
+            : 1.0;
+        double u_total = curand_uniform_double(&local_state);
+        if (u_total >= collision_prob) {
+            continue;
+        }
+        
+        double r = curand_uniform_double(&local_state) * total_rate;
+        double cumulative = 0.0;
+        int chosen = 0;
+        for (int c = 0; c < num_components; ++c) {
+            cumulative += rates[c];
+            if (r <= cumulative) {
+                chosen = c;
+                break;
+            }
+        }
+        
+        double vn_x = vn_x_arr[chosen];
+        double vn_y = vn_y_arr[chosen];
+        double vn_z = vn_z_arr[chosen];
+        double m_neutral = mass_arr[chosen] > 0.0 ? mass_arr[chosen] : env.neutral_mass_kg;
+        
+        double vrel_x = vx - vn_x;
+        double vrel_y = vy - vn_y;
+        double vrel_z = vz - vn_z;
+        double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+        if (vrel_mag < MIN_VELOCITY_MAG) {
+            continue;
+        }
+        
+        double m_total = m_ion + m_neutral;
+        double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
+        double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
+        double vcm_z = (m_ion * vz + m_neutral * vn_z) / m_total;
+        
+        double nx, ny, nz;
+        sample_isotropic_direction(&local_state, nx, ny, nz);
+        
+        double vrel_scattered_x = nx * vrel_mag;
+        double vrel_scattered_y = ny * vrel_mag;
+        double vrel_scattered_z = nz * vrel_mag;
+        
+        double reduced_mass_factor = m_neutral / m_total;
+        vx = vcm_x + vrel_scattered_x * reduced_mass_factor;
+        vy = vcm_y + vrel_scattered_y * reduced_mass_factor;
+        vz = vcm_z + vrel_scattered_z * reduced_mass_factor;
+        
+        vx_inout[i] = vx;
+        vy_inout[i] = vy;
+        vz_inout[i] = vz;
+    }
+    
+    curand_states[tid] = local_state;
+}
+
+__global__ void ehss_collision_kernel(
+    double* vx_inout,
+    double* vy_inout,
+    double* vz_inout,
+    const double* mass,
+    const double* ccs,
+    const int* species_indices,
+    const uint8_t* active,
+    curandState* curand_states,
+    const icarion::gpu::EnvironmentParams_GPU env,
+    const icarion::gpu::GeometryData_GPU geometry,
+    double dt,
+    int n_ions
+) {
+    constexpr int MAX_COMPONENTS = icarion::gpu::MAX_GPU_GAS_COMPONENTS;
+
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = gridDim.x * blockDim.x;
+    
+    curandState local_state = curand_states[tid];
+    
+    for (int i = tid; i < n_ions; i += stride) {
+        if (!active[i]) continue;
+        
+        // Read ion state
+        double vx = vx_inout[i];
+        double vy = vy_inout[i];
+        double vz = vz_inout[i];
+        double m_ion = mass[i];
+        double sigma = ccs[i];
+        int species_idx = species_indices[i];
+        
+        double vn_x = 0.0;
+        double vn_y = 0.0;
+        double vn_z = 0.0;
+        double m_neutral = env.neutral_mass_kg;
+        double neutral_radius = env.neutral_radius_m;
+        bool collision_selected = false;
+
+        if (env.num_components <= 0) {
+            vn_x = env.gas_velocity_x + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            vn_y = env.gas_velocity_y + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            vn_z = env.gas_velocity_z + sample_maxwell_boltzmann_component(
+                &local_state, env.temperature_K, env.neutral_mass_kg);
+            
+            double vrel_x = vx - vn_x;
+            double vrel_y = vy - vn_y;
+            double vrel_z = vz - vn_z;
+            double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+            if (vrel_mag < MIN_VELOCITY_MAG) continue;
+            
+            double number_density = env.pressure_Pa / (BOLTZMANN_CONSTANT * env.temperature_K);
+            double collision_rate = vrel_mag * sigma * number_density;
+            double collision_prob = 1.0 - exp(-collision_rate * dt);
+            double u = curand_uniform_double(&local_state);
+            if (u >= collision_prob) {
+                continue;
+            }
+            collision_selected = true;
+        } else {
+            double rates[MAX_COMPONENTS] = {0.0};
+            double vn_x_arr[MAX_COMPONENTS] = {0.0};
+            double vn_y_arr[MAX_COMPONENTS] = {0.0};
+            double vn_z_arr[MAX_COMPONENTS] = {0.0};
+            double mass_arr[MAX_COMPONENTS] = {0.0};
+            double radius_arr[MAX_COMPONENTS] = {0.0};
+            int num_components = env.num_components;
+            if (num_components > MAX_COMPONENTS) {
+                num_components = MAX_COMPONENTS;
+            }
+            double total_rate = 0.0;
+            
+            for (int c = 0; c < num_components; ++c) {
+                double density = env.component_density_m3[c];
+                if (density <= 0.0) {
+                    continue;
+                }
+                double neutral_mass = env.component_mass_kg[c] > 0.0
+                    ? env.component_mass_kg[c]
+                    : env.neutral_mass_kg;
+                double neutral_rad = env.component_radius_m[c] > 0.0
+                    ? env.component_radius_m[c]
+                    : env.neutral_radius_m;
+                double sigma_comp = env.component_cross_section_m2[c] > 0.0
+                    ? env.component_cross_section_m2[c]
+                    : sigma;
+                
+                double vn_x_c = env.gas_velocity_x + sample_maxwell_boltzmann_component(
+                    &local_state, env.temperature_K, neutral_mass);
+                double vn_y_c = env.gas_velocity_y + sample_maxwell_boltzmann_component(
+                    &local_state, env.temperature_K, neutral_mass);
+                double vn_z_c = env.gas_velocity_z + sample_maxwell_boltzmann_component(
+                    &local_state, env.temperature_K, neutral_mass);
+                
+                double vrel_x = vx - vn_x_c;
+                double vrel_y = vy - vn_y_c;
+                double vrel_z = vz - vn_z_c;
+                double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+                if (vrel_mag < MIN_VELOCITY_MAG) {
+                    continue;
+                }
+                
+                double rate = density * sigma_comp * vrel_mag;
+                rates[c] = rate;
+                vn_x_arr[c] = vn_x_c;
+                vn_y_arr[c] = vn_y_c;
+                vn_z_arr[c] = vn_z_c;
+                mass_arr[c] = neutral_mass;
+                radius_arr[c] = neutral_rad;
+                total_rate += rate;
+            }
+            
+            if (total_rate <= 0.0) {
+                continue;
+            }
+            
+            double collision_prob = (total_rate * dt <= 50.0)
+                ? 1.0 - exp(-total_rate * dt)
+                : 1.0;
+            double u_total = curand_uniform_double(&local_state);
+            if (u_total >= collision_prob) {
+                continue;
+            }
+            
+            double r = curand_uniform_double(&local_state) * total_rate;
+            double cumulative = 0.0;
+            int chosen = 0;
+            for (int c = 0; c < num_components; ++c) {
+                cumulative += rates[c];
+                if (r <= cumulative) {
+                    chosen = c;
+                    break;
+                }
+            }
+            
+            vn_x = vn_x_arr[chosen];
+            vn_y = vn_y_arr[chosen];
+            vn_z = vn_z_arr[chosen];
+            m_neutral = mass_arr[chosen] > 0.0 ? mass_arr[chosen] : env.neutral_mass_kg;
+            neutral_radius = radius_arr[chosen] > 0.0 ? radius_arr[chosen] : env.neutral_radius_m;
+            collision_selected = true;
+        }
+        
+        if (!collision_selected) {
+            continue;
+        }
+        
+        double vrel_x = vx - vn_x;
+        double vrel_y = vy - vn_y;
+        double vrel_z = vz - vn_z;
+        double vrel_mag = sqrt(vrel_x * vrel_x + vrel_y * vrel_y + vrel_z * vrel_z);
+        if (vrel_mag < MIN_VELOCITY_MAG) continue;
+        
+        // Look up geometry for this species
+        if (species_idx < 0 || species_idx >= geometry.num_species) {
+            // Fallback to HSS if no geometry (use same correct formula as HSS kernel)
+            double m_total = m_ion + m_neutral;
+            double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
+            double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
+            double vcm_z = (m_ion * vz + m_neutral * vn_z) / m_total;
+            
+            // Sample isotropic scattering direction
+            double nx, ny, nz;
+            sample_isotropic_direction(&local_state, nx, ny, nz);
+            
+            // Preserve relative speed magnitude, change direction
+            double vrel_scattered_x = nx * vrel_mag;
+            double vrel_scattered_y = ny * vrel_mag;
+            double vrel_scattered_z = nz * vrel_mag;
+            
+            // Transform back to lab frame (reduced mass factor)
+            double reduced_mass_factor = m_neutral / m_total;
+            vx = vcm_x + vrel_scattered_x * reduced_mass_factor;
+            vy = vcm_y + vrel_scattered_y * reduced_mass_factor;
+            vz = vcm_z + vrel_scattered_z * reduced_mass_factor;
+            
+            vx_inout[i] = vx;
+            vy_inout[i] = vy;
+            vz_inout[i] = vz;
+            continue;
+        }
+        
+        int atom_offset = geometry.atom_offsets[species_idx];
+        int n_atoms = geometry.atom_counts[species_idx];
+        
+        // Sample random molecular orientation (3 Euler angles)
+        double alpha = TWO_PI * curand_uniform_double(&local_state);
+        double beta = acos(2.0 * curand_uniform_double(&local_state) - 1.0);
+        double gamma = TWO_PI * curand_uniform_double(&local_state);
+        
+        // Rotate neutral molecule geometry
+        // (Store rotated positions in registers for small molecules, shared memory for large)
+        
+        // Build impact parameter sampling basis (perpendicular to v_rel)
+        double vrel_unit_x = vrel_x / vrel_mag;
+        double vrel_unit_y = vrel_y / vrel_mag;
+        double vrel_unit_z = vrel_z / vrel_mag;
+        
+        // Tangent vectors (Gram-Schmidt)
+        double t1_x, t1_y, t1_z;
+        if (fabs(vrel_unit_x) < 0.9) {
+            t1_x = 1.0; t1_y = 0.0; t1_z = 0.0;
+        } else {
+            t1_x = 0.0; t1_y = 1.0; t1_z = 0.0;
+        }
+        // t1 = t1 - (t1·v_rel)*v_rel
+        double proj = dot(t1_x, t1_y, t1_z, vrel_unit_x, vrel_unit_y, vrel_unit_z);
+        t1_x -= proj * vrel_unit_x;
+        t1_y -= proj * vrel_unit_y;
+        t1_z -= proj * vrel_unit_z;
+        normalize(t1_x, t1_y, t1_z);
+        
+        double t2_x, t2_y, t2_z;
+        cross(vrel_unit_x, vrel_unit_y, vrel_unit_z, t1_x, t1_y, t1_z, t2_x, t2_y, t2_z);
+        
+        // Estimate max impact parameter from CCS
+        double bmax = sqrt(sigma / PI);
+        
+        // Sample impact parameter (uniform disk)
+        bool collision_detected = false;
+        double contact_x, contact_y, contact_z;
+        double impact_x = 0.0, impact_y = 0.0, impact_z = 0.0;  // Declare outside loop
+        
+        for (int attempt = 0; attempt < MAX_COLLISION_ATTEMPTS && !collision_detected; ++attempt) {
+            // Random point in disk of radius bmax
+            double r = bmax * sqrt(curand_uniform_double(&local_state));
+            double theta = TWO_PI * curand_uniform_double(&local_state);
+            double b_x = r * cos(theta);
+            double b_y = r * sin(theta);
+            
+            // Impact point = b_x*t1 + b_y*t2
+            impact_x = b_x * t1_x + b_y * t2_x;
+            impact_y = b_x * t1_y + b_y * t2_y;
+            impact_z = b_x * t1_z + b_y * t2_z;
+            
+            // Ray-trace through rotated atoms
+            for (int j = 0; j < n_atoms; ++j) {
+                int idx = atom_offset + j;
+                double ax = geometry.atom_x[idx];
+                double ay = geometry.atom_y[idx];
+                double az = geometry.atom_z[idx];
+                double ar = geometry.atom_radii[idx];
+                
+                // Rotate atom position
+                double ax_rot, ay_rot, az_rot;
+                rotate_euler_zyz(ax, ay, az, alpha, beta, gamma, ax_rot, ay_rot, az_rot);
+                
+                // Check collision: distance from ion trajectory to atom center < sum of radii
+                double dx = ax_rot - impact_x;
+                double dy = ay_rot - impact_y;
+                double dz = az_rot - impact_z;
+                
+            double dist_sq = dx * dx + dy * dy + dz * dz;
+            double sum_radii = ar + neutral_radius;
+            
+            if (dist_sq < sum_radii * sum_radii) {
+                collision_detected = true;
+                contact_x = ax_rot;
+                contact_y = ay_rot;
+                    contact_z = az_rot;
+                    break;
+                }
+            }
+            
+            // Expand bmax if no collision found (adaptive sampling)
+            if (!collision_detected && attempt % 64 == 63) {
+                bmax *= BMAX_EXPANSION_FACTOR;
+            }
+        }
+        
+        // If collision detected, perform specular reflection
+        if (collision_detected) {
+            // Collision normal: from contact point to ion trajectory
+            double normal_x = impact_x - contact_x;  // Simplified: should be from atom center
+            double normal_y = impact_y - contact_y;
+            double normal_z = impact_z - contact_z;
+            normalize(normal_x, normal_y, normal_z);
+            
+            // Transform to COM frame
+            double m_total = m_ion + m_neutral;
+            double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
+            double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
+            double vcm_z = (m_ion * vz + m_neutral * vn_z) / m_total;
+            
+            double vion_cm_x = vx - vcm_x;
+            double vion_cm_y = vy - vcm_y;
+            double vion_cm_z = vz - vcm_z;
+            
+            // Specular reflection: v' = v - 2(v·n)n
+            double vdotn = dot(vion_cm_x, vion_cm_y, vion_cm_z, normal_x, normal_y, normal_z);
+            vion_cm_x -= 2.0 * vdotn * normal_x;
+            vion_cm_y -= 2.0 * vdotn * normal_y;
+            vion_cm_z -= 2.0 * vdotn * normal_z;
+            
+            // Transform back to lab frame
+            vx = vion_cm_x + vcm_x;
+            vy = vion_cm_y + vcm_y;
+            vz = vion_cm_z + vcm_z;
+        } else {
+            // Fallback to isotropic scattering if geometry collision fails
+            double m_total = m_ion + m_neutral;
+            double vcm_x = (m_ion * vx + m_neutral * vn_x) / m_total;
+            double vcm_y = (m_ion * vy + m_neutral * vn_y) / m_total;
+            double vcm_z = (m_ion * vz + m_neutral * vn_z) / m_total;
+            
+            double vion_cm_x = vx - vcm_x;
+            double vion_cm_y = vy - vcm_y;
+            double vion_cm_z = vz - vcm_z;
+            
+            double nx, ny, nz;
+            sample_isotropic_direction(&local_state, nx, ny, nz);
+            
+            double vion_cm_mag = sqrt(vion_cm_x * vion_cm_x + 
+                                       vion_cm_y * vion_cm_y + 
+                                       vion_cm_z * vion_cm_z);
+            
+            vx = nx * vion_cm_mag + vcm_x;
+            vy = ny * vion_cm_mag + vcm_y;
+            vz = nz * vion_cm_mag + vcm_z;
+        }
+        
+        // Write back
+        vx_inout[i] = vx;
+        vy_inout[i] = vy;
+        vz_inout[i] = vz;
+    }
+    
+    curand_states[tid] = local_state;
+}
+
+// ============================================================================
+// Host-side Launch Wrappers (back in namespace)
+// ============================================================================
+
+namespace icarion {
+namespace gpu {
+
+void launch_hss_collision_batch(
+    double* vx_inout,
+    double* vy_inout,
+    double* vz_inout,
+    const double* mass,
+    const double* ccs,
+    const uint8_t* active,
+    curandState* curand_states,
+    const EnvironmentParams_GPU& env,
+    double dt,
+    int n_ions,
+    cudaStream_t stream
+) {
+    // Launch configuration
+    constexpr int THREADS_PER_BLOCK = 256;
+    int blocks = (n_ions + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    blocks = std::min(blocks, 2048);  // Limit max blocks for scheduler efficiency
+    
+    hss_collision_kernel<<<blocks, THREADS_PER_BLOCK, 0, stream>>>(
+        vx_inout, vy_inout, vz_inout,
+        mass, ccs, active,
+        curand_states, env, dt, n_ions
+    );
+}
+
+void launch_ehss_collision_batch(
+    double* vx_inout,
+    double* vy_inout,
+    double* vz_inout,
+    const double* mass,
+    const double* ccs,
+    const int* species_indices,
+    const uint8_t* active,
+    curandState* curand_states,
+    const EnvironmentParams_GPU& env,
+    const GeometryData_GPU& geometry,
+    double dt,
+    int n_ions,
+    cudaStream_t stream
+) {
+    // Launch configuration
+    constexpr int THREADS_PER_BLOCK = 256;
+    int blocks = (n_ions + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    blocks = std::min(blocks, 2048);
+    
+    ehss_collision_kernel<<<blocks, THREADS_PER_BLOCK, 0, stream>>>(
+        vx_inout, vy_inout, vz_inout,
+        mass, ccs, species_indices, active,
+        curand_states, env, geometry, dt, n_ions
+    );
+}
+
+} // namespace gpu
+} // namespace icarion

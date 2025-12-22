@@ -1,0 +1,92 @@
+================================================================================
+GAS MIXTURE THERMALIZATION VALIDATION (analysis-only)
+================================================================================
+Start time: 2025-12-21 18:54:45
+
+Using existing HDF5 outputs; no simulations executed.
+
+────────────────────────────────────────────────────────────────────────────────
+TEST: 100He_0N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=100%, N2=0%
+Collision frequency: 8.55e+07 Hz
+Collision time:      0.01 µs
+
+
+📊 Analyzing: therm_100He_0N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 299.7 ± 11.4 K
+  Expected:            300.0 K
+  Error:               0.1%  ✅
+────────────────────────────────────────────────────────────────────────────────
+TEST: 75He_25N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=75%, N2=25%
+Collision frequency: 1.11e+08 Hz
+Collision time:      0.01 µs
+
+
+📊 Analyzing: therm_75He_25N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 300.4 ± 10.5 K
+  Expected:            300.0 K
+  Error:               0.1%  ✅
+────────────────────────────────────────────────────────────────────────────────
+TEST: 50He_50N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=50%, N2=50%
+Collision frequency: 1.37e+08 Hz
+Collision time:      0.01 µs
+
+
+📊 Analyzing: therm_50He_50N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 302.2 ± 12.0 K
+  Expected:            300.0 K
+  Error:               0.7%  ✅
+────────────────────────────────────────────────────────────────────────────────
+TEST: 25He_75N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=25%, N2=75%
+Collision frequency: 1.62e+08 Hz
+Collision time:      0.01 µs
+
+
+📊 Analyzing: therm_25He_75N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 300.3 ± 10.8 K
+  Expected:            300.0 K
+  Error:               0.1%  ✅
+────────────────────────────────────────────────────────────────────────────────
+TEST: 0He_100N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=0%, N2=100%
+Collision frequency: 1.88e+08 Hz
+Collision time:      0.01 µs
+
+
+📊 Analyzing: therm_0He_100N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 300.2 ± 10.9 K
+  Expected:            300.0 K
+  Error:               0.1%  ✅
+
+================================================================================
+VALIDATION SUMMARY
+================================================================================
+  100He_0N2      : ✅    0.1% error
+  75He_25N2      : ✅    0.1% error
+  50He_50N2      : ✅    0.7% error
+  25He_75N2      : ✅    0.1% error
+  0He_100N2      : ✅    0.1% error
+
+✅ ALL VALIDATIONS PASSED (5/5)
+
+📈 Creating validation plot...
+  ✓ Saved: /home/chsch95/ICARION/validation/figures/mixture_thermalization_validation.png
+
+================================================================================
+End time: 2025-12-21 18:54:50
+Duration: -0.0 seconds
+Log file: /home/chsch95/ICARION/validation/logs/MIXTURE_THERMALIZATION_VALIDATION.txt
+================================================================================

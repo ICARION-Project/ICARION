@@ -1,63 +1,40 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        depositCharge.h
- *   @brief       Utility functions for charge deposition onto a 3D grid in ICARION.
- *
- * @details
- * Provides:
- * - Function to deposit ion charges onto a 3D grid.
- * - Support for different deposition methods (NGP, CIC, TSC).
- * - Charge density computation from ion positions and charges.
- *
- *   @date        2025-10-18
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
 #pragma once
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/Grid3D.h"
+#include "core/config/types/IDomainGeometry.h"
 #include "utils/constants.h"
 #include <vector>
 
 /**
- * @brief Deposit ion charges onto 3D grid for space-charge calculations
+ * @brief Deposit ion charges onto 3D grid for space-charge calculations (box grid)
  * 
  * @param ions Vector of ion states with positions and charges
  * @param grid 3D grid specification (dimensions, spacing, origin)
  * 
  * @return Charge density [C/m³] at each grid point (size = Nx×Ny×Nz)
  * 
- * @note **Current implementation: CIC (Cloud-In-Cell) - Production Quality**
- *       Distributes charge over 8 surrounding grid nodes using trilinear weighting.
- *       This is the standard method for publication-quality PIC simulations.
+ * @note Geometry-aware solvers pass an optional IDomainGeometry pointer to reject
+ *       ions outside the physical domain before deposition; legacy callers may pass nullptr.
  * 
  * Maps discrete ion positions to continuous charge density field using
  * particle-in-cell (PIC) methods with second-order accuracy.
  * 
  * **Implemented deposition schemes:**
- * - ✅ **CIC (Cloud-In-Cell)**: Trilinear interpolation over 8 surrounding nodes
+ * - **CIC (Cloud-In-Cell)**: Trilinear interpolation over 8 surrounding nodes
  *   O(h²) convergence, smooth fields, standard for publication-quality results.
  *   Charge conserving, parallel-safe with OpenMP atomics.
  *   Recommended for all production simulations.
  * 
  * **Legacy methods (deprecated):**
- * - ⚠️ **NGP (Nearest Grid Point)**: Only used in ultra-high performance mode (N>1M ions)
+ * - **NGP (Nearest Grid Point)**: Only used in ultra-high performance mode (N>1M ions)
  *   O(h) convergence, causes grid noise, not recommended for publication.
  * 
  * **Future enhancement (v1.1+):**
- * - ⏳ TSC (Triangular Shaped Cloud): Higher-order interpolation (27 nodes)
+ * - TSC (Triangular Shaped Cloud): Higher-order interpolation (27 nodes)
  *   O(h³) convergence, best smoothness but 3x slower than CIC
  * 
  * **Grid Resolution Requirements:**
@@ -84,4 +61,12 @@
  * @throws std::runtime_error if grid size is insufficient for ion distribution
  */
 std::vector<double> deposit_charge(const std::vector<IonState>& ions,
-                                   const Grid3D& grid);
+                                   const Grid3D& grid,
+                                   const ICARION::config::IDomainGeometry* geometry = nullptr);
+
+/**
+ * @brief Deposit ion charges onto 3D grid (SoA path)
+ */
+std::vector<double> deposit_charge(const ICARION::core::IonEnsemble& ions,
+                                   const Grid3D& grid,
+                                   const ICARION::config::IDomainGeometry* geometry = nullptr);

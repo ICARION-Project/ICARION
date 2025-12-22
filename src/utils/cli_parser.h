@@ -1,23 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   Command-line argument parser
- *
- *   @file        cli_parser.h
- *   @brief       Parse and validate command-line arguments
- *
- *   @date        2025-11-10
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -25,6 +7,7 @@
 #include <optional>
 #include <map>
 #include <vector>
+#include <cstdint>
 
 namespace ICARION {
 namespace cli {
@@ -32,7 +15,7 @@ namespace cli {
 /**
  * @brief Command-line options for ICARION
  * 
- * Extended with logging, output control, and config overrides.
+ * CLI surface primarily covers config selection, logging, and a few info flags. GPU use\n+ * is driven by config; there is no CLI toggle beyond the JSON settings.
  */
 struct CLIOptions {
     // === Core options ===
@@ -44,20 +27,21 @@ struct CLIOptions {
     bool show_version{false};             ///< Show version (--version)
     bool validate_config{false};          ///< Validate config and exit (--validate-config)
     
-    // === Logging options (Phase 1: ACTIVE) ===
+    // === Logging options ===
     std::string log_level{"INFO"};        ///< Log level: DEBUG, INFO, WARN, ERROR
     std::optional<std::string> log_file;  ///< Log to file instead of console
     std::string log_format{"text"};       ///< Log format: text or json
     bool verbose{false};                  ///< Verbose mode (alias for --log-level DEBUG)
     
-    // === Output control (Phase 1: ACTIVE) ===
+    // === Output control ===
     std::optional<std::string> output_file;  ///< Override output HDF5 filename
     std::optional<std::string> output_dir;   ///< Override output directory
+    std::optional<uint64_t> buffer_byte_cap; ///< Cap for trajectory buffer (bytes, 0 = unlimited)
     
-    // === Config overrides (Phase 1: ACTIVE) ===
+    // === Config overrides ===
     std::map<std::string, std::string> overrides;  ///< Config key-value overrides (--set)
     
-    // === Information flags (Phase 1: ACTIVE) ===
+    // === Information flags ===
     bool dump_build_info{false};      ///< Show detailed build information
     bool dump_hdf5_schema{false};     ///< Show HDF5 output schema
     bool dump_config_schema{false};   ///< Export JSON config schema
@@ -70,6 +54,7 @@ struct CLIOptions {
     bool benchmark{false};                      ///< Enable detailed timing statistics (--benchmark)
     bool profile{false};                        ///< Enable profiling instrumentation (--profile)
     std::optional<std::string> profile_output;  ///< Profile output file (--profile-output)
+    std::optional<int> num_threads;             ///< Number of OpenMP threads (--threads)
 };
 
 /**

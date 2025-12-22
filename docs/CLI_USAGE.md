@@ -1,7 +1,7 @@
 # ICARION Command-Line Interface (CLI) Guide
 
 **Version:** 1.0  
-**Last Updated:** November 21, 2025
+**Last Updated:** December 2025
 
 ---
 
@@ -72,7 +72,7 @@ icarion --version
 Specify the configuration file (alternative to positional argument).
 
 ```bash
-icarion --config examples/ims_basic.json
+icarion --config examples/ims/ims_basic.json
 ```
 
 ### `--seed <N>`
@@ -179,6 +179,67 @@ Override the output directory specified in the configuration.
 icarion --output-dir ./results/experiment1 config.json
 ```
 
+### `--buffer-byte-cap <BYTES>`
+Cap the in-memory trajectory buffer to avoid OOM; `0` (default) disables the cap.
+
+```bash
+# Cap at 512 MB
+icarion --buffer-byte-cap 536870912 config.json
+```
+
+---
+
+## Performance Options
+
+### `--threads <N>`
+Set the number of OpenMP threads for CPU parallelization.  
+Overrides the `OMP_NUM_THREADS` environment variable.
+
+**Usage:**
+```bash
+# Use 8 CPU threads
+icarion --threads 8 config.json
+
+# Single-threaded execution
+icarion --threads 1 config.json
+
+# Optimal for most systems (4-8 threads)
+icarion --threads 4 config.json
+```
+
+**Performance Notes:**
+- For CPU-only simulations, 4-8 threads often give best efficiency; beyond that, bandwidth can limit scaling.
+- Ignored if OpenMP is not enabled at compile time.
+
+### `--benchmark`
+Enable profiling and print a timing summary after the run (uses the internal profiler).
+
+```bash
+icarion --benchmark config.json
+```
+
+**Output includes:**
+- Timing summary for instrumented phases (ion generation, physics setup, main loop, output)
+- Total simulation wall-clock time
+
+### `--profile`
+Enable profiling instrumentation for detailed performance analysis (same profiler as `--benchmark`).
+
+```bash
+icarion --profile config.json
+```
+
+### `--profile-output <FILE>`
+Write profiling data to a file (JSON or CSV format).
+
+```bash
+# JSON format (default)
+icarion --profile --profile-output profile.json config.json
+
+# CSV format for Excel/pandas
+icarion --profile --profile-output profile.csv config.json
+```
+
 ---
 
 ## Advanced Configuration
@@ -195,13 +256,14 @@ Can be specified multiple times to override multiple values.
 - `simulation.write_interval` - Output write interval
 - `simulation.rng_seed` - Random number seed
 - `simulation.integrator` - Integration method (RK4, RK45, Boris)
-- `simulation.enable_gpu` - Enable GPU acceleration (true/false)
+- `simulation.enable_gpu` - Enable GPU acceleration (true/false) — ignored at runtime in v1.0 (GPU path disabled)
 - `simulation.enable_openmp` - Enable OpenMP parallelization (true/false)
 
 **Physics parameters:**
 - `physics.collision_model` - Collision model (NoCollisions, HSD, Langevin, Friction, HSS, EHSS)
 - `physics.enable_reactions` - Enable chemical reactions (true/false)
 - `physics.enable_space_charge` - Enable space charge effects (true/false)
+- `physics.enable_space_charge_gpu` - Prefer GPU-based P³M space charge (if built with CUDA; falls back to CPU if unavailable)
 - `physics.enable_ou_thermalization` - Enable Ornstein-Uhlenbeck thermalization (true/false)
 
 **Output parameters:**
@@ -210,8 +272,8 @@ Can be specified multiple times to override multiple values.
 - `output.print_progress` - Print progress updates (true/false)
 
 **Database paths:**
-- `species_database_path` - Path to species database
-- `reaction_database_path` - Path to reaction database
+- `species_database` (or `database.species`) - Path to species database
+- `reaction_database` (or `database.reactions`) - Path to reaction database
 
 **Examples:**
 ```bash
@@ -228,32 +290,11 @@ icarion --set simulation.rng_seed=999 \
         config.json
 ```
 
-### Future Options (Planned for v1.1)
-
-#### `--benchmark` *(Coming Soon)*
-Print detailed timing statistics for each simulation phase.
-```bash
-icarion --benchmark config.json
-```
-
-#### `--profile` *(Coming Soon)*
-Enable profiling instrumentation (requires profiler build).
-```bash
-icarion --profile config.json
-```
-
-#### `--check-nan` *(Coming Soon)*
-Enable NaN/Inf checks in the integrator for debugging numerical issues.
-```bash
-icarion --check-nan config.json
-```
-
 ---
 
 ## Information Flags
 
-These flags provide information about ICARION and exit immediately  
-without requiring a configuration file.
+These flags provide information and exit immediately. `--validate-schema` requires a configuration file; the others do not.
 
 ### `--dump-build-info`
 Show detailed build configuration and features.
@@ -354,17 +395,17 @@ icarion --check-deps
 
 ```bash
 # Run with default settings
-icarion examples/ims_basic.json
+icarion examples/ims/ims_basic.json
 ```
 
 ### Validation Only
 
 ```bash
 # Check configuration without running
-icarion --dry-run examples/tof_basic.json
+icarion --dry-run examples/tof/tof_basic.json
 
 # Detailed validation with schema check
-icarion --validate-schema examples/orbitrap_basic.json
+icarion --validate-schema examples/orbitrap/orbitrap_basic.json
 ```
 
 ### Debugging
@@ -384,6 +425,14 @@ icarion --validate-config --log-level DEBUG config.json
 for seed in {1..10}; do
     icarion --seed $seed \
             --output results_seed${seed}.h5 \
+            config.json
+done
+
+# CPU thread scaling benchmark
+for threads in 1 2 4 8 16; do
+    icarion --threads $threads \
+            --benchmark \
+            --output results_threads${threads}.h5 \
             config.json
 done
 
@@ -419,8 +468,10 @@ icarion --no-reactions \
 ### Combining Options
 
 ```bash
-# Full featured run
-icarion --verbose \
+# Full featured run with performance optimization
+icarion --threads 8 \
+        --benchmark \
+        --verbose \
         --log-file simulation.log \
         --seed 42 \
         --set simulation.dt_s=5e-11 \
@@ -439,8 +490,7 @@ ICARION uses standard exit codes:
 | Code | Meaning |
 |------|---------|
 | `0` | Success - simulation completed normally |
-| `1` | Error - invalid arguments, missing config, validation failure |
-| `2` | Runtime error - simulation crashed, numerical issues |
+| `1` | Error - invalid arguments, missing config, validation failure, or runtime error |
 
 **Checking exit codes in scripts:**
 
@@ -492,7 +542,7 @@ icarion --dump-build-info > build_info.txt
 ## See Also
 
 - [Configuration Guide](CONFIG_GUIDE.md)
-- [HDF5 Output Schema](OUTPUT_SCHEMA.md)
+- [HDF5 Output Structure](HDF5_OUTPUT_STRUCTURE.md)
 - [Developer's Guide](DEVELOPERS_GUIDE.md)
 - [Architecture Overview](ARCHITECTURE.md)
 
@@ -508,6 +558,5 @@ icarion --dump-build-info > build_info.txt
 
 ---
 
-**Last Modified:** November 21, 2025  
+**Last Modified:** December 2025  
 **ICARION Version:** 1.0.0
-

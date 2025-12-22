@@ -1,29 +1,6 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        grid3D.h
- *   @brief       Defines a 3D grid structure for potentials and fields.
- *
- * @details
- * Provides a Grid3D struct encapsulating a regular 3D grid with
- * uniform spacing in each dimension. The grid stores the electric
- * potential (phi) and electric field (E) at each grid point.
- *
- *   @date        2025-10-18
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
 #pragma once
 #include "core/utils/mathUtils.h"
 #include <vector>

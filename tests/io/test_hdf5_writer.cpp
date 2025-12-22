@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @brief Integration tests for HDF5Writer v2
@@ -15,6 +15,7 @@
 #include "core/config/types/FullConfig.h"
 #include "core/config/loader/ConfigLoader.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include <H5Cpp.h>
 #include <filesystem>
 #include <fstream>
@@ -105,6 +106,10 @@ namespace {
         
         return ions;
     }
+
+    core::IonEnsemble to_ensemble(const std::vector<core::IonState>& ions) {
+        return core::IonEnsemble::from_legacy(ions);
+    }
 }
 
 TEST_CASE("HDF5 library is available and functional", "[hdf5][io][smoke]") {
@@ -166,7 +171,8 @@ TEST_CASE("HDF5Writer v2 creates correct file structure", "[hdf5][io]") {
     auto ions = create_test_ions();
     
     // Create file with metadata
-    io::HDF5Writer::create_file(test_file, config, ions, "test_git_hash", "gcc 11.4.0 -O3");
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
+    io::HDF5Writer::create_file(test_file, config, ensemble, "test_git_hash", "gcc 11.4.0 -O3");
     
     REQUIRE(std::filesystem::exists(test_file));
     
@@ -191,8 +197,9 @@ TEST_CASE("HDF5Writer v2 writes simulation metadata correctly", "[hdf5][io]") {
     std::string test_file = get_test_file();
     auto config = create_minimal_config();
     auto ions = create_test_ions();
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
     
-    io::HDF5Writer::create_file(test_file, config, ions, "abc123def", "gcc 11.4.0");
+    io::HDF5Writer::create_file(test_file, config, ensemble, "abc123def", "gcc 11.4.0");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     H5::Group cfg_group = file.openGroup("/metadata/config");
@@ -224,7 +231,7 @@ TEST_CASE("HDF5Writer v2 writes reproducibility metadata", "[hdf5][io]") {
     auto config = create_minimal_config();
     auto ions = create_test_ions();
     
-    io::HDF5Writer::create_file(test_file, config, ions, "abc123def", "gcc 11.4.0");
+    io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "abc123def", "gcc 11.4.0");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     H5::Group repro = file.openGroup("/metadata/reproducibility");
@@ -250,7 +257,8 @@ TEST_CASE("HDF5Writer v2 writes species metadata in tabular format", "[hdf5][io]
     auto config = create_minimal_config();
     auto ions = create_test_ions();
     
-    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
+    io::HDF5Writer::create_file(test_file, config, ensemble, "test", "test");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     H5::Group species_group = file.openGroup("/metadata/species");
@@ -281,7 +289,8 @@ TEST_CASE("HDF5Writer v2 writes domain configuration", "[hdf5][io]") {
     auto config = create_minimal_config();
     auto ions = create_test_ions();
     
-    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    auto ensemble2 = core::IonEnsemble::from_legacy(ions);
+    io::HDF5Writer::create_file(test_file, config, ensemble2, "test", "test");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     H5::Group domain = file.openGroup("/domains/domain_0");
@@ -310,7 +319,7 @@ TEST_CASE("HDF5Writer v2 writes ion initial conditions", "[hdf5][io]") {
     auto config = create_minimal_config();
     auto ions = create_test_ions();
     
-    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "test", "test");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     H5::Group ion_group = file.openGroup("/ions");
@@ -341,28 +350,28 @@ TEST_CASE("HDF5Writer v2 appends trajectory data correctly", "[hdf5][io]") {
     auto config = create_minimal_config();
     auto ions = create_test_ions();
     
-    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "test", "test");
     
     // Append first timestep
     for (auto& ion : ions) {
         ion.pos.x += 0.0001;
         ion.vel.x += 1.0;
     }
-    io::HDF5Writer::append_trajectory(test_file, 0.0, ions);
+    io::HDF5Writer::append_trajectory(test_file, 0.0, to_ensemble(ions));
     
     // Append second timestep
     for (auto& ion : ions) {
         ion.pos.x += 0.0001;
         ion.vel.x += 1.0;
     }
-    io::HDF5Writer::append_trajectory(test_file, 1e-9, ions);
+    io::HDF5Writer::append_trajectory(test_file, 1e-9, to_ensemble(ions));
     
     // Append third timestep
     for (auto& ion : ions) {
         ion.pos.x += 0.0001;
         ion.vel.x += 1.0;
     }
-    io::HDF5Writer::append_trajectory(test_file, 2e-9, ions);
+    io::HDF5Writer::append_trajectory(test_file, 2e-9, to_ensemble(ions));
     
     // Verify trajectory data
     H5::H5File file(test_file, H5F_ACC_RDONLY);
@@ -407,11 +416,11 @@ TEST_CASE("HDF5Writer v2 finalization writes completion metadata", "[hdf5][io]")
     auto config = create_minimal_config();
     auto ions = create_test_ions();
     
-    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "test", "test");
     
     // Simulate some trajectory steps
-    io::HDF5Writer::append_trajectory(test_file, 0.0, ions);
-    io::HDF5Writer::append_trajectory(test_file, 1e-9, ions);
+    io::HDF5Writer::append_trajectory(test_file, 0.0, to_ensemble(ions));
+    io::HDF5Writer::append_trajectory(test_file, 1e-9, to_ensemble(ions));
     
     // Finalize
     io::HDF5Writer::finalize(test_file, true, 2e-9, 8);
@@ -452,7 +461,7 @@ TEST_CASE("HDF5Writer v2 handles empty reaction database", "[hdf5][io]") {
     REQUIRE(config.reaction_db.reactions.empty());
     
     // Should not crash when writing empty reactions
-    REQUIRE_NOTHROW(io::HDF5Writer::create_file(test_file, config, ions, "test", "test"));
+    REQUIRE_NOTHROW(io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "test", "test"));
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     // Reactions group should still exist but be empty
@@ -475,7 +484,7 @@ TEST_CASE("HDF5Writer v2 writes reaction metadata correctly", "[hdf5][io]") {
     rxn.rate_constant = 1.5e-15;
     config.reaction_db.reactions.push_back(rxn);
     
-    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "test", "test");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     
@@ -490,8 +499,8 @@ TEST_CASE("HDF5Writer v2 writes reaction metadata correctly", "[hdf5][io]") {
     space.getSimpleExtentDims(dims);
     REQUIRE(dims[0] == 1);  // 1 reaction
     
-    // Check rate constant
-    H5::DataSet ds_rate = rxn_group.openDataSet("rate_constant");
+    // Check rate constant (stored with units in name)
+    H5::DataSet ds_rate = rxn_group.openDataSet("rate_constant_m3s");
     std::vector<double> rates(1);
     ds_rate.read(rates.data(), H5::PredType::NATIVE_DOUBLE);
     REQUIRE(rates[0] == Approx(1.5e-15));
@@ -530,7 +539,7 @@ TEST_CASE("HDF5Writer v2 writes multiple domains correctly", "[hdf5][io]") {
     domain3.environment.gas_species = "Vacuum";
     config.domains.push_back(domain3);
     
-    io::HDF5Writer::create_file(test_file, config, ions, "test", "test");
+    io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "test", "test");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     
@@ -568,7 +577,7 @@ TEST_CASE("HDF5Writer v2 writes system metadata correctly", "[hdf5][io]") {
     auto config = create_minimal_config();
     auto ions = create_test_ions();
     
-    io::HDF5Writer::create_file(test_file, config, ions, "abc123", "gcc 11.4.0");
+    io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "abc123", "gcc 11.4.0");
     
     H5::H5File file(test_file, H5F_ACC_RDONLY);
     H5::Group system = file.openGroup("/metadata/system");
@@ -610,14 +619,14 @@ TEST_CASE("HDF5Writer v2 handles large ion ensembles", "[hdf5][io][performance]"
     }
     
     // Should handle large ensemble without issues
-    REQUIRE_NOTHROW(io::HDF5Writer::create_file(test_file, config, ions, "test", "test"));
+    REQUIRE_NOTHROW(io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "test", "test"));
     
     // Append trajectory snapshots
     for (int step = 0; step < 5; ++step) {
         for (auto& ion : ions) {
             ion.pos.x += 0.0001;
         }
-        REQUIRE_NOTHROW(io::HDF5Writer::append_trajectory(test_file, step * 1e-9, ions));
+        REQUIRE_NOTHROW(io::HDF5Writer::append_trajectory(test_file, step * 1e-9, to_ensemble(ions)));
     }
     
     // Verify data integrity
@@ -679,7 +688,7 @@ TEST_CASE("HDF5Writer v2 SHA256 hashing with ConfigLoader integration", "[hdf5][
     auto ions = create_test_ions();
     
     // Create HDF5 file with SHA256 hashing
-    io::HDF5Writer::create_file(test_file, config, ions, "abc123", "gcc 11.4.0");
+    io::HDF5Writer::create_file(test_file, config, to_ensemble(ions), "abc123", "gcc 11.4.0");
     
     // Open and verify SHA256 hash was written
     H5::H5File file(test_file, H5F_ACC_RDONLY);

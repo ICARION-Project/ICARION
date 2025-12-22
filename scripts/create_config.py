@@ -29,6 +29,23 @@ TEMPLATES = {
                 "integrator": "RK4",
                 "write_interval": 100
             },
+            "ions": {
+                "species": [
+                    {
+                        "id": "H3O+",
+                        "count": 100,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.001],
+                            "std": [0.001, 0.001, 0.0005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
+            },
             "physics": {
                 "collision_model": "NoCollisions"
             },
@@ -67,6 +84,23 @@ TEMPLATES = {
                 "write_interval": 1000,
                 "enable_gpu": True,
                 "rng_seed": 42
+            },
+            "ions": {
+                "species": [
+                    {
+                        "id": "H3O+",
+                        "count": 1000,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.001],
+                            "std": [0.001, 0.001, 0.0005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
             },
             "physics": {
                 "collision_model": "HSS"
@@ -111,6 +145,23 @@ TEMPLATES = {
                 "integrator": "RK4",
                 "write_interval": 100,
                 "enable_gpu": True
+            },
+            "ions": {
+                "species": [
+                    {
+                        "id": "ReserpineH+",
+                        "count": 100,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.001],
+                            "std": [0.0005, 0.0005, 0.0005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
             },
             "physics": {
                 "collision_model": "NoCollisions"
@@ -168,6 +219,23 @@ TEMPLATES = {
                 "write_interval": 100,
                 "enable_gpu": True
             },
+            "ions": {
+                "species": [
+                    {
+                        "id": "CaffeineH+",
+                        "count": 500,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.0],
+                            "std": [0.001, 0.001, 0.005]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
+            },
             "physics": {
                 "collision_model": "HSS"
             },
@@ -215,6 +283,23 @@ TEMPLATES = {
                 "write_interval": 1000,
                 "enable_gpu": True
             },
+            "ions": {
+                "species": [
+                    {
+                        "id": "ReserpineH+",
+                        "count": 100,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.0],
+                            "std": [0.002, 0.002, 0.005]
+                        },
+                        "velocity": {
+                            "type": "energy_eV",
+                            "value": [0, 0, 100.0]
+                        }
+                    }
+                ]
+            },
             "physics": {
                 "collision_model": "NoCollisions"
             },
@@ -230,12 +315,137 @@ TEMPLATES = {
                     "geometry": {
                         "origin_m": [0.0, 0.0, 0.0],
                         "length_m": 0.05,
-                        "radius_m": 0.015
+                        "radius_in_m": 0.006,
+                        "radius_out_m": 0.015,
+                        "radius_char_m": 0.022
                     },
                     "env": {
                         "pressure_Pa": 1e-8,
                         "temperature_K": 300.0,
                         "gas_species": "He"
+                    }
+                }
+            ]
+        }
+    },
+    
+    "quadrupole": {
+        "description": "Quadrupole mass filter",
+        "config": {
+            "simulation": {
+                "total_time_s": 5e-5,
+                "dt_s": 1e-9,
+                "integrator": "RK4",
+                "write_interval": 100,
+                "enable_gpu": True
+            },
+            "ions": {
+                "species": [
+                    {
+                        "id": "CaffeineH+",
+                        "count": 50,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.001],
+                            "std": [0.0005, 0.0005, 0.0005]
+                        },
+                        "velocity": {
+                            "type": "fixed",
+                            "value": [0, 0, 100.0]
+                        }
+                    }
+                ]
+            },
+            "physics": {
+                "collision_model": "NoCollisions"
+            },
+            "output": {
+                "folder": "./results/quadrupole",
+                "trajectory_file": "quadrupole_trajectories.h5",
+                "print_progress": True
+            },
+            "domains": [
+                {
+                    "name": "quad_filter",
+                    "instrument": "Quadrupole",
+                    "geometry": {
+                        "origin_m": [0.0, 0.0, 0.0],
+                        "length_m": 0.05,
+                        "radius_m": 0.005
+                    },
+                    "env": {
+                        "pressure_Pa": 1e-5,
+                        "temperature_K": 300.0,
+                        "gas_species": "He"
+                    },
+                    "fields": {
+                        "RF": {
+                            "voltage_V": 100.0,
+                            "frequency_Hz": 1e6,
+                            "phase_rad": 0.0
+                        },
+                        "DC": {
+                            "quad_V": 10.0
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    
+    "fticr": {
+        "description": "FT-ICR mass spectrometer",
+        "config": {
+            "simulation": {
+                "total_time_s": 1e-3,
+                "dt_s": 1e-9,
+                "integrator": "Boris",
+                "write_interval": 1000,
+                "enable_gpu": True
+            },
+            "ions": {
+                "species": [
+                    {
+                        "id": "ReserpineH+",
+                        "count": 50,
+                        "position": {
+                            "type": "gaussian",
+                            "center": [0.0, 0.0, 0.0],
+                            "std": [0.001, 0.001, 0.001]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
+            },
+            "physics": {
+                "collision_model": "NoCollisions"
+            },
+            "output": {
+                "folder": "./results/fticr",
+                "trajectory_file": "fticr_trajectories.h5",
+                "print_progress": True
+            },
+            "domains": [
+                {
+                    "name": "icr_cell",
+                    "instrument": "FT-ICR",
+                    "geometry": {
+                        "origin_m": [0.0, 0.0, 0.0],
+                        "length_m": 0.1,
+                        "radius_m": 0.02
+                    },
+                    "env": {
+                        "pressure_Pa": 1e-9,
+                        "temperature_K": 300.0,
+                        "gas_species": "He"
+                    },
+                    "fields": {
+                        "magnetic": {
+                            "B_field_T": [0.0, 0.0, 7.0]
+                        }
                     }
                 }
             ]
@@ -253,155 +463,15 @@ def list_templates():
     print("-" * 60)
 
 
-def get_user_input(prompt: str, default: Any = None, value_type: type = str) -> Any:
-    """Get user input with default value"""
-    if default is not None:
-        prompt_str = f"{prompt} [{default}]: "
-    else:
-        prompt_str = f"{prompt}: "
-    
-    user_input = input(prompt_str).strip()
-    
-    if not user_input and default is not None:
-        return default
-    
-    if value_type == bool:
-        return user_input.lower() in ('yes', 'y', 'true', '1')
-    elif value_type == float:
-        return float(user_input)
-    elif value_type == int:
-        return int(user_input)
-    else:
-        return user_input
-
-
-def interactive_mode() -> Dict[str, Any]:
-    """Interactive configuration builder"""
-    print("\n" + "=" * 60)
-    print("ICARION Configuration Builder - Interactive Mode")
-    print("=" * 60 + "\n")
-    
-    # Choose base template
-    print("Available templates:")
-    for name, tmpl in TEMPLATES.items():
-        print(f"  - {name}: {tmpl['description']}")
-    
-    template_name = get_user_input("\nChoose template (or 'custom')", "minimal")
-    
-    if template_name in TEMPLATES:
-        config = json.loads(json.dumps(TEMPLATES[template_name]["config"]))  # Deep copy
-        print(f"\n✓ Loaded template: {template_name}")
-    else:
-        config = json.loads(json.dumps(TEMPLATES["minimal"]["config"]))
-        print(f"\n✓ Starting with minimal template")
-    
-    # Simulation parameters
-    print("\n--- Simulation Parameters ---")
-    config["simulation"]["total_time_s"] = get_user_input(
-        "Total simulation time [s]", 
-        config["simulation"]["total_time_s"], 
-        float
-    )
-    config["simulation"]["dt_s"] = get_user_input(
-        "Time step [s]", 
-        config["simulation"]["dt_s"], 
-        float
-    )
-    config["simulation"]["integrator"] = get_user_input(
-        "Integrator (RK4/RK45/Boris)", 
-        config["simulation"]["integrator"]
-    )
-    config["simulation"]["enable_gpu"] = get_user_input(
-        "Enable GPU (yes/no)", 
-        config["simulation"].get("enable_gpu", False), 
-        bool
-    )
-    
-    # Physics
-    print("\n--- Physics Settings ---")
-    print("Collision models: NoCollisions, HSD, HSS, EHSS, SDS")
-    config["physics"]["collision_model"] = get_user_input(
-        "Collision model", 
-        config["physics"]["collision_model"]
-    )
-    
-    # Output
-    print("\n--- Output Configuration ---")
-    config["output"]["folder"] = get_user_input(
-        "Output folder", 
-        config["output"]["folder"]
-    )
-    config["output"]["trajectory_file"] = get_user_input(
-        "Trajectory file name", 
-        config["output"]["trajectory_file"]
-    )
-    
-    # Domains
-    print("\n--- Domain Configuration ---")
-    num_domains = get_user_input(
-        f"Number of domains", 
-        len(config["domains"]), 
-        int
-    )
-    
-    if num_domains != len(config["domains"]):
-        config["domains"] = []
-        for i in range(num_domains):
-            print(f"\n  Domain {i+1}:")
-            domain = {
-                "name": get_user_input("    Name", f"domain_{i+1}"),
-                "instrument": get_user_input("    Instrument type (IMS/TOF/LQIT/Orbitrap)", "IMS"),
-                "geometry": {
-                    "origin_m": [0.0, 0.0, float(get_user_input("    Z-origin [m]", 0.0, float))],
-                    "length_m": get_user_input("    Length [m]", 0.1, float),
-                    "radius_m": get_user_input("    Radius [m]", 0.01, float)
-                },
-                "env": {
-                    "pressure_Pa": get_user_input("    Pressure [Pa]", 101325.0, float),
-                    "temperature_K": get_user_input("    Temperature [K]", 300.0, float),
-                    "gas_species": get_user_input("    Gas species (He/N2/Ar)", "He")
-                }
-            }
-            config["domains"].append(domain)
-    
-    return config
-
-
-def customize_template(template_name: str, args: argparse.Namespace) -> Dict[str, Any]:
-    """Customize a template based on command-line args"""
+def load_template(template_name: str) -> Dict[str, Any]:
+    """Load a template without modifications"""
     if template_name not in TEMPLATES:
         print(f"Error: Unknown template '{template_name}'")
         list_templates()
         sys.exit(1)
     
-    config = json.loads(json.dumps(TEMPLATES[template_name]["config"]))  # Deep copy
-    
-    # Apply customizations
-    if args.time is not None:
-        config["simulation"]["total_time_s"] = args.time
-    if args.timestep is not None:
-        config["simulation"]["dt_s"] = args.timestep
-    if args.integrator is not None:
-        config["simulation"]["integrator"] = args.integrator
-    if args.gpu is not None:
-        config["simulation"]["enable_gpu"] = args.gpu
-    
-    if args.collision_model is not None:
-        config["physics"]["collision_model"] = args.collision_model
-    
-    if args.output_folder is not None:
-        config["output"]["folder"] = args.output_folder
-    
-    # Customize first domain
-    if len(config["domains"]) > 0:
-        if args.pressure is not None:
-            config["domains"][0]["env"]["pressure_Pa"] = args.pressure
-        if args.temperature is not None:
-            config["domains"][0]["env"]["temperature_K"] = args.temperature
-        if args.gas is not None:
-            config["domains"][0]["env"]["gas_species"] = args.gas
-    
-    return config
+    # Deep copy to avoid modifying the original
+    return json.loads(json.dumps(TEMPLATES[template_name]["config"]))
 
 
 def validate_config(config: Dict[str, Any]) -> List[str]:
@@ -456,18 +526,6 @@ Examples:
     parser.add_argument("--template", "-t", help="Use a template (minimal/ims/tof/lqit/orbitrap)")
     parser.add_argument("--list-templates", "-l", action="store_true", help="List available templates")
     parser.add_argument("--output", "-o", default="config.json", help="Output file (default: config.json)")
-    parser.add_argument("--interactive", "-i", action="store_true", help="Force interactive mode")
-    
-    # Customization options
-    parser.add_argument("--time", type=float, help="Total simulation time [s]")
-    parser.add_argument("--timestep", type=float, help="Time step [s]")
-    parser.add_argument("--integrator", choices=["RK4", "RK45", "Boris"], help="Integrator type")
-    parser.add_argument("--gpu", type=bool, help="Enable GPU")
-    parser.add_argument("--collision-model", help="Collision model (NoCollisions/HSD/HSS/EHSS)")
-    parser.add_argument("--pressure", type=float, help="Gas pressure [Pa]")
-    parser.add_argument("--temperature", type=float, help="Gas temperature [K]")
-    parser.add_argument("--gas", help="Gas species (He/N2/Ar)")
-    parser.add_argument("--output-folder", help="Output folder path")
     
     args = parser.parse_args()
     
@@ -477,27 +535,19 @@ Examples:
         sys.exit(0)
     
     # Generate config
-    if args.interactive or (args.template is None and not args.list_templates):
-        config = interactive_mode()
-    elif args.template:
-        config = customize_template(args.template, args)
+    if args.template:
+        config = load_template(args.template)
         print(f"\n✓ Using template: {args.template}")
     else:
         parser.print_help()
         sys.exit(1)
     
-    # Validate
+    # Basic validation
     errors = validate_config(config)
     if errors:
         print("\n⚠ Configuration Validation Warnings:")
         for error in errors:
             print(f"  - {error}")
-        
-        if not args.interactive:
-            proceed = input("\nProceed anyway? (yes/no): ").strip().lower()
-            if proceed not in ('yes', 'y'):
-                print("Aborted.")
-                sys.exit(1)
     
     # Write to file
     output_path = Path(args.output)
@@ -506,10 +556,10 @@ Examples:
     
     print(f"\n✓ Configuration written to: {output_path.absolute()}")
     print(f"\nValidate with:")
-    print(f"  python3 src/core/config/schema/validator.py {output_path}")
-    print(f"  ./build/src/icarion_main --validate-config {output_path}")
+    print(f"  python3 schema/validator.py {output_path}")
     print(f"\nRun simulation:")
     print(f"  ./build/src/icarion_main {output_path}")
+    print(f"\nEdit manually if needed, then validate before running.")
 
 
 if __name__ == "__main__":

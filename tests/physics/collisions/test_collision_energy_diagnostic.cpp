@@ -1,8 +1,11 @@
-// SPDX-License-Identifier: Apache-2.0
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Diagnostic test to understand thermalization energy distribution
 
 #include "core/physics/collisions/HSSCollisionHandler.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "utils/constants.h"
 #include <iostream>
@@ -12,6 +15,17 @@
 using namespace ICARION::physics;
 using namespace ICARION::config;
 using namespace ICARION::core;
+
+static void run_collision(HSSCollisionHandler& handler,
+                          IonState& ion,
+                          double dt,
+                          PhysicsRng& rng,
+                          const EnvironmentConfig& env) {
+    auto ens = IonEnsemble::from_legacy({ion});
+    auto view = ens.collision_data(0);
+    handler.handle_collision(view, dt, rng, env);
+    ion.vel = view.kin.vel();
+}
 
 int main() {
     const int N_IONS = 5000;
@@ -43,10 +57,10 @@ int main() {
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{6000.0, 0.0, 0.0};  // Start with high energy in x
         
-        EhssRng rng(456 + ion_idx);
+        PhysicsRng rng(456 + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
-            handler.handle_collision(ion, dt, rng, env);
+            run_collision(handler, ion, dt, rng, env);
         }
         
         sum_vx2 += ion.vel.x * ion.vel.x;

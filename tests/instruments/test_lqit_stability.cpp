@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // LQIT Mathieu stability validation tests
 // Simple physics validation: ions should be trapped in stable region, escape in unstable region
 

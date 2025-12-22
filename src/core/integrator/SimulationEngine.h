@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file SimulationEngine.h
@@ -29,12 +29,18 @@
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/integrator/strategies/IIntegrationStrategy.h"
 #include "core/physics/collisions/ICollisionHandler.h"
-#include "core/physics/collisions/collisionHelpers.h"  // EhssRng
+#include "core/types/CollisionTypes.h"  // PhysicsRng
 #include "core/physics/reactions/IReactionHandler.h"
 #include "core/integrator/DomainManager.h"
 #include "core/integrator/OutputManager.h"
 #include <vector>
 #include <memory>
+
+#ifdef ICARION_USE_GPU
+#include "core/gpu/core/GPUContext.h"
+#include "core/gpu/spacecharge/GPUSpaceChargeP3M.h"
+#include "core/gpu/collisions/GPUCollisionHelper.h"
+#endif
 
 namespace ICARION {
 namespace integrator {
@@ -101,41 +107,18 @@ public:
     );
     
     /**
-     * @brief Run simulation from t_start to t_end (legacy AoS interface)
-     * @param ions Initial ion ensemble
-     * @return Final ion states
-     * 
-     * **Workflow:**
-     * 1. Initialize subsystems (DomainManager, OutputManager)
-     * 2. Main time loop:
-     *    - Ion birth logic (if birth times configured)
-     *    - Parallel ion integration
-     *    - Domain transition handling
-     *    - Collision/reaction processing
-     *    - Output buffering and periodic flush
-     *    - Progress logging (every 10%)
-     * 3. Finalization (output flush, completion metadata)
-     * 
-     * **Early Exit Conditions:**
-     * - All ions inactive (lost or detected)
-     * - Simulation time exceeded
-     * - Critical error (NaN positions, invalid domain index)
-     */
-    std::vector<IonState> run(std::vector<IonState>& ions);
-    
-    /**
      * @brief Run simulation using SoA (Structure of Arrays) data layout
      * @param ensemble Initial ion ensemble (SoA)
-     * @return Final ion states (converted back to AoS for compatibility)
+     * @return Final ion states (SoA)
      * 
-     * **Performance Benefits:**
-     * - 2-3x faster single-core (cache-friendly memory access)
-     * - Enables efficient OpenMP parallelization (no false sharing)
-     * - 45% reduced memory footprint (120 vs 220 bytes/ion)
+     * **Performance Notes:**
+     * - SoA loop is used internally for per-timestep work.
+     * - Entry from legacy AoS calls converts once and reuses SoA thereafter.
+     * - OpenMP friendliness remains (no false sharing in the hot arrays).
      * 
-     * **Note:** Uses process_timestep_soa() internally for bulk operations
+     * **Note:** Uses process_timestep() internally for bulk operations
      */
-    std::vector<IonState> run_soa(core::IonEnsemble& ensemble);
+    core::IonEnsemble run(core::IonEnsemble& ensemble);
     
     /**
      * @brief Get simulation configuration
@@ -165,13 +148,26 @@ private:
     // Subsystems (owned)
     std::unique_ptr<DomainManager> domain_manager_;
     std::unique_ptr<OutputManager> output_manager_;
+    bool parallel_enabled_ = false;  ///< OpenMP allowed (disabled for adaptive integrators)
     
     // Simulation state
     double current_time_ = 0.0;
     int current_step_ = 0;
+    std::vector<double> dt_per_ion_;
+    double adaptive_sc_last_error_ = 1.0;  ///< PI controller memory for space-charge + RK45 path
     
     // Per-ion RNG states (persistent across timesteps!)
-    std::vector<EhssRng> rng_by_ion_;
+    std::vector<physics::PhysicsRng> rng_by_ion_;
+    bool space_charge_stale_warned_ = false;
+    
+#ifdef ICARION_USE_GPU
+    // GPU acceleration (optional)
+    std::unique_ptr<icarion::gpu::GPUContext> gpu_context_;
+    std::unique_ptr<icarion::gpu::GPUCollisionHelper> gpu_collision_helper_;
+    std::unique_ptr<icarion::gpu::GPUSpaceChargeP3M> gpu_space_charge_;  ///< P³M space charge solver
+    size_t gpu_collision_threshold_ = 5000;  ///< Minimum ions for GPU collision dispatch
+    size_t gpu_space_charge_threshold_ = 1000;  ///< Minimum ions for GPU space charge
+#endif
     
     /**
      * @brief Initialize simulation subsystems
@@ -179,21 +175,44 @@ private:
      * 
      * Creates DomainManager and OutputManager, writes initial HDF5 metadata.
      */
-    void initialize(const std::vector<IonState>& ions);
+    void initialize(const core::IonEnsemble& ensemble);
     
     /**
-     * @brief Process one timestep for all ions (legacy AoS)
-     * @param ions Ion ensemble
-     * @param dt Timestep [s]
+     * @brief Initialize OpenMP thread settings and NUMA awareness
      * 
-     * Parallel ion loop with domain management, physics, and integration.
+     * Configures:
+     * - Thread count (uses omp_get_max_threads; honors OMP_NUM_THREADS)
+     * - NUMA-aware thread placement (OMP_PLACES=cores, OMP_PROC_BIND=close)
+     * - Thread affinity to prevent migration
+     * 
+     * Called automatically during construction.
      */
-    void process_timestep(std::vector<IonState>& ions, double dt);
+    void initialize_openmp_settings();
+    
+#ifdef ICARION_USE_GPU
+    /**
+     * @brief Initialize GPU acceleration (if available and enabled)
+     * @param enable_gpu Whether GPU is enabled in config
+     * 
+     * Attempts to create GPUContext and helper components. If GPU unavailable,
+     * disabled, or initialization fails, continues with CPU-only.
+     */
+    void initialize_gpu(bool enable_gpu);
+#endif
+
+    /**
+     * @brief Update all registered space-charge models (if any).
+     *
+     * Ensures each unique model recomputes its field cache once per timestep.
+     */
+    void update_space_charge_models(core::IonEnsemble& ensemble);
     
     /**
      * @brief Process one timestep using SoA (Structure of Arrays)
      * @param ensemble Ion ensemble (SoA)
      * @param dt Timestep [s]
+     * @param dt_next_hint_out Suggested timestep for the next iteration (adaptive integrators)
+     * @return New simulation time (max over ions)
      * 
      * **Cache-Optimized Processing:**
      * - Bulk position/velocity updates (SIMD-friendly)
@@ -201,28 +220,28 @@ private:
      * - Reduced cache misses (hot data packed together)
      * - Compatibility layer: converts to IonState for collision/reaction handlers
      * 
-     * **Expected Speedup:** 2-3x vs AoS (60% vs 22% cache hit rate)
      */
-    void process_timestep_soa(core::IonEnsemble& ensemble, double dt);
-    
-    /**
-     * @brief Apply ion birth logic (delayed emission)
-     * @param ions Ion ensemble
-     * @param t Current simulation time [s]
-     * 
-     * Activates ions with birth_time_s <= t.
-     */
-    void apply_ion_birth(std::vector<IonState>& ions, double t);
-    
-    /**
-     * @brief Check if simulation should continue
-     * @param ions Ion ensemble
-     * @param t Current time [s]
-     * @return true if simulation should continue
-     * 
-     * Stops if all ions inactive or time exceeded.
-     */
-    bool should_continue(const std::vector<IonState>& ions, double t) const;
+    double process_timestep(core::IonEnsemble& ensemble);
+
+    double perform_integration(core::IonEnsemble& ensemble,
+                             double t,
+                             const std::vector<double>& dt_per_ion,
+                             const std::vector<int>& domain_indices,
+                             std::vector<double>& dt_used_per_ion,
+                             std::vector<double>& dt_next_per_ion);
+
+    void perform_collisions(core::IonEnsemble& ensemble,
+                             const std::vector<double>& dt_used_per_ion,
+                             const std::vector<int>& domain_indices);
+
+    void handle_collisions_cpu(core::IonEnsemble& ensemble,
+                               const std::vector<double>& dt_used_per_ion,
+                               const std::vector<size_t>& indices,
+                               const config::EnvironmentConfig& env);
+
+    void perform_reactions(core::IonEnsemble& ensemble,
+                           const std::vector<double>& dt_used_per_ion,
+                           const std::vector<int>& domain_indices);
     
     /**
      * @brief Log progress message (every 10%)
@@ -231,6 +250,10 @@ private:
      * Uses OutputManager for consistent logging.
      */
     void log_progress(double t);
+    
+    // ========================================================================
+    // Ion Processing Pipeline (private inline for performance)
+    // ========================================================================
 };
 
 }  // namespace integrator

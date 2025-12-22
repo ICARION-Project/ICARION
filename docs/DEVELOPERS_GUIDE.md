@@ -1,9 +1,12 @@
 # ICARION Developer's Guide
 
 **Version:** 1.0 
-**Last Updated:** November 21, 2025
+**Last Updated:** December 2025
 
-This guide provides practical instructions for extending ICARION with new features.
+This guide provides practical instructions for extending ICARION with new features.  
+**Baseline:** Core CPU paths are SoA-first (`IonEnsemble`). AoS helpers exist only for tests/legacy entry points and should not be used in hot loops.
+
+**Separation of concerns:** The engine orchestrates while pluggable strategies/registries do the work: forces (`IForce` + `ForceRegistry`), collisions (`ICollisionHandler` + factory), reactions (`IReactionHandler` + factory), fields/geometry (`IFieldModel`/`IDomainGeometry` via DomainManager), integrators (`IIntegrationStrategy` + factory). Swap components without changing the engine loop.
 
 ---
 
@@ -12,8 +15,9 @@ This guide provides practical instructions for extending ICARION with new featur
 1. [Adding New Force Types](#adding-new-force-types)
 2. [Adding New Collision Models](#adding-new-collision-models)
 3. [Adding New Instrument Types](#adding-new-instrument-types)
-4. [Testing Guidelines](#testing-guidelines)
-5. [Code Style and Conventions](#code-style-and-conventions)
+4. [GPU Development Guide](#gpu-development-guide)
+5. [Testing Guidelines](#testing-guidelines)
+6. [Code Style and Conventions](#code-style-and-conventions)
 
 ---
 
@@ -21,17 +25,20 @@ This guide provides practical instructions for extending ICARION with new featur
 
 ### Overview
 
-ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement `IForce::compute()` and are managed by `ForceRegistry`.
+ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement a single SoA entry point `IForce::compute(...)` (ensemble + ion index + time + context) and are managed by `ForceRegistry`. AoS hooks have been removed from the hot path; tests wrap single ions into a scratch SoA when needed.  
 
-**Version History:**
-- **Pre-v1.0**: Forces used parameter structs (MagneticFieldParams, AnalyticalFieldParams, etc.) - DEPRECATED
-- **v1.0+**: Forces use **const config references** (SSOT pattern)
+**New in v1.0 SoA path:**  
+- `IForce::compute_soa(const ForceState&, t, ctx)` is required; it must use the provided state (no ensemble fetches).  
+- `ForceRegistry::compute_total_force_soa` aggregates via `compute_soa` and uses `ForceState::ensemble_index` for space-charge (no AoS staging).  
+- RK45 calls only the SoA path; no scratch ensembles are built in integration stages.
+
+**Version:** 1.0 uses **const config references** (Single Source of Truth pattern)
 
 ### Design Principle: Single Source of Truth (SSOT)
 
-****IMPORTANT (v1.0)**: Forces now use **const config references**, not parameter structs.
+**IMPORTANT**: Forces use **const config references**, not parameter structs.
 
-**MODERN (v1.0)**: Forces receive **const references** to config objects
+**Pattern**: Forces receive **const references** to config objects
 
 **Why SSOT?**
 
@@ -42,7 +49,7 @@ ICARION's force system follows a plugin architecture using the **IForce interfac
 
 ---
 
-### Step-by-Step Guide
+### Step-by-Step Guide (SoA-first)
 
 #### 1. Create Force Header (`src/core/physics/forces/YourForce.h`)
 
@@ -79,7 +86,8 @@ public:
      */
     explicit YourForce(const config::DomainConfig& domain, double additional_param = 0.0);
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
+Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;  // AoS (tests)
+Vec3 compute(const core::IonEnsemble& ensemble, size_t i, double t, const ForceContext& ctx) const override; // SoA hot path
     
 private:
     const config::DomainConfig& domain_;  ///< Reference, not copy!
@@ -139,20 +147,19 @@ using Catch::Matchers::WithinAbs;
 TEST_CASE("YourForce - Basic functionality", "[forces][yourforce]") {
     // Create config (SSOT)
     DomainConfig domain;
-    domain.enable_some_feature = true;
-    domain.some_config_value = 1.0;
+    domain.name = "test_domain";
+    domain.instrument = InstrumentType::NoFixedInstrument;
     
     YourForce force(domain, 0.5);  // Pass by reference
     
     ForceContext ctx;
-    ctx.domain = domain;  // Same config in context
-    ctx.temperature_K = 300.0;
+    ctx.domain = &domain;  // Pointer to config
     
     IonState ion;
     ion.pos = Vec3{0, 0, 0};
     ion.vel = Vec3{100, 0, 0};
-    ion.ion_charge_C = 1.602e-19;
-    ion.mass_kg = 100 * 1.66e-27;
+    ion.ion_charge_C = 1.602e-19;  // Elementary charge
+    ion.mass_kg = 100.0 * 1.66e-27;  // 100 amu
     
     Vec3 F = force.compute(ion, 0.0, ctx);
     
@@ -197,6 +204,7 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 
 **DO:**
 
+- Implement `compute` (SoA-only); tests may wrap single ions into a scratch ensemble if needed.
 - **Use const config references**, not parameter structs
 - **Store references as members**: `const config::DomainConfig& domain_;`
 - **Read config on-demand**: `double V = domain_.fields.dc.axial_V;`
@@ -267,7 +275,7 @@ public:
     bool handle_collision(
         IonState& ion,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env  // SSOT!
     ) override;
     
@@ -297,7 +305,7 @@ YourCollisionHandler::YourCollisionHandler(double your_param)
 bool YourCollisionHandler::handle_collision(
     IonState& ion,
     double dt,
-    EhssRng& rng,
+    PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
     // Read parameters directly from env (SSOT!)
@@ -386,15 +394,17 @@ TEST_CASE("YourCollisionHandler: Basic functionality", "[collision][yourmodel]")
     physics::YourCollisionHandler handler(1.0);
     
     IonState ion;
-    ion.mass_kg = 50.0 * 1.66e-27;
+    ion.pos = Vec3{0, 0, 0};
     ion.vel = Vec3{100, 0, 0};
+    ion.mass_kg = 50.0 * 1.66e-27;  // 50 amu
+    ion.ion_charge_C = 1.602e-19;
     
     config::EnvironmentConfig env;
     env.temperature_K = 300.0;
     env.pressure_Pa = 101325.0;
     // ...
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     double dt = 1e-9;
     
     // Act
@@ -533,11 +543,23 @@ domain.geometry.radius_m = 0.5;                     // Wide radius to prevent ra
 
 ### Overview
 
-Instrument-specific electric field calculations are in `ElectricFieldForce`. Each instrument type has analytical field formulas.
+Instrument-specific electric field calculations live in FieldModels and are consumed by `ElectricFieldForce`. Analytical formulas are implemented in `AnalyticalFieldModel`; grid/BEM/FEM fields use `FieldProviderModel` (wraps `IFieldProvider`). Field models are injected via `PhysicsSetup` into `ForceRegistry` (SSOT); `ElectricFieldForce` falls back only if none is provided.
+
+Multi-domain geometry handling lives in `IDomainGeometry` strategies (e.g., `CylindricalGeometry`, `OrbitrapGeometry`) used by `DomainManager` and `DomainContext` for transforms and boundary checks. DomainManager now only orchestrates these strategies (no AoS boundary helpers); geometry classes encapsulate containment/intersection logic.
+
+### Space-Charge Architecture (v1.0)
+
+- `ISpaceChargeModel` exposes `update_fields()` + `sample_electric_field()`. ForceRegistry owns an optional instance and adds Coulomb force directly in the SoA loop (no fallback AoS conversions).
+- Models:
+  - `SpaceChargeDirectModel` – exact O(N²), shared across domains for small ion counts.
+  - `SpaceChargeGridModel` – geometry-driven Poisson solver (Dirichlet masks + bounding boxes from `IDomainGeometry`).
+  - `SpaceChargeGPUModel` – wraps `gpu::GPUSpaceChargeP3M`; compiles as a stub in CPU-only builds.
+- `SpaceChargeModelFactory` decides per-domain: try GPU if `physics.enable_space_charge_gpu` and CUDA build, else grid, else direct. Logging records fallbacks automatically.
+- Configuration overrides / CLI: `physics.enable_space_charge` toggles feature, `physics.enable_space_charge_gpu` requests GPU acceleration (safe to enable even on CPU because the factory degrades gracefully).
 
 ### Step-by-Step Guide
 
-#### 1. Add Instrument to Enum (`src/instrument/InstrumentTypes.h`)
+#### 1. Add Instrument to Enum (`src/core/config/types/InstrumentTypes.h`)
 
 ```cpp
 enum class InstrumentType {
@@ -547,67 +569,64 @@ enum class InstrumentType {
     QuadrupoleRF = 3,
     TOF = 4,
     FTICR = 5,
+    NoFixedInstrument = 6,
+    UnknownInstrument = 7,
     YourInstrument = 8,  // Add here
     // ...
 };
 ```
 
-****Note:** This file violates SSOT and will be moved to `core/config/types/` in the future.
+#### 2. Add Field Parameters to DomainConfig
 
-#### 2. Add Parameters to AnalyticalFieldParams
+Add instrument-specific field parameters to the appropriate config structures in `src/core/config/types/`.
 
-```cpp
-struct AnalyticalFieldParams {
-    InstrumentType instrument_type = InstrumentType::UnknownInstrument;
-    
-    // ... existing parameters ...
-    
-    // YourInstrument-specific
-    double your_voltage_V = 0.0;
-    double your_frequency_Hz = 0.0;
-};
-```
+#### 3. Implement Field Calculation in a FieldModel
 
-#### 3. Implement Field Calculation in ElectricFieldForce
+Add your instrument field to `AnalyticalFieldModel` (or a new `IFieldModel` implementation):
 
 ```cpp
-Vec3 ElectricFieldForce::compute_analytical(const IonState& ion, double t) const {
-    switch (params_.instrument_type) {
-        case InstrumentType::YourInstrument:
-            return compute_your_instrument_field(ion, t);
-        // ... other cases ...
+class YourFieldModel : public IFieldModel {
+public:
+    explicit YourFieldModel(const DomainConfig& dom) : dom_(&dom) {}
+    Vec3 E(const Vec3& pos, double t) const override {
+        // Your instrument-specific analytical field: E(x, y, z, t)
+        double Ex = /* ... */;
+        double Ey = /* ... */;
+        double Ez = /* ... */;
+        return Vec3{Ex, Ey, Ez};
     }
-}
-
-Vec3 ElectricFieldForce::compute_your_instrument_field(const IonState& ion, double t) const {
-    // Your electric field formula: E(x, y, z, t)
-    
-    double Ex = /* ... */;
-    double Ey = /* ... */;
-    double Ez = /* ... */;
-    
-    return Vec3{Ex, Ey, Ez};
-}
+private:
+    const DomainConfig* dom_;
+};
 ```
 
 #### 4. Add Tests
 
+Add a parity or direct test for your FieldModel and ElectricFieldForce:
+
 ```cpp
-TEST_CASE("ElectricFieldForce - YourInstrument", "[forces][electric]") {
-    AnalyticalFieldParams params;
-    params.instrument_type = InstrumentType::YourInstrument;
-    params.your_voltage_V = 1000.0;
-    params.your_frequency_Hz = 1e6;
-    
-    ElectricFieldForce force(params);
-    
-    // Test field at various positions
+TEST_CASE("YourFieldModel parity", "[forces][field]") {
+    DomainConfig domain;
+    domain.instrument = InstrumentType::YourInstrument;
+    domain.fields.dc.axial_V = ValueOrWaveform(1000.0);
+    // instrument-specific params...
+    domain.finalize();
+
+    YourFieldModel model(domain);
+    ElectricFieldForce force(domain);
+
     IonState ion;
     ion.pos = Vec3{0.001, 0, 0};
-    
-    Vec3 E = force.compute(ion, 0.0, ForceContext{});
-    
-    // Verify field properties (symmetry, magnitude, direction)
+    ion.mass_kg = ion.ion_charge_C = 1.0;
+
+    ForceContext ctx;
+    ctx.field_model = &model;
+    ctx.domain = &domain;
+
+    Vec3 F = force.compute(ion, 0.0, ctx);
+    REQUIRE(std::isfinite(F.x));
+    REQUIRE(std::isfinite(F.y));
+    REQUIRE(std::isfinite(F.z));
 }
 ```
 
@@ -630,6 +649,642 @@ Add to class docstring or separate documentation:
  * - Linear approximation near axis
  */
 ```
+
+---
+
+## GPU Development Guide
+
+**Added:** November 2025 (v1.0)
+**Status:** Integration/space-charge/collision paths wired via factories; boundary helper remains experimental.
+
+### Overview
+
+ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
+
+**Current GPU Features (v1.0):**
+- RK4/RK45/Boris batch integrators via `GPUIntegrationStrategy` (factory-selected wrapper; automatic fallback + grid/E-field checks)
+- HSS/EHSS collision helper (active-ion threshold default 5000; EHSS geometry upload TODO)
+- Reactions via `GPUReactionBackend` (constant / Arrhenius / modified Arrhenius, mixtures). Flattens per-domain tables, launches XORWOW kernel, updates SoA species/mass/charge/CCS/mobility. Device buffers are pooled (RNG, species/domain/flags/reaction tables); CPU stochastic handler is the fallback.
+- Field-provider upload for integration when ElectricFieldForce is present
+- Space charge P³M helper wired through `SpaceChargeGPUModel` (opt-in via `physics.enable_space_charge_gpu`, CPU fallback guaranteed)
+- Boundary check helper supports absorption/cylindrical only and is not wired into the main loop
+
+`IntegrationStrategyFactory` emits the GPU wrapper automatically whenever `simulation.enable_gpu` is true (and CUDA is available); the wrapper calls `IIntegrationStrategy::step_batch()` internally and falls back to the CPU strategy if the batch conditions are not met.
+
+**Note:** In v1.0 the runtime GPU path is disabled (CPU-only), even if `enable_gpu` is set. CUDA builds still compile GPU code for development; CPU fallback always wins.
+
+### Prerequisites
+
+**Build Requirements:**
+- CUDA Toolkit 11.0+ (tested with CUDA 12.0)
+- GPU with Compute Capability 7.5+ (Turing, Ampere, Ada, Hopper)
+- CMake 3.16+
+
+**Build GPU-enabled ICARION:**
+```bash
+cmake -B build -DUSE_GPU_ACCEL=ON
+make -C build -j$(nproc)
+```
+
+**Check GPU availability at runtime:**
+```cpp
+#include "core/gpu/GPUContext.h"
+
+if (icarion::gpu::GPUContext::is_cuda_available()) {
+    auto context = icarion::gpu::GPUContext::create(0);  // Device 0
+    std::cout << "GPU: " << context->get_properties().name << "\n";
+}
+```
+
+### Adding a New GPU Kernel
+
+#### Example: Adding GPU Collision Kernel
+
+**Step 1: Create Kernel File (`src/core/gpu/collision_batch.cu`)**
+
+```cuda
+#include "collision_batch.cuh"
+#include "core/gpu/GPUContext.h"
+
+namespace icarion {
+namespace gpu {
+
+// Device function: Compute collision for one ion
+__device__ bool check_collision_gpu(
+    const Vec3& pos,
+    const Vec3& vel,
+    double mass,
+    double charge,
+    double dt,
+    // ... collision parameters
+) {
+    // Your collision logic here
+    return collision_occurred;
+}
+
+// Kernel: Process all ions in parallel
+__global__ void collision_batch_kernel(
+    // Input/output ion state arrays (SoA)
+    const double* x, const double* y, const double* z,
+    const double* vx, const double* vy, const double* vz,
+    double* vx_out, double* vy_out, double* vz_out,
+    const double* mass, const double* charge,
+    const bool* active, bool* collision_flags,
+    // Collision parameters
+    double dt, int N,
+    // ... collision model params
+) {
+    // Grid-stride loop (handles any N)
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+         i < N;
+         i += gridDim.x * blockDim.x) {
+        
+        if (!active[i]) continue;
+        
+        Vec3 pos = {x[i], y[i], z[i]};
+        Vec3 vel = {vx[i], vy[i], vz[i]};
+        
+        // Check collision
+        bool collided = check_collision_gpu(
+            pos, vel, mass[i], charge[i], dt, /* params */
+        );
+        
+        if (collided) {
+            collision_flags[i] = true;
+            // Update velocity
+            vx_out[i] = /* new vx */;
+            vy_out[i] = /* new vy */;
+            vz_out[i] = /* new vz */;
+        }
+    }
+}
+
+// Host function: Launch kernel
+void collision_batch(
+    const IonStateGPU& ions_in,
+    IonStateGPU& ions_out,
+    /* collision params */,
+    cudaStream_t stream
+) {
+    int N = ions_in.count;
+    int threads = 256;
+    int blocks = std::min((N + threads - 1) / threads, 2048);
+    
+    collision_batch_kernel<<<blocks, threads, 0, stream>>>(
+        ions_in.pos_x, ions_in.pos_y, ions_in.pos_z,
+        ions_in.vel_x, ions_in.vel_y, ions_in.vel_z,
+        ions_out.vel_x, ions_out.vel_y, ions_out.vel_z,
+        ions_in.mass_kg, ions_in.charge_C,
+        ions_in.active, /* collision_flags */,
+        dt, N, /* params */
+    );
+    
+    CUDA_CHECK(cudaGetLastError());
+}
+
+} // namespace gpu
+} // namespace icarion
+```
+
+**Collision Path Wiring (as implemented)**
+
+- `ICollisionHandler` exposes optional batch hooks:
+  - `supports_batch()` advertises accelerator support.
+  - `handle_batch(...)` receives the SoA ensemble plus an index list for the current domain and either processes the entire batch (returning `true`) or requests CPU fallback (`false`).
+- `GPUCollisionHandler` wraps an EHSS/HSS CPU handler, wires up `GPUCollisionHelper`, and implements the batch hook. It logs and falls back automatically if CUDA prerequisites are not met or if the batch is below the configured threshold.
+- `SimulationEngine::perform_collisions(...)` groups indices per-domain after birth/domain detection, then:
+  1. Calls `handle_batch(...)` when the handler advertises support.
+  2. Falls back to `handle_collisions_cpu(...)` (per-ion RNG, SoA views) whenever the batch hook returns `false` or is unavailable.
+
+
+- **Multi-gas support:** The CUDA kernels now sample neutral velocities per mixture component (matching the CPU algorithm), accumulate component-specific collision rates, and select the actual collision partner using the same Monte-Carlo scheme. For cache efficiency the device struct keeps a fixed-size mixture buffer (`MAX_GPU_GAS_COMPONENTS = 8`); additional components are truncated with a runtime warning.
+```cpp
+void SimulationEngine::perform_collisions(IonEnsemble& ensemble,
+                                          double dt,
+                                          const std::vector<int>& domains) {
+    if (!collision_handler_) return;
+    const bool has_batch = collision_handler_->supports_batch();
+    for (size_t dom = 0; dom < config_.domains.size(); ++dom) {
+        auto& indices = domain_buckets[dom];
+        if (indices.empty()) continue;
+        const auto& env = config_.domains[dom].environment;
+        bool handled = has_batch &&
+            collision_handler_->handle_batch(ensemble, indices, dt,
+                                             env, rng_by_ion_);
+        if (!handled) {
+            handle_collisions_cpu(ensemble, dt, indices, env);
+        }
+    }
+}
+```
+
+This keeps the SimulationEngine agnostic of GPU specifics—the handler encapsulates accelerator logic, and SoA data never round-trips through temporary AoS buffers.
+
+### GPU Development Best Practices
+
+#### 1. Memory Access Patterns
+
+**GOOD: Coalesced Access (SoA)**
+```cuda
+// Threads access consecutive memory locations
+for (int i = threadIdx.x; i < N; i += blockDim.x) {
+    x[i] = compute(x[i]);  // Coalesced: x[0], x[1], x[2], ...
+}
+```
+
+**BAD: Strided Access (AoS)**
+```cuda
+// Threads access non-consecutive memory
+struct Ion { double x, y, z, vx, vy, vz; };
+Ion* ions;
+for (int i = threadIdx.x; i < N; i += blockDim.x) {
+    ions[i].x = compute(ions[i].x);  // Strided: ions[0].x, ions[1].x, ...
+}
+```
+
+#### 2. Kernel Launch Configuration
+
+**Grid-Stride Loop Pattern:**
+```cuda
+__global__ void my_kernel(double* data, int N) {
+    // Each thread processes multiple elements
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+         i < N;
+         i += gridDim.x * blockDim.x) {
+        
+        data[i] = compute(data[i]);
+    }
+}
+
+// Launch with limited blocks (avoids scheduler overhead)
+int threads = 256;  // Good occupancy on most GPUs
+int blocks = std::min((N + threads - 1) / threads, 2048);
+my_kernel<<<blocks, threads>>>(data, N);
+```
+
+**Why Grid-Stride?**
+- Works for any N (1 to 10M+)
+- Optimal occupancy across GPU architectures
+- Reduces scheduling overhead
+- Better instruction cache utilization
+
+#### 3. Error Handling
+
+**Always check CUDA errors:**
+```cuda
+// After kernel launch
+CUDA_CHECK(cudaGetLastError());
+
+// After synchronization
+CUDA_CHECK(cudaStreamSynchronize(stream));
+
+// Asynchronous error check
+cudaError_t err = cudaGetLastError();
+if (err != cudaSuccess) {
+    // Log error and fall back to CPU
+    fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(err));
+    return false;
+}
+```
+
+#### 4. Async Pipeline
+
+**Overlap CPU and GPU work:**
+```cpp
+// Upload (async)
+ion_state_conversion::upload_ions(ions, ions_gpu_in, stream);
+
+// Compute (async, queued after upload)
+my_kernel<<<blocks, threads, 0, stream>>>(ions_gpu_in, ions_gpu_out);
+
+// Download (async, queued after compute)
+ion_state_conversion::download_ions(ions_gpu_out, ions, stream);
+
+// Synchronize once at end
+context.synchronize();
+```
+
+#### 5. Performance Profiling
+
+**Use NVIDIA Nsight Systems:**
+```bash
+# Profile GPU-enabled run
+nsys profile -o report ./icarion_main config.json
+
+# View timeline
+nsys-ui report.nsys-rep
+```
+
+**Key metrics to check:**
+- Kernel duration
+- Memory transfer time
+- GPU occupancy
+- Warp execution efficiency
+
+### Testing GPU Code
+
+#### Unit Tests
+
+**Test GPU context:**
+```cpp
+TEST(GPUContext, Creation) {
+    if (!GPUContext::is_cuda_available()) {
+        GTEST_SKIP() << "CUDA not available";
+    }
+    
+    auto context = GPUContext::create(0);
+    ASSERT_NE(context, nullptr);
+    EXPECT_GT(context->get_properties().total_memory, 0);
+}
+```
+
+`GPUIntegrationStrategy` exercises the helper indirectly inside the main loop, but the helper can still be unit-tested in isolation:
+
+**Test kernel correctness:**
+```cpp
+TEST(IntegrationKernel, SingleIon) {
+    auto context = GPUContext::create(0);
+    
+    // CPU reference
+    IonState ion_cpu = /* initial state */;
+    rk4_step_cpu(ion_cpu, dt);
+    
+    // GPU result
+    std::vector<IonState> ions = {ion_cpu};
+    GPUIntegrationHelper helper(context, 1);  // Threshold = 1
+    helper.integrate_batch_rk4(ions, dt, 0.0);
+    
+    // Compare (tolerance: 1e-12)
+    EXPECT_NEAR(ions[0].pos.x, ion_cpu.pos.x, 1e-12);
+}
+```
+
+#### Performance Tests
+
+**Measure speedup:**
+```cpp
+TEST(GPUPerformance, LargeScale) {
+    auto context = GPUContext::create(0);
+    std::vector<IonState> ions(100000);
+    
+    // CPU baseline
+    auto t0 = now();
+    cpu_integrate(ions, dt);
+    auto cpu_time = elapsed(t0);
+    
+    // GPU time
+    t0 = now();
+    gpu_helper->integrate_batch_rk4(ions, dt, 0.0);
+    auto gpu_time = elapsed(t0);
+    
+    double speedup = cpu_time / gpu_time;
+    EXPECT_GT(speedup, 1.0);  // Verify GPU is faster
+}
+```
+
+### Common Pitfalls
+
+#### Don't: Mix Host and Device Pointers
+```cpp
+double* host_ptr = new double[N];
+double* device_ptr;
+cudaMalloc(&device_ptr, N * sizeof(double));
+
+// ERROR: Can't dereference device pointer on CPU
+double x = device_ptr[0];  // Segfault!
+
+// ERROR: Can't pass host pointer to kernel
+my_kernel<<<...>>>(host_ptr, N);  // Invalid memory access!
+```
+
+#### Do: Use Explicit Transfer
+```cpp
+cudaMemcpy(device_ptr, host_ptr, N * sizeof(double), cudaMemcpyHostToDevice);
+my_kernel<<<...>>>(device_ptr, N);
+cudaMemcpy(host_ptr, device_ptr, N * sizeof(double), cudaMemcpyDeviceToHost);
+```
+
+#### Don't: Forget to Synchronize
+```cpp
+my_kernel<<<...>>>(data, N);
+// Kernel is async! Results not ready yet!
+use_results(data);  // Race condition!
+```
+
+#### Do: Synchronize Before Using Results
+```cpp
+my_kernel<<<...>>>(data, N);
+cudaStreamSynchronize(stream);  // Wait for kernel
+use_results(data);  // Safe now
+```
+
+### GPU Code Review Checklist
+
+Before submitting GPU code, verify:
+
+- [ ] Error checking after every CUDA call
+- [ ] Grid-stride loop for scalability
+- [ ] Coalesced memory access (SoA layout)
+- [ ] Proper synchronization
+- [ ] CPU fallback on GPU errors
+- [ ] Unit tests with CPU reference
+- [ ] Performance tests (speedup measurement)
+- [ ] Documentation of kernel algorithm
+- [ ] Conditional compilation (`#ifdef ICARION_USE_GPU`)
+
+### Adding a New GPU Integrator
+
+**Example: Adding Velocity Verlet GPU support**
+
+#### Step 1: Create CUDA Kernel (`src/core/gpu/integrate_verlet_batch.cu`)
+
+```cuda
+#include "integrate_verlet_batch.cuh"
+#include "core/gpu/compute_acceleration.cuh"  // Shared force eval
+
+namespace icarion {
+namespace gpu {
+
+__global__ void integrate_verlet_batch_kernel(
+    const IonStateGPU ions_in,
+    IonStateGPU ions_out,
+    Vec3 E_field, Vec3 B_field,
+    double dt, int N
+) {
+    // Grid-stride loop
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; 
+         i < N; 
+         i += gridDim.x * blockDim.x) {
+        
+        if (!ions_in.active[i]) continue;
+        
+        // Load ion state
+        Vec3 pos = {ions_in.pos_x[i], ions_in.pos_y[i], ions_in.pos_z[i]};
+        Vec3 vel = {ions_in.vel_x[i], ions_in.vel_y[i], ions_in.vel_z[i]};
+        double mass = ions_in.mass_kg[i];
+        double charge = ions_in.charge_C[i];
+        
+        // Velocity Verlet: x_new = x + v*dt + 0.5*a*dt^2
+        Vec3 acc = compute_acceleration(pos, vel, mass, charge, E_field, B_field);
+        Vec3 pos_new = pos + vel * dt + acc * (0.5 * dt * dt);
+        
+        // v_new = v + 0.5*(a_old + a_new)*dt
+        Vec3 acc_new = compute_acceleration(pos_new, vel, mass, charge, E_field, B_field);
+        Vec3 vel_new = vel + (acc + acc_new) * (0.5 * dt);
+        
+        // Write outputs
+        ions_out.pos_x[i] = pos_new.x;
+        ions_out.pos_y[i] = pos_new.y;
+        ions_out.pos_z[i] = pos_new.z;
+        ions_out.vel_x[i] = vel_new.x;
+        ions_out.vel_y[i] = vel_new.y;
+        ions_out.vel_z[i] = vel_new.z;
+    }
+}
+
+void integrate_verlet_batch(
+    const IonStateGPU& ions_in,
+    IonStateGPU& ions_out,
+    Vec3 E_field, Vec3 B_field,
+    double dt,
+    cudaStream_t stream
+) {
+    int N = ions_in.count;
+    int threads = 256;
+    int blocks = std::min((N + threads - 1) / threads, 2048);
+    
+    integrate_verlet_batch_kernel<<<blocks, threads, 0, stream>>>(
+        ions_in, ions_out, E_field, B_field, dt, N
+    );
+    
+    CUDA_CHECK(cudaGetLastError());
+}
+
+} // namespace gpu
+} // namespace icarion
+```
+
+#### Step 2: Extend GPUIntegrationHelper
+
+**In `GPUIntegrationHelper.h`:**
+```cpp
+class GPUIntegrationHelper {
+public:
+    // ... existing methods ...
+    
+    /**
+     * @brief Velocity Verlet integration (2nd-order symplectic)
+     */
+    bool integrate_batch_verlet(
+        std::vector<IonState>& ions,
+        double dt,
+        double t,
+        const IFieldProvider* field_provider = nullptr
+    );
+};
+```
+
+**In `GPUIntegrationHelper.cpp`:**
+```cpp
+bool GPUIntegrationHelper::integrate_batch_verlet(
+    std::vector<IonState>& ions,
+    double dt, double t,
+    const IFieldProvider* field_provider
+) {
+    // Same pattern as RK4/Boris
+    auto ions_in = pool_->get_device_buffer<IonStateGPU>(1);
+    auto ions_out = pool_->get_device_buffer<IonStateGPU>(1);
+    
+    // Upload
+    ion_state_conversion::upload_ions(ions, *ions_in, context_.get_stream());
+    
+    // Compute
+    Vec3 E{0,0,0}, B{0,0,0};  // Or extract from field_provider
+    integrate_verlet_batch(*ions_in, *ions_out, E, B, dt, context_.get_stream());
+    
+    // Download
+    ion_state_conversion::download_ions(*ions_out, ions, context_.get_stream());
+    context_.synchronize();
+    
+    stats_.gpu_integrations++;
+    return true;
+}
+```
+
+#### Step 3: Update SimulationEngine Dispatch
+
+**In `SimulationEngine.h`:**
+```cpp
+#ifdef ICARION_USE_GPU
+    enum class IntegratorType { RK4, RK45, Boris, Verlet, Unknown };
+#endif
+```
+
+**In `SimulationEngine.cpp`:**
+```cpp
+// Cache integrator type
+if (dynamic_cast<VerletStrategy*>(integrator_.get())) {
+    integrator_type_ = IntegratorType::Verlet;
+}
+
+// Dispatch
+case IntegratorType::Verlet:
+    threshold /= 2;  // Verlet: 2 force evals, same as Boris
+    return gpu_helper_->integrate_batch_verlet(ions, dt, t, field_provider);
+```
+
+#### Step 4: Validate CPU/GPU Parity
+
+**Create `tests/integrator/test_verlet_parity.cpp`:**
+```cpp
+TEST_CASE("Verlet GPU/CPU Parity - Free Particle", "[gpu][verlet][parity]") {
+    // Create identical ions
+    std::vector<IonState> ions_cpu(1000), ions_gpu(1000);
+    for (int i = 0; i < 1000; ++i) {
+        ions_cpu[i] = ions_gpu[i] = create_test_ion();
+    }
+    
+    // CPU reference
+    VerletStrategy verlet_cpu;
+    for (auto& ion : ions_cpu) {
+        verlet_cpu.step(ion, 0.0, 1e-9, force_registry, ions_cpu);
+    }
+    
+    // GPU
+    auto context = GPUContext::create(0);
+    auto helper = GPUIntegrationHelper::create(*context, 1);
+    helper->integrate_batch_verlet(ions_gpu, 1e-9, 0.0);
+    
+    // Compare (tolerance: 1e-12)
+    for (int i = 0; i < 1000; ++i) {
+        REQUIRE_THAT(ions_gpu[i].pos.x, WithinAbs(ions_cpu[i].pos.x, 1e-12));
+        REQUIRE_THAT(ions_gpu[i].vel.x, WithinAbs(ions_cpu[i].vel.x, 1e-12));
+    }
+}
+```
+
+#### Step 5: Performance Benchmarking
+
+```cpp
+// Measure threshold point where GPU becomes beneficial
+for (int N : {1000, 2000, 3000, 5000, 10000}) {
+    auto t_cpu = benchmark_cpu(N, verlet_cpu);
+    auto t_gpu = benchmark_gpu(N, verlet_gpu);
+    std::cout << N << " ions: " << (t_cpu / t_gpu) << "× speedup\n";
+}
+```
+
+**Note:** GPU performance varies significantly with hardware, kernel complexity, and data transfer patterns. Benchmark your specific use case.
+
+### GPU Integrator Design Guidelines
+
+**Smart Threshold Selection:**
+```cpp
+// Rule of thumb: threshold ∝ 1 / (force_evaluations_per_step)
+// Default base threshold: 5000 ions (configurable via gpu_threshold)
+Boris:   1 eval  → threshold / 2
+Verlet:  2 evals → threshold / 2
+RK4:     4 evals → threshold
+RK45:    6 evals → threshold
+```
+
+**Reuse Shared Code:**
+```cpp
+// All integrators use same force evaluation
+#include "core/gpu/compute_acceleration.cuh"
+
+__device__ Vec3 compute_acceleration(
+    Vec3 pos, Vec3 vel, 
+    double mass, double charge,
+    Vec3 E_field, Vec3 B_field
+) {
+    // Lorentz force: F = q(E + v×B)
+    Vec3 v_cross_B = {
+        vel.y * B_field.z - vel.z * B_field.y,
+        vel.z * B_field.x - vel.x * B_field.z,
+        vel.x * B_field.y - vel.y * B_field.x
+    };
+    Vec3 F = E_field * charge + v_cross_B * charge;
+    return F / mass;
+}
+```
+
+**Memory Efficiency:**
+```cpp
+// Minimize register usage for high occupancy
+// Target: <64 registers per thread
+// Check with: nvcc --ptxas-options=-v
+```
+
+**Error Propagation:**
+```cpp
+// Multi-step integrators: accumulate error carefully
+// Use Kahan summation for long simulations
+__device__ double kahan_add(double sum, double x, double& c) {
+    double y = x - c;
+    double t = sum + y;
+    c = (t - sum) - y;
+    return t;
+}
+```
+
+### Additional Resources
+
+**CUDA Programming Guide:**
+- https://docs.nvidia.com/cuda/cuda-c-programming-guide/
+
+**CUDA Best Practices:**
+- https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/
+
+**ICARION GPU Reference (v1.0):**
+- GPU integration available for RK4, RK45, Boris integrators
+- Automatic dispatch based on particle count (default threshold: 5000, Boris: 2500)
+- Implementation details in `src/core/integrator/` and integration strategy classes
+- Validation tests: `tests/integrator/test_rk45_boris_parity.cpp` (407 lines)
+- Space charge GPU: `src/core/physics/spacecharge/SpaceChargeGPUModel.{h,cpp}` + `GPUSpaceChargeP3M.{h,cu}`
+
+**GPU Performance:**
+GPU performance varies significantly with hardware, simulation complexity, and data transfer patterns. Benchmark your specific use case to determine optimal threshold values.
 
 ---
 
@@ -831,9 +1486,9 @@ Rationale:
 - No Duplication: Zero-copy, references only
 - Maintainability: One place to change parameters
 
-Migration Note: All legacy parameter structs (MagneticFieldParams, AnalyticalFieldParams, DampingParams) were deleted in ICARION v1.0. New code must use direct config references.
+**Note:** ICARION uses direct config references (const DomainConfig&) instead of parameter structs. This ensures Single Source of Truth (SSOT) compliance.
 
-See: src/core/physics/forces/ElectricFieldForce.h (reference implementation)
+See: `src/core/physics/forces/ElectricFieldForce.h` (reference implementation)
 
 ### Error Handling
 
@@ -858,18 +1513,16 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 
 ### In Progress
 
-1. **Reaction System Database Unification** (Phase 3D, approximately 4-6h):
-   - Unify species types (remove ICARION::io::Species, reactionUtils::Species)
+1. **Reaction System Database Unification**:
+   - Unify species types across modules
    - Wire reaction_handler directly into integrator
    - Delete legacy reaction loading code
-   - Blocker: Type mismatch between species databases
 
-2. **SimulationEngine Integration** (Phase 5A, approximately 12h):
+2. **SimulationEngine Integration**:
    - Main simulation loop using integration strategies
    - Orchestration of ForceRegistry + CollisionHandler + ReactionHandler
    - Boundary condition handling
    - Output management (HDF5Writer v2)
-   - Status: Ready to start (Phase 4 complete)
 
 ### Planned
 
@@ -881,57 +1534,54 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
    - Separate random kicks from deterministic forces
    - New IStochasticForce interface (similar to collision handlers)
 
-3. **Space Charge** ✅ (COMPLETE - November 2025):
+2. **Space Charge** [AVAILABLE]:
    - Automatic method selection: N<1000→Direct (O(N²)), N≥1000→Grid (O(N log N))
    - CIC charge deposition with O(h²) convergence
    - Poisson solver with 5 methods (Gauss-Seidel, SOR, CG, Multigrid, FFT)
    - Files: `src/core/physics/spacecharge/*`, `src/core/physics/forces/SpaceCharge{Direct,Grid}.{h,cpp}`
-   - Tests: 17 unit tests, 3 integration tests (all passing)
    - **When to use Direct:** N<1000, exact results needed
    - **When to use Grid:** N≥1000, fast approximation
    - **Configuration:** Set `physics.enable_space_charge = true` in config
    - **Performance tuning:** Adjust grid size (default 64³), update frequency
-   - **Limitations:** CPU-only (GPU planned for v1.1), Dirichlet BC causes errors near boundaries
+   - **Limitations:** CPU-only (GPU planned for future release), Dirichlet BC causes errors near boundaries
 
-4. **GPU Acceleration** (Planned for v1.1):
+3. **GPU Space Charge Acceleration** (Planned for future release):
    - CUDA kernels for space charge Poisson solver
    - Grid-based field evaluation on GPU
-   - Target: 10-100x speedup for N≥10,000
 
-5. **Field Caching** (Optimization phase):
+4. **Field Caching**:
    - Pre-compute field on regular grid
    - Trilinear interpolation for fast evaluation
-   - Benefit: Approximately 10x speedup for analytical fields
+   - Benefit: Reduces repeated analytical field evaluations
 
-### Completed
+### v1.0 Features
 
-- **Force System SSOT** (Phase 1, Steps 1-4 complete)
+- **Force System SSOT**:
   - IForce interface with ForceRegistry
   - ElectricFieldForce, MagneticFieldForce, DampingForce, SpaceChargeForce
-  - Full unit test coverage (27/27 tests passing)
+  - Full unit test coverage
 
-- **Collision System SSOT** (Phase 2C complete)
+- **Collision System SSOT**:
   - ICollisionHandler interface with factory
-  - EHSS, HSS, OU collision handlers
+  - EHSS, HSS, OU collision handlers (SoA overrides implemented)
   - Energy conservation validation
+  - Parity check: `tests/physics/collisions/test_collision_soa_parity.cpp`
 
-- **Reaction System Handlers** (Phase 3C complete)
+- **Reaction System Handlers**:
   - IReactionHandler interface with factory
-  - StochasticReactionHandler implementation
+  - StochasticReactionHandler implementation (SoA path implemented)
+  - GPUReactionHandler wrapper + `GPUReactionBackend` stub (factory returns the wrapper when `simulation.enable_gpu` is true; currently logs and falls back to CPU until kernels land)
+  - Parity check: `tests/physics/reactions/test_reaction_soa_parity.cpp`
   - Database-driven reaction loading
 
-- **Integration Strategies** (Phase 4A/4B complete, November 2025)
+- **Integration Strategies**:
   - IIntegrationStrategy interface
   - RK4Strategy (4th-order Runge-Kutta, fixed-step)
   - RK45Strategy (Dormand-Prince 5(4), adaptive timestep with FSAL)
   - BorisStrategy (symplectic pusher for electromagnetic fields)
   - IntegrationStrategyFactory for runtime selection
-  - Comprehensive test suites (27/27 tests passing, 100%)
   - SSOT-compliant (uses DomainConfig pointer, callback-based acceleration)
-  - **Strategies tested standalone, NOT yet integrated into main.cpp**
   - Files: `src/core/integrator/strategies/*`
-
-**Next Step:** Phase 5 (SimulationEngine) will integrate strategies into main simulation loop
 
 ---
 

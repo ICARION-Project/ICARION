@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #ifndef ICARION_CONFIG_FULL_CONFIG_H
 #define ICARION_CONFIG_FULL_CONFIG_H
@@ -53,6 +53,7 @@ struct FullConfig {
     // === Optional metadata ===
     std::string title = "";                     ///< Simulation title/description
     std::string config_file_path = "";          ///< Path to loaded config file (for reference)
+    std::string resolved_config_json = "";      ///< Resolved config JSON snapshot (runtime, optional)
     
     /**
      * @brief Load databases from specified paths

@@ -1,21 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   @file       test_boris_strategy.cpp
- *   @brief      Unit tests for BorisStrategy (Boris pusher)
- *
- *   @details
- *   Tests Boris integration for electromagnetic particle dynamics:
- *   - Pure magnetic field (cyclotron motion, energy conservation)
- *   - Pure electric field (should match RK2)
- *   - E×B drift motion
- *   - Symplectic properties (long-term energy stability)
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -25,6 +9,7 @@
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/physics/forces/IForce.h"
 #include "core/config/types/DomainConfig.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
 
@@ -34,6 +19,7 @@ using namespace ICARION;
 using namespace ICARION::integrator;
 using namespace ICARION::physics;
 using namespace ICARION::config;
+using ICARION::core::IonEnsemble;
 using Catch::Matchers::WithinAbs;
 
 // =============================================================================
@@ -43,9 +29,17 @@ class ConstantElectricForce : public IForce {
 public:
     explicit ConstantElectricForce(const Vec3& E_field) : E_(E_field) {}
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
+    Vec3 compute(const IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override {
         (void)t; (void)ctx;
-        return E_ * ion.ion_charge_C;  // F = q*E
+        double q = ensemble.charge_data()[ion_idx];
+        return E_ * q;
+    }
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override {
+        (void)t; (void)ctx;
+        return E_ * state.ion_charge_C;
     }
     
     std::string name() const override { return "ConstantElectric"; }
@@ -123,7 +117,8 @@ TEST_CASE("BorisStrategy: Constant electric field acceleration", "[integrator][b
     ForceRegistry forces(domain);
     forces.add_force(std::make_unique<ConstantElectricForce>(E_field));
     
-    std::vector<IonState> all_ions = {ion};
+    IonEnsemble ensemble = IonEnsemble::from_legacy({ion});
+    const size_t idx = 0;
     
     BorisStrategy strategy;
     
@@ -133,18 +128,20 @@ TEST_CASE("BorisStrategy: Constant electric field acceleration", "[integrator][b
     int n_steps = 1000;
     
     for (int i = 0; i < n_steps; ++i) {
-        strategy.step(ion, t, dt, forces, all_ions);
+        strategy.step(ensemble, idx, t, dt, forces);
         t += dt;
     }
+    IonState ion_out = ensemble.to_legacy()[idx];
     
     // Analytical solution: v = a*t, x = 0.5*a*t²
-    double a = E_x * ion.ion_charge_C / ion.mass_kg;
+    IonState ion_initial = ensemble.to_legacy()[idx];  // mass/charge same as initial
+    double a = E_x * ion_initial.ion_charge_C / ion_initial.mass_kg;
     double t_final = n_steps * dt;
     double vx_expected = a * t_final;
     double x_expected = 0.5 * a * t_final * t_final;
     
-    REQUIRE_THAT(ion.vel.x, WithinAbs(vx_expected, 1e-4));
-    REQUIRE_THAT(ion.pos.x, WithinAbs(x_expected, 1e-4));
+    REQUIRE_THAT(ion_out.vel.x, WithinAbs(vx_expected, 1e-4));
+    REQUIRE_THAT(ion_out.pos.x, WithinAbs(x_expected, 1e-4));
 }
 
 // =============================================================================
@@ -160,7 +157,8 @@ TEST_CASE("BorisStrategy: Cyclotron motion in uniform B-field", "[integrator][bo
     ion.vel = Vec3{1.0, 0, 0};  // Initial velocity in x-direction
     
     ForceRegistry forces(domain);  // No electric forces
-    std::vector<IonState> all_ions = {ion};
+    IonEnsemble ensemble = IonEnsemble::from_legacy({ion});
+    const size_t idx = 0;
     
     BorisStrategy strategy;
     
@@ -178,19 +176,20 @@ TEST_CASE("BorisStrategy: Cyclotron motion in uniform B-field", "[integrator][bo
     double E0 = 0.5 * ion.mass_kg * v0_mag * v0_mag;
     
     for (int i = 0; i < n_steps; ++i) {
-        strategy.step(ion, t, dt, forces, all_ions);
+        strategy.step(ensemble, idx, t, dt, forces);
         t += dt;
     }
+    IonState ion_out = ensemble.to_legacy()[idx];
     
     // After one period, should return to approximately initial position
     // (Boris has small phase error, not exact)
-    REQUIRE_THAT(ion.pos.x, WithinAbs(0.0, 0.05));
-    REQUIRE_THAT(ion.pos.y, WithinAbs(0.0, 0.05));
-    REQUIRE_THAT(ion.pos.z, WithinAbs(0.0, 1e-10));
+    REQUIRE_THAT(ion_out.pos.x, WithinAbs(0.0, 0.05));
+    REQUIRE_THAT(ion_out.pos.y, WithinAbs(0.0, 0.05));
+    REQUIRE_THAT(ion_out.pos.z, WithinAbs(0.0, 1e-10));
     
     // Velocity magnitude should be conserved (energy conservation)
-    double v_mag = std::sqrt(ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z);
-    double E_final = 0.5 * ion.mass_kg * v_mag * v_mag;
+    double v_mag = std::sqrt(ion_out.vel.x * ion_out.vel.x + ion_out.vel.y * ion_out.vel.y + ion_out.vel.z * ion_out.vel.z);
+    double E_final = 0.5 * ion_out.mass_kg * v_mag * v_mag;
     
     REQUIRE_THAT(v_mag, WithinAbs(v0_mag, 1e-6));
     REQUIRE_THAT(E_final, WithinAbs(E0, 1e-12));
@@ -214,7 +213,8 @@ TEST_CASE("BorisStrategy: E×B drift motion", "[integrator][boris]") {
     ForceRegistry forces(domain);
     forces.add_force(std::make_unique<ConstantElectricForce>(E_field));
     
-    std::vector<IonState> all_ions = {ion};
+    IonEnsemble ensemble = IonEnsemble::from_legacy({ion});
+    const size_t idx = 0;
     
     BorisStrategy strategy;
     
@@ -231,16 +231,17 @@ TEST_CASE("BorisStrategy: E×B drift motion", "[integrator][boris]") {
     int n_steps = 100000;  // 1000 seconds
     
     for (int i = 0; i < n_steps; ++i) {
-        strategy.step(ion, t, dt, forces, all_ions);
+        strategy.step(ensemble, idx, t, dt, forces);
         t += dt;
     }
+    IonState ion_out = ensemble.to_legacy()[idx];
     
     // Check that particle has drifted in y-direction
     double y_expected = v_drift_y * t;
     
     // After many cyclotron periods, drift should dominate
     // Allow 10% tolerance for numerical integration and cyclotron modulation
-    REQUIRE(std::fabs(ion.pos.y - y_expected) / std::fabs(y_expected) < 0.1);
+    REQUIRE(std::fabs(ion_out.pos.y - y_expected) / std::fabs(y_expected) < 0.1);
 }
 
 // =============================================================================
@@ -256,7 +257,8 @@ TEST_CASE("BorisStrategy: Long-term energy conservation", "[integrator][boris][s
     ion.vel = Vec3{1.0, 0.5, 0};
     
     ForceRegistry forces(domain);
-    std::vector<IonState> all_ions = {ion};
+    IonEnsemble ensemble = IonEnsemble::from_legacy({ion});
+    const size_t idx = 0;
     
     BorisStrategy strategy;
     
@@ -273,13 +275,14 @@ TEST_CASE("BorisStrategy: Long-term energy conservation", "[integrator][boris][s
     int n_steps = n_periods * 50;
     
     for (int i = 0; i < n_steps; ++i) {
-        strategy.step(ion, t, dt, forces, all_ions);
+        strategy.step(ensemble, idx, t, dt, forces);
         t += dt;
     }
+    IonState ion_out = ensemble.to_legacy()[idx];
     
     // Final energy
-    double v_sq = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;
-    double E_final = 0.5 * ion.mass_kg * v_sq;
+    double v_sq = ion_out.vel.x * ion_out.vel.x + ion_out.vel.y * ion_out.vel.y + ion_out.vel.z * ion_out.vel.z;
+    double E_final = 0.5 * ion_out.mass_kg * v_sq;
     
     // Energy should be conserved to high precision (symplectic property)
     double rel_error = std::fabs(E_final - E0) / E0;
@@ -304,8 +307,9 @@ TEST_CASE("BorisStrategy: Agreement with RK4 for E-field only", "[integrator][bo
     ForceRegistry forces(domain);
     forces.add_force(std::make_unique<ConstantElectricForce>(E_field));
     
-    std::vector<IonState> all_ions_boris = {ion_boris};
-    std::vector<IonState> all_ions_rk4 = {ion_rk4};
+    IonEnsemble ensemble_boris = IonEnsemble::from_legacy({ion_boris});
+    IonEnsemble ensemble_rk4 = IonEnsemble::from_legacy({ion_rk4});
+    const size_t idx = 0;
     
     BorisStrategy boris;
     auto rk4 = IntegrationStrategyFactory::create("RK4");
@@ -315,14 +319,16 @@ TEST_CASE("BorisStrategy: Agreement with RK4 for E-field only", "[integrator][bo
     int n_steps = 100;
     
     for (int i = 0; i < n_steps; ++i) {
-        boris.step(ion_boris, t, dt, forces, all_ions_boris);
-        rk4->step(ion_rk4, t, dt, forces, all_ions_rk4);
+        boris.step(ensemble_boris, idx, t, dt, forces);
+        rk4->step(ensemble_rk4, idx, t, dt, forces);
         t += dt;
     }
+    IonState ion_boris_out = ensemble_boris.to_legacy()[idx];
+    IonState ion_rk4_out = ensemble_rk4.to_legacy()[idx];
     
     // Results should be similar (both 2nd order accurate, but different algorithms)
-    REQUIRE_THAT(ion_boris.pos.x, WithinAbs(ion_rk4.pos.x, 1e-3));
-    REQUIRE_THAT(ion_boris.pos.y, WithinAbs(ion_rk4.pos.y, 1e-3));
-    REQUIRE_THAT(ion_boris.vel.x, WithinAbs(ion_rk4.vel.x, 1e-2));
-    REQUIRE_THAT(ion_boris.vel.y, WithinAbs(ion_rk4.vel.y, 1e-2));
+    REQUIRE_THAT(ion_boris_out.pos.x, WithinAbs(ion_rk4_out.pos.x, 1e-3));
+    REQUIRE_THAT(ion_boris_out.pos.y, WithinAbs(ion_rk4_out.pos.y, 1e-3));
+    REQUIRE_THAT(ion_boris_out.vel.x, WithinAbs(ion_rk4_out.vel.x, 1e-2));
+    REQUIRE_THAT(ion_boris_out.vel.y, WithinAbs(ion_rk4_out.vel.y, 1e-2));
 }

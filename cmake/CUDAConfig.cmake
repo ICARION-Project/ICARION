@@ -49,6 +49,19 @@ if (USE_GPU_ACCEL)
         unset(ICARION_NCCL_LIBRARY CACHE)
     endif()
 
+    # Find cuFFT library
+    find_library(CUFFT_LIBRARY
+                 NAMES cufft
+                 HINTS $ENV{CUDA_PATH} $ENV{CUDA_HOME} ${CUDA_TOOLKIT_ROOT_DIR}
+                 PATH_SUFFIXES lib lib64 lib/x64)
+    
+    if (CUFFT_LIBRARY)
+        message(STATUS "cuFFT library found: ${CUFFT_LIBRARY}")
+        set(ICARION_CUFFT_LIBRARY ${CUFFT_LIBRARY} CACHE INTERNAL "ICARION cuFFT library")
+    else()
+        message(FATAL_ERROR "cuFFT library not found (required for GPU Space Charge)")
+    endif()
+    
     message(STATUS "CUDA enabled. Architectures: ${CMAKE_CUDA_ARCHITECTURES}")
 else()
     message(STATUS "CUDA disabled.")

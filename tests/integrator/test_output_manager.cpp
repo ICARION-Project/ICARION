@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file test_output_manager.cpp
@@ -14,6 +14,8 @@
  */
 
 #include "core/integrator/OutputManager.h"
+#include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "H5Cpp.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -22,6 +24,7 @@
 
 using namespace ICARION::integrator;
 using namespace ICARION::config;
+using namespace ICARION;
 
 namespace {
     // Test data directory
@@ -38,13 +41,13 @@ namespace {
         return config;
     }
     
-    // Helper: Create test ions
-    std::vector<IonState> create_test_ions(size_t count) {
-        std::vector<IonState> ions;
+    // Helper: Create test ions (SoA)
+    ICARION::core::IonEnsemble create_test_ions(size_t count) {
+        std::vector<ICARION::core::IonState> ions;
         ions.reserve(count);
         
         for (size_t i = 0; i < count; ++i) {
-            IonState ion;
+            core::IonState ion;
             ion.mass_kg = 100.0 * 1.66053906660e-27;
             ion.ion_charge_C = 1.602176634e-19;
             ion.pos = {0.0, 0.0, static_cast<double>(i) * 0.001};
@@ -55,7 +58,7 @@ namespace {
             ions.push_back(ion);
         }
         
-        return ions;
+        return core::IonEnsemble::from_legacy(ions);
     }
     
     // Helper: Read HDF5 attribute
@@ -204,8 +207,9 @@ TEST_CASE("OutputManager - Finalization metadata", "[OutputManager]") {
     manager.log_step(0.0, ions);
     
     // Deactivate some ions
-    ions[3].active = false;
-    ions[7].active = false;
+    auto* active = ions.active_data();
+    active[3] = 0;
+    active[7] = 0;
     
     manager.finalize(1e-3, ions);
     

@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #ifndef ICARION_WAVEFORM_CONFIG_H
 #define ICARION_WAVEFORM_CONFIG_H
 
@@ -159,6 +162,12 @@ struct ValueOrWaveform {
     std::optional<double> constant_value;
     std::optional<Waveform> waveform;
     std::optional<std::string> waveform_ref;
+    
+    // Default constructor (all nullopt)
+    ValueOrWaveform() = default;
+    
+    // Convenience constructor for constant value
+    explicit ValueOrWaveform(double value) : constant_value(value) {}
     
     /**
      * @brief Check if exactly one option is set

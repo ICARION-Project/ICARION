@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // Domain transition tests
 // Test that ions correctly transition between domains (e.g., IMS → TOF)
 

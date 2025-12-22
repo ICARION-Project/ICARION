@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file DomainManager.h
@@ -13,15 +13,22 @@
  * - Check aperture crossings (domain transitions)
  * - Update ion properties when transitioning domains
  * 
- * Extracts domain management logic from legacy integrate_trajectory()
+ * Extracts domain management logic from legacy integrate_trajectory().
+ * Supports cylindrical and Orbitrap domains; other geometries are not handled.
  */
 
 #pragma once
 
 #include "core/config/types/DomainConfig.h"  // SSOT: config::DomainConfig
+#include "core/config/types/IFieldModel.h"   // Field models (analytical/map)
+#include "core/config/types/IDomainGeometry.h" // Geometry strategies
 #include "core/types/Vec3.h"                // Vec3
 #include "core/types/IonState.h"            // IonState
+#include "boundaries/BoundaryAction.h"
+#include "boundaries/BoundaryActionFactory.h"
 #include <vector>
+#include <memory>
+#include <random>
 
 namespace ICARION {
 namespace integrator {
@@ -68,12 +75,16 @@ public:
     /**
      * @brief Construct domain manager
      * @param domains Vector of domain configs (reference, not owned)
+     * @param rng_seed Random seed for boundary actions (diffuse/thermal reflection)
      * 
      * Stores a const reference to domains (owned by FullConfig).
-     * All methods are const (no state modification).
+     * Creates boundary actions for each domain based on config.
      * SSOT: Uses config::DomainConfig (modern format), not legacy InstrumentDomain.
      */
-    explicit DomainManager(const std::vector<config::DomainConfig>& domains);
+    explicit DomainManager(
+        const std::vector<config::DomainConfig>& domains,
+        unsigned int rng_seed = 42
+    );
     
     /**
      * @brief Find which domain contains the ion position
@@ -135,125 +146,59 @@ public:
     Vec3 local_to_global_vel(const Vec3& vel_local, int domain_idx) const;
     
     /**
-     * @brief Check if ion crossed aperture when exiting domain
-     * @param ion Ion state (ion.active set to false if blocked)
-     * @param domain_idx Current domain index
-     * @param pos_before Local position before integration step [m]
-     * @param pos_after Local position after integration step [m]
-     * 
-     * Detects if ion crossed the end plane (z = domain.length_m).
-     * If crossing occurred, interpolates crossing point and checks radial distance.
-     * If r_cross > end_aperture_m, ion is blocked (ion.active = false).
-     * 
-     * Called when ion exits a domain to enforce aperture constraints.
-     */
-    void check_aperture_crossing(IonState& ion, int domain_idx,
-                                  const Vec3& pos_before, const Vec3& pos_after) const;
-    
-    /**
-     * @brief Update ion domain-specific properties
-     * @param ion Ion state (modified)
-     * @param domain_idx New domain index
-     * 
-     * Updates:
-     * - domain_neutral_mass_kg
-     * - domain_temperature_K
-     * - domain_particle_density_m3
-     * - domain_gas_velocity_m_s
-     * - current_domain_index
-     * 
-     * Called when ion transitions from one domain to another.
-     */
-    void update_domain_properties(IonState& ion, int domain_idx) const;
-    
-    /**
-     * @brief Terminate ion at boundary (set position to intersection, velocity to 0)
-     * @param ion Ion state (modified: pos corrected, vel=0, active=false)
-     * @param domain_idx Current domain index
-     * @param pos_before_local Local position before integration step [m]
-     * @param pos_after_local Local position after integration step [m]
-     * 
-     * When an ion leaves the domain (detected via is_inside_domain check),
-     * this method:
-     * 1. Computes intersection point between trajectory line and domain boundary
-     * 2. Sets ion position to intersection (not extrapolated pos_after)
-     * 3. Sets velocity to zero (ion absorbed/stopped at boundary)
-     * 4. Deactivates ion (ion.active = false)
-     * 
-     * **Why this matters:**
-     * - Prevents unphysical positions in trajectory output (pos outside domain)
-     * - Makes final position physically meaningful (where ion actually hit)
-     * - Useful for analyzing loss patterns (e.g., radial losses in drift tubes)
-     * 
-     * **Boundary types handled:**
-     * - Cylindrical instruments (IMS, TOF, LQIT, SLIM, etc.):
-     *   * Radial boundary (r > radius_m): Ion hit cylindrical wall
-     *   * Axial boundaries (z < 0 or z > length_m): Ion exited entrance/exit
-     *   * Aperture (r > end_aperture_m at z=length_m): Ion blocked by aperture
-     * - Orbitrap (hyperbolic electrodes):
-     *   * Uses midpoint approximation (analytical ray-hyperbola intersection TODO)
-     * 
-     * Coordinates are in LOCAL frame (must transform to global after).
-     */
-    void terminate_ion_at_boundary(IonState& ion, int domain_idx,
-                                    const Vec3& pos_before_local,
-                                    const Vec3& pos_after_local) const;
-    
-    /**
      * @brief Get number of domains
      */
     size_t num_domains() const { return domains_.size(); }
-    
+
+    /**
+     * @brief Get field model for a domain (if constructed)
+     * @param idx Domain index
+     * @return Pointer to field model or nullptr
+     */
+    const config::IFieldModel* field_model(int idx) const;
+
+    /**
+     * @brief Access boundary action for a domain (may be null)
+     */
+    BoundaryAction* boundary_action(int idx) const;
+
+    /**
+     * @brief Compute inward surface normal for a global position on boundary.
+     */
+    Vec3 surface_normal_global(const Vec3& global_pos, int domain_idx) const;
+
+    /**
+     * @brief Compute boundary intersection for a segment in global coordinates.
+     *
+     * @param start_global Segment start
+     * @param end_global Segment end
+     * @param domain_idx Domain to test against
+     * @param intersection_global Output intersection (global) if hit
+     * @param normal_global Output inward normal (global) if hit
+     * @return true if intersection detected
+     */
+    bool boundary_intersection_global(const Vec3& start_global,
+                                      const Vec3& end_global,
+                                      int domain_idx,
+                                      Vec3& intersection_global,
+                                      Vec3& normal_global) const;
+
 private:
     const std::vector<config::DomainConfig>& domains_;  ///< Reference to domain list (not owned, SSOT)
+    std::vector<std::unique_ptr<BoundaryAction>> boundary_actions_;  ///< Boundary actions per domain
+    std::vector<std::unique_ptr<config::IFieldModel>> field_models_; ///< Field models per domain (analytical fallback)
+    std::vector<std::unique_ptr<config::IDomainGeometry>> geometries_; ///< Geometry strategy per domain
+    std::mt19937 rng_;  ///< Random number generator for boundary actions
+
+    struct DomainSpan {
+        double z_min;
+        double z_max;
+        double radius;
+        int idx;
+    };
+    std::vector<DomainSpan> spans_;  ///< Sorted by z_min for fast axial prefilter (cylindrical domains only)
+    bool has_orbitrap_ = false;      ///< If any domain is orbitrap -> fallback to linear scan
     
-    /**
-     * @brief Check if position is inside domain (internal helper)
-     * @param dom Domain to check (SSOT: config::DomainConfig)
-     * @param pos Global position [m]
-     * @return true if inside domain boundaries
-     * 
-     * Handles cylindrical geometry (most instruments) and hyperbolic (Orbitrap).
-     * Replaces legacy isInsideDomain() from paramUtils.cpp.
-     */
-    bool is_inside_domain(const config::DomainConfig& dom, const Vec3& pos) const;
-    
-    /**
-     * @brief Solve for radial position on Orbitrap hyperlogarithmic electrode at given z
-     * @param z Axial position [m] (absolute value, symmetric around z=0)
-     * @param R Electrode radius [m] - either R_in (inner) or R_out (outer)
-     * @param R_m Characteristic radius [m] (from Makarov 2000, typically R_m > R_out)
-     * @return Radial position r [m] on hyperlogarithmic surface at height z
-     * 
-     * **Hyperlogarithmic Electrode Equation (Makarov 2000):**
-     * 
-     *   z² = 0.5(r² - R²) + R_m² × ln(R/r)
-     * 
-     * where:
-     * - z = axial coordinate [m] (distance from trap center)
-     * - r = radial coordinate [m] (distance from symmetry axis)
-     * - R = electrode radius at z=0 [m] (R_in for inner, R_out for outer)
-     * - R_m = characteristic radius [m] (field shaping parameter)
-     * 
-     * **Physical Meaning:**
-     * - At z=0 (trap center): r = R (electrode surface passes through (r=R, z=0))
-     * - As z increases: r decreases (electrodes curve inward)
-     * - Creates quadro-logarithmic potential for mass analysis
-     * 
-     * **Usage:**
-     * - r_in(z) = orbitrap_r_for_z(z, R_in, R_m)   → inner boundary at height z
-     * - r_out(z) = orbitrap_r_for_z(z, R_out, R_m) → outer boundary at height z
-     * - Ion at (r, z) is inside if:  r_in(z) < r < r_out(z)
-     * 
-     * **Solver:**
-     * - Bisection method with 80 iterations, tolerance 1e-10
-     * - Initial bracket: [0.3R, 3.0R] (adaptively expanded if needed)
-     * 
-     * **Literature:**
-     * - Makarov, A. (2000). "Electrostatic axially harmonic orbital trapping"
-     *   Analytical Chemistry, 72(6), 1156-1162
-     */
-    double orbitrap_r_for_z(double z, double R, double R_m) const;
 };
 
 }  // namespace integrator

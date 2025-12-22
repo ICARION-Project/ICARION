@@ -1,27 +1,6 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        SolverConfig.h
- *   @brief       BEM solver configuration.
- *
- * @details
- * This file contains the configuration structure for the BEM solver.
- *
- *   @date        2025-10-24
- *   @version     0.1
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
 #pragma once
 #include "core/utils/mathUtils.h"
 #include <string>

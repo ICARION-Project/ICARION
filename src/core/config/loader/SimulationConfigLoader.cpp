@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "SimulationConfigLoader.h"
 #include <stdexcept>
@@ -24,6 +24,14 @@ SimulationConfig SimulationConfigLoader::load(const Json::Value& json) {
     
     // Integrator
     config.integrator = get_string(json, "integrator", "RK4");
+    if (json.isMember("rk45_settings") && json["rk45_settings"].isObject()) {
+        const auto& rk = json["rk45_settings"];
+        if (rk.isMember("dt_min") && rk["dt_min"].isNumeric()) {
+            config.rk45_min_step_s = rk["dt_min"].asDouble();
+        }
+    }
+    // Backward-compatible direct key
+    config.rk45_min_step_s = get_double(json, "rk45_min_step_s", config.rk45_min_step_s);
     
     // Execution mode
     config.enable_gpu = get_bool(json, "enable_gpu", false);

@@ -1,25 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *   Van der Waals Radii Lookup Table
- * =====================================================================
- *   Provides standard Van der Waals radii for chemical elements.
- *   
- *   @file        vdw_radii.h
- *   @brief       Van der Waals radii lookup by element symbol
- *   @date        2025-10-29
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- *   References:
- *   - Bondi, A. (1964). "Van der Waals Volumes and Radii". 
- *     J. Phys. Chem. 68(3): 441–451. doi:10.1021/j100785a001
- *   - Alvarez, S. (2013). "A cartography of the van der Waals territories".
- *     Dalton Trans. 42(24): 8617–8636. doi:10.1039/C3DT50599E
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 

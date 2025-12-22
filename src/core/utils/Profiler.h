@@ -1,13 +1,12 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file Profiler.h
- * @brief Performance profiling system for ICARION
+ * @brief Performance profiling (optional; off by default)
  * 
- * Provides low-overhead timing instrumentation to identify bottlenecks
- * in simulation performance. Particularly useful for diagnosing why
- * OpenMP parallelization may not be providing expected speedups.
+ * Lightweight timing helper to identify hotspots. Disabled unless enabled
+ * programmatically; adds mutex overhead when in use.
  */
 
 #pragma once

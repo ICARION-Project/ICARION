@@ -1,40 +1,13 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        main.cpp
- *   @brief       Entry point and orchestration layer of ICARION.
- *
- *   @details
- *   ICARION serves as the main execution driver for an ion trajectory simulation.
- *   It performs setup, data import, and solver execution in a defined pipeline:
- *
- *   1. Parse command-line arguments and apply overrides.
- *   2. Load configuration from JSON file (SSOT: FullConfig).
- *   3. Initialize ions from configuration.
- *   4. Create SimulationEngine with FullConfig (dependency injection).
- *   5. Run simulation via SimulationEngine::run().
- *   6. Report results and completion status.
- *
- *   The output consists of time-resolved trajectories, arrival time distributions,
- *   and optionally reaction histories (HDF5 format).
- *
- *   @date        2025-11-23
- *   @version     1.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include <chrono>
 #include <exception>
 #include <iostream>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <cctype>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -44,41 +17,156 @@
 #include "core/config/loader/ConfigLoader.h"
 #include "core/config/utils/ConfigOverride.h"
 #include "core/integrator/SimulationEngine.h"
-#include "core/integrator/strategies/RK4Strategy.h"
-#include "core/integrator/strategies/RK45Strategy.h"
-#include "core/integrator/strategies/BorisStrategy.h"
-#include "core/physics/forces/ForceRegistry.h"
-#include "core/physics/forces/ElectricFieldForce.h"
-#include "core/physics/forces/MagneticFieldForce.h"
-#include "core/physics/forces/DampingForce.h"
-#include "core/physics/forces/SpaceChargeDirect.h"
-#include "core/physics/forces/SpaceChargeGrid.h"
-#include "core/physics/spacecharge/spaceChargeSolver.h"
-#include "core/physics/collisions/CollisionHandlerFactory.h"
-#include "core/physics/collisions/geometryUtils.h"
-#include "core/physics/reactions/ReactionHandlerFactory.h"
+#include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/log/Logger.h"
-#include "utils/cli_parser.h"
 #include "core/utils/startupBanner.h"
 #include "core/utils/Profiler.h"
+#include "utils/cli_parser.h"
+#include "main/setup/PhysicsSetup.h"
+#include <nlohmann/json.hpp>
 
 /**
  * @file main.cpp
  * @brief Entry point for the ICARION simulation.
  *
  * Initializes and executes a complete ICARION run using SimulationEngine.
+ * Also supports info/validation modes that exit before running a simulation.
  *
  * @param[in] argc Number of command-line arguments.
  * @param[in] argv Command-line arguments (expects JSON configuration path).
- * @return 0 on success, 1 on any runtime error.
+ * @return 0 on success (including info/validation-only modes), non-zero on
+ *         validation failures or runtime errors.
  *
- * @throws std::runtime_error If configuration loading or simulation fails.
- *
- * @note The JSON file must define a complete FullConfig structure.
+ * @note The JSON file must define a complete FullConfig structure; CLI overrides
+ *       are applied on top of it before validation.
  *
  * @see config::ConfigLoader
  * @see integrator::SimulationEngine
  */
+
+// ------------------------------------------------------------------------
+// Helpers
+// ------------------------------------------------------------------------
+static bool parse_bool_cli(const std::string& value) {
+    std::string lower = value;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    return (lower == "true" || lower == "1" || lower == "yes" || lower == "on");
+}
+
+static void apply_override_to_json(nlohmann::json& j, const std::string& key, const std::string& value) {
+    try {
+        if (key == "simulation.dt_s" || key == "simulation.timestep") {
+            j["simulation"]["dt_s"] = std::stod(value);
+        } else if (key == "simulation.total_time_s" || key == "simulation.total_time") {
+            j["simulation"]["total_time_s"] = std::stod(value);
+        } else if (key == "simulation.write_interval") {
+            j["simulation"]["write_interval"] = std::stoi(value);
+        } else if (key == "simulation.rng_seed" || key == "simulation.seed") {
+            j["simulation"]["rng_seed"] = std::stoul(value);
+        } else if (key == "simulation.integrator") {
+            j["simulation"]["integrator"] = value;
+        } else if (key == "simulation.enable_gpu") {
+            j["simulation"]["enable_gpu"] = parse_bool_cli(value);
+        } else if (key == "simulation.enable_openmp") {
+            j["simulation"]["enable_openmp"] = parse_bool_cli(value);
+        }
+        else if (key == "physics.collision_model") {
+            j["physics"]["collision_model"] = value;
+        } else if (key == "physics.enable_reactions") {
+            j["physics"]["enable_reactions"] = parse_bool_cli(value);
+        } else if (key == "physics.enable_space_charge") {
+            j["physics"]["enable_space_charge"] = parse_bool_cli(value);
+        } else if (key == "physics.enable_space_charge_gpu") {
+            j["physics"]["enable_space_charge_gpu"] = parse_bool_cli(value);
+        } else if (key == "physics.enable_ou_thermalization") {
+            j["physics"]["enable_ou_thermalization"] = parse_bool_cli(value);
+        }
+        else if (key == "output.folder") {
+            j["output"]["folder"] = value;
+        } else if (key == "output.trajectory_file" || key == "output.file") {
+            j["output"]["trajectory_file"] = value;
+        } else if (key == "output.print_progress") {
+            j["output"]["print_progress"] = parse_bool_cli(value);
+        } else if (key == "output.buffer_byte_cap") {
+            j["output"]["buffer_byte_cap"] = std::stoull(value);
+        }
+        else if (key == "species_database" || key == "database.species") {
+            j["species_database"] = value;
+        } else if (key == "reaction_database" || key == "database.reactions") {
+            j["reaction_database"] = value;
+        } else {
+            // Unknown override key -> ignore for snapshot
+        }
+    } catch (const std::exception& e) {
+        ICARION::log::Logger::main()->warn("Config snapshot override skipped for {}: {}", key, e.what());
+    }
+}
+
+static std::string write_config_snapshot(
+    const std::string& config_path,
+    const ICARION::config::FullConfig& config,
+    const ICARION::cli::CLIOptions& opts
+) {
+    // Snapshot is based on the original JSON plus CLI overrides (no derived/finalized fields).
+    // Read original JSON
+    nlohmann::json j;
+    try {
+        std::ifstream in(config_path);
+        if (!in) {
+            ICARION::log::Logger::main()->warn("Config snapshot skipped: cannot read {}", config_path);
+            return {};
+        }
+        in >> j;
+    } catch (const std::exception& e) {
+        ICARION::log::Logger::main()->warn("Config snapshot skipped: failed to parse {} ({})", config_path, e.what());
+        return {};
+    }
+    
+    // Apply CLI overrides (same keys as ConfigOverride)
+    for (const auto& [key, value] : opts.overrides) {
+        apply_override_to_json(j, key, value);
+    }
+    
+    // Apply direct CLI flags (not in overrides map)
+    if (opts.output_file.has_value()) {
+        j["output"]["trajectory_file"] = opts.output_file.value();
+    }
+    if (opts.output_dir.has_value()) {
+        j["output"]["folder"] = opts.output_dir.value();
+    }
+    if (opts.buffer_byte_cap.has_value()) {
+        j["output"]["buffer_byte_cap"] = opts.buffer_byte_cap.value();
+    }
+    if (opts.seed.has_value()) {
+        j["simulation"]["rng_seed"] = opts.seed.value();
+    }
+    if (opts.no_reactions) {
+        j["physics"]["enable_reactions"] = false;
+    }
+    
+    // Snapshot path: same folder as output, base of trajectory file + ".config.json"
+    std::filesystem::path out_dir = config.output.folder;
+    std::filesystem::path traj_file = config.output.trajectory_file;
+    std::string base = traj_file.stem().string();
+    if (base.empty()) {
+        base = "config_snapshot";
+    }
+    std::filesystem::create_directories(out_dir);
+    std::filesystem::path snapshot_path = out_dir / (base + ".config.json");
+    
+    try {
+        std::string content = j.dump(2);
+        std::ofstream out(snapshot_path);
+        out << content;
+        out.close();
+        ICARION::log::Logger::main()->info("Wrote config snapshot: {}", snapshot_path.string());
+        return content;
+    } catch (const std::exception& e) {
+        ICARION::log::Logger::main()->warn("Failed to write config snapshot to {} ({})", snapshot_path.string(), e.what());
+        throw;
+    }
+}
 
 int main(int argc, char* argv[]) {
     using namespace ICARION;
@@ -99,6 +187,13 @@ int main(int argc, char* argv[]) {
             profiling::Profiler::getInstance().enable(true);
         }
         
+        // Set OpenMP thread count if specified (before logger init)
+        if (opts.num_threads.has_value()) {
+#ifdef _OPENMP
+            omp_set_num_threads(opts.num_threads.value());
+#endif
+        }
+        
         // === 2. Initialize logging ===
         {
             PROFILE_SCOPE("Logging Initialization");
@@ -106,6 +201,15 @@ int main(int argc, char* argv[]) {
                 opts.log_level,
                 opts.log_file.value_or(""),
                 opts.log_format);
+        }
+        
+        // Log thread count after logger is initialized
+        if (opts.num_threads.has_value()) {
+#ifdef _OPENMP
+            log::Logger::main()->info("OpenMP threads set to: {}", opts.num_threads.value());
+#else
+            log::Logger::main()->warn("--threads specified but OpenMP is not enabled");
+#endif
         }
         
         // Print startup banner (text format only)
@@ -159,10 +263,6 @@ int main(int argc, char* argv[]) {
             return 0;
         }
     
-    // === Apply logging options (Phase 1) ===
-    // Note: Logger system handles file output via spdlog, no freopen needed
-    // Old file redirection code removed (replaced by Logger::init with --log-file)
-
         // === Handle --validate-config ===
         if (opts.validate_config) {
             log::Logger::main()->info("=== ICARION Configuration Validation ===");
@@ -279,6 +379,9 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         
+        // === Persist effective config snapshot (after overrides) ===
+        config.resolved_config_json = write_config_snapshot(opts.config_file, config, opts);
+        
         // === 4. Initialize ions ===
         size_t total_ion_count = 0;
         for (const auto& spec : config.ions.species) {
@@ -293,192 +396,14 @@ int main(int argc, char* argv[]) {
             ions = config.generate_ions(rng);
         }
         log::Logger::main()->info("✓ {} ions generated", ions.size());
+        core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
         
         // === 5. Create physics dependencies ===
-        log::Logger::main()->info("Initializing physics modules");
-        
-        PROFILE_SCOPE("Physics Module Setup");
-        
-        // Create ForceRegistry for each domain (Phase 12 enhancement)
-        std::vector<std::shared_ptr<physics::ForceRegistry>> force_registries;
-        for (const auto& domain : config.domains) {
-            auto registry = std::make_shared<physics::ForceRegistry>(domain);
-            
-            // Add fundamental forces
-            registry->add_force(std::make_unique<physics::ElectricFieldForce>(domain));
-            
-            // Add magnetic field force if configured (B > 0)
-            if (domain.fields.magnetic.enabled) {
-                registry->add_force(std::make_unique<physics::MagneticFieldForce>(domain.fields.magnetic));
-            }
-            
-            // Add collision damping for Friction model
-            if (config.physics.collision_model == config::CollisionModel::Friction) {
-                registry->add_force(std::make_unique<physics::DampingForce>(
-                    domain.environment, 
-                    physics::DampingModel::Friction,
-                    nullptr  // Species DB not available here, will use ion CCS
-                ));
-            }
-            
-            force_registries.push_back(registry);
+        setup::PhysicsModules physics;
+        {
+            PROFILE_SCOPE("Physics Module Setup");
+            physics = setup::PhysicsSetup::initialize(config, ensemble);
         }
-        log::Logger::main()->info("Created {} ForceRegistry instances (one per domain)", 
-                                  force_registries.size());
-        log::Logger::main()->info("  ✓ ElectricFieldForce added to all registries");
-        
-        // Count magnetic field usage
-        size_t mag_count = 0;
-        for (const auto& domain : config.domains) {
-            if (domain.fields.magnetic.enabled) mag_count++;
-        }
-        if (mag_count > 0) {
-            log::Logger::main()->info("  ✓ MagneticFieldForce added to {} registries", mag_count);
-        }
-        
-        if (config.physics.collision_model == config::CollisionModel::Friction) {
-            log::Logger::main()->info("  ✓ DampingForce added to all registries (Friction model)");
-        }
-        
-        // Auto-select space charge method based on ion count
-        // N < 1000: Direct N-body (SpaceChargeForce, O(N²), exact)
-        // N ≥ 1000: Grid-based Poisson solver (SpaceChargeSolver, O(N log N), fast)
-        if (config.physics.enable_space_charge) {
-            const size_t N = ions.size();
-            constexpr size_t SPACE_CHARGE_THRESHOLD = 1000;
-            
-            if (N < SPACE_CHARGE_THRESHOLD) {
-                // Use direct N-body Coulomb (exact, but O(N²))
-                log::Logger::main()->info("Space charge: Using SpaceChargeDirect (N={} < {})", 
-                                          N, SPACE_CHARGE_THRESHOLD);
-                log::Logger::main()->info("  → Direct N-body Coulomb (exact, O(N²))");
-                
-                // Add SpaceChargeDirect to all domain registries
-                constexpr double SOFTENING_LENGTH = 1e-10;  // 0.1 nm (prevents 1/r² divergence)
-                for (auto& registry : force_registries) {
-                    registry->add_force(std::make_unique<physics::SpaceChargeDirect>(SOFTENING_LENGTH));
-                }
-                log::Logger::main()->info("  ✓ SpaceChargeDirect added to {} registries (ε={:.2e} m)",
-                                          force_registries.size(), SOFTENING_LENGTH);
-            } else {
-                // Use grid-based Poisson solver (fast, but approximate)
-                log::Logger::main()->info("Space charge: Using SpaceChargeGrid (N={} >= {})", 
-                                          N, SPACE_CHARGE_THRESHOLD);
-                log::Logger::main()->info("  → Grid-based Poisson solver (fast, O(N log N))");
-                
-                // Estimate domain size from ion initial positions
-                Vec3 min_pos = ions[0].pos;
-                Vec3 max_pos = ions[0].pos;
-                for (const auto& ion : ions) {
-                    min_pos.x = std::min(min_pos.x, ion.pos.x);
-                    min_pos.y = std::min(min_pos.y, ion.pos.y);
-                    min_pos.z = std::min(min_pos.z, ion.pos.z);
-                    max_pos.x = std::max(max_pos.x, ion.pos.x);
-                    max_pos.y = std::max(max_pos.y, ion.pos.y);
-                    max_pos.z = std::max(max_pos.z, ion.pos.z);
-                }
-                
-                Vec3 domain_size = {max_pos.x - min_pos.x, max_pos.y - min_pos.y, max_pos.z - min_pos.z};
-                Vec3 domain_center = {(min_pos.x + max_pos.x) / 2, (min_pos.y + max_pos.y) / 2, (min_pos.z + max_pos.z) / 2};
-                
-                // Add 50% margin to domain size (ions will move)
-                domain_size = domain_size * 1.5;
-                
-                // Grid resolution: Aim for ~1mm cells (adjust based on domain)
-                constexpr int TARGET_GRID_SIZE = 64;  // 64³ = 262k cells (good balance)
-                double cell_size_x = domain_size.x / TARGET_GRID_SIZE;
-                double cell_size_y = domain_size.y / TARGET_GRID_SIZE;
-                double cell_size_z = domain_size.z / TARGET_GRID_SIZE;
-                
-                // Use uniform cell size (max of xyz)
-                double cell_size = std::max({cell_size_x, cell_size_y, cell_size_z, 1e-4});  // Min 0.1mm
-                
-                Vec3 grid_origin = {
-                    domain_center.x - (TARGET_GRID_SIZE * cell_size) / 2,
-                    domain_center.y - (TARGET_GRID_SIZE * cell_size) / 2,
-                    domain_center.z - (TARGET_GRID_SIZE * cell_size) / 2
-                };
-                
-                log::Logger::main()->info("  Grid: {}³ cells, {:.2e} m cell size", TARGET_GRID_SIZE, cell_size);
-                log::Logger::main()->info("  Domain: [{:.3f}, {:.3f}] x [{:.3f}, {:.3f}] x [{:.3f}, {:.3f}] mm",
-                                          grid_origin.x * 1e3, (grid_origin.x + TARGET_GRID_SIZE * cell_size) * 1e3,
-                                          grid_origin.y * 1e3, (grid_origin.y + TARGET_GRID_SIZE * cell_size) * 1e3,
-                                          grid_origin.z * 1e3, (grid_origin.z + TARGET_GRID_SIZE * cell_size) * 1e3);
-                
-                // Create solver
-                auto sc_solver = std::make_shared<SpaceChargeSolver>(
-                    TARGET_GRID_SIZE, TARGET_GRID_SIZE, TARGET_GRID_SIZE,
-                    cell_size, cell_size, cell_size,
-                    grid_origin
-                );
-                
-                // Wrap solver in IForce interface and add to registries
-                for (auto& registry : force_registries) {
-                    registry->add_force(std::make_unique<physics::SpaceChargeGrid>(sc_solver));
-                }
-                log::Logger::main()->info("  ✓ SpaceChargeGrid added to {} registries",
-                                          force_registries.size());
-            }
-        }
-        
-        // Create integration strategy (from config.simulation.integrator)
-        std::shared_ptr<integrator::IIntegrationStrategy> integration_strategy;
-        if (config.simulation.integrator == "RK4" || config.simulation.integrator == "rk4") {
-            integration_strategy = std::make_shared<integrator::RK4Strategy>();
-            log::Logger::main()->info("Using RK4 integrator");
-        } else if (config.simulation.integrator == "RK45" || config.simulation.integrator == "rk45") {
-            integration_strategy = std::make_shared<integrator::RK45Strategy>();
-            log::Logger::main()->info("Using RK45 integrator");
-        } else if (config.simulation.integrator == "Boris" || config.simulation.integrator == "boris") {
-            integration_strategy = std::make_shared<integrator::BorisStrategy>();
-            log::Logger::main()->info("Using Boris integrator");
-        } else {
-            // Default fallback
-            log::Logger::main()->warn("Unknown integrator '{}', defaulting to RK45", 
-                                      config.simulation.integrator);
-            integration_strategy = std::make_shared<integrator::RK45Strategy>();
-        }
-        
-        // Create collision handler (from config.physics.collision_model)
-        const double gamma_for_ou = 0.0;  // OU damping coefficient not used for stochastic models
-        
-        // Load geometry map for EHSS (if needed)
-        std::unique_ptr<physics::GeometryMap> geometry_map_ptr = nullptr;
-        const physics::GeometryMap* geometry_map = nullptr;
-        
-        if (config.physics.collision_model == config::CollisionModel::EHSS) {
-            // Collect all ion species from config
-            std::unordered_set<std::string> species_ids;
-            for (const auto& species : config.ions.species) {
-                species_ids.insert(species.species_id);
-            }
-            
-            try {
-                log::Logger::main()->info("Loading molecular geometries for EHSS collision model");
-                geometry_map_ptr = std::make_unique<physics::GeometryMap>(
-                    physics::load_geometry_map(species_ids, "/home/chsch95/ICARION/data/molecules/", false)
-                );
-                geometry_map = geometry_map_ptr.get();
-                log::Logger::main()->info("Loaded {} molecular geometries", geometry_map->size());
-            } catch (const std::exception& e) {
-                log::Logger::main()->error("Failed to load molecular geometries: {}", e.what());
-                log::Logger::main()->warn("Falling back to HSS collision model");
-                // Don't exit, let CollisionHandlerFactory handle the fallback
-            }
-        }
-        
-        std::shared_ptr<physics::ICollisionHandler> collision_handler = 
-            physics::CollisionHandlerFactory::create(
-                config.physics,
-                geometry_map,   // Now properly loaded for EHSS
-                gamma_for_ou,
-                false,          // enable_logging
-                &config.species_db
-            );
-        
-        // Create reaction handler (from config.physics.enable_reactions)
-        std::shared_ptr<physics::IReactionHandler> reaction_handler = 
-            physics::ReactionHandlerFactory::create(config.physics);
         
         // === 6. Create SimulationEngine ===
         log::Logger::main()->info("Initializing SimulationEngine");
@@ -487,10 +412,10 @@ int main(int argc, char* argv[]) {
             PROFILE_SCOPE("Engine Initialization");
             return integrator::SimulationEngine(
                 config,
-                force_registries,  // Vector of registries (one per domain)
-                integration_strategy,
-                collision_handler,
-                reaction_handler
+                physics.force_registries,
+                physics.integrator,
+                physics.collision_handler,
+                physics.reaction_handler
             );
         }();
         
@@ -500,25 +425,29 @@ int main(int argc, char* argv[]) {
         
         auto start = std::chrono::high_resolution_clock::now();
         
-        std::vector<IonState> final_ions;
+        core::IonEnsemble final_ensemble;
         {
             PROFILE_SCOPE("Simulation Run");
-            final_ions = engine.run(ions);
+            final_ensemble = engine.run(ensemble);
         }
         
         auto end = std::chrono::high_resolution_clock::now();
         double elapsed_s = std::chrono::duration<double>(end - start).count();
         
         // === 8. Report results ===
-        size_t active_count = std::count_if(
-            final_ions.begin(), final_ions.end(),
-            [](const auto& ion) { return ion.active; }
-        );
+        size_t active_count = 0;
+        const auto* active_ptr = final_ensemble.active_data();
+        const auto* born_ptr = final_ensemble.born_data();
+        for (size_t i = 0; i < final_ensemble.size(); ++i) {
+            if (active_ptr[i] && born_ptr[i]) {
+                ++active_count;
+            }
+        }
         
         log::Logger::main()->info("");
         log::Logger::main()->info("=== Simulation Complete ===");
         log::Logger::main()->info("CPU time:     {:.3f} s", elapsed_s);
-        log::Logger::main()->info("Active ions:  {}/{}", active_count, final_ions.size());
+        log::Logger::main()->info("Active ions:  {}/{}", active_count, final_ensemble.size());
         log::Logger::main()->info("Output file:  {}", config.output.trajectory_file);
         log::Logger::main()->info("===========================");
         

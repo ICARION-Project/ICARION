@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
+#include <cstddef>
 #include <vector>
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
@@ -13,30 +14,22 @@ class IFieldProvider;
 // Forward declare DomainConfig (in correct namespace)
 namespace ICARION::config {
     struct DomainConfig;
+    class IFieldModel;
+}
+
+// Forward declare IonEnsemble (SoA container)
+namespace ICARION::core {
+    class IonEnsemble;
 }
 
 namespace ICARION::physics {
 
 /**
- * @brief Context for force computation
+ * @brief Context for force computation (no ownership)
  * 
- * Contains shared data needed by multiple forces. This struct avoids parameter
- * explosion by grouping related data together.
- * 
- * Design Notes:
- * - Uses pointers for optional data (nullptr = not needed)
- * - No ownership (context is transient, data owned elsewhere)
- * - Lightweight (only pointers, cheap to copy)
- * 
- * Usage Pattern:
- * @code
- * ForceContext ctx;
- * ctx.field_provider = &my_field_provider;
- * ctx.domain = &domain_config;
- * ctx.all_ions = &ion_ensemble;
- * 
- * Vec3 force = force_registry.compute_total_force(ion, t, ctx);
- * @endcode
+ * Holds optional pointers to shared data used by force implementations. Callers fill
+ * what they need; nullptr means “not available”. Environment/geometry lives in the
+ * DomainConfig referenced here.
  */
 struct ForceContext {
     // =========================================================================
@@ -52,6 +45,16 @@ struct ForceContext {
      * @see IFieldProvider for field sampling interface
      */
     const ::IFieldProvider* field_provider = nullptr;
+    
+    /**
+     * @brief Optional analytical/map field model (new domain/field layer)
+     *
+     * If set, forces should prefer `field_model->E/B(...)` as SSOT. Typically
+     * injected by PhysicsSetup (analytical vs. grid) and forwarded by
+     * integrators; SimulationEngine only backfills from DomainManager as a
+     * legacy fallback.
+     */
+    const ::ICARION::config::IFieldModel* field_model = nullptr;
     
     // =========================================================================
     // Domain Configuration (geometry, instrument type, field parameters)
@@ -80,6 +83,25 @@ struct ForceContext {
      * @note For space charge: exclude self-interaction (ion == current ion)
      */
     const std::vector<IonState>* all_ions = nullptr;
+
+    /**
+     * @brief Optional SoA ensemble view for N-body forces in SoA path
+     *
+     * Used by space-charge forces to avoid AoS reconstruction in SoA integrators.
+     * @code
+     * ctx.ion_ensemble = &ensemble;
+     * ctx.ion_index    = i;
+     * @endcode
+     */
+    const ::ICARION::core::IonEnsemble* ion_ensemble = nullptr;
+
+    /**
+     * @brief Index of the current ion in ion_ensemble (SoA)
+     *
+     * Use together with `ion_ensemble` to identify the active ion in
+     * space-charge computations. Ignored if `ion_ensemble` is null.
+     */
+    size_t ion_index = static_cast<size_t>(-1);
     
     // =========================================================================
     // SSOT Compliance Note
@@ -93,12 +115,12 @@ struct ForceContext {
      * 
      * **SSOT Pattern:**
      * ```cpp
-     * // ✅ CORRECT: Read from domain
+     * // CORRECT: Read from domain
      * double T = ctx.domain->environment.temperature_K;
      * double P = ctx.domain->environment.pressure_Pa;
      * double n = ctx.domain->environment.particle_density_m_3;
      * 
-     * // ❌ WRONG: Don't duplicate data in ForceContext!
+     * // WRONG: Don't duplicate data in ForceContext!
      * // double temperature_K;  // SSOT violation!
      * ```
      * 

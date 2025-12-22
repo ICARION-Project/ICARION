@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 /**
  * @file test_ims_drift.cpp
  * @brief IMS (Ion Mobility Spectrometry) drift tube physics validation
@@ -628,11 +630,18 @@ TEST_CASE("IMS: Friction mobility (DampingForce only)", "[instrument][ims][physi
     
     REQUIRE(result.ions.size() == 1);
     const auto& final_ion = result.ions[0];
+    const double length_m_cfg = length_m;
+    const bool exited_domain = (!final_ion.active && final_ion.pos.z >= 0.99 * length_m_cfg);
+    INFO("Final ion: active=" << final_ion.active
+         << ", z=" << final_ion.pos.z
+         << ", v_z=" << final_ion.vel.z
+         << ", exited_domain=" << exited_domain);
     
     SECTION("Ion drifts forward") {
-        REQUIRE(final_ion.active);
         REQUIRE(final_ion.pos.z > 0.002);
         REQUIRE(final_ion.vel.z > 0.0);
+        // Accept either still active or deactivated because it exited the drift tube
+        REQUIRE((final_ion.active || exited_domain));
     }
     
     SECTION("Mobility matches theory") {

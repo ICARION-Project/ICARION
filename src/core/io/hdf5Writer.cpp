@@ -1,11 +1,14 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 /**
- * @file hdf5Writer_v2.cpp
+ * @file hdf5Writer.cpp
  * @brief Implementation of modern HDF5 writer using FullConfig
  * 
  * **v1.0 Improvements (Nov 2025):**
  * - Consistent metadata hierarchy: All under /metadata/ (no root attributes)
  * - Smart filtering: Only write species/reactions actually used in simulation
- *   - Reduces file size for large databases (e.g., 1000+ reaction networks)
+ *   - Reduces file size for large databases
  *   - Filters based on ion.species_id references
  *   - Reactions filtered by reactant species presence
  */
@@ -15,6 +18,9 @@
 #include "core/config/conversion/EnumMapper.h"
 #include "core/config/types/WaveformConfig.h"
 #include "core/utils/hash.h"
+#include <limits>
+#include "core/types/IonEnsemble.h"
+#include "core/integrator/strategies/RK45Strategy.h"
 #include <chrono>
 #include <fstream>
 #include <sstream>
@@ -34,6 +40,14 @@
 
 namespace ICARION::io {
 
+// Forward helpers
+static void write_string_vector(H5::Group& group, const std::string& name, const std::vector<std::string>& data);
+static void write_array_int(H5::Group& group, const std::string& name, const std::vector<int>& data);
+static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains);
+static std::string read_file_if_small(const std::string& path, size_t max_bytes);
+static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains);
+static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains);
+
 // ====================================================================
 // Public API
 // ====================================================================
@@ -41,35 +55,29 @@ namespace ICARION::io {
 void HDF5Writer::create_file(
     const std::string& filename,
     const config::FullConfig& config,
-    const std::vector<IonState>& ions,
+    const core::IonEnsemble& ions,
     const std::string& git_hash,
     const std::string& build_info
 ) {
     log::Logger::hdf5()->info("Creating HDF5 file: {}", filename);
     
     try {
-        // Create file (overwrite if exists)
         H5::H5File file(filename, H5F_ACC_TRUNC);
         
-        // Write metadata
         write_config_metadata(file, config);
         write_reproducibility_metadata(file, config, git_hash, build_info);
         write_system_metadata(file);
         
-        // Only write species/reactions actually used in this simulation
         write_species_metadata(file, config.species_db, ions);
         
         if (config.physics.enable_reactions && !config.reaction_db.reactions.empty()) {
             write_reactions_metadata(file, config.reaction_db, ions, config.species_db);
         }
         
-        // Write domains
         write_domains(file, config.domains);
         
-        // Write ion metadata
         write_ion_metadata(file, ions);
         
-        // Create /trajectory/ group (datasets created on first append)
         file.createGroup("/trajectory");
         
         file.close();
@@ -84,96 +92,97 @@ void HDF5Writer::create_file(
 void HDF5Writer::append_trajectory(
     const std::string& filename,
     double time,
-    const std::vector<IonState>& ions
+    const core::IonEnsemble& ions
 ) {
     if (ions.empty()) {
         log::Logger::hdf5()->warn("Skipping trajectory append - no ions");
         return;
     }
-    
+
+    const size_t n_ions = ions.size();
+    std::vector<double> positions;
+    std::vector<double> velocities;
+    std::vector<int> domain_indices;
+    std::vector<const char*> species_ids;
+
+    positions.reserve(n_ions * 3);
+    velocities.reserve(n_ions * 3);
+    domain_indices.reserve(n_ions);
+    species_ids.reserve(n_ions);
+
+    const auto* pos_x = ions.pos_x_data();
+    const auto* pos_y = ions.pos_y_data();
+    const auto* pos_z = ions.pos_z_data();
+    const auto* vel_x = ions.vel_x_data();
+    const auto* vel_y = ions.vel_y_data();
+    const auto* vel_z = ions.vel_z_data();
+
+    for (size_t i = 0; i < n_ions; ++i) {
+        positions.push_back(pos_x[i]);
+        positions.push_back(pos_y[i]);
+        positions.push_back(pos_z[i]);
+
+        velocities.push_back(vel_x[i]);
+        velocities.push_back(vel_y[i]);
+        velocities.push_back(vel_z[i]);
+
+        domain_indices.push_back(ions.domain_index(i));
+        species_ids.push_back(ions.species_id(i).c_str());
+    }
+
+    // Reuse AoS append implementation with flattened buffers
     try {
         H5::H5File file(filename, H5F_ACC_RDWR);
         H5::Group traj_group = file.openGroup("/trajectory");
-        
-        const size_t n_ions = ions.size();
-        
-        // Flatten ion data
-        std::vector<double> positions, velocities;
-        std::vector<int> domain_indices;
-        std::vector<const char*> species_ids;
-        
-        positions.reserve(n_ions * 3);
-        velocities.reserve(n_ions * 3);
-        domain_indices.reserve(n_ions);
-        species_ids.reserve(n_ions);
-        
-        for (const auto& ion : ions) {
-            positions.push_back(ion.pos.x);
-            positions.push_back(ion.pos.y);
-            positions.push_back(ion.pos.z);
-            
-            velocities.push_back(ion.vel.x);
-            velocities.push_back(ion.vel.y);
-            velocities.push_back(ion.vel.z);
-            
-            domain_indices.push_back(ion.current_domain_index);
-            species_ids.push_back(ion.species_id.c_str());
-        }
-        
-        // Helper lambda for creating or extending datasets
+
         auto append_1d = [&](const std::string& name, const void* data, H5::PredType type, size_t count) {
             H5::DataSet dataset;
             if (traj_group.nameExists(name)) {
-                // Open existing dataset and extend
-                dataset = traj_group.openDataSet(name);
-                H5::DataSpace filespace = dataset.getSpace();
+                H5::DataSet ds = traj_group.openDataSet(name);
+                H5::DataSpace filespace = ds.getSpace();
                 hsize_t old_dim = filespace.getSimpleExtentNpoints();
                 hsize_t new_dim = old_dim + count;
-                dataset.extend(&new_dim);
-                
-                filespace = dataset.getSpace();
+                ds.extend(&new_dim);
+
+                filespace = ds.getSpace();
                 hsize_t start[1] = {old_dim};
                 hsize_t write_count[1] = {count};
                 H5::DataSpace memspace(1, write_count);
                 filespace.selectHyperslab(H5S_SELECT_SET, write_count, start);
-                dataset.write(data, type, memspace, filespace);
-                
+                ds.write(data, type, memspace, filespace);
             } else {
-                // Create new dataset with chunking and compression
                 hsize_t dims[1] = {count};
                 hsize_t max_dims[1] = {H5S_UNLIMITED};
                 H5::DataSpace space(1, dims, max_dims);
                 H5::DSetCreatPropList plist;
                 hsize_t chunk[1] = {std::min(count, size_t(1000))};
                 plist.setChunk(1, chunk);
-                plist.setDeflate(6);  // GZIP compression level 6
-                dataset = traj_group.createDataSet(name, type, space, plist);
-                dataset.write(data, type);
+                plist.setDeflate(6);
+                H5::DataSet ds = traj_group.createDataSet(name, type, space, plist);
+                ds.write(data, type);
             }
         };
-        
+
         auto append_2d = [&](const std::string& name, const void* data, H5::PredType type, 
                              size_t dim0, size_t dim1) {
             H5::DataSet dataset;
             if (traj_group.nameExists(name)) {
-                // Open and extend
                 dataset = traj_group.openDataSet(name);
                 H5::DataSpace filespace = dataset.getSpace();
                 hsize_t old_dims[2];
                 filespace.getSimpleExtentDims(old_dims);
-                
+
                 hsize_t new_dims[2] = {old_dims[0] + dim0, old_dims[1]};
                 dataset.extend(new_dims);
-                
+
                 filespace = dataset.getSpace();
                 hsize_t start[2] = {old_dims[0], 0};
                 hsize_t count[2] = {dim0, dim1};
                 H5::DataSpace memspace(2, count);
                 filespace.selectHyperslab(H5S_SELECT_SET, count, start);
                 dataset.write(data, type, memspace, filespace);
-                
+
             } else {
-                // Create new
                 hsize_t dims[2] = {dim0, dim1};
                 hsize_t max_dims[2] = {H5S_UNLIMITED, dim1};
                 H5::DataSpace space(2, dims, max_dims);
@@ -185,29 +194,27 @@ void HDF5Writer::append_trajectory(
                 dataset.write(data, type);
             }
         };
-        
+
         auto append_3d = [&](const std::string& name, const std::vector<double>& data, 
                              size_t dim0, size_t dim1, size_t dim2) {
             H5::DataSet dataset;
             if (traj_group.nameExists(name)) {
-                // Open and extend
                 dataset = traj_group.openDataSet(name);
                 H5::DataSpace filespace = dataset.getSpace();
                 hsize_t old_dims[3];
                 filespace.getSimpleExtentDims(old_dims);
-                
+
                 hsize_t new_dims[3] = {old_dims[0] + dim0, old_dims[1], old_dims[2]};
                 dataset.extend(new_dims);
-                
+
                 filespace = dataset.getSpace();
                 hsize_t start[3] = {old_dims[0], 0, 0};
                 hsize_t count[3] = {dim0, dim1, dim2};
                 H5::DataSpace memspace(3, count);
                 filespace.selectHyperslab(H5S_SELECT_SET, count, start);
                 dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE, memspace, filespace);
-                
+
             } else {
-                // Create new
                 hsize_t dims[3] = {dim0, dim1, dim2};
                 hsize_t max_dims[3] = {H5S_UNLIMITED, dim1, dim2};
                 H5::DataSpace space(3, dims, max_dims);
@@ -219,20 +226,12 @@ void HDF5Writer::append_trajectory(
                 dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE);
             }
         };
-        
-        // Write time (1D scalar)
+
         append_1d("time", &time, H5::PredType::NATIVE_DOUBLE, 1);
-        
-        // Write positions (3D: [1 × N × 3])
         append_3d("positions", positions, 1, n_ions, 3);
-        
-        // Write velocities (3D: [1 × N × 3])
         append_3d("velocities", velocities, 1, n_ions, 3);
-        
-        // Write domain indices (2D: [1 × N])
         append_2d("domain_indices", domain_indices.data(), H5::PredType::NATIVE_INT, 1, n_ions);
-        
-        // Write species IDs (2D strings: [1 × N])
+
         H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
         H5::DataSet dataset_species;
         if (traj_group.nameExists("species_ids")) {
@@ -240,35 +239,32 @@ void HDF5Writer::append_trajectory(
             H5::DataSpace filespace = dataset_species.getSpace();
             hsize_t old_dims[2];
             filespace.getSimpleExtentDims(old_dims);
-            
+
             hsize_t new_dims[2] = {old_dims[0] + 1, old_dims[1]};
             dataset_species.extend(new_dims);
-            
+
             filespace = dataset_species.getSpace();
             hsize_t start[2] = {old_dims[0], 0};
             hsize_t count[2] = {1, n_ions};
             H5::DataSpace memspace(2, count);
             filespace.selectHyperslab(H5S_SELECT_SET, count, start);
             dataset_species.write(species_ids.data(), str_type, memspace, filespace);
-            
         } else {
             hsize_t dims[2] = {1, n_ions};
             hsize_t max_dims[2] = {H5S_UNLIMITED, n_ions};
             H5::DataSpace space(2, dims, max_dims);
             H5::DSetCreatPropList plist;
-            hsize_t chunk[2] = {100, n_ions};
+            hsize_t chunk[2] = {1, n_ions};
             plist.setChunk(2, chunk);
             plist.setDeflate(6);
             dataset_species = traj_group.createDataSet("species_ids", str_type, space, plist);
             dataset_species.write(species_ids.data(), str_type);
         }
-        
-        // Flush to disk
+
         H5Fflush(file.getId(), H5F_SCOPE_GLOBAL);
         file.close();
-        
     } catch (const H5::Exception& e) {
-        log::Logger::hdf5()->error("Failed to append trajectory: {}", e.getCDetailMsg());
+        log::Logger::hdf5()->error("Failed to append trajectory (SoA): {}", e.getCDetailMsg());
         throw;
     }
 }
@@ -276,61 +272,63 @@ void HDF5Writer::append_trajectory(
 void HDF5Writer::append_trajectory_batch(
     const std::string& filename,
     const std::vector<double>& times,
-    const std::vector<std::vector<IonState>>& trajectories
+    const std::vector<core::IonEnsemble>& trajectories
 ) {
     if (times.empty() || trajectories.empty()) {
         log::Logger::hdf5()->warn("Skipping trajectory batch append - no data");
         return;
     }
-    
     if (times.size() != trajectories.size()) {
-        throw std::invalid_argument("HDF5Writer::append_trajectory_batch: times and trajectories size mismatch");
+        throw std::invalid_argument("HDF5Writer::append_trajectory_batch (SoA): times and trajectories size mismatch");
     }
-    
     const size_t n_timesteps = times.size();
     const size_t n_ions = trajectories[0].size();
-    
-    // Validate all timesteps have same number of ions
     for (size_t t = 0; t < n_timesteps; ++t) {
         if (trajectories[t].size() != n_ions) {
-            throw std::invalid_argument("HDF5Writer::append_trajectory_batch: inconsistent ion count across timesteps");
+            throw std::invalid_argument("HDF5Writer::append_trajectory_batch (SoA): inconsistent ion count across timesteps");
         }
     }
-    
+
     try {
         H5::H5File file(filename, H5F_ACC_RDWR);
         H5::Group traj_group = file.openGroup("/trajectory");
-        
-        // Flatten ALL timesteps' data into contiguous arrays
+
         std::vector<double> all_times;
         std::vector<double> all_positions, all_velocities;
         std::vector<int> all_domain_indices;
         std::vector<const char*> all_species_ids;
-        
+
         all_times.reserve(n_timesteps);
         all_positions.reserve(n_timesteps * n_ions * 3);
         all_velocities.reserve(n_timesteps * n_ions * 3);
         all_domain_indices.reserve(n_timesteps * n_ions);
         all_species_ids.reserve(n_timesteps * n_ions);
-        
+
         for (size_t t = 0; t < n_timesteps; ++t) {
             all_times.push_back(times[t]);
-            
-            for (const auto& ion : trajectories[t]) {
-                all_positions.push_back(ion.pos.x);
-                all_positions.push_back(ion.pos.y);
-                all_positions.push_back(ion.pos.z);
-                
-                all_velocities.push_back(ion.vel.x);
-                all_velocities.push_back(ion.vel.y);
-                all_velocities.push_back(ion.vel.z);
-                
-                all_domain_indices.push_back(ion.current_domain_index);
-                all_species_ids.push_back(ion.species_id.c_str());
+            const auto& ens = trajectories[t];
+
+            const auto* pos_x = ens.pos_x_data();
+            const auto* pos_y = ens.pos_y_data();
+            const auto* pos_z = ens.pos_z_data();
+            const auto* vel_x = ens.vel_x_data();
+            const auto* vel_y = ens.vel_y_data();
+            const auto* vel_z = ens.vel_z_data();
+
+            for (size_t i = 0; i < n_ions; ++i) {
+                all_positions.push_back(pos_x[i]);
+                all_positions.push_back(pos_y[i]);
+                all_positions.push_back(pos_z[i]);
+
+                all_velocities.push_back(vel_x[i]);
+                all_velocities.push_back(vel_y[i]);
+                all_velocities.push_back(vel_z[i]);
+
+                all_domain_indices.push_back(ens.domain_index(i));
+                all_species_ids.push_back(ens.species_id(i).c_str());
             }
         }
-        
-        // Helper lambdas for batch append (same as append_trajectory but for multiple timesteps)
+
         auto append_1d_batch = [&](const std::string& name, const void* data, H5::PredType type, size_t count) {
             H5::DataSet dataset;
             if (traj_group.nameExists(name)) {
@@ -339,7 +337,7 @@ void HDF5Writer::append_trajectory_batch(
                 hsize_t old_dim = filespace.getSimpleExtentNpoints();
                 hsize_t new_dim = old_dim + count;
                 dataset.extend(&new_dim);
-                
+
                 filespace = dataset.getSpace();
                 hsize_t start[1] = {old_dim};
                 hsize_t write_count[1] = {count};
@@ -358,7 +356,7 @@ void HDF5Writer::append_trajectory_batch(
                 dataset.write(data, type);
             }
         };
-        
+
         auto append_2d_batch = [&](const std::string& name, const void* data, H5::PredType type, 
                                     size_t dim0, size_t dim1) {
             H5::DataSet dataset;
@@ -367,10 +365,10 @@ void HDF5Writer::append_trajectory_batch(
                 H5::DataSpace filespace = dataset.getSpace();
                 hsize_t old_dims[2];
                 filespace.getSimpleExtentDims(old_dims);
-                
+
                 hsize_t new_dims[2] = {old_dims[0] + dim0, old_dims[1]};
                 dataset.extend(new_dims);
-                
+
                 filespace = dataset.getSpace();
                 hsize_t start[2] = {old_dims[0], 0};
                 hsize_t count[2] = {dim0, dim1};
@@ -389,7 +387,7 @@ void HDF5Writer::append_trajectory_batch(
                 dataset.write(data, type);
             }
         };
-        
+
         auto append_3d_batch = [&](const std::string& name, const std::vector<double>& data, 
                                     size_t dim0, size_t dim1, size_t dim2) {
             H5::DataSet dataset;
@@ -398,10 +396,10 @@ void HDF5Writer::append_trajectory_batch(
                 H5::DataSpace filespace = dataset.getSpace();
                 hsize_t old_dims[3];
                 filespace.getSimpleExtentDims(old_dims);
-                
+
                 hsize_t new_dims[3] = {old_dims[0] + dim0, old_dims[1], old_dims[2]};
                 dataset.extend(new_dims);
-                
+
                 filespace = dataset.getSpace();
                 hsize_t start[3] = {old_dims[0], 0, 0};
                 hsize_t count[3] = {dim0, dim1, dim2};
@@ -420,14 +418,12 @@ void HDF5Writer::append_trajectory_batch(
                 dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE);
             }
         };
-        
-        // Write all timesteps in one go
+
         append_1d_batch("time", all_times.data(), H5::PredType::NATIVE_DOUBLE, n_timesteps);
         append_3d_batch("positions", all_positions, n_timesteps, n_ions, 3);
         append_3d_batch("velocities", all_velocities, n_timesteps, n_ions, 3);
         append_2d_batch("domain_indices", all_domain_indices.data(), H5::PredType::NATIVE_INT, n_timesteps, n_ions);
-        
-        // Write species IDs
+
         H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
         H5::DataSet dataset_species;
         if (traj_group.nameExists("species_ids")) {
@@ -435,10 +431,10 @@ void HDF5Writer::append_trajectory_batch(
             H5::DataSpace filespace = dataset_species.getSpace();
             hsize_t old_dims[2];
             filespace.getSimpleExtentDims(old_dims);
-            
+
             hsize_t new_dims[2] = {old_dims[0] + n_timesteps, old_dims[1]};
             dataset_species.extend(new_dims);
-            
+
             filespace = dataset_species.getSpace();
             hsize_t start[2] = {old_dims[0], 0};
             hsize_t count[2] = {n_timesteps, n_ions};
@@ -456,13 +452,217 @@ void HDF5Writer::append_trajectory_batch(
             dataset_species = traj_group.createDataSet("species_ids", str_type, space, plist);
             dataset_species.write(all_species_ids.data(), str_type);
         }
-        
-        // Single flush at the end
+
         H5Fflush(file.getId(), H5F_SCOPE_GLOBAL);
         file.close();
-        
     } catch (const H5::Exception& e) {
-        log::Logger::hdf5()->error("Failed to append trajectory batch: {}", e.getCDetailMsg());
+        log::Logger::hdf5()->error("Failed to append trajectory batch (SoA): {}", e.getCDetailMsg());
+        throw;
+    }
+}
+
+void HDF5Writer::append_trajectory_batch_flat(
+    const std::string& filename,
+    const std::vector<double>& times,
+    size_t n_ions,
+    const std::vector<double>& positions,
+    const std::vector<double>& velocities,
+    const std::vector<int>& domain_indices,
+    const std::vector<uint32_t>& species_indices,
+    const std::vector<std::string>* species_pool,
+    const std::vector<double>& per_ion_times
+) {
+    if (times.empty()) {
+        log::Logger::hdf5()->warn("Skipping trajectory batch append - no data");
+        return;
+    }
+    const size_t n_steps = times.size();
+    const size_t expected_vec = n_steps * n_ions;
+    const size_t expected_vec3 = expected_vec * 3;
+    if (positions.size() != expected_vec3 ||
+        velocities.size() != expected_vec3 ||
+        domain_indices.size() != expected_vec ||
+        species_indices.size() != expected_vec) {
+        throw std::invalid_argument("HDF5Writer::append_trajectory_batch_flat: buffer size mismatch");
+    }
+    if (!per_ion_times.empty() && per_ion_times.size() != expected_vec) {
+        throw std::invalid_argument("HDF5Writer::append_trajectory_batch_flat: per_ion_times size mismatch");
+    }
+
+    try {
+        H5::H5File file(filename, H5F_ACC_RDWR);
+        H5::Group traj_group = file.openGroup("/trajectory");
+
+        auto append_1d_batch = [&](const std::string& name, const void* data, H5::PredType type, size_t count) {
+            H5::DataSet dataset;
+            if (traj_group.nameExists(name)) {
+                dataset = traj_group.openDataSet(name);
+                H5::DataSpace filespace = dataset.getSpace();
+                hsize_t old_dim = filespace.getSimpleExtentNpoints();
+                hsize_t new_dim = old_dim + count;
+                dataset.extend(&new_dim);
+
+                filespace = dataset.getSpace();
+                hsize_t start[1] = {old_dim};
+                hsize_t write_count[1] = {count};
+                H5::DataSpace memspace(1, write_count);
+                filespace.selectHyperslab(H5S_SELECT_SET, write_count, start);
+                dataset.write(data, type, memspace, filespace);
+            } else {
+                hsize_t dims[1] = {count};
+                hsize_t max_dims[1] = {H5S_UNLIMITED};
+                H5::DataSpace space(1, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[1] = {std::min(count, size_t(1000))};
+                plist.setChunk(1, chunk);
+                plist.setDeflate(2);
+                dataset = traj_group.createDataSet(name, type, space, plist);
+                dataset.write(data, type);
+            }
+        };
+
+        auto append_3d_batch = [&](const std::string& name, const std::vector<double>& data,
+                                   size_t dim0, size_t dim1, size_t dim2) {
+            H5::DataSet dataset;
+            if (traj_group.nameExists(name)) {
+                dataset = traj_group.openDataSet(name);
+                H5::DataSpace filespace = dataset.getSpace();
+                hsize_t old_dims[3];
+                filespace.getSimpleExtentDims(old_dims);
+
+                hsize_t new_dims[3] = {old_dims[0] + dim0, old_dims[1], old_dims[2]};
+                dataset.extend(new_dims);
+
+                filespace = dataset.getSpace();
+                hsize_t start[3] = {old_dims[0], 0, 0};
+                hsize_t count[3] = {dim0, dim1, dim2};
+                H5::DataSpace memspace(3, count);
+                filespace.selectHyperslab(H5S_SELECT_SET, count, start);
+                dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE, memspace, filespace);
+            } else {
+                hsize_t dims[3] = {dim0, dim1, dim2};
+                hsize_t max_dims[3] = {H5S_UNLIMITED, dim1, dim2};
+                H5::DataSpace space(3, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[3] = {std::min(dim0, size_t(100)), dim1, dim2};
+                plist.setChunk(3, chunk);
+                plist.setDeflate(2);
+                dataset = traj_group.createDataSet(name, H5::PredType::NATIVE_DOUBLE, space, plist);
+                dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE);
+            }
+        };
+
+        auto append_2d_batch_int = [&](const std::string& name, const void* data, H5::PredType type,
+                                       size_t dim0, size_t dim1) {
+            H5::DataSet dataset;
+            if (traj_group.nameExists(name)) {
+                dataset = traj_group.openDataSet(name);
+                H5::DataSpace filespace = dataset.getSpace();
+                hsize_t old_dims[2];
+                filespace.getSimpleExtentDims(old_dims);
+
+                hsize_t new_dims[2] = {old_dims[0] + dim0, old_dims[1]};
+                dataset.extend(new_dims);
+
+                filespace = dataset.getSpace();
+                hsize_t start[2] = {old_dims[0], 0};
+                hsize_t count[2] = {dim0, dim1};
+                H5::DataSpace memspace(2, count);
+                filespace.selectHyperslab(H5S_SELECT_SET, count, start);
+                dataset.write(data, type, memspace, filespace);
+            } else {
+                hsize_t dims[2] = {dim0, dim1};
+                hsize_t max_dims[2] = {H5S_UNLIMITED, dim1};
+                H5::DataSpace space(2, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[2] = {std::min(dim0, size_t(100)), dim1};
+                plist.setChunk(2, chunk);
+                plist.setDeflate(2);
+                dataset = traj_group.createDataSet(name, type, space, plist);
+                dataset.write(data, type);
+            }
+        };
+
+        append_1d_batch("time", times.data(), H5::PredType::NATIVE_DOUBLE, n_steps);
+        append_3d_batch("positions", positions, n_steps, n_ions, 3);
+        append_3d_batch("velocities", velocities, n_steps, n_ions, 3);
+        append_2d_batch_int("domain_indices", domain_indices.data(), H5::PredType::NATIVE_INT, n_steps, n_ions);
+        append_2d_batch_int("species_id_indices", species_indices.data(), H5::PredType::NATIVE_UINT32, n_steps, n_ions);
+        if (!per_ion_times.empty()) {
+            append_2d_batch_int("time_per_ion", per_ion_times.data(), H5::PredType::NATIVE_DOUBLE, n_steps, n_ions);
+        }
+
+        // Compatibility: also write species_ids (varlen strings) if pool available
+        if (species_pool && !species_pool->empty()) {
+            std::vector<const char*> species_ids;
+            species_ids.reserve(expected_vec);
+            for (size_t idx : species_indices) {
+                if (idx < species_pool->size()) {
+                    species_ids.push_back(species_pool->at(idx).c_str());
+                } else {
+                    species_ids.push_back("");
+                }
+            }
+
+            H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+            H5::DataSet dataset_species;
+            if (traj_group.nameExists("species_ids")) {
+                dataset_species = traj_group.openDataSet("species_ids");
+                H5::DataSpace filespace = dataset_species.getSpace();
+                hsize_t old_dims[2];
+                filespace.getSimpleExtentDims(old_dims);
+
+                hsize_t new_dims[2] = {old_dims[0] + n_steps, old_dims[1]};
+                dataset_species.extend(new_dims);
+
+                filespace = dataset_species.getSpace();
+                hsize_t start[2] = {old_dims[0], 0};
+                hsize_t count[2] = {n_steps, n_ions};
+                H5::DataSpace memspace(2, count);
+                filespace.selectHyperslab(H5S_SELECT_SET, count, start);
+                dataset_species.write(species_ids.data(), str_type, memspace, filespace);
+            } else {
+                hsize_t dims[2] = {n_steps, n_ions};
+                hsize_t max_dims[2] = {H5S_UNLIMITED, n_ions};
+                H5::DataSpace space(2, dims, max_dims);
+                H5::DSetCreatPropList plist;
+                hsize_t chunk[2] = {std::min(n_steps, size_t(100)), n_ions};
+                plist.setChunk(2, chunk);
+                plist.setDeflate(2);
+                dataset_species = traj_group.createDataSet("species_ids", str_type, space, plist);
+                dataset_species.write(species_ids.data(), str_type);
+            }
+        }
+
+        H5Fflush(file.getId(), H5F_SCOPE_GLOBAL);
+        file.close();
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to append trajectory batch (flat SoA): {}", e.getCDetailMsg());
+        throw;
+    }
+}
+
+void HDF5Writer::update_death_times(
+    const std::string& filename,
+    const core::IonEnsemble& final_ensemble
+) {
+    std::vector<double> death_times;
+    death_times.reserve(final_ensemble.size());
+    const auto* death_ptr = final_ensemble.death_time_data();
+    for (size_t i = 0; i < final_ensemble.size(); ++i) {
+        death_times.push_back(death_ptr ? death_ptr[i] : -1.0);
+    }
+    try {
+        H5::H5File file(filename, H5F_ACC_RDWR);
+        H5::Group ion_group = file.openGroup("/ions");
+        hsize_t dims[1] = {death_times.size()};
+        H5::DataSpace space(1, dims);
+        H5::DataSet dataset = ion_group.openDataSet("death_time_s");
+        dataset.write(death_times.data(), H5::PredType::NATIVE_DOUBLE);
+        file.close();
+        log::Logger::hdf5()->debug("Updated death_time_s for {} ions (SoA)", death_times.size());
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to update death times (SoA): {}", e.getCDetailMsg());
         throw;
     }
 }
@@ -513,6 +713,7 @@ void HDF5Writer::write_config_metadata(
 ) {
     H5::Group meta = file.createGroup("/metadata");
     H5::Group cfg_group = meta.createGroup("config");
+    H5::Group physics_group = meta.createGroup("physics");
     
     // === Write format version ===
     write_string(cfg_group, "format_version", "2.0.0");
@@ -528,9 +729,85 @@ void HDF5Writer::write_config_metadata(
     
     write_scalar(cfg_group, "enable_reactions", config.physics.enable_reactions);
     write_scalar(cfg_group, "enable_space_charge", config.physics.enable_space_charge);
+    write_scalar(cfg_group, "enable_space_charge_gpu", config.physics.enable_space_charge_gpu);
     write_scalar(cfg_group, "enable_gpu", config.simulation.enable_gpu);
     
     write_string(cfg_group, "output_file", config.output.trajectory_file);
+
+    // Integrator metadata (useful for reproducibility)
+    H5::Group integrator_group = cfg_group.createGroup("integrator_params");
+    write_string(integrator_group, "name", config.simulation.integrator);
+    if (config.simulation.integrator == "RK45") {
+        // Prefer runtime settings captured from RK45Strategy; fallback to defaults
+        integrator::RK45Strategy::AdaptiveConfig defaults;
+        const auto& rt = config.simulation.rk45_runtime_settings;
+        write_scalar(integrator_group, "rk45_atol", rt ? rt->atol : defaults.atol);
+        write_scalar(integrator_group, "rk45_rtol", rt ? rt->rtol : defaults.rtol);
+        write_scalar(integrator_group, "rk45_safety_factor", rt ? rt->safety_factor : defaults.safety_factor);
+        write_scalar(integrator_group, "rk45_min_step_factor", rt ? rt->min_step_factor : defaults.min_step_factor);
+        write_scalar(integrator_group, "rk45_max_step_factor", rt ? rt->max_step_factor : defaults.max_step_factor);
+        write_scalar(integrator_group, "rk45_min_step_s", rt ? rt->absolute_min_step_s : config.simulation.rk45_min_step_s);
+        write_scalar(integrator_group, "rk45_max_step_increase", rt ? rt->max_step_increase : defaults.max_step_increase);
+        write_scalar(integrator_group, "rk45_max_step_decrease", rt ? rt->max_step_decrease : defaults.max_step_decrease);
+        write_scalar(integrator_group, "rk45_absolute_min_step_s", rt ? rt->absolute_min_step_s : defaults.absolute_min_step_s);
+    }
+    write_scalar(integrator_group, "openmp_enabled", config.simulation.enable_openmp);
+    write_scalar(integrator_group, "gpu_collision_threshold", 5000);
+#ifdef ICARION_USE_GPU
+    write_scalar(integrator_group, "gpu_space_charge_threshold", 1000);
+#else
+    write_scalar(integrator_group, "gpu_space_charge_threshold", 0);
+#endif
+
+    // Derived summary (helps reproducibility without full serialization)
+    H5::Group derived_group = cfg_group.createGroup("derived_summary");
+    write_scalar(derived_group, "num_domains", static_cast<int>(config.domains.size()));
+    write_scalar(derived_group, "num_species_db", static_cast<int>(config.species_db.size()));
+    write_scalar(derived_group, "num_reactions_db", static_cast<int>(config.reaction_db.reactions.size()));
+
+    // Physics handlers
+    write_string(physics_group, "collision_handler", config::EnumMapper::collision_model_to_string(config.physics.collision_model));
+    write_string(physics_group, "reaction_handler", config.physics.enable_reactions ? "StochasticReactionHandler" : "None");
+    write_scalar(physics_group, "reaction_gpu_threshold", 2000);
+    write_scalar(physics_group, "collision_gpu_threshold", 5000);
+    write_string(physics_group, "collision_mixture_limit", "8 (GPU helper)");
+
+    // Embed resolved config JSON if available (prefer in-memory snapshot from FullConfig)
+    try {
+        if (!config.resolved_config_json.empty()) {
+            write_string(cfg_group, "config_json", config.resolved_config_json);
+            log::Logger::hdf5()->debug("Embedded config snapshot from memory");
+        } else {
+            std::filesystem::path out_dir = config.output.folder;
+            std::filesystem::path traj_file = config.output.trajectory_file;
+            std::string base = traj_file.stem().string();
+            if (base.empty()) {
+                base = "config_snapshot";
+            }
+            std::filesystem::path snapshot_path = out_dir / (base + ".config.json");
+            std::ifstream in(snapshot_path);
+            if (!in && !config.config_file_path.empty()) {
+                in.open(config.config_file_path);
+            }
+            if (!in) {
+                if (config.config_file_path.empty()) {
+                    // Tests/alternate entrypoints may not set config_file_path; embed empty with warning
+                    write_string(cfg_group, "config_json", "{}");
+                    log::Logger::hdf5()->warn("Config snapshot not found and no config_file_path set; embedding empty object");
+                    return;
+                }
+                throw std::runtime_error("Config snapshot not found: " + snapshot_path.string());
+            }
+
+            std::ostringstream buffer;
+            buffer << in.rdbuf();
+            write_string(cfg_group, "config_json", buffer.str());
+            log::Logger::hdf5()->debug("Embedded config snapshot: {}", snapshot_path.string());
+        }
+    } catch (const std::exception& e) {
+        log::Logger::hdf5()->error("Failed to embed config snapshot: {}", e.what());
+        throw;
+    }
     
     log::Logger::hdf5()->debug("Wrote config metadata");
 }
@@ -547,6 +824,7 @@ void HDF5Writer::write_reproducibility_metadata(
     write_scalar(repro, "global_seed", config.simulation.rng_seed);
     write_string(repro, "rng_algorithm", "std::mt19937_64");
     write_string(repro, "seed_scheme", "global_seed + ion_index");
+    write_string(repro, "per_ion_rng_scope", "collisions,reactions,stochastic_forces");
     
     // === Git info ===
     write_string(repro, "git_hash", git_hash);
@@ -580,9 +858,14 @@ void HDF5Writer::write_reproducibility_metadata(
     #endif
     
     // === Execution ===
+    bool openmp_enabled = false;
+    int openmp_threads = 1;
     #ifdef _OPENMP
-        write_scalar(repro, "openmp_threads", omp_get_max_threads());
+        openmp_enabled = true;
+        openmp_threads = omp_get_max_threads();
     #endif
+    write_scalar(repro, "openmp_enabled", openmp_enabled);
+    write_scalar(repro, "openmp_threads", openmp_threads);
     
     // === Input file hashes (SHA256) ===
     H5::Group hash_group = repro.createGroup("input_hash");
@@ -601,12 +884,86 @@ void HDF5Writer::write_reproducibility_metadata(
     }
     
     // Species database hash (if external file exists)
-    // Note: FullConfig embeds species data, so this is optional
-    write_string(hash_group, "species_db_sha256", "N/A");
+    if (!config.species_database_path.empty()) {
+        std::string species_hash = utils::sha256_file_safe(config.species_database_path, "N/A");
+        write_string(hash_group, "species_db_sha256", species_hash);
+    } else {
+        write_string(hash_group, "species_db_sha256", "N/A");
+    }
     
     // Reaction database hash (if external file exists)
-    // Note: FullConfig embeds reaction data, so this is optional
-    write_string(hash_group, "reaction_db_sha256", "N/A");
+    if (!config.reaction_database_path.empty()) {
+        std::string reaction_hash = utils::sha256_file_safe(config.reaction_database_path, "N/A");
+        write_string(hash_group, "reaction_db_sha256", reaction_hash);
+    } else {
+        write_string(hash_group, "reaction_db_sha256", "N/A");
+    }
+
+    // Field array hashes (paths from domains)
+    auto field_paths = collect_field_array_paths(config.domains);
+    std::vector<std::string> field_hashes;
+    field_hashes.reserve(field_paths.size());
+    for (const auto& p : field_paths) {
+        field_hashes.push_back(utils::sha256_file_safe(p, "N/A"));
+    }
+    H5::Group field_hash_group = hash_group.createGroup("field_arrays");
+    write_string_vector(field_hash_group, "files", field_paths);
+    write_string_vector(field_hash_group, "sha256", field_hashes);
+
+    // Optional: embed external inputs for maximal reproducibility
+    H5::Group blobs = repro.createGroup("input_blobs");
+    const size_t MAX_EMBED_BYTES = std::numeric_limits<size_t>::max(); // Embed regardless of size
+
+    // Config JSON
+    if (!config.config_file_path.empty()) {
+        auto blob = read_file_if_small(config.config_file_path, MAX_EMBED_BYTES);
+        if (!blob.empty()) {
+            write_string(blobs, "config_json", blob);
+        } else {
+            write_string(blobs, "config_json", "{}");
+        }
+    } else {
+        write_string(blobs, "config_json", "{}");
+    }
+
+    // Species / reaction DBs
+    if (!config.species_database_path.empty()) {
+        auto blob = read_file_if_small(config.species_database_path, MAX_EMBED_BYTES);
+        if (!blob.empty()) {
+            write_string(blobs, "species_db_json", blob);
+        } else {
+            write_string(blobs, "species_db_json", "{}");
+        }
+    } else {
+        write_string(blobs, "species_db_json", "{}");
+    }
+    if (!config.reaction_database_path.empty()) {
+        auto blob = read_file_if_small(config.reaction_database_path, MAX_EMBED_BYTES);
+        if (!blob.empty()) {
+            write_string(blobs, "reaction_db_json", blob);
+        } else {
+            write_string(blobs, "reaction_db_json", "{}");
+        }
+    } else {
+        write_string(blobs, "reaction_db_json", "{}");
+    }
+
+    // Embed field array binaries when small enough
+    H5::Group field_blobs = blobs.createGroup("field_arrays");
+    const auto field_paths_embed = collect_field_array_paths(config.domains);
+    for (size_t i = 0; i < field_paths_embed.size(); ++i) {
+        const auto& path = field_paths_embed[i];
+        auto blob = read_file_if_small(path, MAX_EMBED_BYTES);
+        if (!blob.empty()) {
+            std::string dataset = "blob_" + std::to_string(i);
+            write_blob(field_blobs, dataset, blob);
+            write_string(field_blobs, dataset + "_filename", path);
+        } else {
+            std::string dataset = "blob_" + std::to_string(i);
+            write_string(field_blobs, dataset, "");
+            write_string(field_blobs, dataset + "_filename", path);
+        }
+    }
     
     log::Logger::hdf5()->debug("Wrote reproducibility metadata with file hashes");
 }
@@ -695,40 +1052,40 @@ void HDF5Writer::write_system_metadata(H5::H5File& file) {
 void HDF5Writer::write_species_metadata(
     H5::H5File& file,
     const config::SpeciesDatabase& species_db,
-    const std::vector<IonState>& ions
+    const core::IonEnsemble& ions
 ) {
     if (species_db.size() == 0) {
         log::Logger::hdf5()->warn("No species in database - skipping species metadata");
         return;
     }
-    
-    // Collect unique species IDs from ions (only write species actually used)
+
     std::set<std::string> used_species;
-    for (const auto& ion : ions) {
-        used_species.insert(ion.species_id);
+    const auto* species_pool = ions.species_pool();
+    const auto* idx = ions.species_id_indices();
+    for (size_t i = 0; i < ions.size(); ++i) {
+        used_species.insert((*species_pool)[idx[i]]);
     }
-    
+
     if (used_species.empty()) {
         log::Logger::hdf5()->warn("No ions provided - skipping species metadata");
         return;
     }
-    
+
     H5::Group species_group = file.openGroup("/metadata").createGroup("species");
-    
-    // Collect data into arrays (only for used species)
+
     std::vector<std::string> names;
     std::vector<double> masses_kg;
     std::vector<double> charges_C;
     std::vector<double> mobilities_m2Vs;
     std::vector<double> ccs_m2;
-    
+
     for (const auto& species_name : used_species) {
         auto it = species_db.species.find(species_name);
         if (it == species_db.species.end()) {
             log::Logger::hdf5()->warn("Ion references unknown species '{}' - skipping", species_name);
             continue;
         }
-        
+
         const auto& species = it->second;
         names.push_back(species_name);
         masses_kg.push_back(species.mass_kg);
@@ -736,18 +1093,16 @@ void HDF5Writer::write_species_metadata(
         mobilities_m2Vs.push_back(species.mobility_m2Vs);
         ccs_m2.push_back(species.CCS_m2);
     }
-    
+
     size_t n = names.size();
     if (n == 0) {
         log::Logger::hdf5()->warn("No valid species found - skipping species metadata");
         return;
     }
-    
-    // === Write as datasets (tabular format) ===
+
     hsize_t dims[1] = {n};
     H5::DataSpace space(1, dims);
-    
-    // Names (variable-length strings)
+
     H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
     H5::DataSet ds_names = species_group.createDataSet("names", str_type, space);
     std::vector<const char*> name_ptrs;
@@ -755,86 +1110,67 @@ void HDF5Writer::write_species_metadata(
         name_ptrs.push_back(name.c_str());
     }
     ds_names.write(name_ptrs.data(), str_type);
-    
-    // Numeric data
+
     write_array(species_group, "mass_kg", masses_kg);
     write_array(species_group, "charge_C", charges_C);
     write_array(species_group, "mobility_m2Vs", mobilities_m2Vs);
     write_array(species_group, "ccs_m2", ccs_m2);
-    
+
     log::Logger::hdf5()->info("Wrote {} species to metadata (filtered from {} total)", n, species_db.size());
 }
 
 void HDF5Writer::write_reactions_metadata(
     H5::H5File& file,
     const config::ReactionDatabase& reaction_db,
-    const std::vector<IonState>& ions,
+    const core::IonEnsemble& ions,
     const config::SpeciesDatabase& species_db
 ) {
     if (reaction_db.reactions.empty()) {
         return;
     }
-    
-    // Collect unique species from ions
+
     std::set<std::string> used_species;
-    for (const auto& ion : ions) {
-        used_species.insert(ion.species_id);
+    const auto* species_pool = ions.species_pool();
+    const auto* idx = ions.species_id_indices();
+    for (size_t i = 0; i < ions.size(); ++i) {
+        used_species.insert((*species_pool)[idx[i]]);
     }
-    
-    // Filter reactions: only include if reactant species is present
-    // (product species may be created dynamically, so we don't filter on those)
+
     std::vector<std::string> ids;
     std::vector<std::string> reactant_1;
     std::vector<std::string> reactant_2;
     std::vector<std::string> product_1;
     std::vector<double> rate_constants;
     std::vector<int> types;
-    
+
     for (const auto& rxn : reaction_db.reactions) {
-        // Only include reactions where reactant species is actually present
         if (used_species.count(rxn.reactant) == 0) {
-            continue;  // Skip reactions with unused reactants
+            continue;
         }
-        
+
         ids.push_back(rxn.id);
         reactant_1.push_back(rxn.reactant);
-        reactant_2.push_back("");  // No second reactant in current schema
+        reactant_2.push_back("");
         product_1.push_back(rxn.product);
         rate_constants.push_back(rxn.rate_constant);
-        types.push_back(2);  // Type 2 = two-body reaction (A+ + X -> B+)
+        types.push_back(2);
     }
-    
+
     size_t n = ids.size();
     if (n == 0) {
-        log::Logger::hdf5()->info("No relevant reactions for used species - skipping reactions metadata");
+        log::Logger::hdf5()->warn("No reactions matched used species");
         return;
     }
-    
+
     H5::Group rxn_group = file.openGroup("/metadata").createGroup("reactions");
-    
-    // Write datasets
-    hsize_t dims[1] = {n};
-    H5::DataSpace space(1, dims);
-    H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
-    
-    // Helper lambda for string arrays
-    auto write_str_array = [&](const std::string& name, const std::vector<std::string>& data) {
-        H5::DataSet ds = rxn_group.createDataSet(name, str_type, space);
-        std::vector<const char*> ptrs;
-        for (const auto& s : data) ptrs.push_back(s.c_str());
-        ds.write(ptrs.data(), str_type);
-    };
-    
-    write_str_array("id", ids);
-    write_str_array("reactant_1", reactant_1);
-    write_str_array("reactant_2", reactant_2);
-    write_str_array("product_1", product_1);
-    
-    write_array(rxn_group, "rate_constant", rate_constants);
-    
-    H5::DataSet ds_type = rxn_group.createDataSet("type", H5::PredType::NATIVE_INT, space);
-    ds_type.write(types.data(), H5::PredType::NATIVE_INT);
-    
+    write_string_vector(rxn_group, "id", ids);
+    write_string_vector(rxn_group, "reactant_1", reactant_1);
+    write_string_vector(rxn_group, "reactant_2", reactant_2);
+    write_string_vector(rxn_group, "product_1", product_1);
+    write_array_int(rxn_group, "type", types);
+
+    write_array(rxn_group, "rate_constant_m3s", rate_constants);
+
     log::Logger::hdf5()->info("Wrote {} reactions to metadata (filtered from {} total)", n, reaction_db.reactions.size());
 }
 
@@ -932,6 +1268,7 @@ void HDF5Writer::write_domain(
     write_scalar(dc, "axial_V", get_t0_value(domain.fields.dc.axial_V));
     write_scalar(dc, "EN_Td", get_t0_value(domain.fields.dc.EN_Td));
     write_scalar(dc, "quad_V", get_t0_value(domain.fields.dc.quad_V));
+    write_scalar(dc, "radial_V", get_t0_value(domain.fields.dc.radial_V));
     
     // RF (v1.0: write static value or t=0 evaluation)
     H5::Group rf = fields.createGroup("rf");
@@ -951,24 +1288,23 @@ void HDF5Writer::write_domain(
 
 void HDF5Writer::write_ion_metadata(
     H5::H5File& file,
-    const std::vector<IonState>& ions
+    const core::IonEnsemble& ions
 ) {
     if (ions.empty()) {
         log::Logger::hdf5()->warn("No ions - skipping ion metadata");
         return;
     }
-    
+
     H5::Group ion_group = file.createGroup("/ions");
-    
     size_t n = ions.size();
-    
-    // Collect initial conditions
+
     std::vector<std::string> species_ids;
     std::vector<double> initial_pos_x, initial_pos_y, initial_pos_z;
     std::vector<double> initial_vel_x, initial_vel_y, initial_vel_z;
     std::vector<double> birth_times;
+    std::vector<double> death_times;
     std::vector<double> charges;
-    
+
     species_ids.reserve(n);
     initial_pos_x.reserve(n);
     initial_pos_y.reserve(n);
@@ -977,46 +1313,54 @@ void HDF5Writer::write_ion_metadata(
     initial_vel_y.reserve(n);
     initial_vel_z.reserve(n);
     birth_times.reserve(n);
+    death_times.reserve(n);
     charges.reserve(n);
-    
-    for (const auto& ion : ions) {
-        species_ids.push_back(ion.species_id);
-        initial_pos_x.push_back(ion.pos.x);
-        initial_pos_y.push_back(ion.pos.y);
-        initial_pos_z.push_back(ion.pos.z);
-        initial_vel_x.push_back(ion.vel.x);
-        initial_vel_y.push_back(ion.vel.y);
-        initial_vel_z.push_back(ion.vel.z);
-        birth_times.push_back(ion.birth_time_s);
-        charges.push_back(ion.ion_charge_C);
+
+    const auto* pos_x = ions.pos_x_data();
+    const auto* pos_y = ions.pos_y_data();
+    const auto* pos_z = ions.pos_z_data();
+    const auto* vel_x = ions.vel_x_data();
+    const auto* vel_y = ions.vel_y_data();
+    const auto* vel_z = ions.vel_z_data();
+    const auto* birth = ions.birth_time_data();
+    const auto* death = ions.death_time_data();
+    const auto* charge = ions.charge_data();
+    const auto* species_pool = ions.species_pool();
+    const auto* species_idx = ions.species_id_indices();
+
+    for (size_t i = 0; i < n; ++i) {
+        species_ids.push_back((*species_pool)[species_idx[i]]);
+        initial_pos_x.push_back(pos_x[i]);
+        initial_pos_y.push_back(pos_y[i]);
+        initial_pos_z.push_back(pos_z[i]);
+        initial_vel_x.push_back(vel_x[i]);
+        initial_vel_y.push_back(vel_y[i]);
+        initial_vel_z.push_back(vel_z[i]);
+        birth_times.push_back(birth ? birth[i] : 0.0);
+        death_times.push_back(death ? death[i] : -1.0);
+        charges.push_back(charge[i]);
     }
-    
-    // Write datasets
+
     hsize_t dims[1] = {n};
     H5::DataSpace space(1, dims);
-    
-    // Species IDs (strings)
+
     H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
     H5::DataSet ds_species = ion_group.createDataSet("initial_species_id", str_type, space);
     std::vector<const char*> species_ptrs;
     for (const auto& s : species_ids) species_ptrs.push_back(s.c_str());
     ds_species.write(species_ptrs.data(), str_type);
-    
-    // Positions
+
     write_array(ion_group, "initial_pos_x", initial_pos_x);
     write_array(ion_group, "initial_pos_y", initial_pos_y);
     write_array(ion_group, "initial_pos_z", initial_pos_z);
-    
-    // Velocities
     write_array(ion_group, "initial_vel_x", initial_vel_x);
     write_array(ion_group, "initial_vel_y", initial_vel_y);
     write_array(ion_group, "initial_vel_z", initial_vel_z);
-    
-    // Other
     write_array(ion_group, "birth_time_s", birth_times);
+    write_array(ion_group, "death_time_s", death_times);
     write_array(ion_group, "charge_C", charges);
-    
-    log::Logger::hdf5()->debug("Wrote metadata for {} ions", n);
+
+    log::Logger::hdf5()->debug("Wrote metadata for {} ions (SoA)", n);
 }
 
 // ====================================================================
@@ -1048,11 +1392,42 @@ void HDF5Writer::write_scalar(H5::Group& group, const std::string& name, bool va
     dataset.write(&hval, H5::PredType::NATIVE_HBOOL);
 }
 
+static void write_string_vector(H5::Group& group, const std::string& name, const std::vector<std::string>& data) {
+    if (data.empty()) return;
+    hsize_t dims[2] = {data.size(), 1};
+    H5::DataSpace space(2, dims);
+    H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+    std::vector<const char*> ptrs;
+    ptrs.reserve(data.size());
+    for (const auto& s : data) ptrs.push_back(s.c_str());
+    H5::DataSet ds = group.createDataSet(name, str_type, space);
+    ds.write(ptrs.data(), str_type);
+}
+
+static void write_array_int(H5::Group& group, const std::string& name, const std::vector<int>& data) {
+    if (data.empty()) return;
+    hsize_t dims[1] = {data.size()};
+    H5::DataSpace space(1, dims);
+    H5::DataSet ds = group.createDataSet(name, H5::PredType::NATIVE_INT, space);
+    ds.write(data.data(), H5::PredType::NATIVE_INT);
+}
+
 void HDF5Writer::write_string(H5::Group& group, const std::string& name, const std::string& value) {
     H5::StrType str_type(H5::PredType::C_S1, value.size() + 1);
     H5::DataSpace space(H5S_SCALAR);
     H5::DataSet dataset = group.createDataSet(name, str_type, space);
     dataset.write(value.c_str(), str_type);
+}
+
+void HDF5Writer::write_blob(H5::Group& group, const std::string& name, const std::string& data) {
+    if (data.empty()) {
+        write_string(group, name, "");
+        return;
+    }
+    hsize_t dims[1] = {data.size()};
+    H5::DataSpace space(1, dims);
+    H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_UCHAR, space);
+    dataset.write(data.data(), H5::PredType::NATIVE_UCHAR);
 }
 
 void HDF5Writer::write_array(H5::Group& group, const std::string& name, const std::vector<double>& data) {
@@ -1062,6 +1437,37 @@ void HDF5Writer::write_array(H5::Group& group, const std::string& name, const st
     H5::DataSpace space(1, dims);
     H5::DataSet dataset = group.createDataSet(name, H5::PredType::NATIVE_DOUBLE, space);
     dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE);
+}
+
+static std::vector<std::string> collect_field_array_paths(const std::vector<config::DomainConfig>& domains) {
+    std::vector<std::string> paths;
+    for (const auto& dom : domains) {
+        const auto& fields = dom.fields;
+        if (!fields.legacy_field_array_file.empty()) {
+            paths.push_back(fields.legacy_field_array_file);
+        }
+        for (const auto& term : fields.field_array_terms) {
+            if (!term.file.empty()) {
+                paths.push_back(term.file);
+            }
+        }
+    }
+    return paths;
+}
+
+static std::string read_file_if_small(const std::string& path, size_t max_bytes) {
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    if (!in) return {};
+    std::streamsize size = in.tellg();
+    if (size < 0 || static_cast<size_t>(size) > max_bytes) {
+        return {};
+    }
+    in.seekg(0, std::ios::beg);
+    std::string buffer(static_cast<size_t>(size), '\0');
+    if (in.read(&buffer[0], size)) {
+        return buffer;
+    }
+    return {};
 }
 
 void HDF5Writer::write_vec3(H5::Group& group, const std::string& name, const Vec3& vec) {

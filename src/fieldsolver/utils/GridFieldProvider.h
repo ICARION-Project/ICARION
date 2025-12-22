@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file GridFieldProvider.h
@@ -79,6 +79,17 @@ public:
     double get_phi(const Vec3& pos) const override {
         (void)pos;
         return 0.0;
+    }
+
+    /**
+     * @brief Get underlying FieldArray (for GPU upload)
+     * @return Pointer to FieldArray or nullptr if using FieldSnapshot
+     * 
+     * Used by GPU integration to extract field data for texture upload.
+     * Returns nullptr if provider was constructed from FieldSnapshot.
+     */
+    const FieldArray* get_field_array() const {
+        return fld_;
     }
 
 private:

@@ -3,6 +3,42 @@
 
 # Collision handler tests
 
+# Test: CollisionGeometry (core module - Phase 1)
+add_executable(test_collision_geometry core/test_collision_geometry.cpp)
+target_link_libraries(test_collision_geometry PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_collision_geometry PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME CollisionGeometry COMMAND test_collision_geometry)
+
+# Test: VelocitySampling (core module - Phase 2)
+add_executable(test_velocity_sampling core/test_velocity_sampling.cpp)
+target_link_libraries(test_velocity_sampling PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_velocity_sampling PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME VelocitySampling COMMAND test_velocity_sampling)
+
+# Test: CollisionKernels (core module - Phase 3)
+add_executable(test_collision_kernels core/test_collision_kernels.cpp)
+target_link_libraries(test_collision_kernels PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_collision_kernels PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME CollisionKernels COMMAND test_collision_kernels)
+
 # Test: Collision Handler Factory
 add_executable(test_collision_factory test_collision_factory.cpp)
 target_link_libraries(test_collision_factory PRIVATE
@@ -26,6 +62,16 @@ target_include_directories(test_ehss_collision_handler PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 add_test(NAME EHSSCollisionHandler COMMAND test_ehss_collision_handler)
+
+# Collision diagnostics (GPU only)
+if(ICARION_USE_GPU)
+    add_executable(test_collision_diagnostics test_collision_diagnostics.cpp)
+    target_link_libraries(test_collision_diagnostics PRIVATE icarion_core)
+    target_include_directories(test_collision_diagnostics PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+endif()
 
 # Test: HSS Collision Handler (thermalization)
 add_executable(test_hss_collision_handler test_hss_collision_handler.cpp)
@@ -138,3 +184,86 @@ target_include_directories(test_multi_gas_collision PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 add_test(NAME MultiGasCollision COMMAND test_multi_gas_collision)
+
+# AoS vs SoA parity for collision handlers
+add_executable(test_collision_soa_parity test_collision_soa_parity.cpp)
+target_link_libraries(test_collision_soa_parity PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_collision_soa_parity PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME CollisionSoAParity COMMAND test_collision_soa_parity)
+
+# GPU collision parity test (CPU vs GPU collision results)
+if(ICARION_USE_GPU)
+    add_executable(test_gpu_collision_parity test_gpu_collision_parity.cpp)
+    target_link_libraries(test_gpu_collision_parity PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+    )
+    target_include_directories(test_gpu_collision_parity PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+    add_test(NAME GPUCollisionParity COMMAND test_gpu_collision_parity)
+
+    add_executable(test_gpu_multi_gas_parity test_gpu_multi_gas_parity.cpp)
+    target_link_libraries(test_gpu_multi_gas_parity PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+    )
+    target_include_directories(test_gpu_multi_gas_parity PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+    add_test(NAME GPUMultiGasParity COMMAND test_gpu_multi_gas_parity)
+    
+    # Quick standalone physics test
+    add_executable(test_hss_physics_parity test_hss_physics_parity.cpp)
+    target_link_libraries(test_hss_physics_parity PRIVATE icarion_core)
+    target_include_directories(test_hss_physics_parity PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+    
+    # GPU thermalization convergence test
+    add_executable(test_gpu_thermalization test_gpu_thermalization.cpp)
+    target_link_libraries(test_gpu_thermalization PRIVATE icarion_core)
+    target_include_directories(test_gpu_thermalization PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+endif()
+
+if(ICARION_USE_GPU)
+    add_executable(test_gpu_only_therm test_gpu_only_therm.cpp)
+    target_link_libraries(test_gpu_only_therm PRIVATE icarion_core)
+    target_include_directories(test_gpu_only_therm PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+    
+    add_executable(test_gpu_ehss_thermalization test_gpu_ehss_thermalization.cpp)
+    target_link_libraries(test_gpu_ehss_thermalization PRIVATE icarion_core)
+    target_include_directories(test_gpu_ehss_thermalization PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+
+    add_executable(test_gpu_ehss_mapping test_gpu_ehss_mapping.cpp)
+    target_link_libraries(test_gpu_ehss_mapping PRIVATE icarion_core)
+    target_include_directories(test_gpu_ehss_mapping PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+
+    add_executable(test_gpu_ehss_parity test_gpu_ehss_parity.cpp)
+    target_link_libraries(test_gpu_ehss_parity PRIVATE icarion_core)
+    target_include_directories(test_gpu_ehss_parity PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+endif()

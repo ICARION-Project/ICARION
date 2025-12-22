@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 /**
  * @file test_space_charge_integration.cpp
  * @brief Integration tests for complete space charge pipeline (CIC + Poisson + Field)
@@ -16,20 +19,113 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "core/physics/spacecharge/spaceChargeSolver.h"
-#include "core/physics/forces/SpaceChargeDirect.h"
-#include "core/physics/forces/SpaceChargeGrid.h"
+#include "core/physics/spacecharge/SpaceChargeDirectModel.h"
+#include "core/physics/spacecharge/SpaceChargeGridModel.h"
 #include "core/types/IonState.h"
-#include "core/physics/forces/ForceContext.h"
 #include "utils/constants.h"
+
+#include "core/config/types/CylindricalGeometry.h"
+#include "core/config/types/DomainConfig.h"
+#include "core/types/IonEnsemble.h"
+#include "core/utils/mathUtils.h"
 
 #include <vector>
 #include <cmath>
+#include <limits>
+#include <memory>
 
 using namespace ICARION;
 using namespace ICARION::physics;
 using Catch::Matchers::WithinRel;
 using Catch::Matchers::WithinAbs;
+
+// ====================================================================================
+// TEST CASE 0: Geometry-driven grid parity using new models
+// ====================================================================================
+
+TEST_CASE("SpaceCharge Integration: geometry-aware grid vs direct model",
+          "[spacecharge][integration][geometry]") {
+    config::DomainConfig dom;
+    dom.name = "rotated_cylinder";
+    dom.geometry.length_m = 0.06;
+    dom.geometry.radius_m = 0.008;
+    dom.geometry.end_aperture_m = 0.008;
+    dom.geometry.origin_m = Vec3{0.012, -0.018, 0.01};
+
+    const double theta = M_PI / 4.0; // 45 degrees
+    Mat3 R;
+    R.m[0][0] = std::cos(theta); R.m[0][1] = -std::sin(theta); R.m[0][2] = 0.0;
+    R.m[1][0] = std::sin(theta); R.m[1][1] =  std::cos(theta); R.m[1][2] = 0.0;
+    R.m[2][0] = 0.0;             R.m[2][1] = 0.0;              R.m[2][2] = 1.0;
+    dom.rotation_global_to_local = R;
+    dom.rotation_local_to_global = transpose(R);
+
+    config::CylindricalGeometry geometry(dom);
+
+    std::vector<IonState> ions;
+    ions.reserve(32);
+    for (int ix = 0; ix < 2; ++ix) {
+        for (int iy = 0; iy < 2; ++iy) {
+            for (int iz = 0; iz < 4; ++iz) {
+                Vec3 local_pos{
+                    -0.003 + ix * 0.0025,
+                    -0.002 + iy * 0.0025,
+                    0.002 + iz * 0.01};
+                IonState ion;
+                ion.pos = geometry.local_to_global_pos(local_pos);
+                ion.vel = Vec3{0.0, 0.0, 0.0};
+                ion.ion_charge_C = ELEM_CHARGE_C;
+                ion.mass_kg = AMU_TO_KG;
+                ion.active = true;
+                ion.born = true;
+                ions.push_back(ion);
+            }
+        }
+    }
+
+    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+
+    physics::SpaceChargeDirectModel direct_model(1e-10);
+    direct_model.update_fields(ensemble, 0.0);
+
+    auto geometry_model = std::make_unique<config::CylindricalGeometry>(dom);
+    physics::SpaceChargeGridModel grid_model(dom, std::move(geometry_model), 0.0005, 64);
+    grid_model.update_fields(ensemble, 0.0);
+
+    constexpr double SIGNIFICANCE = 1e-3;
+    double sum_rel_sq = 0.0;
+    size_t rel_count = 0;
+    double max_rel_significant = 0.0;
+    double max_abs_small = 0.0;
+
+    for (size_t i = 0; i < ensemble.size(); ++i) {
+        Vec3 E_direct = direct_model.sample_electric_field(i);
+        Vec3 E_grid = grid_model.sample_electric_field(i);
+        Vec3 diff = E_grid - E_direct;
+
+        double mag_direct = norm(E_direct);
+        double mag_diff = norm(diff);
+
+        if (mag_direct > SIGNIFICANCE) {
+            double rel = mag_diff / std::max(1e-12, mag_direct);
+            max_rel_significant = std::max(max_rel_significant, rel);
+            sum_rel_sq += rel * rel;
+            rel_count++;
+        } else {
+            max_abs_small = std::max(max_abs_small, mag_diff);
+        }
+    }
+    double rms_rel = rel_count > 0 ? std::sqrt(sum_rel_sq / rel_count) : 0.0;
+
+    INFO("Geometry-aware grid parity rms_rel=" << rms_rel
+         << " max_rel(sig)=" << max_rel_significant
+         << " max_abs_small=" << max_abs_small
+         << " rel_count=" << rel_count);
+
+    REQUIRE(max_rel_significant < 0.7);
+    REQUIRE(max_abs_small < 2e-3);
+    REQUIRE(rms_rel < 0.35);
+}
 
 // ====================================================================================
 // TEST CASE 1: Two-ion Coulomb repulsion (Direct vs Grid comparison)
@@ -65,15 +161,14 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
         INFO("Expected: ~2.3e-22 N for two protons at 1mm");
         
         // ----------------------------------------------------------------------
-        // Method 1: Direct Coulomb (SpaceChargeDirect)
+        // Method 1: Direct Coulomb (SpaceChargeDirectModel)
         // ----------------------------------------------------------------------
-        
-        SpaceChargeDirect direct_force(1e-10);  // 0.1nm softening
-        ForceContext ctx_direct;
-        ctx_direct.all_ions = &ions;
-        
-        Vec3 F_direct_ion0 = direct_force.compute(ions[0], 0.0, ctx_direct);
-        Vec3 F_direct_ion1 = direct_force.compute(ions[1], 0.0, ctx_direct);
+        core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+
+        SpaceChargeDirectModel direct_model(1e-10);  // 0.1nm softening
+        direct_model.update_fields(ensemble, 0.0);
+        Vec3 F_direct_ion0 = direct_model.sample_electric_field(0) * ions[0].ion_charge_C;
+        Vec3 F_direct_ion1 = direct_model.sample_electric_field(1) * ions[1].ion_charge_C;
         
         INFO("Direct method:");
         INFO("  F_ion0 = (" << F_direct_ion0.x << ", " << F_direct_ion0.y << ", " << F_direct_ion0.z << ")");
@@ -98,7 +193,7 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
         REQUIRE_THAT(F_direct_mag0, WithinRel(F_analytical, 0.01));  // 1% tolerance (softening)
         
         // ----------------------------------------------------------------------
-        // Method 2: Grid Poisson (SpaceChargeGrid)
+        // Method 2: Grid Poisson (SpaceChargeGridModel)
         // ----------------------------------------------------------------------
         
         // Grid setup: 64³ cells, 4mm domain (±2mm in each direction)
@@ -110,14 +205,15 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
         double dz = domain_size / nz;
         Vec3 grid_origin{-0.002, -0.002, -0.002};  // Center at (0,0,0)
         
-        auto solver = std::make_shared<SpaceChargeSolver>(nx, ny, nz, dx, dy, dz, grid_origin);
-        SpaceChargeGrid grid_force(solver);
-        
-        ForceContext ctx_grid;
-        ctx_grid.all_ions = &ions;
-        
-        Vec3 F_grid_ion0 = grid_force.compute(ions[0], 0.0, ctx_grid);
-        Vec3 F_grid_ion1 = grid_force.compute(ions[1], 0.0, ctx_grid);
+        config::DomainConfig grid_dom;
+        grid_dom.geometry.length_m = domain_size;
+        grid_dom.geometry.radius_m = domain_size;  // cubic approximation
+        grid_dom.geometry.origin_m = grid_origin;
+        auto geometry_model = std::make_unique<config::CylindricalGeometry>(grid_dom);
+        SpaceChargeGridModel grid_model(grid_dom, std::move(geometry_model), dx, nx);
+        grid_model.update_fields(ensemble, 0.0);
+        Vec3 F_grid_ion0 = grid_model.sample_electric_field(0) * ions[0].ion_charge_C;
+        Vec3 F_grid_ion1 = grid_model.sample_electric_field(1) * ions[1].ion_charge_C;
         
         INFO("Grid method:");
         INFO("  F_ion0 = (" << F_grid_ion0.x << ", " << F_grid_ion0.y << ", " << F_grid_ion0.z << ")");
@@ -175,27 +271,28 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
             ions[i].born = true;
         }
         
-        // Direct method
-        SpaceChargeDirect direct_force(1e-10);
-        ForceContext ctx_direct;
-        ctx_direct.all_ions = &ions;
-        
+        core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+
+        // Direct method (model)
+        SpaceChargeDirectModel direct_model(1e-10);
+        direct_model.update_fields(ensemble, 0.0);
         std::vector<Vec3> forces_direct;
-        for (const auto& ion : ions) {
-            forces_direct.push_back(direct_force.compute(ion, 0.0, ctx_direct));
+        for (size_t i = 0; i < ensemble.size(); ++i) {
+            forces_direct.push_back(direct_model.sample_electric_field(i) * ions[i].ion_charge_C);
         }
         
-        // Grid method
-        auto solver = std::make_shared<SpaceChargeSolver>(64, 64, 64, 
-                                                          3e-5, 3e-5, 3e-5,  // 30μm cells
-                                                          Vec3{-0.001, -0.001, -0.001});
-        SpaceChargeGrid grid_force(solver);
-        ForceContext ctx_grid;
-        ctx_grid.all_ions = &ions;
+        // Grid method (model)
+        config::DomainConfig grid_dom;
+        grid_dom.geometry.length_m = 0.002;  // encloses particle cloud
+        grid_dom.geometry.radius_m = 0.002;
+        grid_dom.geometry.origin_m = Vec3{-0.001, -0.001, -0.001};
+        auto geometry_model = std::make_unique<config::CylindricalGeometry>(grid_dom);
+        SpaceChargeGridModel grid_model(grid_dom, std::move(geometry_model), 3e-5, 64);
+        grid_model.update_fields(ensemble, 0.0);
         
         std::vector<Vec3> forces_grid;
-        for (const auto& ion : ions) {
-            forces_grid.push_back(grid_force.compute(ion, 0.0, ctx_grid));
+        for (size_t i = 0; i < ensemble.size(); ++i) {
+            forces_grid.push_back(grid_model.sample_electric_field(i) * ions[i].ion_charge_C);
         }
         
         // Compare forces
@@ -304,13 +401,11 @@ TEST_CASE("SpaceCharge Integration: Force symmetry", "[spacecharge][integration]
         ions[0].born = true;
         ions[1].born = true;
         
-        // Direct method (should be exact)
-        SpaceChargeDirect direct_force(1e-10);
-        ForceContext ctx;
-        ctx.all_ions = &ions;
-        
-        Vec3 F0 = direct_force.compute(ions[0], 0.0, ctx);
-        Vec3 F1 = direct_force.compute(ions[1], 0.0, ctx);
+        core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+        SpaceChargeDirectModel direct_model(1e-10);
+        direct_model.update_fields(ensemble, 0.0);
+        Vec3 F0 = direct_model.sample_electric_field(0) * ions[0].ion_charge_C;
+        Vec3 F1 = direct_model.sample_electric_field(1) * ions[1].ion_charge_C;
         
         // Forces should be equal and opposite
         REQUIRE_THAT(F0.x, WithinAbs(-F1.x, 1e-30));

@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -22,17 +22,9 @@ struct IonOutputData;
 /**
  * @brief Structure-of-Arrays container for ion ensemble
  * 
- * Design philosophy: "Only load what you need"
- * - Hot data (pos, vel, mass, charge) separate from cold data
- * - Cache-line aligned for optimal performance
- * - Zero false-sharing between OpenMP threads
- * - SIMD-friendly contiguous layout
- * 
- * Memory layout:
- * - Hot data: 80 bytes/ion (fits in L2 cache)
- * - Total: ~120 bytes/ion (45% reduction vs AoS)
- * 
- * @see docs/SOA_REFACTORING_PLAN.md for full design rationale
+ * Design philosophy: "only load what you need" by separating hot data (pos/vel/mass/charge)
+ * from colder fields. SIMD-friendly contiguous layout; alignment/footprint depends on STL
+ * implementations and is not guaranteed. Used by CPU integrators; GPU code uses IonStateGPU.
  */
 class IonEnsemble {
 public:
@@ -49,9 +41,19 @@ public:
     /**
      * @brief Convert back to legacy AoS format (for compatibility)
      * @return Vector of IonState structs
-     * @note Used for output and testing. Will be removed in Phase 6.
+     * @note Used for output and testing; no scheduled removal.
      */
     std::vector<IonState> to_legacy() const;
+
+    /**
+     * @brief Retrieve a single legacy IonState snapshot.
+     */
+    IonState ion_state(size_t idx) const;
+
+    /**
+     * @brief Apply a legacy IonState back to the SoA storage.
+     */
+    void apply_ion_state(size_t idx, const IonState& ion);
     
     // === Size management ===
     size_t size() const { return hot_.pos_x.size(); }
@@ -113,7 +115,7 @@ public:
         hot_.vel_z[i] = vel.z;
     }
     
-    // === View access (zero-copy, Phase 2+) ===
+    // === View access (zero-copy helpers) ===
     
     IonKinematics kinematics(size_t i);
     IonCollisionData collision_data(size_t i);
@@ -175,7 +177,7 @@ public:
     size_t memory_footprint() const;
     
     /**
-     * @brief Print cache efficiency statistics
+     * @brief Print memory layout summary (approximate)
      */
     void print_memory_layout() const;
     
@@ -211,10 +213,15 @@ public:
     double CCS(size_t i) const { return cold_.CCS[i]; }
     double mobility(size_t i) const { return cold_.mobility[i]; }
     double birth_time(size_t i) const { return cold_.birth_time[i]; }
+    double death_time(size_t i) const { return cold_.death_time[i]; }
     
     // Cold data (mutable access for SoA processing)
     double* CCS_data() { return cold_.CCS.data(); }
     double* mobility_data() { return cold_.mobility.data(); }
+    double* birth_time_data() { return cold_.birth_time.data(); }
+    double* death_time_data() { return cold_.death_time.data(); }
+    const double* birth_time_data() const { return cold_.birth_time.data(); }
+    const double* death_time_data() const { return cold_.death_time.data(); }
     const std::vector<std::string>* species_pool() const { return &cold_.species_pool; }
     const uint32_t* species_id_indices() const { return cold_.species_id.data(); }
     
@@ -234,6 +241,13 @@ public:
     int history_index(size_t i) const { return output_.history_index[i]; }
     double time(size_t i) const { return output_.t[i]; }
     void set_time(size_t i, double t) { output_.t[i] = t; }
+    void set_death_time(size_t i, double t) { cold_.death_time[i] = t; }
+    double* time_data() { return output_.t.data(); }
+    const double* time_data() const { return output_.t.data(); }
+    const int32_t* domain_index_data() const { return domain_.domain_index.data(); }
+    const double* gas_density_data() const { return domain_.gas_density.data(); }
+    const double* temperature_data() const { return domain_.temperature.data(); }
+    const double* neutral_mass_data() const { return domain_.neutral_mass.data(); }
 
 private:
     /**
@@ -263,6 +277,7 @@ private:
         std::vector<double> mobility;             // 8 bytes
         std::vector<uint32_t> species_id;         // 4 bytes (index into pool)
         std::vector<double> birth_time;           // 8 bytes
+        std::vector<double> death_time;           // 8 bytes (inactive = -1)
         
         // String pool: Deduplicate species names (e.g., "H3O+")
         // Typical: 5-10 unique species for 10k ions
@@ -326,6 +341,8 @@ struct IonKinematics {
     
     void set_pos(const Vec3& p) { pos_x[index]=p.x; pos_y[index]=p.y; pos_z[index]=p.z; }
     void set_vel(const Vec3& v) { vel_x[index]=v.x; vel_y[index]=v.y; vel_z[index]=v.z; }
+    void set_mass(double m) { mass[index] = m; }
+    void set_charge(double q) { charge[index] = q; }
 };
 
 /**
@@ -339,11 +356,16 @@ struct IonCollisionData {
     const double* temperature;
     const double* gas_density;
     const double* neutral_mass;
+    const std::vector<std::string>* species_pool;
+    const uint32_t* species_id_index;
     
     double get_CCS() const { return CCS[kin.index]; }
     double get_temperature() const { return temperature[kin.index]; }
     double get_gas_density() const { return gas_density[kin.index]; }
     double get_neutral_mass() const { return neutral_mass[kin.index]; }
+    const std::string& species_id() const {
+        return (*species_pool)[species_id_index[kin.index]];
+    }
 };
 
 /**
@@ -352,11 +374,31 @@ struct IonCollisionData {
 struct IonReactionData {
     IonKinematics kin;
     const std::vector<std::string>* species_pool;
-    const uint32_t* species_id_index;
+    uint32_t* species_id_index;
+    double* CCS;
+    double* mobility;
+    std::unordered_map<std::string, uint32_t>* species_index;
     
     const std::string& species_id() const { 
         return (*species_pool)[species_id_index[kin.index]]; 
     }
+    void set_species_id(const std::string& id) {
+        auto it = species_index->find(id);
+        uint32_t idx;
+        if (it != species_index->end()) {
+            idx = it->second;
+        } else {
+            idx = static_cast<uint32_t>(species_pool->size());
+            species_index->emplace(id, idx);
+            const_cast<std::vector<std::string>*>(species_pool)->push_back(id);
+        }
+        species_id_index[kin.index] = idx;
+    }
+    void set_species_index(uint32_t idx) { species_id_index[kin.index] = idx; }
+    double get_CCS() const { return CCS[kin.index]; }
+    void set_CCS(double v) { CCS[kin.index] = v; }
+    double get_mobility() const { return mobility[kin.index]; }
+    void set_mobility(double v) { mobility[kin.index] = v; }
 };
 
 /**

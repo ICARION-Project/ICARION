@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "CollisionHandlerFactory.h"
 #include "core/log/Logger.h"
@@ -12,8 +12,10 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
     const GeometryMap* geometry_map,
     double gamma_for_ou,
     bool enable_logging,
-    const config::SpeciesDatabase* species_db
-) {
+    const config::SpeciesDatabase* species_db,
+    bool enable_gpu,
+    unsigned long long gpu_seed,
+    size_t gpu_threshold) {
     using config::CollisionModel;
     
     // Handle stochastic collision models
@@ -35,11 +37,27 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
                 );
             }
             
-            return std::make_unique<EHSSCollisionHandler>(
-                *geometry_map,
+            GeometryMap geometry_copy = *geometry_map;
+            auto cpu_handler = std::make_unique<EHSSCollisionHandler>(
+                std::move(geometry_copy),
                 enable_logging,
                 species_db
             );
+
+#ifdef ICARION_USE_GPU
+            if (enable_gpu) {
+                return std::make_unique<GPUCollisionHandler>(
+                    std::move(cpu_handler),
+                    "EHSS",
+                    geometry_map,
+                    enable_logging,
+                    species_db,
+                    gpu_seed,
+                    gpu_threshold
+                );
+            }
+#endif
+            return cpu_handler;
         }
         
         case CollisionModel::HSS: {
@@ -50,7 +68,21 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
                 );
             }
             
-            return std::make_unique<HSSCollisionHandler>(enable_logging, species_db);
+            auto cpu_handler = std::make_unique<HSSCollisionHandler>(enable_logging, species_db);
+#ifdef ICARION_USE_GPU
+            if (enable_gpu) {
+                return std::make_unique<GPUCollisionHandler>(
+                    std::move(cpu_handler),
+                    "HSS",
+                    nullptr,
+                    enable_logging,
+                    species_db,
+                    gpu_seed,
+                    gpu_threshold
+                );
+            }
+#endif
+            return cpu_handler;
         }
         
         // Deterministic models - use DampingForce for damping

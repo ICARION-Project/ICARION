@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file HSSCollisionHandler.h
@@ -7,7 +7,7 @@
  * 
  * Implements isotropic hard-sphere scattering with random deflection angle.
  * Uses effective collision cross-section (single sphere approximation).
- * Faster than EHSS but less physically accurate for non-spherical molecules.
+ * Faster than EHSS but less accurate for non-spherical molecules.
  * 
  * **Physics:**
  * - Isotropic scattering (random deflection angle in COM frame)
@@ -37,15 +37,7 @@ namespace ICARION::physics {
  * Implements simple isotropic hard-sphere scattering model.
  * Uses effective collision cross-section without molecular geometry.
  * 
- * **Use cases:**
- * - Fast simulations with many ions
- * - Spherical or near-spherical molecules
- * - When geometry data is unavailable
- * 
- * **Performance:**
- * - Much faster than EHSS (no geometry sampling)
- * - O(1) collision detection
- * - Recommended for large ensembles (> 10k ions)
+ * Recommended when geometry is unavailable; geometry-resolved scattering requires EHSS.
  * 
  * **SSOT Pattern:**
  * ```cpp
@@ -71,7 +63,7 @@ public:
                                  const config::SpeciesDatabase* species_db = nullptr);
     
     /**
-     * @brief Handle HSS collision for single timestep
+     * @brief Handle HSS collision for single timestep (SoA)
      * 
      * **Algorithm:**
      * 1. Compute collision probability from mean free path (using ion.CCS_m2)
@@ -95,9 +87,9 @@ public:
      * @return true if collision occurred, false otherwise
      */
     bool handle_collision(
-        IonState& ion,
+        core::IonCollisionData& view,
         double dt,
-        EhssRng& rng,
+        PhysicsRng& rng,
         const config::EnvironmentConfig& env
     ) override;
     
@@ -128,7 +120,6 @@ private:
     const config::SpeciesDatabase* species_db_;
     mutable std::unordered_set<std::string> warned_missing_sigma_;
 
-    bool handle_single_gas(IonState& ion, double dt, EhssRng& rng, const config::EnvironmentConfig& env);
     std::unordered_map<std::string, size_t> collisions_by_species_;
 };
 

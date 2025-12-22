@@ -1,0 +1,68 @@
+{
+  "simulation": {
+    "total_time_s": 2e-3,
+    "dt_s": 1e-8,
+    "write_interval": 1000,
+    "integrator": "RK4",
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "output": {
+    "folder": "results/lqit",
+    "trajectory_file": "lqit_trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "ReserpineH+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0],
+          "std": [0.0005, 0.0005, 0.001]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "LQIT_stable",
+      "instrument": "LQIT",
+      "geometry": {
+        "origin_m": [0.0, 0.0, -0.005],
+        "length_m": 0.01,
+        "radius_m": 0.005
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 0.5,
+        "gas_species": "N2",
+        "_comment": "N2 at 0.5 Pa (3.75 mTorr) - typical LQIT buffer gas pressure"
+      },
+      "fields": {
+        "RF": {
+          "voltage_V": 620.0,
+          "frequency_Hz": 1e6,
+          "phase_rad": 0.0,
+          "_comment": "q = 4*e*V/(m*Ω²*r₀²) = 0.398 for ReserpineH+ (m/z 609) - stable trapping in first stability region"
+        },
+        "DC": {
+          "axial_V": 10.0,
+          "_comment": "Weak DC for axial confinement, a = 8*e*U/(m*Ω²*r₀²) ≈ 0.016"
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    }
+  ]
+}

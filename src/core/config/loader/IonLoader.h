@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -103,7 +103,7 @@ private:
      * @param ion_mass_kg Ion mass [kg]
      * @param rng Random number generator
      * 
-     * Note: For Thermal distribution, directions are ALWAYS random (no directed drift)
+     * Note: For Thermal distribution, directions are isotropic (no directed drift)
      */
     static Vec3 sample_velocity(
         const VelocityConfig& config,

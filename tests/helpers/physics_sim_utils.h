@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -15,11 +15,14 @@
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/physics/forces/DampingForce.h"
 #include "core/physics/collisions/CollisionHandlerFactory.h"
-#include "core/physics/collisions/collisionHelpers.h"
+#include "core/types/CollisionTypes.h"
 #include "core/integrator/SimulationEngine.h"
 #include "core/integrator/strategies/RK4Strategy.h"
+#include "core/types/IonEnsemble.h"
 
 namespace ICARION::tests {
+
+using physics::PhysicsRng;
 
 struct SimpleSimTrace {
     std::vector<double> times;
@@ -114,44 +117,45 @@ inline SimpleSimResult run_simple_simulation(
     if (!capture_trace) {
         // Use full SimulationEngine path for stability and SSOT alignment
         integrator::SimulationEngine engine(cfg, registries, integrator, collision_handler, nullptr);
-        auto final_ions = engine.run(ions);
-        result.ions = std::move(final_ions);
+        auto ensemble = core::IonEnsemble::from_legacy(ions);
+        auto final_ensemble = engine.run(ensemble);
+        result.ions = final_ensemble.to_legacy();
         return result;
     }
 
-    // Manual loop for trace capture (single domain assumption)
+    // Manual loop for trace capture (single domain assumption, SoA)
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
     const auto& dom = cfg.domains.front();
     const double dt = cfg.simulation.dt_s;
     const int total_steps = cfg.simulation.total_steps;
-    EhssRng rng(1337);
+    PhysicsRng rng(1337);
 
     if (total_steps > 0 && total_steps < 10'000'000) {
         result.trace.times.reserve(total_steps + 1);
         result.trace.z_positions.reserve(total_steps + 1);
     }
     result.trace.times.push_back(0.0);
-    result.trace.z_positions.push_back(ions.front().pos.z);
+    result.trace.z_positions.push_back(ensemble.get_pos(0).z);
 
     for (int step = 0; step < total_steps; ++step) {
         // Collisions (stochastic)
         if (collision_handler) {
-            for (auto& ion : ions) {
-                collision_handler->handle_collision(
-                    ion, dt, rng, dom.environment);
+            for (size_t i = 0; i < ensemble.size(); ++i) {
+                auto view = ensemble.collision_data(i);
+                collision_handler->handle_collision(view, dt, rng, dom.environment);
             }
         }
 
-        // Deterministic forces via RK4
-        for (size_t i = 0; i < ions.size(); ++i) {
-            integrator->step(ions[i], step * dt, dt, *registries.front(), ions);
-            ions[i].t += dt;
+        // Deterministic forces via RK4 (SoA)
+        for (size_t i = 0; i < ensemble.size(); ++i) {
+            integrator->step(ensemble, i, step * dt, dt, *registries.front());
         }
 
         result.trace.times.push_back((step + 1) * dt);
-        result.trace.z_positions.push_back(ions.front().pos.z);
+        result.trace.z_positions.push_back(ensemble.get_pos(0).z);
     }
 
-    result.ions = std::move(ions);
+    result.ions = ensemble.to_legacy();
     return result;
 }
 

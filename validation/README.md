@@ -1,37 +1,79 @@
 # ICARION Validation Suite
 
 **Version:** 1.0  
-**Last Updated:** 2025-11-29  
-**Branch:** `feature/validation-suite`  
-**Goal:** Systematic validation of physics and performance after SoA Foundation v1.0
+**Last Updated:** 2025-12-04  
+**Branch:** `release/v1.0-prep`  
+**Goal:** Systematic validation of physics and performance for v1.0 release. The full validation suite ships with this repository and can be executed by any user (no external assets required).
+
+⚠️ **IMPORTANT: Validation Suite vs CTests**
+
+This directory contains **high-fidelity scientific validations** (runtime: up to 30 min).
+
+For fast CI/CD regression tests (<5s), see `tests/` directory (CTests).
+
+| Aspect | CTests (`tests/`) | Validation Suite (`validation/`) |
+|--------|-------------------|----------------------------------|
+| **Purpose** | CI/CD regression testing | Scientific validation for papers |
+| **Runtime** | <5 seconds | Up to 30 minutes |
+| **Ensemble** | 10-100 ions | 1000-10000 ions |
+| **Output** | Pass/Fail | Plots + tables + metrics |
+| **Example** | `test_gas_flow_transport.cpp` | `validate_gas_flow_transport.py` |
 
 ---
 
-## 📊 Overall Progress
+## At a Glance
+
+| Suite | Scope | Configs | Primary Metric | Entry Script | Status |
+|-------|-------|---------|----------------|--------------|--------|
+| Thermalization | Gas thermalization (HSS/EHSS) | 90 | T_final vs target (|Δ|<10%) | `scripts/run_thermalization_tests.sh` | ✅ Complete |
+| Instrument Physics | IMS, Orbitrap, LQIT, Quadrupole, FT-ICR | 187 | Instrument-specific theory checks | `scripts/run_instrument_suite.sh` | ✅ Complete |
+| Transport Physics | Drift/Gas flow/Diffusion | 27 (drift) | K₀ vs Mason-Schamp | `scripts/run_transport_tests.sh` | 🔄 In progress |
+| Space Charge | Coulomb expansion, solver parity | 8 | σ(t), ΔE/E | `scripts/run_spacecharge_tests.sh` | ⏳ Planned |
+| Reaction Kinetics | 1st-order + bimolecular | 6 | N(t) vs rate equations | `scripts/run_reactions_tests.sh` | ⏳ Planned |
+| Performance (CPU) | Scaling + model overhead | 18 | wallclock vs N, model | `scripts/performance/run_performance_suite.sh` | ✅ Complete |
+| Performance (GPU) | Speedup vs CPU, thresholds (runtime-disabled in v1.0) | 31 | GPU/CPU speedup | `scripts/performance/run_performance_suite.sh --gpu-only` | 🚫 Skipped (GPU hard-disabled) |
+
+**How to run (short version):**
+- Single study: `./scripts/run_thermalization_tests.sh full`
+- All instruments: `./scripts/run_instrument_suite.sh`
+- Full physics sweep: `./scripts/run_physics_suite.sh`
+- Performance benchmarks (CPU-only in v1.0): `./scripts/performance/run_performance_suite.sh [--cpu-only]` (GPU path is runtime-disabled)
+- End-to-end: `./scripts/run_all_validation.sh` (chains everything; expects a built `../build/src/icarion_main`)
+
+**Example outputs / metrics:**
+- `validation/figures/combined_drift_validation.png`: IMS drift velocity vs Mason-Schamp (|ΔK₀| ≤ 5% across E/N sweep).
+- `validation/figures/gas_mixture_mobility_validation.png`: Mixture mobility parity (slope ≈ 1.00 vs reference).
+- `validation/figures/mixture_thermalization_validation.png`: Temperature rise to target for mixed gases (|ΔT/T| < 10%).
+- `validation/figures/combined_drift_validation.png` and `validation/logs/COMBINED_DRIFT_VALIDATION.txt`: consolidated drift metrics with per-config errors.
+
+---
+
+## Overall Progress
 
 | Session | Category | Configs | Status | Notes |
 |---------|----------|---------|--------|-------|
-| **1** | **Thermalization** | 90 | ✅ **COMPLETE** | Cold start (0.1K) → target temp, HSS/EHSS validated |
-| **2** | **Instrument Physics** | 187 | ✅ **COMPLETE** | IMS, Orbitrap, LQIT, Quadrupole, FT-ICR validated |
-| **3** | **Transport Physics** | 27 | ✅ **COMPLETE** | Drift velocity = IMS validation (Mason-Schamp) |
-| **4** | **Reactions** | 6 | ✅ **COMPLETE** | First-order (3), bimolecular (3) kinetics |
-| **5** | **Space Charge** | 8 | ✅ **COMPLETE** | Coulomb expansion, Direct vs Grid (N=1000 threshold) |
-| **6** | **Performance** | 18 | ✅ **COMPLETE** | Ion scaling, collision/SC overhead benchmarks |
+| **1** | **Thermalization** | 90 | **COMPLETE** | Cold start (0.1K) → target temp, HSS/EHSS validated |
+| **2** | **Instrument Physics** | 187 | **COMPLETE** | IMS, Orbitrap, LQIT, Quadrupole, FT-ICR validated |
+| **3** | **Transport Physics** | 27 | **COMPLETE** | Drift velocity = IMS validation (Mason-Schamp) |
+| **4** | **Reactions** | 6 | **COMPLETE** | First-order (3), bimolecular (3) kinetics |
+| **5** | **Space Charge** | 8 | **COMPLETE** | Coulomb expansion, Direct vs Grid (N=1000 threshold) |
+| **6** | **Performance** | 18 | **COMPLETE** | CPU: Ion scaling, collision/SC overhead benchmarks |
+| **7** | **GPU Performance** | 31 | 🚫 **SKIPPED** | GPU backend is runtime-disabled in v1.0; keep configs for future re-enable |
+| **8** | **Physics Validations** | 3 | ✅ **NEW** | Gas flow transport (SIFT-MS physics), E=0 validation |
 
-**Completed:** 309 configs total across all validation categories  
-**Status:** Full validation suite ready for execution
 
 ---
 
-## ✅ SESSION 2: INSTRUMENT PHYSICS (Status: ✅ COMPLETE)
+## SESSION 2: INSTRUMENT PHYSICS (Status: COMPLETE)
 
 ### **Completed Tests:**
 
 #### **IMS (Ion Mobility Spectrometry)** - 27 configs
-- Drift velocity validation (3 collision models × 3 E/N values × 3 species)
-- Collision models: HSS, Langevin, Friction
-- Test species: H3O+, PentanalH+, 2,6-DTBPH+
-- E/N range: 50-150 Td
+- Drift velocity validation (3 collision models × 3 E/N values × 3 pressures each)
+- Collision models: HSS, EHSS, Friction
+- Test species: H3O+
+- E/N values: 10, 40, 100 Td
+- pressure values: 10 (only stochastic), 100 Pa, 1000 Pa, 10000 Pa (only Friction)
 - Scripts: `generate_ims_configs.py`, `analyze_ims_drift.py`
 
 #### **Orbitrap** - 5 configs
@@ -127,7 +169,7 @@
 
 ---
 
-## 🔄 SESSION 3: TRANSPORT PHYSICS (Status: 🔄 IN PROGRESS)
+## SESSION 3: TRANSPORT PHYSICS (Status: IN PROGRESS)
 
 ### **Planned Tests:**
 
@@ -221,43 +263,28 @@
 
 ---
 
-## ⏳ SESSION 6: PERFORMANCE BENCHMARKS (Status: ⏳ PLANNED)
+## ✅ SESSION 6: PERFORMANCE BENCHMARKS (Status: ✅ COMPLETE - CPU)
 
-### **Planned Tests:**
+### **CPU Benchmarks (COMPLETE):**
 
 #### **Scaling**
-- Ion count scaling: N = 100, 1k, 10k, 100k
-- OpenMP thread scaling (1-32 threads)
-- GPU vs CPU performance
+- Ion count scaling: N = 100, 1k, 10k, 100k ✅
+- OpenMP thread scaling (1-32 threads) ✅
+- Collision model overhead (HSS, EHSS) ✅
+- Space charge algorithms (direct vs grid) ✅
 
-#### **Integrators**
-- RK4 vs RK45 vs Boris accuracy and speed
-- Adaptive timestep efficiency
-- Energy conservation
-
-#### **Physics Overhead**
-- Collisionless baseline
-- HSS collision overhead
-- EHSS collision overhead
-- Space charge algorithms (direct vs grid)
-
-### **Expected Results:**
-
-| Test | Expected | Notes |
-|------|----------|-------|
-| Ion scaling | O(N) | Linear |
-| OpenMP | Speedup for N>1000 | Overhead for small N |
-| Boris | Fastest for E+B | Energy conserving |
-| HSS overhead | <10% | Simple model |
-| EHSS overhead | ~8x slower | Molecular structure |
-| Grid space charge | O(N log N) | vs O(N²) direct |
-
-### **Known Results:**
+#### **Known Results:**
 
 From thermalization validation:
 - **HSS**: 4.3s for 10,000 ions, 12μs simulation
 - **EHSS**: 34.6s for 10,000 ions, 12μs simulation (8x slower)
 - **Performance ratio**: EHSS/HSS ≈ 8.0
+
+---
+
+## 🚀 SESSION 7: GPU PERFORMANCE BENCHMARKS (Status: 🚫 SKIPPED in v1.0)
+
+GPU backend is compiled but runtime-disabled for v1.0 (any `enable_gpu=true` falls back to CPU). The 31 GPU performance configs and scripts remain in `validation/scripts/performance/` for future releases; skip them for v1.0 validation runs.
 
 ---
 
@@ -279,9 +306,28 @@ From thermalization validation:
 - `scripts/generate_lqit_stability_configs.py` - LQIT stability tests (10 configs)
 - `scripts/generate_lqit_mass_scan_configs.py` - LQIT mass scan suite (4 configs)
 - `scripts/generate_quadrupole_stability_map.py` - Quadrupole (a,q) map (135 configs)
-- `scripts/analyze_quadrupole_stability_map.py` - Stability map analysis
-- `scripts/generate_fticr_configs.py` - FT-ICR cyclotron frequency (5 configs)
-- `scripts/analyze_fticr_frequencies.py` - Cyclotron frequency analysis
+- `scripts/run_instrument_tests.sh` - Unified instrument runner; delegates to bespoke
+    scripts (IMS, Quadrupole) or executes a generic batch loop over
+    `validation/configs/instruments/<instrument>`.
+- `scripts/run_instrument_suite.sh` - Convenience wrapper that sequentially runs
+    `run_instrument_tests.sh` for each instrument (or a subset) with shared
+    `-j/-t/-b/--config-root/--output-root` overrides.
+- `scripts/run_instrument_analysis.sh` - Central analyzer wrapper that reruns all
+    IMS/FTICR/LQIT/Orbitrap/TOF/Quadrupole post-processing in one command (or per
+    instrument via filters).
+- `scripts/run_physics_suite.sh` - Sequential driver for the physics-focused
+    studies (thermalization session runner + gas-flow, combined-drift, mixture
+    mobility/thermalization, and reaction kinetics validations) with shared
+    options (`--python`, `--thermalization-mode`, `--icarion-bin`, target filters).
+- `scripts/run_physics_analysis.sh` - Companion analyzer that locates the latest
+    thermalization/transport/spacecharge/reactions outputs (or accepts explicit
+    `--*-dir` overrides) and replays all post-processing with one command.
+
+🚫 **GPU Performance (Session 7):** GPU backend is runtime-disabled in v1.0; keep configs/scripts for future releases but skip GPU runs and analysis.
+- `scripts/generate_gpu_performance_configs.py` - GPU benchmark suite (31 configs, retained for later)
+- `scripts/performance/run_performance_suite.sh` - CPU benchmark runner (GPU categories skipped in v1.0; logs under `validation/results/v1.0_test/performance/logs`)
+- `scripts/performance/run_performance_analysis.sh` - Stub that skips GPU analysis for v1.0
+- `scripts/analyze_gpu_performance.py` - Speedup analysis (not run in v1.0)
 
 🔄 **Transport (Session 3):**
 - `scripts/generate_transport_drift_configs.py` - Drift velocity vs E/N
@@ -292,8 +338,9 @@ From thermalization validation:
 - `scripts/run_spacecharge_tests.sh` - Coulomb expansion tests
 - `scripts/run_reactions_tests.sh` - Kinetics validation
 
-⏳ **Performance (Session 6):**
-- `scripts/run_performance_tests.sh` - Scaling and overhead benchmarks
+⏳ **Performance (Session 6, CPU-only in v1.0):**
+- `scripts/performance/run_performance_suite.sh` - CPU categories; GPU sections are skipped because runtime GPU is disabled
+- `scripts/performance/run_performance_analysis.sh` - Skips GPU analysis for v1.0
 
 ⏳ **Orchestration:**
 - `scripts/run_all_validation.sh` - Master script for full suite
@@ -320,6 +367,17 @@ validation/
 └── README.md                   # This file
 ```
 
+**Config Policy:** All generators must emit JSON configs under
+`validation/configs/<category>/…`. The legacy `validation/scripts/configs`
+staging folders are deprecated—run scripts and tooling now expect configs in the
+canonical location.
+
+**Results Layout:**
+- `validation/results/instruments/<instrument>/<timestamp>_<tag>/` — instrument sweeps (logs, HDF5, analysis)
+- `validation/results/physics/<suite>/` — standalone physics studies (thermalization, gas flow, reactions, …)
+- `validation/results/performance/` — CPU/GPU benchmark captures
+- `validation/results/v1.0_test/` — frozen v1.0 baseline datasets (read-only)
+
 ---
 
 ## 📝 USAGE
@@ -337,7 +395,74 @@ python3 scripts/final_therm_check.py
 
 # Run full thermalization suite (90 configs)
 ./scripts/run_thermalization_tests.sh full
+
+# Run instrument validation through unified entrypoint
+./scripts/run_instrument_tests.sh ims        # Delegates to IMS runner
+./scripts/run_instrument_tests.sh quadrupole # Delegates to Quadrupole runner
+./scripts/run_instrument_tests.sh orbitrap   # Generic batch mode (no bespoke runner yet)
+
+# Run the entire instrument suite (or a subset) sequentially
+./scripts/run_instrument_suite.sh            # ims, fticr, lqit, orbitrap, tof, quadrupole
+./scripts/run_instrument_suite.sh tof ims    # custom ordering / subset
+./scripts/run_instrument_suite.sh --jobs 4 --threads 8 quadrupole
+
+# Run the consolidated physics validation suite
+./scripts/run_physics_suite.sh                   # thermalization + gas/mixture/reaction studies
+./scripts/run_physics_suite.sh reactions \
+    --thermalization-mode full --dry-run        # preview commands only
+
+# Regenerate all physics analysis plots/tables
+./scripts/run_physics_analysis.sh               # auto-detects latest datasets
+./scripts/run_physics_analysis.sh \
+    --results-root validation/results/physics \
+    --transport-dir /scratch/combined_drift_latest
 ```
+
+`run_instrument_tests.sh` honors `-j/--jobs`, `-t/--threads`, `-b/--binary`,
+`-c/--config-dir`, and `-o/--output-root` when running in generic mode. Each
+session stores stdout/stderr under
+`validation/results/v1.0_test/instruments/<instrument>/run_logs/<timestamp>`.
+
+`run_instrument_suite.sh` wraps the same runner and forwards shared options. Use
+`--config-root` or `--output-root` when you want each instrument to read/write
+from `<root>/<instrument>` instead of the defaults.
+
+`run_physics_suite.sh` chains the existing physics runners in a fixed order
+(thermalization session → gas flow → combined drift → gas mixture mobility →
+mixture thermalization → reactions). Use positional filters or `--list` to pick
+specific targets, `--thermalization-mode` to switch between quick/subset/full,
+and `--icarion-bin` when you need a custom simulator path (forwarded to the
+reaction harness). Set `--dry-run` to inspect the commands without launching
+anything.
+
+`run_physics_analysis.sh` mirrors the analyzer wrapper experience: it searches
+the standard locations for each dataset (or respects the per-analysis
+`--*-dir` overrides) and replays thermalization/transport/spacecharge/reaction
+post-processing with a single command. Provide `--results-root` to prepend a
+custom search location (e.g., scratch storage) before the defaults.
+
+### **Instrument Analysis:**
+
+Use the centralized analyzer wrapper after simulations finish to regenerate the
+plots/tables for every instrument study (or a filtered subset):
+
+```bash
+# Rebuild every IMS/FTICR/LQIT/Orbitrap/TOF/Quadrupole figure in one go
+./scripts/run_instrument_analysis.sh
+
+# Example: only IMS drift + FTICR, using custom Python interpreter
+PYTHON_BIN=/opt/conda/bin/python \
+    ./scripts/run_instrument_analysis.sh ims-drift fticr
+
+# Discover available analyzer keys
+./scripts/run_instrument_analysis.sh --list
+```
+
+The script automatically searches `validation/results/instruments/` first, then
+falls back to the frozen `validation/results/v1.0_test/instruments/` baselines
+(and finally the legacy top-level `results/` mirror) so old datasets continue to
+work. Provide `--results-root <dir>` if you stored outputs elsewhere.
+
 
 ### **Test Modes:**
 
@@ -388,4 +513,3 @@ python3 scripts/analyze_transport_drift.py
 
 **Last updated:** 2025-11-29  
 **Status:** Sessions 1-2 complete ✅ (277 configs), Session 3 (Transport) starting 🔄
-

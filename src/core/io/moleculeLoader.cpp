@@ -1,21 +1,5 @@
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        MoleculeLoader.cpp
- *   @brief       Implementation of molecular geometry loader
- *
- *   @date        2025-11-09
- *   @version     1.0.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "core/io/moleculeLoader.h"
 

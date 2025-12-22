@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 /**
  * @file hdf5Writer.h
  * @brief Modern HDF5 writer using FullConfig
@@ -11,10 +14,11 @@
 #pragma once
 
 #include "core/config/types/FullConfig.h"
-#include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include <H5Cpp.h>
 #include <vector>
 #include <string>
+#include <cstdint>
 
 namespace ICARION::io {
 
@@ -44,7 +48,7 @@ public:
     static void create_file(
         const std::string& filename,
         const config::FullConfig& config,
-        const std::vector<IonState>& ions,
+        const core::IonEnsemble& ions,
         const std::string& git_hash,
         const std::string& build_info
     );
@@ -63,7 +67,7 @@ public:
     static void append_trajectory(
         const std::string& filename,
         double time,
-        const std::vector<IonState>& ions
+        const core::IonEnsemble& ions
     );
     
     /**
@@ -80,7 +84,48 @@ public:
     static void append_trajectory_batch(
         const std::string& filename,
         const std::vector<double>& times,
-        const std::vector<std::vector<IonState>>& trajectories
+        const std::vector<core::IonEnsemble>& trajectories
+    );
+
+    /**
+     * @brief Append multiple trajectory snapshots using flattened buffers (SoA)
+     *
+     * @param filename HDF5 file to append to
+     * @param times Vector of simulation times [s] (size = n_steps)
+     * @param n_ions Number of ions per step (constant across steps)
+     * @param positions Flattened positions [n_steps * n_ions * 3]
+     * @param velocities Flattened velocities [n_steps * n_ions * 3]
+     * @param domain_indices Flattened domain indices [n_steps * n_ions]
+     * @param species_indices Flattened species pool indices [n_steps * n_ions]
+     *
+     * Faster path for buffered SoA output without IonEnsemble copies.
+     * Species indices correspond to the pool written in /ions/.
+     */
+    static void append_trajectory_batch_flat(
+        const std::string& filename,
+        const std::vector<double>& times,
+        size_t n_ions,
+        const std::vector<double>& positions,
+        const std::vector<double>& velocities,
+        const std::vector<int>& domain_indices,
+        const std::vector<uint32_t>& species_indices,
+        const std::vector<std::string>* species_pool = nullptr,
+        const std::vector<double>& per_ion_times = {}
+    );
+    
+    /**
+     * @brief Update death_time_s dataset with final ion states
+     * 
+     * @param filename HDF5 file to update
+     * @param final_ions Final ion states at end of simulation
+     * 
+     * Called before finalize() to ensure death_time_s reflects
+     * boundary absorption times. Initial write in write_ion_metadata()
+     * sets all to -1 (alive). This updates with actual death times.
+     */
+    static void update_death_times(
+        const std::string& filename,
+        const core::IonEnsemble& final_ensemble
     );
     
     /**
@@ -139,7 +184,7 @@ private:
     static void write_species_metadata(
         H5::H5File& file,
         const config::SpeciesDatabase& species_db,
-        const std::vector<IonState>& ions
+        const core::IonEnsemble& ions
     );
     
     /**
@@ -151,7 +196,7 @@ private:
     static void write_reactions_metadata(
         H5::H5File& file,
         const config::ReactionDatabase& reaction_db,
-        const std::vector<IonState>& ions,
+        const core::IonEnsemble& ions,
         const config::SpeciesDatabase& species_db
     );
     
@@ -205,7 +250,7 @@ private:
      */
     static void write_ion_metadata(
         H5::H5File& file,
-        const std::vector<IonState>& ions
+        const core::IonEnsemble& ions
     );
     
     // === Helpers ===
@@ -215,6 +260,7 @@ private:
     static void write_scalar(H5::Group& group, const std::string& name, unsigned int value);
     static void write_scalar(H5::Group& group, const std::string& name, bool value);
     static void write_string(H5::Group& group, const std::string& name, const std::string& value);
+    static void write_blob(H5::Group& group, const std::string& name, const std::string& data);
     static void write_array(H5::Group& group, const std::string& name, const std::vector<double>& data);
     static void write_vec3(H5::Group& group, const std::string& name, const Vec3& vec);
 };

@@ -1,0 +1,316 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+
+/**
+ * @file test_gpu_field_interpolation.cpp
+ * @brief Tests for GPU field interpolation and integration with fields
+ */
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+
+#ifdef ICARION_USE_GPU
+
+#include "core/gpu/GPUContext.h"
+#include "core/gpu/FieldArrayGPU.h"
+#include "core/gpu/integrate_rk4_batch.cuh"
+#include "utils/IonState_GPU.h"
+#include "core/types/IonState.h"
+#include <cmath>
+#include <vector>
+#include <memory>
+
+using namespace icarion::gpu;
+using namespace ICARION::core;
+using Catch::Approx;
+
+/**
+ * Test 1: Uniform electric field - constant acceleration
+ * 
+ * Ion in uniform E-field should have constant acceleration a = qE/m
+ */
+TEST_CASE("GPU field interpolation: Uniform electric field", "[gpu][fields]") {
+    // Skip if GPU not available
+    if (!GPUContext::is_available()) {
+        SKIP("GPU not available");
+    }
+    
+    auto context = std::make_unique<GPUContext>();
+    // Create uniform E-field: Ex=1000 V/m, Ey=Ez=0
+    int nx = 10, ny = 10, nz = 10;
+    size_t grid_size = nx * ny * nz;
+    
+    std::vector<double> Ex(grid_size, 1000.0);  // 1000 V/m
+    std::vector<double> Ey(grid_size, 0.0);
+    std::vector<double> Ez(grid_size, 0.0);
+    
+    // Grid spans [0,1]m in each dimension
+    Vec3 origin(0.0, 0.0, 0.0);
+    Vec3 spacing(0.1, 0.1, 0.1);  // 10 points -> 9 intervals -> spacing = 1/9 ≈ 0.111
+    
+    // Upload E-field to GPU
+    FieldArrayGPU fields{};
+    upload_E_field(Ex.data(), Ey.data(), Ez.data(), nx, ny, nz, origin, spacing, fields);
+    
+    // Create test ion at center: H+ ion, initially at rest
+    std::vector<IonState> ions_cpu(1);
+    ions_cpu[0].position = Vec3(0.5, 0.5, 0.5);  // Center of grid
+    ions_cpu[0].velocity = Vec3(0.0, 0.0, 0.0);
+    ions_cpu[0].ion_mass_amu = 1.0;
+    ions_cpu[0].ion_charge_C = 1.602176634e-19;  // +1e
+    ions_cpu[0].active = true;
+    ions_cpu[0].species_id = 1;
+    ions_cpu[0].domain_id = 0;
+    
+    // Upload to GPU
+    IonStateGPU ions_gpu_in, ions_gpu_out;
+    upload_ions(ions_cpu, ions_gpu_in);
+    allocate_ion_state_gpu(ions_gpu_out, 1);
+    
+    // Integrate for dt=1e-6 s
+    double dt = 1e-6;
+    integrate_rk4_batch_with_fields(ions_gpu_in, ions_gpu_out, fields, dt);
+    
+    // Download result
+    std::vector<IonState> ions_result(1);
+    download_ions(ions_gpu_out, ions_result);
+    
+    // Verify: a = qE/m = (1.602e-19 * 1000) / (1.0 * 1.66054e-27) = 9.65e7 m/s²
+    double mass_kg = 1.0 * 1.66054e-27;
+    double charge_C = 1.602176634e-19;
+    double E_field = 1000.0;
+    double expected_accel = (charge_C * E_field) / mass_kg;
+    double expected_vx = expected_accel * dt;
+    double expected_x = 0.5 + 0.5 * expected_accel * dt * dt;  // x0 + 0.5*a*t²
+    
+    REQUIRE(ions_result[0].velocity.x == Approx(expected_vx).margin(1e-3))
+        << "Velocity after uniform E-field acceleration";
+    REQUIRE(ions_result[0].position.x == Approx(expected_x).margin(1e-9))
+        << "Position after uniform E-field acceleration";
+    REQUIRE(ions_result[0].velocity.y == Approx(0.0).margin(1e-12));
+    REQUIRE(ions_result[0].velocity.z == Approx(0.0).margin(1e-12));
+    
+    // Cleanup
+    free_ion_state_gpu(ions_gpu_in);
+    free_ion_state_gpu(ions_gpu_out);
+    free_field_array_gpu(fields);
+}
+
+/**
+ * Test 2: Uniform magnetic field - circular motion
+ * 
+ * Ion in uniform B-field should undergo circular motion (cyclotron)
+ * Radius: r = mv / (qB)
+ * Frequency: f = qB / (2πm)
+ */
+TEST_CASE("GPU field interpolation: Uniform magnetic field", "[gpu][fields]") {
+    if (!GPUContext::is_available()) {
+        SKIP("GPU not available");
+    }
+    
+    auto context = std::make_unique<GPUContext>();
+    // Create uniform B-field: Bz=0.1 T, Bx=By=0
+    int nx = 10, ny = 10, nz = 10;
+    size_t grid_size = nx * ny * nz;
+    
+    std::vector<double> Bx(grid_size, 0.0);
+    std::vector<double> By(grid_size, 0.0);
+    std::vector<double> Bz(grid_size, 0.1);  // 0.1 Tesla
+    
+    Vec3 origin(0.0, 0.0, 0.0);
+    Vec3 spacing(0.1, 0.1, 0.1);
+    
+    // Upload B-field to GPU
+    FieldArrayGPU fields{};
+    upload_B_field(Bx.data(), By.data(), Bz.data(), nx, ny, nz, origin, spacing, fields);
+    
+    // Create H+ ion moving in xy-plane
+    std::vector<IonState> ions_cpu(1);
+    ions_cpu[0].position = Vec3(0.5, 0.5, 0.5);
+    ions_cpu[0].velocity = Vec3(1000.0, 0.0, 0.0);  // 1000 m/s in +x
+    ions_cpu[0].ion_mass_amu = 1.0;
+    ions_cpu[0].ion_charge_C = 1.602176634e-19;
+    ions_cpu[0].active = true;
+    ions_cpu[0].species_id = 1;
+    ions_cpu[0].domain_id = 0;
+    
+    IonStateGPU ions_gpu_in, ions_gpu_out;
+    upload_ions(ions_cpu, ions_gpu_in);
+    allocate_ion_state_gpu(ions_gpu_out, 1);
+    
+    // Calculate expected cyclotron radius
+    double mass_kg = 1.0 * 1.66054e-27;
+    double charge_C = 1.602176634e-19;
+    double v0 = 1000.0;
+    double B = 0.1;
+    double expected_radius = (mass_kg * v0) / (charge_C * B);
+    // r ≈ 1.036e-4 m = 0.1 mm
+    
+    // Integrate for 1/4 of cyclotron period (should rotate 90°)
+    double omega_c = (charge_C * B) / mass_kg;  // Cyclotron frequency
+    double T_cyclotron = 2.0 * M_PI / omega_c;
+    double dt = T_cyclotron / 4.0;  // Quarter period
+    
+    integrate_rk4_batch_with_fields(ions_gpu_in, ions_gpu_out, fields, dt);
+    
+    std::vector<IonState> ions_result(1);
+    download_ions(ions_gpu_out, ions_result);
+    
+    // After 90° rotation:
+    // - Should be moving in +y direction (vx≈0, vy≈v0)
+    // - Should have moved by ~r in +x and ~r in +y from center
+    // Note: Position is relative to starting at (0.5, 0.5, 0.5)
+    
+    REQUIRE(ions_result[0].velocity.x == Approx(0.0).margin(v0 * 0.01))  // Within 1%
+        << "Vx after 90° rotation in B-field";
+    REQUIRE(ions_result[0].velocity.y == Approx(v0).margin(v0 * 0.01))   // Within 1%
+        << "Vy after 90° rotation in B-field";
+    REQUIRE(ions_result[0].velocity.z == Approx(0.0).margin(1e-6))
+        << "Vz should remain zero";
+    
+    // Speed should be conserved (magnetic force does no work)
+    double speed = std::sqrt(
+        ions_result[0].velocity.x * ions_result[0].velocity.x +
+        ions_result[0].velocity.y * ions_result[0].velocity.y +
+        ions_result[0].velocity.z * ions_result[0].velocity.z
+    );
+    REQUIRE(speed == Approx(v0).margin(v0 * 0.001))  // Within 0.1%
+        << "Speed should be conserved in pure B-field";
+    
+    free_ion_state_gpu(ions_gpu_in);
+    free_ion_state_gpu(ions_gpu_out);
+    free_field_array_gpu(fields);
+}
+
+/**
+ * Test 3: Crossed E and B fields - E×B drift
+ * 
+ * Ion in crossed E and B fields should drift with velocity v_drift = E×B / B²
+ */
+TEST_CASE("GPU field interpolation: Crossed E and B fields", "[gpu][fields]") {
+    if (!GPUContext::is_available()) {
+        SKIP("GPU not available");
+    }
+    
+    auto context = std::make_unique<GPUContext>();
+    int nx = 10, ny = 10, nz = 10;
+    size_t grid_size = nx * ny * nz;
+    
+    // E = (1000, 0, 0) V/m
+    // B = (0, 0, 0.1) T
+    // E×B drift velocity = E×B/B² = (0, 1000, 0) / 0.01 = (0, 100000, 0) m/s
+    std::vector<double> Ex(grid_size, 1000.0);
+    std::vector<double> Ey(grid_size, 0.0);
+    std::vector<double> Ez(grid_size, 0.0);
+    std::vector<double> Bx(grid_size, 0.0);
+    std::vector<double> By(grid_size, 0.0);
+    std::vector<double> Bz(grid_size, 0.1);
+    
+    Vec3 origin(0.0, 0.0, 0.0);
+    Vec3 spacing(0.1, 0.1, 0.1);
+    
+    FieldArrayGPU fields{};
+    upload_E_field(Ex.data(), Ey.data(), Ez.data(), nx, ny, nz, origin, spacing, fields);
+    upload_B_field(Bx.data(), By.data(), Bz.data(), nx, ny, nz, origin, spacing, fields);
+    
+    // Start ion at rest
+    std::vector<IonState> ions_cpu(1);
+    ions_cpu[0].position = Vec3(0.5, 0.5, 0.5);
+    ions_cpu[0].velocity = Vec3(0.0, 0.0, 0.0);
+    ions_cpu[0].ion_mass_amu = 1.0;
+    ions_cpu[0].ion_charge_C = 1.602176634e-19;
+    ions_cpu[0].active = true;
+    ions_cpu[0].species_id = 1;
+    ions_cpu[0].domain_id = 0;
+    
+    IonStateGPU ions_gpu_in, ions_gpu_out;
+    upload_ions(ions_cpu, ions_gpu_in);
+    allocate_ion_state_gpu(ions_gpu_out, 1);
+    
+    // Integrate for multiple timesteps to establish drift
+    double dt = 1e-8;
+    int n_steps = 100;
+    
+    for (int step = 0; step < n_steps; ++step) {
+        if (step > 0) {
+            // Swap buffers
+            std::swap(ions_gpu_in, ions_gpu_out);
+        }
+        integrate_rk4_batch_with_fields(ions_gpu_in, ions_gpu_out, fields, dt);
+    }
+    
+    std::vector<IonState> ions_result(1);
+    download_ions(ions_gpu_out, ions_result);
+    
+    // After gyration settles, should drift in +y direction
+    // (E×B)/B² = (1000*0.1)/0.01 = 10000 m/s in +y
+    double expected_drift_vy = 10000.0;
+    double total_time = dt * n_steps;
+    double expected_dy = expected_drift_vy * total_time;
+    
+    // Check that ion has drifted in +y direction
+    REQUIRE(ions_result[0].position.y > 0.5)
+        << "Ion should drift in +y direction (E×B drift)";
+    
+    free_ion_state_gpu(ions_gpu_in);
+    free_ion_state_gpu(ions_gpu_out);
+    free_field_array_gpu(fields);
+}
+
+/**
+ * Test 4: Out-of-bounds handling
+ * 
+ * Interpolation should return zero field outside grid bounds
+ */
+TEST_CASE("GPU field interpolation: Out of bounds handling", "[gpu][fields]") {
+    if (!GPUContext::is_available()) {
+        SKIP("GPU not available");
+    }
+    
+    auto context = std::make_unique<GPUContext>();
+    int nx = 5, ny = 5, nz = 5;
+    size_t grid_size = nx * ny * nz;
+    
+    std::vector<double> Ex(grid_size, 1000.0);
+    std::vector<double> Ey(grid_size, 0.0);
+    std::vector<double> Ez(grid_size, 0.0);
+    
+    // Grid spans [0, 0.4] m
+    Vec3 origin(0.0, 0.0, 0.0);
+    Vec3 spacing(0.1, 0.1, 0.1);
+    
+    FieldArrayGPU fields{};
+    upload_E_field(Ex.data(), Ey.data(), Ez.data(), nx, ny, nz, origin, spacing, fields);
+    
+    // Place ion outside grid at x=1.0 m (grid ends at 0.4 m)
+    std::vector<IonState> ions_cpu(1);
+    ions_cpu[0].position = Vec3(1.0, 0.2, 0.2);  // Outside grid
+    ions_cpu[0].velocity = Vec3(0.0, 0.0, 0.0);
+    ions_cpu[0].ion_mass_amu = 1.0;
+    ions_cpu[0].ion_charge_C = 1.602176634e-19;
+    ions_cpu[0].active = true;
+    ions_cpu[0].species_id = 1;
+    ions_cpu[0].domain_id = 0;
+    
+    IonStateGPU ions_gpu_in, ions_gpu_out;
+    upload_ions(ions_cpu, ions_gpu_in);
+    allocate_ion_state_gpu(ions_gpu_out, 1);
+    
+    double dt = 1e-6;
+    integrate_rk4_batch_with_fields(ions_gpu_in, ions_gpu_out, fields, dt);
+    
+    std::vector<IonState> ions_result(1);
+    download_ions(ions_gpu_out, ions_result);
+    
+    // Ion should not accelerate (zero field outside grid)
+    REQUIRE(ions_result[0].velocity.x == Approx(0.0).margin(1e-12));
+    REQUIRE(ions_result[0].velocity.y == Approx(0.0).margin(1e-12));
+    REQUIRE(ions_result[0].velocity.z == Approx(0.0).margin(1e-12));
+    REQUIRE(ions_result[0].position.x == Approx(1.0).margin(1e-12));
+    
+    free_ion_state_gpu(ions_gpu_in);
+    free_ion_state_gpu(ions_gpu_out);
+    free_field_array_gpu(fields);
+}
+
+#endif // ICARION_USE_GPU

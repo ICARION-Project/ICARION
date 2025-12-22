@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "ConfigOverride.h"
 #include "../conversion/EnumMapper.h"
@@ -34,6 +34,9 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         else if (key == "simulation.integrator") {
             config.simulation.integrator = value;
         }
+        else if (key == "simulation.rk45_min_step_s") {
+            config.simulation.rk45_min_step_s = parse_double(value, key);
+        }
         else if (key == "simulation.enable_gpu") {
             config.simulation.enable_gpu = parse_bool(value, key);
         }
@@ -50,6 +53,9 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         }
         else if (key == "physics.enable_space_charge") {
             config.physics.enable_space_charge = parse_bool(value, key);
+        }
+        else if (key == "physics.enable_space_charge_gpu") {
+            config.physics.enable_space_charge_gpu = parse_bool(value, key);
         }
         else if (key == "physics.enable_ou_thermalization") {
             config.physics.enable_ou_thermalization = parse_bool(value, key);

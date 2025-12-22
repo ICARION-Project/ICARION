@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file test_hss_collision_handler.cpp
@@ -11,6 +11,7 @@
 
 #include "core/physics/collisions/HSSCollisionHandler.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "utils/constants.h"
 #include <catch2/catch_test_macros.hpp>
@@ -21,6 +22,18 @@ using namespace ICARION::physics;
 using namespace ICARION::config;
 using namespace ICARION::core;
 using Catch::Approx;
+
+static bool run_collision(HSSCollisionHandler& handler,
+                          IonState& ion,
+                          double dt,
+                          PhysicsRng& rng,
+                          const EnvironmentConfig& env) {
+    auto ens = IonEnsemble::from_legacy({ion});
+    auto view = ens.collision_data(0);
+    bool res = handler.handle_collision(view, dt, rng, env);
+    ion.vel = view.kin.vel();
+    return res;
+}
 
 // Helper: Calculate kinetic energy from velocity
 double kinetic_energy_eV(const Vec3& vel, double mass_kg) {
@@ -81,11 +94,11 @@ TEST_CASE("HSSCollisionHandler: Thermalization of H3O+", "[collision][hss][therm
         ion.vel = Vec3{v_init, 0.0, 0.0};
         
         // Use different RNG seed for each ion
-        EhssRng rng(42 + ion_idx);
+        PhysicsRng rng(42 + ion_idx);
         
         int collision_count = 0;
         for (int i = 0; i < N_STEPS; ++i) {
-            bool collided = handler.handle_collision(ion, dt, rng, env);
+            bool collided = run_collision(handler, ion, dt, rng, env);
             if (collided) collision_count++;
         }
         
@@ -160,10 +173,10 @@ TEST_CASE("HSSCollisionHandler: Thermalization from high energy", "[collision][h
         double v_init2 = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;
         sum_v2_initial += v_init2;
         
-        EhssRng rng(123 + ion_idx);
+        PhysicsRng rng(123 + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
-            handler.handle_collision(ion, dt, rng, env);
+            run_collision(handler, ion, dt, rng, env);
         }
         
         double v_final2 = ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;
@@ -223,10 +236,10 @@ TEST_CASE("HSSCollisionHandler: Isotropic velocity distribution", "[collision][h
         ion.pos = Vec3{0.0, 0.0, 0.0};
         ion.vel = Vec3{1000.0, 0.0, 0.0};  // Start with directed velocity
         
-        EhssRng rng(999 + ion_idx);
+        PhysicsRng rng(999 + ion_idx);
         
         for (int i = 0; i < N_STEPS; ++i) {
-            handler.handle_collision(ion, dt, rng, env);
+            run_collision(handler, ion, dt, rng, env);
         }
         
         total_vx2 += ion.vel.x * ion.vel.x;

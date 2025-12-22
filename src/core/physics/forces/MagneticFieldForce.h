@@ -1,12 +1,13 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file MagneticFieldForce.h
  * @brief Magnetic field force (Lorentz force) implementation
  * 
  * Computes Lorentz magnetic force F = q·(v × B) for ions in magnetic fields.
- * Supports both uniform fields and field providers (grid-based, gradient fields).
+ * Supports uniform/gradient fields from config or a field provider. Field providers
+ * must supply B via the shared interface (see note below).
  */
 
 #pragma once
@@ -15,6 +16,7 @@
 #include "ForceContext.h"
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 
 #include <memory>
 
@@ -90,7 +92,11 @@ public:
      * 
      * Uses field provider if available, otherwise analytical formula.
      */
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;
+    Vec3 compute(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                 const ForceContext& ctx) const override;
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override;
     
     /**
      * @brief Get force name

@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include <iostream>
 #include <filesystem>
@@ -9,19 +9,19 @@ int main() {
     using namespace ICARION::config;
     
     try {
-        // Test 0: Load config WITHOUT database paths (should use fallback)
-        std::cout << "=== Test 0: IMS with Fallback Databases ===\n";
-        std::filesystem::path config_path0 = "/home/chsch95/ICARION/examples/ims_with_fallback_db.json";
+        // Test 0: Load basic IMS config (existing file)
+        std::cout << "=== Test 0: Basic IMS Configuration ===\n";
+        std::filesystem::path config_path0 = "/home/chsch95/ICARION/examples/ims/ims_basic.json";
         auto config0 = ConfigLoader::load(config_path0);
         
         std::cout << "✓ Config loaded successfully\n";
         std::cout << "  - Domains: " << config0.domains.size() << "\n";
-        std::cout << "  - Species: " << config0.species_db.size() << " (loaded from global fallback)\n";
-        std::cout << "  - Reactions: " << config0.reaction_db.size() << " (loaded from global fallback)\n";
+        std::cout << "  - Species: " << config0.species_db.size() << "\n";
+        std::cout << "  - Reactions: " << config0.reaction_db.size() << "\n";
         
-        // Test 1: Load config with species database
-        std::cout << "\n=== Test 1: IMS with Species Database ===\n";
-        std::filesystem::path config_path1 = "/home/chsch95/ICARION/examples/ims_with_species_db.json";
+        // Test 1: Load config with multi-gas mixture
+        std::cout << "\n=== Test 1: IMS with Multi-Gas Mixture ===\n";
+        std::filesystem::path config_path1 = "/home/chsch95/ICARION/examples/ims/ims_multi_gas_air.json";
         auto config1 = ConfigLoader::load(config_path1);
         
         std::cout << "✓ Config loaded successfully\n";
@@ -41,7 +41,7 @@ int main() {
         
         // Test 2: Load config with reactions
         std::cout << "\n=== Test 2: Reaction Demo ===\n";
-        std::filesystem::path config_path2 = "/home/chsch95/ICARION/examples/reaction_demo.json";
+        std::filesystem::path config_path2 = "/home/chsch95/ICARION/examples/reactions/reaction_demo.json";
         auto config2 = ConfigLoader::load(config_path2);
         
         std::cout << "✓ Config loaded successfully\n";

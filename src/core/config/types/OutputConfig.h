@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #ifndef ICARION_CONFIG_OUTPUT_CONFIG_H
 #define ICARION_CONFIG_OUTPUT_CONFIG_H
@@ -23,6 +23,7 @@ struct OutputConfig {
     
     // === Output control ===
     bool print_progress = true;                 ///< Print simulation progress
+    size_t buffer_byte_cap = 0;                 ///< Optional memory cap for trajectory buffer (bytes, 0=disabled)
     
     // Future extensions:
     // bool save_reactions = false;

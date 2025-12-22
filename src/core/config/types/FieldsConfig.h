@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #ifndef ICARION_CONFIG_FIELDS_CONFIG_H
 #define ICARION_CONFIG_FIELDS_CONFIG_H
@@ -19,16 +19,16 @@ namespace ICARION::config {
  * @brief DC field configuration
  * 
  * Supports both voltage specification and field strength (Townsend).
- * v1.0: Voltages now support time-varying waveforms.
+ * Voltages support time-varying waveforms.
  */
 struct DCFieldConfig {
     // === Direct voltage specification (v1.0: static or waveform) ===
-    ValueOrWaveform axial_V;            ///< Axial DC voltage [V]
-    ValueOrWaveform quad_V;             ///< Quadrupole DC voltage [V]
-    ValueOrWaveform radial_V;           ///< Radial DC voltage [V]
+    ValueOrWaveform axial_V{0.0};       ///< Axial DC voltage [V]
+    ValueOrWaveform quad_V{0.0};        ///< Quadrupole DC voltage [V]
+    ValueOrWaveform radial_V{0.0};      ///< Radial DC voltage [V]
     
     // === Field strength specification (alternative to voltage) ===
-    ValueOrWaveform EN_Td;              ///< Reduced field strength [Td]
+    ValueOrWaveform EN_Td{0.0};         ///< Reduced field strength [Td]
     double EN_Vm2 = 0.0;                ///< E/N [V·m²] (computed from EN_Td)
     
     /**
@@ -45,11 +45,11 @@ struct DCFieldConfig {
 /**
  * @brief RF field configuration
  * 
- * v1.0: Voltage and frequency support time-varying waveforms (chirps, modulation).
+ * Voltage and frequency support time-varying waveforms (chirps, modulation).
  */
 struct RFFieldConfig {
-    ValueOrWaveform voltage_V;          ///< RF amplitude [V] (0-to-peak, static or waveform)
-    ValueOrWaveform frequency_Hz;       ///< RF frequency [Hz] (static or waveform)
+    ValueOrWaveform voltage_V{0.0};     ///< RF amplitude [V] (0-to-peak, static or waveform)
+    ValueOrWaveform frequency_Hz{0.0};  ///< RF frequency [Hz] (static or waveform)
     double phase_rad = 0.0;             ///< Initial phase [rad]
     
     // Derived (computed after load, only valid for static frequency)
@@ -92,11 +92,11 @@ struct RFFieldConfig {
 /**
  * @brief AC excitation field configuration (primarily for LQIT)
  * 
- * v1.0: Voltage and frequency support time-varying waveforms.
+ * Voltage and frequency support time-varying waveforms.
  */
 struct ACFieldConfig {
-    ValueOrWaveform voltage_V;          ///< AC amplitude [V] (static or waveform)
-    ValueOrWaveform frequency_Hz;       ///< AC frequency [Hz] (static or waveform)
+    ValueOrWaveform voltage_V{0.0};     ///< AC amplitude [V] (static or waveform)
+    ValueOrWaveform frequency_Hz{0.0};  ///< AC frequency [Hz] (static or waveform)
     
     // Derived (only valid for static frequency)
     double angular_frequency_rad_s = 0.0;  ///< ω = 2π·f [rad/s] (static only)

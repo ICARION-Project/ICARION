@@ -1,0 +1,72 @@
+{
+  "title": "Ion-Molecule Reactions: H3O+ + Pentanal → PentanalH+",
+  "simulation": {
+    "integrator": "RK4",
+    "dt_s": 1e-9,
+    "total_time_s": 5e-4,
+    "write_interval": 500,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false,
+    "enable_reactions": true
+  },
+  "output": {
+    "folder": "results/reaction_demo",
+    "trajectory_file": "reaction_demo_trajectory.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "reaction_cell",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 200.0,
+        "gases": [
+          {
+            "species": "He",
+            "mole_fraction": 0.999,
+            "participates_in_reactions": false,
+            "participates_in_collisions": true,
+          },
+          {
+            "species": "Pentanal",
+            "mole_fraction": 0.001,
+            "participates_in_reactions": true,
+            "participates_in_collisions": false
+          }
+        ]
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 0.0,
+          "axial_V": 0.0
+        }
+      }
+    }
+  ]
+}

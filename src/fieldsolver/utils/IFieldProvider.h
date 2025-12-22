@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file IFieldProvider.h
@@ -38,6 +38,21 @@ public:
      * May use interpolation (grid-based) or direct calculation (BEM).
      */
     virtual Vec3 get_E(const Vec3& pos) const = 0;
+    
+    /**
+     * @brief Evaluate time-dependent electric field at given position
+     * @param pos Position [m] in simulation domain
+     * @param t Current simulation time [s]
+     * @return Electric field E [V/m] at position and time
+     * 
+     * Optional method for time-varying fields (RF modulation, time-varying voltages).
+     * Default implementation ignores time and calls get_E(pos).
+     * Override in derived classes for true time-dependent fields.
+     */
+    virtual Vec3 get_E(const Vec3& pos, double t) const {
+        (void)t;
+        return get_E(pos);
+    }
     
     /**
      * @brief Evaluate electric potential at given position

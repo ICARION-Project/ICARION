@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file minimal_magnetic_force.cpp
@@ -27,6 +27,7 @@
 #include "core/physics/forces/MagneticFieldForce.h"
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include "core/config/types/FieldsConfig.h"
 #include <iostream>
 #include <iomanip>
@@ -54,7 +55,10 @@ void test_lorentz_force_perpendicular() {
     ion.ion_charge_C = 1.602e-19;      // +e
     ion.mass_kg = 100 * 1.66e-27;      // 100 u
     
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    ICARION::core::IonEnsemble ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F = force.compute(ens, 0, 0.0, ctx);
     
     // Expected: F = q(v × B)
     // v × B = (1000, 0, 0) × (0, 0, 1) = (0, 1000, 0) [using right-hand rule]
@@ -107,7 +111,9 @@ void test_lorentz_force_parallel() {
     ion.ion_charge_C = 1.602e-19;
     ion.mass_kg = 100 * 1.66e-27;
     
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    Vec3 F = force.compute(ens, 0, 0.0, ctx);
     
     std::cout << std::scientific << std::setprecision(6);
     std::cout << "Magnetic field: B = (0, 0, " << mag_config.field_strength_T.z << ") T\n";
@@ -141,7 +147,9 @@ void test_cyclotron_radius() {
     ion.ion_charge_C = 1.602e-19;      // Proton charge
     ion.mass_kg = 1.67e-27;            // Proton mass
     
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    ens = ICARION::core::IonEnsemble::from_legacy({ion});
+    ctx.ion_ensemble = &ens;
+    Vec3 F = force.compute(ens, 0, 0.0, ctx);
     
     // Cyclotron radius: r_c = m·v/(q·B)
     const double v_perp = ion.vel.x;  // Perpendicular velocity component

@@ -1,10 +1,14 @@
-[
-  {
-    "species_id": "H3O+",
-    "mass_amu": 19.02,
-    "charge": 1,
-    "position_m": [0.001, 0.0, 0.0],
-    "velocity_ms": [0.0, 0.0, 0.0],
-    "count": 1000
-  }
-]
+{
+  "_comment": "Pre-generated ion cloud with individual ion positions and velocities",
+  "_format": "This format is for from_file loading: each ion has species, pos, vel, birth_time",
+  "_note": "For generating ions with distributions, use inline 'species' array with count/position/velocity types",
+  
+  "ions": [
+    {
+      "species": "H3O+",
+      "pos": [0.0, 0.0, 0.001],
+      "vel": [0.0, 0.0, 100.0],
+      "birth_time": 0.0
+    }
+  ]
+}

@@ -1,22 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   Modern Structured Logging System
- *
- *   @file        Logger.h
- *   @brief       Category-based logging with spdlog backend
- *
- *   @date        2025-11-21
- *   @version     1.0.0
- *   @author      ICARION Development Team
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
@@ -40,7 +23,7 @@ namespace log {
  * - Automatic category-based loggers (config, integrator, hdf5, etc.)
  * - Console + File output (configurable)
  * - JSON format option for automated analysis
- * - Zero overhead when disabled (compile-time checks)
+ * - Low overhead when disabled (compile-time checks on LOG_TIMER/LOG_DEBUG_IF)
  * - Thread-safe
  * - Rotating log files (prevents disk filling)
  * 
@@ -178,7 +161,7 @@ private:
 /**
  * @brief Macro for zero-overhead performance timing
  * 
- * In Release builds (NDEBUG defined), this is a complete no-op.
+ * In Release builds (NDEBUG defined), this is a no-op.
  * In Debug builds, creates a Timer that auto-logs on scope exit.
  * 
  * @code

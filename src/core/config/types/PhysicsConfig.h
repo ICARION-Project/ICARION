@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #ifndef ICARION_CONFIG_PHYSICS_CONFIG_H
 #define ICARION_CONFIG_PHYSICS_CONFIG_H
@@ -23,6 +23,7 @@ struct PhysicsConfig {
     // === Feature flags ===
     bool enable_reactions = false;
     bool enable_space_charge = false;
+    bool enable_space_charge_gpu = false;
     
     // === Thermalization ===
     bool enable_ou_thermalization = false;

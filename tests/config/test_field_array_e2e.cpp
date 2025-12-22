@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 /**
  * End-to-end tests for field array loading and scaling.
  * 

@@ -20,3 +20,8 @@ add_subdirectory(physics)
 add_subdirectory(integrator)
 add_subdirectory(integration)
 add_subdirectory(instruments)
+
+# GPU tests (if GPU acceleration enabled)
+if(USE_GPU_ACCEL)
+    add_subdirectory(gpu)
+endif()

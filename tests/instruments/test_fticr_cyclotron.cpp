@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: MIT
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 // FTICR cyclotron frequency validation tests
 // Test that ions rotate at correct cyclotron frequency: f_c = q·B / (2π·m)
 

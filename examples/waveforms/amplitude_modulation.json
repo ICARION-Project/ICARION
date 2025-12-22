@@ -16,15 +16,32 @@
   },
   
   "output": {
-    "folder": "./results/waveform_amplitude_modulation",
+    "folder": "./results/waveform_outputs",
     "trajectory_file": "trajectories.h5",
     "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0],
+          "std": [0.001, 0.001, 0.0005]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
   },
   
   "domains": [
     {
       "name": "modulated_ac_region",
-      "instrument": "NoFixedInstrument",
+      "instrument": "LQIT",
       "geometry": {
         "origin_m": [0.0, 0.0, 0.0],
         "length_m": 0.05,
@@ -39,12 +56,15 @@
         "AC": {
           "voltage_V": {
             "type": "sinusoidal",
-            "offset": 250.0,
-            "amplitude": 50.0,
+            "offset": 50.0,
+            "amplitude": 10.0,
             "frequency_Hz": 100.0,
             "phase_rad": 0.0
           },
-          "frequency_Hz": 1000000.0
+          "frequency_Hz": 2000000.0
+        },
+        "DC": {
+          "axial_V": 20.0
         }
       }
     }

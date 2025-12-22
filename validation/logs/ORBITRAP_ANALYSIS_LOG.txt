@@ -1,0 +1,60 @@
+
+================================================================================
+ICARION v1.0 - ORBITRAP VALIDATION ANALYSIS LOG
+================================================================================
+Generated: December 4, 2025
+Test Suite: Orbitrap Mass Analyzer
+Configurations: 5 tests total
+
+SUMMARY:
+✅ ALL TESTS PASSED (5/5)
+✅ Frequency accuracy: <0.15% for all species
+✅ Mass scaling: f ∝ 1/√m validated (<0.21% error)
+✅ 100% ion retention over millisecond timescales
+
+DETAILED RESULTS:
+
+1. SINGLE SPECIES TESTS (4 tests):
+   - H₃O⁺ (19u):      f_error = -0.14% 
+   - PentanalH⁺ (87u): f_error = -0.11% 
+   - CaffeineH⁺ (195u): f_error = +0.09% 
+   - ReserpineH⁺ (609u): f_error = -0.08% 
+
+2. MULTI-SPECIES TEST (1 test):
+   - 151 ions total: all stable
+   - No cross-species interference
+   - Frequency separation maintained
+
+3. MASS SCALING VALIDATION:
+   - H₃O⁺/PentanalH⁺: Scaling error = +0.05% 
+   - PentanalH⁺/CaffeineH⁺: Scaling error = +0.21% 
+   - CaffeineH⁺/ReserpineH⁺: Scaling error = +0.01% 
+
+CRITICAL BUG FIXED:
+- Analysis script used incomplete k formula
+- Missing term: -0.5·(r_out² - r_in²) in denominator
+- Impact: 13% systematic frequency error
+- Solution: Corrected to match ElectricFieldForce.cpp implementation
+- Validation: Error reduced to <0.15%
+
+FIELD IMPLEMENTATION:
+ Hyperlogarithmic potential: V(r,z) = k/2·(z² - r²/2)
+ Force calculation: F_r = kr, F_z = -kz  
+ Field parameter k correctly computed
+ Geometry boundaries properly handled
+
+PHYSICS VALIDATION:
+ Axial frequency: ω = √(k/m) accurate to <0.15%
+ Radial motion stable (no losses to outer electrode)
+ Mass-independent geometry (r_char = 22mm)
+ Kinetic energy injection working correctly
+
+PERFORMANCE:
+- Ion retention: 100% over 1ms simulation
+- Frequency resolution: <0.1% measurement precision
+- Computational efficiency: 151 ions in <5 min
+- Memory usage: <500 MB per test
+
+CONCLUSION:
+Orbitrap implementation validates fundamental electrostatic trapping physics.
+Frequency measurements suitable for high-resolution mass spectrometry.

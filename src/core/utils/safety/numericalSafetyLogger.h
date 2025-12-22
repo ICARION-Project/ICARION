@@ -1,24 +1,9 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #ifndef ICARION_NUMERICAL_SAFETY_LOGGER_H
 #define ICARION_NUMERICAL_SAFETY_LOGGER_H
 
-/**
- * @file numericalSafetyLogger.h
- * @brief Comprehensive logging system for numerical safety violations and rejected steps
- * 
- * This module provides detailed logging capabilities for:
- * - NaN/Inf detection events with ion state information
- * - Bounds violation tracking with spatial/velocity analysis
- * - Rejected integration step logging with step size evolution
- * - Performance impact analysis of safety checks
- * - Statistical summary of numerical issues across simulations
- * 
- * Part of ICARION Core v1.0++ numerical safety framework
- * Supports both CPU-optimized and GPU-enabled execution paths
- * 
- * @author ICARION Core Development Team
- * @version 1.0++
- * @date 2024
- */
 
 #include <fstream>
 #include <string>
@@ -99,15 +84,10 @@ struct SafetyStatistics {
 };
 
 /**
- * @brief High-performance numerical safety logger with minimal overhead
+ * @brief Numerical safety logger with buffered writes (debug use)
  * 
- * Features:
- * - Lock-free fast path for performance-critical sections
- * - Buffered writes to minimize I/O overhead
- * - Configurable detail levels (minimal/standard/verbose)
- * - Statistical analysis and reporting
- * - Thread-safe operation for multi-threaded simulations
- * - Integration with existing ICARION logging infrastructure
+ * Buffered logging and basic statistics for debugging safety issues. Not intended
+ * for performance-critical production runs.
  */
 class NumericalSafetyLogger {
 private:

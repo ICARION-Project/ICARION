@@ -1,3 +1,6 @@
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
+
 #include "core/io/fieldWriter.h"
 #include <H5Cpp.h>
 #include <iostream>

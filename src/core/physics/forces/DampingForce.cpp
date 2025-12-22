@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "DampingForce.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/config/types/SpeciesConfig.h"
+#include "core/config/types/DomainConfig.h"
 #include "core/log/Logger.h"
 #include "utils/constants.h"
 
@@ -34,24 +35,41 @@ DampingForce::DampingForce(
 // IForce Interface Implementation
 // ============================================================================
 
-Vec3 DampingForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
+Vec3 DampingForce::compute(const core::IonEnsemble& ensemble, size_t ion_idx, double t,
+                           const ForceContext& ctx) const {
+    ForceState state{};
+    state.pos = ensemble.get_pos(ion_idx);
+    state.vel = ensemble.get_vel(ion_idx);
+    state.mass_kg = ensemble.mass_data()[ion_idx];
+    state.ion_charge_C = ensemble.charge_data()[ion_idx];
+    state.CCS_m2 = ensemble.CCS(ion_idx);
+    state.reduced_mobility_cm2_Vs = ensemble.mobility(ion_idx);
+    state.species_id = ensemble.species_id(ion_idx);
+    state.active = ensemble.active_data()[ion_idx] != 0;
+    state.born = ensemble.born_data()[ion_idx] != 0;
+    state.current_domain_index = ensemble.domain_index(ion_idx);
+    state.birth_time_s = ensemble.birth_time(ion_idx);
+    state.ensemble_index = ion_idx;
+
+    return compute_soa(state, t, ctx);
+}
+
+Vec3 DampingForce::compute_soa(const ForceState& state, double t,
+                               const ForceContext& ctx) const {
     (void)t;  // Time-independent (deterministic damping)
-    
+
     if (model_ == DampingModel::None) {
         return Vec3{0.0, 0.0, 0.0};
     }
-    
-    // Calculate damping coefficient γ [1/s]
+
+    IonState ion = state.to_ion_state();
+
     double gamma = calculate_gamma(ion, ctx);
-    
+
     if (gamma <= 0.0) {
         return Vec3{0.0, 0.0, 0.0};
     }
-    
-    // Damping force: F = -γ·m·v [N]
-    // For Friction: γ = q/(K·m) → F = -q/K·v (legacy-compatible)
-    // For HSS/Langevin: γ = collision_rate → F = -γ·m·v
-    // (Note: Force, not acceleration - will be divided by mass in integrator)
+
     return ion.vel * (-gamma * ion.mass_kg);
 }
 
@@ -136,7 +154,11 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
                 return 0.0;  // Missing parameters
             }
             const double K0_m2_Vs = K0_cm2_Vs * 1e-4;
-            
+            const double N_ratio = LOSCHMIDT_CONSTANT / gas_density;
+            // Temperature correction (Mason-Schamp): K ∝ sqrt(T0 / T)
+            const double teff_scale = std::sqrt(STP_TEMP / std::max(env_->temperature_K, 1.0));
+            const double K0_teff_m2_Vs = K0_m2_Vs * teff_scale;
+
             // DEBUG: Print what we're actually using
             static bool debug_once = false;
             if (!debug_once) {
@@ -209,7 +231,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
                     // Heuristic scaling: mobility ∝ 1/σ · sqrt(m_ref / m_gas)
                     double scale_sigma = sigma_ref / sigma_i;
                     double scale_mass = std::sqrt(env_->gas_mass_kg / comp.mass_kg);
-                    double Ki = K0_m2_Vs * scale_sigma * scale_mass * LOSCHMIDT_CONSTANT / gas_density;
+                    double Ki = K0_teff_m2_Vs * scale_sigma * scale_mass * N_ratio;
                     if (Ki <= 0.0) {
                         continue;
                     }
@@ -223,7 +245,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             }
 
             // Single-gas fallback: K = K₀·(n₀/n)
-            const double ion_mobility = K0_m2_Vs * LOSCHMIDT_CONSTANT / gas_density;
+            const double ion_mobility = K0_teff_m2_Vs * N_ratio;
             const double gamma_result = q / (ion_mobility * m_ion);
             
             // DEBUG: Print calculated values

@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file test_collision_energy_conservation.cpp
@@ -11,11 +11,16 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include "core/physics/collisions/collisionHelpers.h"
+#include "core/physics/collisions/core/CollisionKernels.h"
+#include "core/physics/collisions/core/VelocitySampling.h"
+#include "core/types/CollisionTypes.h"
 #include "utils/constants.h"
 #include <cmath>
 
 using namespace ICARION;
+using namespace ICARION::physics::collision_core;
+using ICARION::physics::PhysicsRng;
+using ICARION::physics::EHSSParams;
 using Catch::Matchers::WithinRel;
 using Catch::Matchers::WithinAbs;
 
@@ -40,21 +45,25 @@ TEST_CASE("Hard-sphere collision conserves total energy", "[collision][energy][c
     p.n = 1e20;  // m^-3
     p.dt = 1e-9;
     
-    EhssRng rng(42);
+    PhysicsRng rng(42);
     
     SECTION("Single collision with thermal neutral") {
         // Ion moving fast
         Vec3 v_ion_before{1000.0, 0.0, 0.0};
         
         // Sample neutral from thermal distribution
-        Vec3 v_neutral_before = sample_neutral_velocity(p, rng);
+        Vec3 v_neutral_before = VelocitySampling::sample_neutral_velocity(
+            p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng
+        );
         
         // Calculate energy before collision
         double E_before = kinetic_energy_J(v_ion_before, p.mi) + 
                          kinetic_energy_J(v_neutral_before, p.mn);
         
         // Apply collision
-        Vec3 v_ion_after = collide_hs_cpu(v_ion_before, v_neutral_before, p, rng);
+        Vec3 v_ion_after = CollisionKernels::hss_collision(
+            v_ion_before, v_neutral_before, p.mi, p.mn, rng
+        );
         
         // Calculate neutral velocity after (from momentum conservation)
         Vec3 momentum_before = v_ion_before * p.mi + v_neutral_before * p.mn;
@@ -78,12 +87,16 @@ TEST_CASE("Hard-sphere collision conserves total energy", "[collision][energy][c
             Vec3 v_ion{rng.uniform01() * 2000 - 1000, 
                       rng.uniform01() * 2000 - 1000,
                       rng.uniform01() * 2000 - 1000};
-            Vec3 v_neutral = sample_neutral_velocity(p, rng);
+            Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(
+                p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng
+            );
             
             double E_before = kinetic_energy_J(v_ion, p.mi) + 
                              kinetic_energy_J(v_neutral, p.mn);
             
-            Vec3 v_ion_after = collide_hs_cpu(v_ion, v_neutral, p, rng);
+            Vec3 v_ion_after = CollisionKernels::hss_collision(
+                v_ion, v_neutral, p.mi, p.mn, rng
+            );
             
             Vec3 momentum = v_ion * p.mi + v_neutral * p.mn;
             Vec3 v_neutral_after = (momentum - v_ion_after * p.mi) * (1.0 / p.mn);
@@ -105,7 +118,9 @@ TEST_CASE("Hard-sphere collision conserves total energy", "[collision][energy][c
         
         Vec3 p_before = v_ion * p.mi + v_neutral * p.mn;
         
-        Vec3 v_ion_after = collide_hs_cpu(v_ion, v_neutral, p, rng);
+        Vec3 v_ion_after = CollisionKernels::hss_collision(
+            v_ion, v_neutral, p.mi, p.mn, rng
+        );
         Vec3 v_neutral_after = (p_before - v_ion_after * p.mi) * (1.0 / p.mn);
         
         Vec3 p_after = v_ion_after * p.mi + v_neutral_after * p.mn;
@@ -140,7 +155,7 @@ TEST_CASE("EHSS collision with geometry conserves energy", "[collision][energy][
     };
     std::vector<double> radii = {1.2e-10, 1.1e-10, 1.1e-10, 1.1e-10};
     
-    EhssRng rng(123);
+    PhysicsRng rng(123);
     
     SECTION("EHSS geometry collision conserves energy") {
         int N_trials = 100;
@@ -150,13 +165,16 @@ TEST_CASE("EHSS collision with geometry conserves energy", "[collision][energy][
             Vec3 v_ion{rng.uniform01() * 1000, 
                       rng.uniform01() * 1000,
                       rng.uniform01() * 1000};
-            Vec3 v_neutral = sample_neutral_velocity(p, rng);
+            Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(
+                p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng
+            );
             
             double E_before = kinetic_energy_J(v_ion, p.mi) + 
                              kinetic_energy_J(v_neutral, p.mn);
             
-            Vec3 v_ion_after = collide_ehss_cpu_geometry_given_neutral(
-                v_ion, v_neutral, p, centers, radii, rng
+            double ion_radius = std::sqrt(p.sigma_eff / M_PI);
+            Vec3 v_ion_after = CollisionKernels::ehss_collision(
+                v_ion, v_neutral, p.mi, p.mn, ion_radius, centers, radii, rng
             );
             
             Vec3 momentum = v_ion * p.mi + v_neutral * p.mn;
@@ -248,12 +266,12 @@ TEST_CASE("Thermalization to correct equilibrium validates collision physics", "
         #pragma omp parallel for reduction(+:sum_E_final)
         for (int ion_idx = 0; ion_idx < N_IONS; ++ion_idx) {
             Vec3 v_ion{3000.0, 0.0, 0.0};  // Start with high energy
-            EhssRng rng(1000 + ion_idx);
+            PhysicsRng rng(1000 + ion_idx);
             
             // Apply many collisions with properly sampled thermal neutrals
             for (int i = 0; i < N_COLLISIONS; ++i) {
-                Vec3 v_neutral = sample_neutral_velocity(p, rng);
-                v_ion = collide_hs_cpu(v_ion, v_neutral, p, rng);
+                Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng);
+                v_ion = CollisionKernels::hss_collision(v_ion, v_neutral, p.mi, p.mn, rng);
             }
             
             double E_final = kinetic_energy_J(v_ion, p.mi);
@@ -293,11 +311,11 @@ TEST_CASE("Thermalization to correct equilibrium validates collision physics", "
         #pragma omp parallel for reduction(+:sum_E_final)
         for (int ion_idx = 0; ion_idx < N_IONS; ++ion_idx) {
             Vec3 v_ion{2500.0, 0.0, 0.0};
-            EhssRng rng(2000 + ion_idx);
+            PhysicsRng rng(2000 + ion_idx);
             
             for (int i = 0; i < N_COLLISIONS; ++i) {
-                Vec3 v_neutral = sample_neutral_velocity(p, rng);
-                v_ion = collide_hs_cpu(v_ion, v_neutral, p, rng);
+                Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng);
+                v_ion = CollisionKernels::hss_collision(v_ion, v_neutral, p.mi, p.mn, rng);
             }
             
             double E_final = kinetic_energy_J(v_ion, p.mi);
@@ -332,11 +350,11 @@ TEST_CASE("Thermalization to correct equilibrium validates collision physics", "
         #pragma omp parallel for reduction(+:sum_E_final)
         for (int ion_idx = 0; ion_idx < N_IONS; ++ion_idx) {
             Vec3 v_ion{2000.0, 0.0, 0.0};
-            EhssRng rng(3000 + ion_idx);
+            PhysicsRng rng(3000 + ion_idx);
             
             for (int i = 0; i < N_COLLISIONS; ++i) {
-                Vec3 v_neutral = sample_neutral_velocity(p, rng);
-                v_ion = collide_hs_cpu(v_ion, v_neutral, p, rng);
+                Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng);
+                v_ion = CollisionKernels::hss_collision(v_ion, v_neutral, p.mi, p.mn, rng);
             }
             
             double E_final = kinetic_energy_J(v_ion, p.mi);
@@ -373,11 +391,11 @@ TEST_CASE("Thermalization to correct equilibrium validates collision physics", "
             #pragma omp parallel for reduction(+:sum_E)
             for (int ion_idx = 0; ion_idx < N_IONS; ++ion_idx) {
                 Vec3 v_ion{3000.0, 0.0, 0.0};
-                EhssRng rng(4000 + ion_idx * 10 + (int)T_gas);
+                PhysicsRng rng(4000 + ion_idx * 10 + (int)T_gas);
                 
                 for (int i = 0; i < N_COLLISIONS; ++i) {
-                    Vec3 v_neutral = sample_neutral_velocity(p, rng);
-                    v_ion = collide_hs_cpu(v_ion, v_neutral, p, rng);
+                    Vec3 v_neutral = VelocitySampling::sample_neutral_velocity(p.Tn, p.mn, Vec3{p.ubx, p.uby, p.ubz}, rng);
+                    v_ion = CollisionKernels::hss_collision(v_ion, v_neutral, p.mi, p.mn, rng);
                 }
                 
                 sum_E += kinetic_energy_J(v_ion, p.mi);

@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file test_force_integration.cpp
@@ -15,7 +15,7 @@
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/physics/forces/MagneticFieldForce.h"
 #include "core/physics/forces/DampingForce.h"
-#include "core/physics/forces/SpaceChargeDirect.h"
+#include "core/types/IonEnsemble.h"
 #include "core/types/IonState.h"
 #include "core/config/types/InstrumentTypes.h"
 #include "core/config/types/DomainConfig.h"
@@ -31,14 +31,34 @@
 using namespace ICARION;
 using namespace ICARION::physics;
 using namespace ICARION::instrument;
+using ICARION::core::IonEnsemble;
 using Catch::Matchers::WithinAbs;
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * @brief Create minimal DomainConfig for testing
+ */
+static config::DomainConfig create_test_domain() {
+    config::DomainConfig domain;
+    domain.instrument = config::Instrument::IMS;
+    domain.geometry.length_m = 0.1;
+    domain.geometry.radius_m = 0.01;
+    domain.environment.temperature_K = 300.0;
+    domain.environment.pressure_Pa = 101325.0;
+    domain.environment.gas_species = "N2";
+    domain.environment.compute_derived_properties();
+    return domain;
+}
 
 // ============================================================================
 // Integration Test 1: Electric + Magnetic Forces
 // ============================================================================
 
 TEST_CASE("Integration: Electric + Magnetic forces combine", "[integration]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     std::vector<IonState> ions;
     
     // Setup electric field (IMS) - SSOT config
@@ -67,10 +87,12 @@ TEST_CASE("Integration: Electric + Magnetic forces combine", "[integration]") {
     ion.mass_kg = 100 * AMU_TO_KG;
     ions.push_back(ion);
     
+    IonEnsemble ens = IonEnsemble::from_legacy(ions);
     ForceContext ctx;
     ctx.all_ions = &ions;
-    
-    Vec3 F_total = registry.compute_total_force(ions[0], 0.0, ctx);
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F_total = registry.compute_total_force(ens, 0, 0.0, ctx);
     
     // Should have force in both z (electric) and y (magnetic) directions
     REQUIRE(std::abs(F_total.z) > 1e-20);  // Electric force
@@ -82,7 +104,7 @@ TEST_CASE("Integration: Electric + Magnetic forces combine", "[integration]") {
 // ============================================================================
 
 TEST_CASE("Integration: All forces (Electric + Magnetic + Damping + SpaceCharge)", "[integration]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     std::vector<IonState> ions;
     
     // Add all force types - SSOT configs
@@ -107,9 +129,6 @@ TEST_CASE("Integration: All forces (Electric + Magnetic + Damping + SpaceCharge)
     env.temperature_K = 300.0;
     env.compute_derived_properties();
     registry.add_force(std::make_unique<DampingForce>(env, DampingModel::Friction));
-    
-    registry.add_force(std::make_unique<SpaceChargeDirect>(1e-10));
-    
     // Create two ions
     IonState ion1, ion2;
     ion1.pos = Vec3{0, 0, 0.02};
@@ -124,11 +143,13 @@ TEST_CASE("Integration: All forces (Electric + Magnetic + Damping + SpaceCharge)
     
     ions.push_back(ion1);
     ions.push_back(ion2);
-    
+
+    IonEnsemble ens = IonEnsemble::from_legacy(ions);
     ForceContext ctx;
     ctx.all_ions = &ions;
-    
-    Vec3 F_total = registry.compute_total_force(ions[0], 0.0, ctx);
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F_total = registry.compute_total_force(ens, 0, 0.0, ctx);
     
     // All force components should contribute
     REQUIRE(std::isfinite(F_total.x));
@@ -153,8 +174,11 @@ TEST_CASE("Integration: Force superposition principle", "[integration]") {
     ion.mass_kg = 100 * AMU_TO_KG;
     ions.push_back(ion);
     
+    IonEnsemble ens = IonEnsemble::from_legacy(ions);
     ForceContext ctx;
     ctx.all_ions = &ions;
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
     
     // Compute forces individually - SSOT configs
     ICARION::config::DomainConfig domain;
@@ -167,21 +191,21 @@ TEST_CASE("Integration: Force superposition principle", "[integration]") {
     domain.fields.rf.frequency_Hz.constant_value = 0.0;
     domain.fields.rf.compute_derived();
     ElectricFieldForce electric(domain);
-    Vec3 F_electric = electric.compute(ions[0], 0.0, ctx);
+    Vec3 F_electric = electric.compute(ens, 0, 0.0, ctx);
     
     ICARION::config::MagneticFieldConfig mag_config;
     mag_config.field_strength_T = Vec3{0, 0, 0.3};
     mag_config.enabled = true;
     MagneticFieldForce magnetic(mag_config);
-    Vec3 F_magnetic = magnetic.compute(ions[0], 0.0, ctx);
+    Vec3 F_magnetic = magnetic.compute(ens, 0, 0.0, ctx);
     
     ICARION::config::EnvironmentConfig env;
     env.pressure_Pa = 101325.0;
     env.temperature_K = 300.0;
     env.compute_derived_properties();
-    ions[0].reduced_mobility_cm2_Vs = 2.0;  // Need mobility for Friction model
+    ens.mobility_data()[0] = 2.0;  // Need mobility for Friction model
     DampingForce damping(env, DampingModel::Friction);
-    Vec3 F_damping = damping.compute(ions[0], 0.0, ctx);
+    Vec3 F_damping = damping.compute(ens, 0, 0.0, ctx);
     
     // Sum individual forces
     Vec3 F_sum(
@@ -191,12 +215,12 @@ TEST_CASE("Integration: Force superposition principle", "[integration]") {
     );
     
     // Compute via registry - SSOT configs
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     registry.add_force(std::make_unique<ElectricFieldForce>(domain));
     registry.add_force(std::make_unique<MagneticFieldForce>(mag_config));
     registry.add_force(std::make_unique<DampingForce>(env, DampingModel::Friction));
     
-    Vec3 F_total = registry.compute_total_force(ions[0], 0.0, ctx);
+    Vec3 F_total = registry.compute_total_force(ens, 0, 0.0, ctx);
     
     // Should match within floating point precision
     REQUIRE_THAT(F_total.x, WithinAbs(F_sum.x, 1e-20));
@@ -209,11 +233,8 @@ TEST_CASE("Integration: Force superposition principle", "[integration]") {
 // ============================================================================
 
 TEST_CASE("Integration: Performance with 100 ions", "[integration][performance]") {
-    ForceRegistry registry;
+    ForceRegistry registry(create_test_domain());
     std::vector<IonState> ions;
-    
-    // Add space charge (O(N²) complexity)
-    registry.add_force(std::make_unique<SpaceChargeDirect>(1e-10));
     
     // Create 100 ions in a grid
     for (int i = 0; i < 10; ++i) {
@@ -227,15 +248,16 @@ TEST_CASE("Integration: Performance with 100 ions", "[integration][performance]"
         }
     }
     
+    IonEnsemble ens = IonEnsemble::from_legacy(ions);
     ForceContext ctx;
     ctx.all_ions = &ions;
     
-    // Compute force on first ion (should interact with all 99 others)
-    Vec3 F = registry.compute_total_force(ions[0], 0.0, ctx);
+    // Compute force on first ion (space charge legacy removed; only field/damping/mag here)
+    ctx.ion_ensemble = &ens;
+    ctx.ion_index = 0;
+    Vec3 F = registry.compute_total_force(ens, 0, 0.0, ctx);
     
-    // Should have repulsive force from neighbors
+    // Should be finite (may be zero without space charge in this test)
     REQUIRE(std::isfinite(F.x));
     REQUIRE(std::isfinite(F.y));
-    double F_mag = std::sqrt(F.x*F.x + F.y*F.y);
-    REQUIRE(F_mag > 1e-20);  // Non-zero repulsion
 }

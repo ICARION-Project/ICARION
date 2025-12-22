@@ -1,43 +1,26 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   -------------------------------------
- *   A modular C++ framework for simulating ion trajectories 
- *   in user-defined electric fields and background gas environments.
- *
- *   @file        spaceChargeSolver.h
- *   @brief       Fast Poisson-based solver for self-consistent space-charge fields.
- *
- *   @details
- *   Implements a SpaceChargeSolver class that uses a Poisson solver on a 3D grid to
- *  compute the electric field due to space charge from ion distributions. 
- *
- *   @date        <2025-10-18>
- *   @version     1.0
- *   @author      Christoph Schäfer
- *   @license     MIT License
- *
- * =====================================================================
- */
 #pragma once
 #include "core/types/Grid3D.h"
 #include "core/physics/spacecharge/poissonSolver.h"
 #include "core/physics/spacecharge/depositCharge.h"
 #include "core/io/fieldArrayLoader.h"
 #include "core/types/IonState.h"
+#include "core/types/IonEnsemble.h"
 #include <vector>
+
+namespace ICARION::config {
+class IDomainGeometry;
+}
 
 /**
  * @class SpaceChargeSolver
- * @brief Fast Poisson-based solver for self-consistent space-charge fields
+ * @brief Poisson-based solver for self-consistent space-charge fields (CPU)
  *
- * Computes electric field from ion space-charge distribution during trajectory
- * integration. Optimized for speed over accuracy - suitable for real-time
- * simulations with moderate ion counts (<10,000 ions).
+ * CPU-only grid solver for box-shaped domains. Suitable for rough estimates; not
+ * geometry-aware for cylindrical/Orbitrap setups and not validated for accuracy
+ * beyond simple boxes. Falls back to zero outside the grid.
  * 
  * Workflow:
  * 1. Deposit ion charges onto 3D grid (cloud-in-cell or NGP)
@@ -50,7 +33,7 @@
 class SpaceChargeSolver {
 public:
     /**
-     * @brief Construct space-charge solver with specified grid resolution
+     * @brief Construct space-charge solver with specified grid resolution (box domain)
      * @param Nx Number of grid points in x direction
      * @param Ny Number of grid points in y direction
      * @param Nz Number of grid points in z direction
@@ -72,8 +55,15 @@ public:
      * 2. Deposit ion charges (CIC or NGP)
      * 3. Solve Poisson equation
      * 4. Compute field from potential
+     *
+     * Box-grid only; geometry boundaries are not imposed beyond the grid extents.
      */
     void update(const std::vector<IonState>& ions);
+
+    /**
+     * @brief Update electric field using SoA ensemble
+     */
+    void update(const ICARION::core::IonEnsemble& ions);
 
     /**
      * @brief Interpolate space-charge field at given position
@@ -108,6 +98,7 @@ public:
      * Useful for adaptive timestep schemes and sparse update strategies.
      */
     bool needsUpdate(const std::vector<IonState>& ions) const;
+    bool needsUpdate(const ICARION::core::IonEnsemble& ions) const;
 
     // --- Expose PoissonSolver wrappers for external use ---
     
@@ -125,6 +116,9 @@ public:
     
     /** @brief Manually compute field from current potential */
     void computeField() { m_solver.computeElectricField(); }
+
+    /** @brief Use geometry mask to reject out-of-domain ions during deposition */
+    void setGeometryMask(const ICARION::config::IDomainGeometry* geometry) { m_geometry_mask = geometry; }
 
     // --- Preset configurations ---
     
@@ -152,4 +146,5 @@ private:
     size_t m_last_ion_count = 0;
     int m_step_counter = 0;
     std::vector<Vec3> m_last_ion_positions;
+    const ICARION::config::IDomainGeometry* m_geometry_mask = nullptr;
 };

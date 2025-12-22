@@ -1,52 +1,10 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
-
-/**
- * =====================================================================
- *
- *   Ion Collision And Reaction IntegratiON (ICARION)
- *   ------------------------------------------------
- *   Modular framework for simulating ion trajectories in custom
- *   electric fields and background gas environments.
- *
- *   @file       InstrumentTypes.h
- *   @brief      Instrument type enumeration and conversion functions
- *
- *   @details
- *   Defines the canonical InstrumentType enum used throughout ICARION,
- *   along with utilities for string conversion and multi-domain support queries.
- *
- *   @date       2025-11-20
- *   @version    1.0.0
- *   @authors    ICARION Development Team
- *
- * =====================================================================
- */
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #pragma once
 
 #include <string>
 #include <string_view>
-
-// ============================================================================
-// ⚠️ DEPRECATED: InstrumentType location violates SSOT principle!
-// ============================================================================
-// InstrumentType is defined in instrument/ but should be part of config/
-// 
-// **WHY THIS IS BAD:**
-// - InstrumentType is a configuration parameter, not instrument logic
-// - Should live in core/config/types/ alongside DomainConfig, FieldsConfig, etc.
-// - Current location creates artificial dependency: config → instrument
-// - Makes config module depend on instrument module (backwards!)
-// 
-// **TODO (Phase 2):**
-// - Move InstrumentType to core/config/types/InstrumentType.h
-// - Update all includes throughout codebase
-// - Keep this file as forwarding header with #warning for transition period
-// - Eventually remove this file entirely
-// 
-// **RATIONALE:** Configuration types belong in config/, not scattered across modules.
-// ============================================================================
 
 namespace ICARION {
 namespace instrument {
@@ -54,10 +12,8 @@ namespace instrument {
 /**
  * @brief Supported instrument types in ICARION simulations
  * 
- * @deprecated This enum should be in core/config/types/, not instrument/
- * Will be moved in Phase 2 SSOT refactor.
- * 
- * This is the canonical enumeration for all instrument types.
+ * Canonical enumeration used across config/physics/integrator and mirrored
+ * by GPU enums (see param/InstrumentEnums.h).
  * Note: SIFDT_MS has been consolidated into IMS (Ion Mobility Spectrometry).
  */
 enum class InstrumentType {

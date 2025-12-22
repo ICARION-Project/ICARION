@@ -16,7 +16,7 @@
   },
   
   "output": {
-    "folder": "./results/waveform_reusable",
+    "folder": "./results/waveform_outputs",
     "trajectory_file": "trajectories.h5",
     "print_progress": true
   },

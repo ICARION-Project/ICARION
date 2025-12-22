@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// ICARION: Ion Collision And Reaction IntegratiON
+// MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 /**
  * @file benchmark_soa_performance.cpp
@@ -20,6 +20,7 @@
 #include "core/config/types/FullConfig.h"
 #include <chrono>
 #include <iostream>
+#include <filesystem>
 
 using namespace ICARION;
 using namespace ICARION::integrator;
@@ -48,6 +49,7 @@ FullConfig create_benchmark_config() {
     cfg.domains.push_back(domain);
     
     cfg.output.folder = "/tmp/test_soa_bench";
+    std::filesystem::create_directories(cfg.output.folder);
     cfg.output.trajectory_file = "bench_trajectory.h5";
     cfg.output.print_progress = false;
     
@@ -78,7 +80,7 @@ std::vector<IonState> create_benchmark_ions(size_t count) {
 
 TEST_CASE("SoA Performance Benchmark - 100 ions", "[.benchmark][soa]") {
     auto config = create_benchmark_config();
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<ForceRegistry>> registries = {force_registry};
     auto integrator = std::make_shared<RK4Strategy>();
     
@@ -89,20 +91,22 @@ TEST_CASE("SoA Performance Benchmark - 100 ions", "[.benchmark][soa]") {
     
     BENCHMARK("AoS (baseline)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run(ions_aos);
-        return result.size();
+        auto ions_copy = IonEnsemble::from_legacy(ions_aos);
+        auto res = engine.run(ions_copy);
+        return res.size();
     };
     
     BENCHMARK("SoA (Phase 3 optimized)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run_soa(ensemble);
-        return result.size();
+        auto ensemble_copy = ensemble;
+        auto res = engine.run(ensemble_copy);
+        return res.size();
     };
 }
 
 TEST_CASE("SoA Performance Benchmark - 1000 ions", "[.benchmark][soa]") {
     auto config = create_benchmark_config();
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<ForceRegistry>> registries = {force_registry};
     auto integrator = std::make_shared<RK4Strategy>();
     
@@ -113,14 +117,16 @@ TEST_CASE("SoA Performance Benchmark - 1000 ions", "[.benchmark][soa]") {
     
     BENCHMARK("AoS (baseline)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run(ions_aos);
-        return result.size();
+        auto ions_copy = IonEnsemble::from_legacy(ions_aos);
+        auto res = engine.run(ions_copy);
+        return res.size();
     };
     
     BENCHMARK("SoA (Phase 3 optimized)") {
         SimulationEngine engine(config, registries, integrator);
-        auto result = engine.run_soa(ensemble);
-        return result.size();
+        auto ensemble_copy = ensemble;
+        auto res = engine.run(ensemble_copy);
+        return res.size();
     };
 }
 
@@ -128,11 +134,13 @@ TEST_CASE("Manual Performance Test", "[soa][performance]") {
     std::cout << "\n=== Manual SoA Performance Test ===" << std::endl;
     
     auto config = create_benchmark_config();
-    auto force_registry = std::make_shared<ForceRegistry>();
+    auto force_registry = std::make_shared<ForceRegistry>(config.domains[0]);
     std::vector<std::shared_ptr<ForceRegistry>> registries = {force_registry};
     auto integrator = std::make_shared<RK4Strategy>();
     
     for (size_t n_ions : {100, 500, 1000}) {
+        // fresh output file per run to avoid HDF5 append issues
+        std::filesystem::remove(std::filesystem::path(config.output.folder) / config.output.trajectory_file);
         auto ions_aos = create_benchmark_ions(n_ions);
         auto ions_soa_init = ions_aos;
         auto ensemble = IonEnsemble::from_legacy(ions_soa_init);
@@ -141,7 +149,8 @@ TEST_CASE("Manual Performance Test", "[soa][performance]") {
         auto start_aos = std::chrono::high_resolution_clock::now();
         {
             SimulationEngine engine(config, registries, integrator);
-            auto result = engine.run(ions_aos);
+            auto ions_copy = IonEnsemble::from_legacy(ions_aos);
+            auto result = engine.run(ions_copy);
         }
         auto end_aos = std::chrono::high_resolution_clock::now();
         auto duration_aos = std::chrono::duration_cast<std::chrono::milliseconds>(end_aos - start_aos);
@@ -150,7 +159,8 @@ TEST_CASE("Manual Performance Test", "[soa][performance]") {
         auto start_soa = std::chrono::high_resolution_clock::now();
         {
             SimulationEngine engine(config, registries, integrator);
-            auto result = engine.run_soa(ensemble);
+            auto ensemble_copy = ensemble;
+            auto result = engine.run(ensemble_copy);
         }
         auto end_soa = std::chrono::high_resolution_clock::now();
         auto duration_soa = std::chrono::duration_cast<std::chrono::milliseconds>(end_soa - start_soa);

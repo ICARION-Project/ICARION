@@ -45,6 +45,11 @@ if(USE_GPU_ACCEL)
 
     target_sources(icarion_core PRIVATE ${ICARION_GPU_SRC})
 
+    # Link cuFFT for GPU Space Charge
+    if(ICARION_CUFFT_LIBRARY)
+        target_link_libraries(icarion_core PUBLIC ${ICARION_CUFFT_LIBRARY})
+    endif()
+
     if(ICARION_HAVE_NCCL)
         target_compile_definitions(icarion_core PUBLIC HAVE_NCCL)
         target_include_directories(icarion_core PRIVATE ${ICARION_NCCL_INCLUDE_DIR})
@@ -107,6 +112,8 @@ target_sources(icarion_core PRIVATE
     ${ICARION_UTILS_SRC}
     ${ICARION_SIMULATION_SRC}
     ${ICARION_FIELDSOLVER_SRC}
+    # Explicit new field models to avoid glob reconfigure misses
+    core/config/types/FieldProviderModel.cpp
 )
 
 # Include root for headers
@@ -130,7 +137,10 @@ endif()
 # Build example main (optional)
 # ---------------------------------------------------------------------
 
-add_executable(icarion_main main/main.cpp)
+add_executable(icarion_main 
+    main/main.cpp
+    main/setup/PhysicsSetup.cpp
+)
 target_link_libraries(icarion_main PRIVATE icarion_core)
 
 # CCS precompute tool

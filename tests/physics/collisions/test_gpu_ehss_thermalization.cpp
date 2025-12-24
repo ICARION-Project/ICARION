@@ -1,13 +1,15 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-// Test GPU EHSS thermalization with H3O+ geometry
+// GPU EHSS thermalization sanity test for H3O+ geometry
+#include <iostream>
+
+#ifdef ICARION_USE_GPU
 #include "core/gpu/core/GPUContext.h"
 #include "core/gpu/collisions/GPUCollisionHelper.h"
 #include "core/types/IonState.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "utils/constants.h"
-#include <iostream>
 #include <iomanip>
 #include <cmath>
 #include <vector>
@@ -17,7 +19,7 @@
 using namespace ICARION;
 using namespace ICARION::config;
 
-// Simple JSON parser for H3O+ molecule
+// Simple JSON parser for H3O+ molecule (very lightweight)
 struct Atom {
     Vec3 pos;
     double radius_angstrom;
@@ -31,7 +33,6 @@ std::vector<Atom> parse_h3o_geometry(const std::string& filepath) {
     
     std::vector<Atom> atoms;
     std::string line;
-    bool in_atoms = false;
     
     while (std::getline(file, line)) {
         // Find "pos": [x, y, z]
@@ -141,12 +142,10 @@ int main() {
             ion.vel = Vec3{v_init, 0.0, 0.0};
         }
         
-        // Process collisions
         for (int i = 0; i < N; ++i) {
             gpu_helper->process_collisions_batch(ions, dt, env);
         }
         
-        // Compute mean KE
         double sum_v2 = 0.0;
         for (const auto& ion : ions) {
             sum_v2 += ion.vel.x * ion.vel.x + ion.vel.y * ion.vel.y + ion.vel.z * ion.vel.z;
@@ -154,12 +153,13 @@ int main() {
         double KE = 0.5 * mass_kg * (sum_v2 / N_IONS) / eV;
         double ratio = KE / (1.5 * kB * T / eV);
         
-        std::cout << std::setw(5) << N 
-                  << std::setw(10) << KE 
-                  << std::setw(8) << ratio << "\n";
+        std::cout << std::setw(5) << N << std::setw(10) << KE << std::setw(8) << ratio << "\n";
     }
     
-    std::cout << "\nExpected: Ratio ≈ 1.00 (100% thermalization)\n";
-    
+    return 0;
+#else
+int main() {
+    std::cout << "GPU build disabled; skipping GPU EHSS thermalization test.\n";
     return 0;
 }
+#endif

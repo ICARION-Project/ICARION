@@ -17,6 +17,10 @@ std::unique_ptr<IReactionHandler> ReactionHandlerFactory::create(
     unsigned long long gpu_seed,
     size_t gpu_threshold
 ) {
+#ifndef ICARION_USE_GPU
+    (void)gpu_seed;
+    (void)gpu_threshold;
+#endif
     // SSOT: Read enable_reactions directly from config
     if (config.enable_reactions) {
         auto cpu_handler = std::make_unique<StochasticReactionHandler>(enable_logging);

@@ -104,9 +104,9 @@ double expected_cyclotron_freq_Hz(double mass_kg, double q_charge, double B_T) {
 }
 
 // Helper: Measure rotation frequency from trajectory
-double measure_rotation_frequency(const std::vector<double>& times,
-                                  const std::vector<double>& x_pos,
-                                  const std::vector<double>& y_pos) {
+[[maybe_unused]] double measure_rotation_frequency(const std::vector<double>& times,
+                                                   const std::vector<double>& x_pos,
+                                                   const std::vector<double>& y_pos) {
     if (times.size() < 100) return 0.0;
     
     // Calculate angular position θ = atan2(y, x)
@@ -191,10 +191,7 @@ TEST_CASE("FTICR: Cyclotron frequency", "[instrument][fticr][physics]") {
 }
 
 TEST_CASE("FTICR: Magnetic field strength", "[instrument][fticr][physics]") {
-    double radius = 0.05;
-    double length = 0.1;
     double mass_amu = 500.0;
-    double v_trans = 1000.0;
     
     SECTION("Higher B-field increases cyclotron frequency") {
         double B_low = 3.0;   // 3 T

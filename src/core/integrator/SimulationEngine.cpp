@@ -561,8 +561,6 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
     {
         #pragma omp for schedule(guided, kOmpChunk)
         for (int i = 0; i < static_cast<int>(n_ions); ++i) {
-            PhysicsRng& ion_rng = rng_by_ion_[i];
-
             if (!born[i] && current_time_ >= ensemble.birth_time(i)) {
                 born[i] = 1;
                 active[i] = 1;

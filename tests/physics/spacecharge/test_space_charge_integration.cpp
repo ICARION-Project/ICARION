@@ -201,9 +201,9 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
         int nx = 64, ny = 64, nz = 64;
         double domain_size = 0.004;  // 4mm
         double dx = domain_size / nx;  // 62.5μm cell size
-        double dy = domain_size / ny;
-        double dz = domain_size / nz;
         Vec3 grid_origin{-0.002, -0.002, -0.002};  // Center at (0,0,0)
+        (void)ny;
+        (void)nz;
         
         config::DomainConfig grid_dom;
         grid_dom.geometry.length_m = domain_size;
@@ -226,9 +226,6 @@ TEST_CASE("SpaceCharge Integration: Two-ion Coulomb repulsion (Direct vs Grid)",
         double F_grid_mag0 = std::sqrt(F_grid_ion0.x * F_grid_ion0.x + 
                                       F_grid_ion0.y * F_grid_ion0.y + 
                                       F_grid_ion0.z * F_grid_ion0.z);
-        double F_grid_mag1 = std::sqrt(F_grid_ion1.x * F_grid_ion1.x + 
-                                      F_grid_ion1.y * F_grid_ion1.y + 
-                                      F_grid_ion1.z * F_grid_ion1.z);
         
         INFO("Grid vs Analytical error: " << std::abs(F_grid_mag0 - F_analytical) / F_analytical * 100 << "%");
         

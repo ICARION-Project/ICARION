@@ -34,6 +34,8 @@ namespace ICARION::utils {
  * // Returns: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
  * ```
  */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 inline std::string sha256_file(const std::string& filepath) {
     // Open file in binary mode
     std::ifstream file(filepath, std::ios::binary);
@@ -75,6 +77,7 @@ inline std::string sha256_file(const std::string& filepath) {
     
     return oss.str();
 }
+#pragma GCC diagnostic pop
 
 /**
  * @brief Safe wrapper for sha256_file that returns error message instead of throwing

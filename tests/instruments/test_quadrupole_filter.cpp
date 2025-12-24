@@ -82,23 +82,6 @@ config::FullConfig make_quad_config(double r0_m, double length_m,
     return cfg;
 }
 
-// Helper: Create ion with small initial offset
-core::IonState make_ion(double mass_amu, double x_offset_mm, double v_axial_m_s) {
-    core::IonState ion;
-    ion.species_id = "m" + std::to_string(static_cast<int>(mass_amu));
-    ion.pos = {x_offset_mm * 1e-3, 0.0, 0.0};  // Start at center (small radial offset)
-    ion.vel = {0.0, 0.0, v_axial_m_s};  // Axial velocity only
-    
-    ion.mass_kg = mass_amu * AMU_TO_KG;
-    ion.ion_charge_C = ELEM_CHARGE_C;
-    ion.CCS_m2 = 1e-19;
-    ion.active = true;
-    ion.born = true;
-    ion.birth_time_s = 0.0;
-    
-    return ion;
-}
-
 // Helper: Calculate Mathieu parameters
 struct MathieuParams {
     double a;  // DC stability parameter
@@ -156,7 +139,6 @@ TEST_CASE("Quadrupole: Mass-selective filtering", "[instrument][quadrupole][phys
     double V_rf = 400.0;        // 400 V RF amplitude
     double V_dc = 67.2;         // 67.2 V DC (U/V = 0.168 scan line)
     double freq = 2.0e6;        // 2 MHz
-    double v_axial = 500.0;     // 500 m/s axial velocity
     
     auto cfg = make_quad_config(r0, length, V_rf, V_dc, freq);
     

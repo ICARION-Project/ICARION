@@ -211,12 +211,6 @@ TEST_CASE("IMS: Electric field acceleration (no collisions)", "[instrument][ims]
     const auto& final_ion = result.ions[0];
     
     // Expected drift time: t = sqrt(2mL/qE) for constant acceleration
-    double m = 19.0 * AMU_TO_KG;
-    double q = ELEM_CHARGE_C;
-    double L = 0.1;
-    double E = 200.0;
-    double t_expected = std::sqrt(2.0 * m * L / (q * E));
-    
     SECTION("Ion is accelerated") {
         REQUIRE(final_ion.vel.z > 0.0);
     }

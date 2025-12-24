@@ -1,19 +1,26 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
+#include <iostream>
+
+#ifdef ICARION_USE_GPU
 #include "core/gpu/core/GPUContext.h"
 #include "core/gpu/collisions/GPUCollisionHelper.h"
 #include "core/types/IonState.h"
 #include "core/config/types/EnvironmentConfig.h"
-#include <iostream>
 #include <iomanip>
 #include <cmath>
 #include <vector>
 
 using namespace ICARION;
 using namespace ICARION::config;
+#endif
 
 int main() {
+#ifndef ICARION_USE_GPU
+    std::cout << "GPU build disabled; skipping GPU-only thermalization test.\n";
+    return 0;
+#else
     const int N_IONS = 5000;
     const double mass_kg = 29.0 * 1.66054e-27;
     const double T = 300.0;
@@ -75,4 +82,5 @@ int main() {
     }
     
     return 0;
+#endif
 }

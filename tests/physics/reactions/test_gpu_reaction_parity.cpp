@@ -1,9 +1,9 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
-#ifdef ICARION_USE_GPU
-
 #include <catch2/catch_test_macros.hpp>
+
+#ifdef ICARION_USE_GPU
 
 #include "core/gpu/core/GPUContext.h"
 #include "core/gpu/reactions/GPUReactionBackend.h"

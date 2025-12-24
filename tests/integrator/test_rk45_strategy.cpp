@@ -193,7 +193,7 @@ TEST_CASE("RK45Strategy: Free fall with adaptive timestep", "[integrator][rk45]"
     // Check statistics
     auto stats = strategy.get_stats();
     REQUIRE(stats.accepted_steps > 0);
-    REQUIRE(stats.rejected_steps >= 0);  // May have some rejections
+    REQUIRE(static_cast<long long>(stats.rejected_steps) >= 0);  // May have some rejections
     REQUIRE(stats.avg_error <= 1.5);  // Error should be near 1.0
 }
 

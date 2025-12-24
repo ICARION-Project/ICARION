@@ -37,6 +37,7 @@ void print_version() {
 }
 
 void print_help(const std::string& program_name) {
+    (void)program_name;
     // Delegated to cxxopts (called in parse_arguments)
     std::cout << "Use --help to see available options\n";
 }

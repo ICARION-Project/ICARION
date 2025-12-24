@@ -178,7 +178,6 @@ void test_cpu_vs_gpu_formula() {
     
     // Relative velocity
     Vec3 v_rel{v_ion.x - v_neutral.x, v_ion.y - v_neutral.y, v_ion.z - v_neutral.z};
-    double v_rel_mag = 1000.0;
     
     // COM velocity
     Vec3 v_cm{

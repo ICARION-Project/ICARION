@@ -781,7 +781,6 @@ TEST_CASE("StochasticReactionHandler: Arrhenius temperature dependence", "[react
     ion.ion_charge_C = ELEM_CHARGE_C;
     ion.CCS_m2 = 100e-20;
     
-    double dt = 1e-9;
     double n_buffer = 2.5e25;  // [m⁻³]
     
     // Test at different temperatures

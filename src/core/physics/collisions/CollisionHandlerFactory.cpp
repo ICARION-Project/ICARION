@@ -17,7 +17,13 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
     unsigned long long gpu_seed,
     size_t gpu_threshold) {
     using config::CollisionModel;
-    
+
+#ifndef ICARION_USE_GPU
+    (void)enable_gpu;
+    (void)gpu_seed;
+    (void)gpu_threshold;
+#endif
+
     // Handle stochastic collision models
     switch (config.collision_model) {
         

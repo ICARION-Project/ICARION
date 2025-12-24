@@ -1,6 +1,8 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
+#include <iostream>
+
 /**
  * @file test_gpu_thermalization.cpp
  * @brief Compare CPU vs GPU thermalization convergence

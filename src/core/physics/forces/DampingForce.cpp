@@ -105,7 +105,6 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             // (Legacy had mass factor, but this contradicts Mason-Schamp mobility theory)
             
             const double CCS = ion.CCS_m2;
-            const double m_ion = ion.mass_kg;
             
             if (CCS <= 0.0 || gas_density <= 0.0 || v_th <= 0.0 || m_neutral <= 0.0) {
                 return 0.0;  // Missing parameters

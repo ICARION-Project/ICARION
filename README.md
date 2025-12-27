@@ -18,6 +18,15 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 - **License:** MIT (see `LICENSE`); third-party dependencies listed in `CMakeLists.txt` and `cmake/`.
 - **Experimental components (off-path for v1.0 results):** GPU EHSS geometry upload, GPU space-charge P³M, and adaptive field interpolation are present but incomplete and are hard-disabled at runtime in v1.0 (any `enable_gpu=true` runs on CPU).
 
+# Documentation
+
+- [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md) — configuration fields, schema, and validation.
+- [docs/CLI_USAGE.md](docs/CLI_USAGE.md) — command-line flags and batch usage.
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common build/run issues (incl. WSL).
+- [docs/HDF5_OUTPUT_STRUCTURE.md](docs/HDF5_OUTPUT_STRUCTURE.md) — output file layout.
+- [docs/COLLISION_MODELS.md](docs/COLLISION_MODELS.md) — collision/reaction physics background.
+- [validation/README.md](validation/README.md) — validation suite and ready-to-run configs.
+
 # What & Who
 
 - **What is ICARION?** Modular ion trajectory simulator (C++17) for mass spectrometry, ion mobility devices and ion optics with collision and reaction support.
@@ -28,6 +37,19 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 - **Integrator note:** RK45 now keeps per-ion adaptive state and is OpenMP-safe; batch paths (CPU/GPU) require uniform `dt` across active ions.
 - **GPU status:** GPU codepaths are compiled but runtime-disabled for v1.0; `enable_gpu=true` is ignored and falls back to CPU. The backend remains experimental for developers only.
 - **Output memory guard:** Set `output.buffer_byte_cap` (bytes) to cap in-memory trajectory buffering and fail fast before OOM; `0` disables the cap.
+
+# Keywords & Acronyms
+
+- IMS: Ion Mobility Spectrometry
+- LQIT: Linear Quadrupole Ion Trap
+- TOF: Time-of-Flight analyzer
+- FT-ICR: Fourier Transform Ion Cyclotron Resonance
+- CCS: Collision Cross Section
+- EHSS / HSS: (Exact) Hard Sphere Scattering collision models
+- P³M: Particle–Particle Particle–Mesh space-charge solver
+- EN_Td / E/N: Reduced electric field (Townsend; 1 Td = 1e-21 V·m²)
+- RK4 / RK45: Fixed-step and adaptive Runge–Kutta integrators (fourth order or fourth order with fifth-order error control)
+- SoA / AoS: Structure of Arrays / Array of Structures data layout
 
 # Minimal Example (IMS)
 
@@ -90,24 +112,52 @@ SSOT architecture:
 
 # Building ICARION
 
-## Requirements
+## Requirements (CPU build)
 
-- C++17 compiler (GCC, Clang, MSVC)
+- C++17 compiler (GCC/Clang/MSVC)
 - CMake ≥ 3.16
-- HDF5 ≥ 1.10
-- (Optional) CUDA ≥ 11
+- HDF5 ≥ 1.10, Eigen3 ≥ 3.4, jsoncpp ≥ 1.9, nlohmann_json ≥ 3.10, OpenSSL, BLAS, spdlog, cxxopts
+- OpenMP recommended (auto-detected if available)
+- (Optional) CUDA ≥ 11 **only** when `-DUSE_GPU_ACCEL=ON` (default is OFF; CPU works without CUDA).
 
-**Build**
+### Quick start (Ubuntu/WSL 22.04 / 24.04, CPU)
+
+```bash
+sudo apt update && sudo apt install -y \
+  build-essential cmake git pkg-config \
+  libeigen3-dev libjsoncpp-dev nlohmann-json3-dev libhdf5-dev \
+  libssl-dev libopenblas-dev libspdlog-dev libcxxopts-dev
+
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+./build/src/icarion_main examples/ims/ims_basic.json
+```
+
+### GPU build (optional, dev/experimental)
+
+```bash
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DUSE_GPU_ACCEL=ON
+cmake --build build -j"$(nproc)"
+```
+
+CUDA toolkit and drivers must be installed; runtime falls back to CPU for v1.0.
+
+### Tested on
+
+- Ubuntu 22.04 LTS (x86_64, GCC 11/12) — CPU builds; CUDA 12.x build coverage for dev testing
+- Ubuntu 24.04 LTS on WSL2 — CPU builds
+- Clang 15 on Ubuntu 22.04 — CPU builds (OpenMP optional)
+
+**From a fresh clone:**
 
 ```bash
 git clone https://github.com/ICARION-Project/ICARION.git
 cd ICARION
-mkdir build && cd build
-cmake ..
-make -j8
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
 ```
 
-**GPU build:** add `-DUSE_GPU_ACCEL=ON` to enable CUDA paths (requires CUDA toolkit).
+**Troubleshooting:** see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for missing packages (HDF5, BLAS/OpenMP, CUDA detection on WSL) and cache cleanup tips.
 
 **Run**
 

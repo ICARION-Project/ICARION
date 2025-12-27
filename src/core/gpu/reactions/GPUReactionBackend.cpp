@@ -129,6 +129,7 @@ bool GPUReactionBackend::process_batch(ICARION::core::IonEnsemble& ensemble,
                                        const ICARION::config::SpeciesDatabase& species_db,
                                        const std::vector<ICARION::config::DomainConfig>& domains,
                                        std::vector<ICARION::physics::PhysicsRng>& rng_pool) {
+    (void)rng_pool;  // GPU backend keeps its own RNG states; pool unused here.
     if (!cpu_fallback_) {
         return false;
     }

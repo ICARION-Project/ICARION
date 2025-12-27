@@ -142,11 +142,10 @@ cmake --build build -j"$(nproc)"
 
 CUDA toolkit and drivers must be installed; runtime falls back to CPU for v1.0.
 
-### Tested on
+### Tested on (current developer setup)
 
-- Ubuntu 22.04 LTS (x86_64, GCC 11/12) — CPU builds; CUDA 12.x build coverage for dev testing
-- Ubuntu 24.04 LTS on WSL2 — CPU builds
-- Clang 15 on Ubuntu 22.04 — CPU builds (OpenMP optional)
+- Ubuntu 24.04 LTS on WSL2 — CPU build; CUDA 12.0 toolkit build tested with `-DUSE_GPU_ACCEL=ON` (runtime still CPU in v1.0)
+- Notes: broader platform coverage to follow as we add validation runs.
 
 **From a fresh clone:**
 
@@ -501,5 +500,5 @@ MIT, see LICENSE file.
 
 # Citation
 
-A CPC paper will follow.
+A peer-reviewed article will follow.
 Until then, please cite the GitHub repository.

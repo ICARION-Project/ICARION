@@ -12,12 +12,21 @@ if (USE_GPU_ACCEL)
     # Good defaults for ICARION kernels
     set(CMAKE_CUDA_STANDARD 17)
 
+    # Strip default warning flags from CUDA builds (nvcc + cudafe spew pedantic line-marker noise)
+    foreach(_flag -Wall -Wextra -Wpedantic -Xcompiler=-Wno-gnu-line-marker)
+        string(REPLACE "${_flag}" "" CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}")
+    endforeach()
+    # Re-add host warnings without pedantic for CUDA translation units
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-Wall -Xcompiler=-Wextra -Xcompiler=-Wno-pedantic")
+
     if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
         # Default to common recent arch
         set(CMAKE_CUDA_ARCHITECTURES 75 80 86 89 90)
     endif()
 
     add_compile_definitions(ICARION_USE_GPU)
+    # Suppress host-compiler pedantic/line-marker noise from NVCC-generated stubs.
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-Wno-pedantic -Xcompiler=-Wno-gnu-line-marker")
 
     # Detect NCCL for optional multi-GPU support
     set(_ICARION_HAVE_NCCL FALSE)

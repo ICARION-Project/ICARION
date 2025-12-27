@@ -44,6 +44,8 @@ if(USE_GPU_ACCEL)
     endif()
 
     target_sources(icarion_core PRIVATE ${ICARION_GPU_SRC})
+    # Suppress pedantic line-marker noise from NVCC host compilation.
+    target_compile_options(icarion_core PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Wno-pedantic>)
 
     # Link cuFFT for GPU Space Charge
     if(ICARION_CUFFT_LIBRARY)

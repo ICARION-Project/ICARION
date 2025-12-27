@@ -325,8 +325,6 @@ TEST_CASE("GPU collision rate formula matches CPU", "[collision][gpu][physics-ch
     // Test parameters
     const double temperature_K = 300.0;
     const double pressure_Pa = 101325.0;
-    const double gas_mass_kg = 4.0026 * 1.66054e-27;  // He
-    const double ion_mass = 29.0 * 1.66054e-27;       // H3O+
     const double CCS = 45e-20;
     const double dt = 1e-6;
     const double v_rel_mag = 500.0;  // m/s

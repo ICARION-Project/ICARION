@@ -11,9 +11,9 @@
 // when compiling with NVCC and to nothing for a regular host-only build.
 // --------------------------------------------------------------------
 #if defined(__CUDACC__)
-  #define HD __host__ __device__
+#define HD __host__ __device__
 #else
-  #define HD
+#define HD
 #endif
 
 // Provide empty definitions for CUDA annotation macros if they are missing

@@ -22,7 +22,6 @@ constexpr double TWO_PI = 2.0 * PI;
 
 // Numerical safety thresholds
 constexpr double MIN_VELOCITY_MAG = 1e-12;  // m/s
-constexpr double MIN_CONTACT_DIST_SQ = 1e-24;  // m²
 
 // EHSS parameters
 constexpr int MAX_COLLISION_ATTEMPTS = 256;

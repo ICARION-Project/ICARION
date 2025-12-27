@@ -44,7 +44,7 @@ static void create_3d_texture(
     }
     
     // Copy data to 3D array
-    cudaMemcpy3DParms copy_params = {0};
+    cudaMemcpy3DParms copy_params{};
     copy_params.srcPtr = make_cudaPitchedPtr(
         (void*)float_data, nx * sizeof(float), nx, ny
     );

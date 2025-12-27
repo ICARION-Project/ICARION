@@ -157,6 +157,7 @@ int main() {
     }
     
     return 0;
+}
 #else
 int main() {
     std::cout << "GPU build disabled; skipping GPU EHSS thermalization test.\n";

@@ -87,6 +87,10 @@ file(GLOB_RECURSE ICARION_UTILS_SRC
 # Exclude legacy paramUtils (removed)
 list(FILTER ICARION_UTILS_SRC EXCLUDE REGEX "paramUtils\\.cpp$")
 list(FILTER ICARION_UTILS_SRC EXCLUDE REGEX "paramUtils\\.h$")
+if(NOT USE_GPU_ACCEL)
+    # Do not compile GPU helper sources when CUDA is off (avoids cuda_runtime.h include errors)
+    list(FILTER ICARION_UTILS_SRC EXCLUDE REGEX "/core/types/gpu/")
+endif()
 
 # SimulationEngine (empty for now)
 file(GLOB_RECURSE ICARION_SIMULATION_SRC

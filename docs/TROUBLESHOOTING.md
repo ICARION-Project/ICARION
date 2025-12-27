@@ -9,10 +9,40 @@ This guide helps users diagnose and resolve common issues when running ICARION s
 
 ## Table of Contents
 
-1. [Ion Loss and Deactivation Issues](#ion-loss-and-deactivation-issues)
-2. [Performance Issues](#performance-issues)
-3. [Numerical Stability](#numerical-stability)
-4. [Collision Physics](#collision-physics)
+1. [Build and CMake Issues](#build-and-cmake-issues)
+2. [Ion Loss and Deactivation Issues](#ion-loss-and-deactivation-issues)
+3. [Performance Issues](#performance-issues)
+4. [Numerical Stability](#numerical-stability)
+5. [Collision Physics](#collision-physics)
+
+---
+
+## Build and CMake Issues
+
+### `make: *** No targets specified and no makefile found`
+
+**Symptom:** `cmake ..` completes, but `make -j8` in `build/` prints “No targets specified and no makefile found.”
+
+**Cause:** CMake used a non-Makefile generator (e.g., Ninja Multi-Config) or an old cache that points to another generator, so no `Makefile` exists.
+
+**Fix (quick):**
+```bash
+cmake --build build -j"$(nproc)"    # generator-agnostic
+```
+
+**Force Unix Makefiles:**
+```bash
+rm -rf build
+cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+```
+
+**If Ninja is preferred/auto-selected:**
+```bash
+cmake --build build -j"$(nproc)"    # or: ninja -C build
+```
+
+**Tip:** Unset `CMAKE_GENERATOR` in your environment/IDE or pass `-G` explicitly to avoid mismatches.
 
 ---
 

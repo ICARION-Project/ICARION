@@ -12,7 +12,7 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 
 # Release & API
 
-- **Versioning:** v1.0.0 (semantic versioning). See `CHANGELOG.md`.
+- **Versioning:** v1.0.1 (semantic versioning). See `CHANGELOG.md`.
 - **Stable surface:** JSON configuration schema is considered stable for v1.x.
 - **Internal API:** C++ headers/classes are internal and may evolve between minor releases.
 - **License:** MIT (see `LICENSE`); third-party dependencies listed in `CMakeLists.txt` and `cmake/`.

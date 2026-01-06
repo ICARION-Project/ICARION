@@ -19,6 +19,8 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <thread>
+#include <unordered_map>
 #include <limits>
 
 namespace ICARION {
@@ -89,7 +91,7 @@ private:
         size_t call_count = 0;
         double min_ms = std::numeric_limits<double>::max();
         double max_ms = 0.0;
-        std::chrono::steady_clock::time_point start;
+        std::unordered_map<std::thread::id, std::vector<std::chrono::steady_clock::time_point>> start_times;
     };
     
     bool enabled_ = false;

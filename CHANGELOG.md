@@ -2,6 +2,12 @@
 
 All notable changes to this project follow [Semantic Versioning](https://semver.org/) and are documented in this file.
 
+## [1.0.2] - 2026-01-07
+
+- Performance: batch RK4 CPU path and thread-safe profiling updates.
+- Benchmarking: thread/ion scaling runner and plotting helper.
+- Cleanup: suppress unused parameter warnings in boundary/waveform helpers.
+
 ## [1.0.0] - 2025-12-04
 
 - Initial v1.0.0 release tag.
@@ -13,4 +19,5 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
 - Validation suite shipped in-repo with scripts/results/figures.
 - Documentation: architecture, CLI usage, config schema, validation report.
 
+[1.0.2]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.0.2
 [1.0.0]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.0.0

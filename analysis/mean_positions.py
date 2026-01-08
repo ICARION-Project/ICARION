@@ -67,36 +67,50 @@ def main() -> int:
     if not unique_species:
         raise RuntimeError("No species available after filtering.")
 
-    means_r, means_z = compute_means(positions, ion_species, unique_species)
-    plot_means(time, means_r, means_z, args.out)
+    means_r, stds_r, means_z, stds_z = compute_stats(positions, ion_species, unique_species)
+    plot_means(time, means_r, stds_r, means_z, stds_z, args.out)
     print(f"Wrote {args.out}")
     return 0
 
 
-def compute_means(
+def compute_stats(
     positions: np.ndarray, ion_species: np.ndarray, unique_species: list[str]
-) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
     r = np.sqrt(positions[:, :, 0] ** 2 + positions[:, :, 1] ** 2)
     z = positions[:, :, 2]
 
     means_r = {}
+    stds_r = {}
     means_z = {}
+    stds_z = {}
     for sp in unique_species:
         mask = ion_species == sp
         if not np.any(mask):
             continue
-        means_r[sp] = r[:, mask].mean(axis=1)
-        means_z[sp] = z[:, mask].mean(axis=1)
-    return means_r, means_z
+        subset_r = r[:, mask]
+        subset_z = z[:, mask]
+        means_r[sp] = subset_r.mean(axis=1)
+        stds_r[sp] = subset_r.std(axis=1)
+        means_z[sp] = subset_z.mean(axis=1)
+        stds_z[sp] = subset_z.std(axis=1)
+    return means_r, stds_r, means_z, stds_z
 
 
-def plot_means(time: np.ndarray, means_r: dict[str, np.ndarray], means_z: dict[str, np.ndarray], out_path: Path):
+def plot_means(
+    time: np.ndarray,
+    means_r: dict[str, np.ndarray],
+    stds_r: dict[str, np.ndarray],
+    means_z: dict[str, np.ndarray],
+    stds_z: dict[str, np.ndarray],
+    out_path: Path,
+):
     colors = species_color_map(means_r.keys())
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 
     ax_r, ax_z = axes
     for sp, vals in means_r.items():
         ax_r.plot(time, vals, label=sp, color=colors[sp])
+        ax_r.fill_between(time, vals - stds_r[sp], vals + stds_r[sp], color=colors[sp], alpha=0.15)
     ax_r.set_xlabel("Time [s]")
     ax_r.set_ylabel("Mean radial position [m]")
     ax_r.set_title("Mean radial vs time")
@@ -104,6 +118,7 @@ def plot_means(time: np.ndarray, means_r: dict[str, np.ndarray], means_z: dict[s
 
     for sp, vals in means_z.items():
         ax_z.plot(time, vals, label=sp, color=colors[sp])
+        ax_z.fill_between(time, vals - stds_z[sp], vals + stds_z[sp], color=colors[sp], alpha=0.15)
     ax_z.set_xlabel("Time [s]")
     ax_z.set_ylabel("Mean axial position [m]")
     ax_z.set_title("Mean axial vs time")

@@ -39,6 +39,7 @@ public:
 
     std::string name() const override;
     bool is_adaptive() const override;
+    void set_parallel_enabled(bool enabled) override;
 
     bool supports_batch() const override;
     bool step_batch(core::IonEnsemble& ensemble,

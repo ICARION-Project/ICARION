@@ -55,9 +55,24 @@ public:
         double dt,
         const physics::ForceRegistry& force_registry
     ) override;
+
+    bool supports_batch() const override { return true; }
+
+    bool step_batch(
+        core::IonEnsemble& ensemble,
+        double t,
+        double dt,
+        const std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
+        const std::vector<int>& domain_indices
+    ) override;
+
+    void set_parallel_enabled(bool enabled) override { parallel_enabled_ = enabled; }
     
     std::string name() const override { return "RK4"; }
     bool is_adaptive() const override { return false; }
+
+private:
+    bool parallel_enabled_ = false;
 };
 
 } // namespace integrator

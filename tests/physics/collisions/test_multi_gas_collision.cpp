@@ -91,20 +91,17 @@ TEST_CASE("EHSS uses CCS_EHSS map in mixture", "[collision][ehss][multigas]") {
     };
     env.compute_derived_properties();
 
-    size_t c_n2 = 0;
-    size_t c_o2 = 0;
+    int collisions = 0;
     const int trials = 400;
     for (int i = 0; i < trials; ++i) {
         IonState ion_copy = ion;
         bool collided = run_collision(handler, ion_copy, 1e-7, rng, env);
         if (collided) {
-            // We can't directly know which gas, but we can sample relative weights via sigma
-            // Approximate by expected ratio: N2 weight ~0.5*1, O2 weight ~0.5*2 -> O2 ~2x N2
-            // We sample by repeating trials with controlled RNG seeds.
+            ++collisions;
         }
     }
     // Simple sanity: at least some collisions occurred
-    REQUIRE((c_n2 + c_o2) >= 0);
+    REQUIRE(collisions > 0);
 }
 
 TEST_CASE("EHSS missing CCS in mixture falls back to geometry", "[collision][ehss][safety]") {

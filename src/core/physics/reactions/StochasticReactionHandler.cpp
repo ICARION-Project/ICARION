@@ -158,6 +158,7 @@ double StochasticReactionHandler::compute_effective_rate(
     double particle_density,
     const std::unordered_map<std::string, double>& concentrations
 ) const {
+    (void)particle_density;
     // STEP 1: Compute temperature-dependent rate constant k(T)
     // Models: Constant, Arrhenius, Modified Arrhenius
     double k_T = reaction.compute_rate_constant(temperature);

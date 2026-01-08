@@ -34,7 +34,6 @@ void FieldServer::compute_locked_(){
                 const int id = (k*G.ny + j)*G.nx + i;
                 double x = G.origin.x + i*G.dx;
                 double y = G.origin.y + j*G.dy;
-                double z = G.origin.z + k*G.dz;
                 // very rough toy model: Ex = +2(Vdc)x/R^2, Ey = -2(Vdc)y/R^2, Ez = 0
                 double Vdc = geo_.quad_dc_V;
                 double fac = (R>0.0) ? (2.0*Vdc/(R*R)) : 0.0;

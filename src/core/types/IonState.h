@@ -52,14 +52,40 @@ struct alignas(64) IonState {
 
     /** @brief Default constructor - initializes ion to inactive state */
     __host__ __device__
-    IonState() : mass_kg(0), ion_charge_C(0), reduced_mobility_cm2_Vs(0),
-                 CCS_m2(0), active(true), born(true), t(0), dt(0) {}
+    IonState()
+        : pos{0,0,0},
+          vel{0,0,0},
+          species_id(),
+          mass_kg(0),
+          reduced_mobility_cm2_Vs(0),
+          ion_charge_C(0),
+          CCS_m2(0),
+          birth_time_s(0),
+          death_time_s(-1.0),
+          history_index(-1),
+          active(true),
+          born(true),
+          current_domain_index(0),
+          t(0),
+          dt(0) {}
 
     __host__ __device__
     IonState(const Vec3& pos_in, const Vec3& vel_in)
-        : pos(pos_in), vel(vel_in),
-        mass_kg(0), ion_charge_C(0), reduced_mobility_cm2_Vs(0),
-        CCS_m2(0), active(true), born(true), t(0), dt(0) {}
+        : pos(pos_in),
+          vel(vel_in),
+          species_id(),
+          mass_kg(0),
+          reduced_mobility_cm2_Vs(0),
+          ion_charge_C(0),
+          CCS_m2(0),
+          birth_time_s(0),
+          death_time_s(-1.0),
+          history_index(-1),
+          active(true),
+          born(true),
+          current_domain_index(0),
+          t(0),
+          dt(0) {}
     /**
      * @brief Add two ion states (component-wise for pos/vel).
      *

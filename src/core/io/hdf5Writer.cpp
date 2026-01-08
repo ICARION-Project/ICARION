@@ -1128,6 +1128,7 @@ void HDF5Writer::write_reactions_metadata(
     if (reaction_db.reactions.empty()) {
         return;
     }
+    (void)species_db; // currently unused; reactions metadata derived from reaction_db and ions only
 
     std::set<std::string> used_species;
     const auto* species_pool = ions.species_pool();

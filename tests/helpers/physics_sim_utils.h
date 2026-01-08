@@ -47,6 +47,7 @@ inline std::shared_ptr<physics::ForceRegistry> build_force_registry(
     const config::SpeciesDatabase* species_db,
     bool enable_ou
 ) {
+    (void)enable_ou;
     auto registry = std::make_shared<physics::ForceRegistry>(dom);
     registry->add_force(std::make_unique<physics::ElectricFieldForce>(dom));
 

@@ -37,7 +37,8 @@ TEST_CASE("GPU Field Interpolation: Uniform Field Analytical", "[gpu][fields][in
     REQUIRE(gpu_helper != nullptr);
     
     // Load uniform field array (Ez = 1000 V/m)
-    const std::string field_file = "examples/field_arrays/uniform_field.h5";
+    const std::string field_file =
+        std::string(ICARION_SOURCE_DIR) + "/examples/field_arrays/uniform_field.h5";
     
     FieldArray field_array = load_field_array(field_file);
     REQUIRE(field_array.nx > 0);  // Check if loaded

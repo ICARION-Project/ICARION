@@ -78,6 +78,12 @@ bool GPUIntegrationStrategy::is_adaptive() const {
     return adaptive_;
 }
 
+void GPUIntegrationStrategy::set_parallel_enabled(bool enabled) {
+    if (cpu_fallback_) {
+        cpu_fallback_->set_parallel_enabled(enabled);
+    }
+}
+
 bool GPUIntegrationStrategy::supports_batch() const {
 #ifdef ICARION_USE_GPU
     return gpu_helper_ && gpu_helper_->is_enabled();

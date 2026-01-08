@@ -105,6 +105,13 @@ public:
   }
 
   /**
+   * @brief Indicates whether applies_to() depends on AoS state
+   *
+   * If false, ForceRegistry may skip IonState construction and applicability checks.
+   */
+  virtual bool requires_aos_state() const { return false; }
+
+  /**
    * @brief Get force name for logging/debugging
    */
   virtual std::string name() const = 0;

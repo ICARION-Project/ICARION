@@ -96,6 +96,7 @@ SimulationEngine::SimulationEngine(
     }
 
     parallel_enabled_ = config_.simulation.enable_openmp;
+    integrator_->set_parallel_enabled(parallel_enabled_);
     
     // Create domain manager
     domain_manager_ = std::make_unique<DomainManager>(
@@ -475,6 +476,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
 }
 
 void SimulationEngine::update_space_charge_models(core::IonEnsemble& ensemble) {
+    PROFILE_SCOPE_IF_ENABLED("Space Charge Update");
     std::vector<const physics::ISpaceChargeModel*> updated;
     updated.reserve(force_registries_.size());
 
@@ -561,8 +563,6 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
     {
         #pragma omp for schedule(guided, kOmpChunk)
         for (int i = 0; i < static_cast<int>(n_ions); ++i) {
-            PhysicsRng& ion_rng = rng_by_ion_[i];
-
             if (!born[i] && current_time_ >= ensemble.birth_time(i)) {
                 born[i] = 1;
                 active[i] = 1;
@@ -597,13 +597,17 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
         }
     }
 
-    double max_dt_used = perform_integration(
-        ensemble,
-        current_time_,
-        dt_per_ion_,
-        integration_domains,
-        dt_used_per_ion,
-        dt_next_per_ion);
+    double max_dt_used = 0.0;
+    {
+        PROFILE_SCOPE_IF_ENABLED("Integrator (Total)");
+        max_dt_used = perform_integration(
+            ensemble,
+            current_time_,
+            dt_per_ion_,
+            integration_domains,
+            dt_used_per_ion,
+            dt_next_per_ion);
+    }
 
     // Apply stochastic processes using the actual dt used by the integrator
     perform_collisions(ensemble, dt_used_per_ion, integration_domains);
@@ -738,6 +742,7 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
             }
         }
         if (uniform_dt && dt_batch > 0.0) {
+            PROFILE_SCOPE_IF_ENABLED("Integrator Batch Step");
             if (integrator_->step_batch(ensemble, t, dt_batch, force_registries_, domain_indices)) {
                 std::fill(dt_used_per_ion.begin(), dt_used_per_ion.end(), dt_batch);
                 std::fill(dt_next_per_ion.begin(), dt_next_per_ion.end(), dt_batch);
@@ -751,6 +756,7 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
         if (!uniform_dt || dt_batch <= 0.0 || dynamic_cast<RK4Strategy*>(integrator_.get()) == nullptr) {
             output_manager_->log_progress("Warning: Space-charge present without uniform RK4 dt; falling back to per-ion integration with stale fields.");
         } else {
+            PROFILE_SCOPE_IF_ENABLED("Integrator RK4 SC Batch");
             const size_t n = ensemble.size();
             auto* pos_x = ensemble.pos_x_data();
             auto* pos_y = ensemble.pos_y_data();
@@ -871,6 +877,7 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
     if (has_space_charge && integrator_->is_adaptive()) {
         auto* rk45_ptr = dynamic_cast<RK45Strategy*>(integrator_.get());
         if (rk45_ptr) {
+            PROFILE_SCOPE_IF_ENABLED("Integrator RK45 SC Adaptive");
             using Coef = rk45::Coefficients;
             constexpr double PI_BETA = 0.04;
             constexpr double PI_ALPHA = 0.2 - PI_BETA * 0.75;
@@ -1161,6 +1168,7 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
     if (has_space_charge) {
         auto* rk45_ptr = dynamic_cast<RK45Strategy*>(integrator_.get());
         if (rk45_ptr && uniform_dt && dt_batch > 0.0) {
+            PROFILE_SCOPE_IF_ENABLED("Integrator RK45 SC Batch");
             const size_t n = ensemble.size();
             auto* pos_x = ensemble.pos_x_data();
             auto* pos_y = ensemble.pos_y_data();
@@ -1377,6 +1385,7 @@ double SimulationEngine::perform_integration(core::IonEnsemble& ensemble,
             continue;
         }
         const double dt = dt_per_ion[i];
+        PROFILE_SCOPE_IF_ENABLED("Integrator Step");
         integrator_->step(ensemble, i, t, dt, *registry);
 
         if (rk45) {

@@ -40,6 +40,8 @@ public:
         double temperature_K,
         double current_time
     ) override {
+        (void)normal;
+        (void)temperature_K;
         // Set position to boundary intersection (for accurate trajectory output)
         ion.pos = boundary_pos;
         

@@ -43,13 +43,12 @@ void Profiler::startSection(const std::string& name) {
     
     std::lock_guard<std::mutex> lock(mutex_);
     auto& data = sections_[name];
-    data.start = std::chrono::steady_clock::now();
+    auto& starts = data.start_times[std::this_thread::get_id()];
+    starts.push_back(std::chrono::steady_clock::now());
 }
 
 void Profiler::endSection(const std::string& name) {
     if (!enabled_) return;
-    
-    auto end = std::chrono::steady_clock::now();
     
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = sections_.find(name);
@@ -58,8 +57,20 @@ void Profiler::endSection(const std::string& name) {
     }
     
     auto& data = it->second;
+    auto thread_it = data.start_times.find(std::this_thread::get_id());
+    if (thread_it == data.start_times.end() || thread_it->second.empty()) {
+        return;  // Section not started on this thread
+    }
+
+    auto start = thread_it->second.back();
+    thread_it->second.pop_back();
+    if (thread_it->second.empty()) {
+        data.start_times.erase(thread_it);
+    }
+
+    auto end = std::chrono::steady_clock::now();
     auto duration_ms = std::chrono::duration<double, std::milli>(
-        end - data.start).count();
+        end - start).count();
     
     data.total_time_ms += duration_ms;
     data.call_count++;

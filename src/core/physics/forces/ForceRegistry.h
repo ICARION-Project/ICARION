@@ -110,7 +110,10 @@ public:
    *
    * @note NOT thread-safe (call during setup phase only)
    */
-  void clear() { forces_.clear(); }
+  void clear() {
+    forces_.clear();
+    uses_aos_filter_ = false;
+  }
 
   /**
    * @brief Get domain configuration (if available)
@@ -175,6 +178,11 @@ private:
    * @brief Optional shared space-charge model.
    */
   SpaceChargeModelPtr space_charge_model_;
+
+  /**
+   * @brief Track whether any force requires AoS applicability checks.
+   */
+  bool uses_aos_filter_ = false;
 };
 
 } // namespace ICARION::physics

@@ -130,6 +130,13 @@ public:
         (void)domain_indices;
         return false;
     }
+
+    /**
+     * @brief Enable or disable parallel execution for batch paths.
+     *
+     * Default implementation is a no-op.
+     */
+    virtual void set_parallel_enabled(bool enabled) { (void)enabled; }
 };
 
 } // namespace integrator

@@ -99,6 +99,13 @@ bool GPUReactionHandler::handle_batch(core::IonEnsemble& ensemble,
     return gpu_backend_->process_batch(
         ensemble, domain_indices, dt, reaction_db, species_db, domains, rng_pool);
 #else
+    (void)ensemble;
+    (void)domain_indices;
+    (void)dt;
+    (void)reaction_db;
+    (void)species_db;
+    (void)domains;
+    (void)rng_pool;
     return false;
 #endif
 }

@@ -38,6 +38,8 @@ GPUCollisionHandler::GPUCollisionHandler(
         gpu_context_.reset();
         gpu_helper_.reset();
     }
+#else
+    (void)rng_seed;
 #endif
 }
 
@@ -116,6 +118,10 @@ bool GPUCollisionHandler::handle_batch(core::IonEnsemble& ensemble,
     }
     return true;
 #else
+    (void)ensemble;
+    (void)ion_indices;
+    (void)dt;
+    (void)env;
     return false;
 #endif
 }

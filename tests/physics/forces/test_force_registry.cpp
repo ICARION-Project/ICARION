@@ -99,6 +99,8 @@ public:
     bool applies_to(const IonState& ion) const override {
         return std::abs(ion.ion_charge_C - target_charge_) < 1e-25;
     }
+
+    bool requires_aos_state() const override { return true; }
     
     std::string name() const override { return "ConditionalForce"; }
     

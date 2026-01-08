@@ -186,6 +186,7 @@ void NumericalSafetyLogger::logBoundsViolation(int ion_index, int step_number, d
 }
 
 void NumericalSafetyLogger::updateStatistics(double safety_check_time_ns, bool violation_found) {
+    (void)violation_found;
     if (!enabled_) return;
     
     std::lock_guard<std::mutex> lock(log_mutex_);

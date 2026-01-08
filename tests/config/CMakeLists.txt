@@ -111,6 +111,7 @@ target_include_directories(test_database_integration
     PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
+target_compile_definitions(test_database_integration PRIVATE ICARION_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 add_test(NAME DatabaseIntegration COMMAND test_database_integration)
 set_tests_properties(DatabaseIntegration PROPERTIES
@@ -154,4 +155,3 @@ target_include_directories(test_field_array_terms_loader
 )
 
 add_test(NAME FieldArrayTermsLoader COMMAND test_field_array_terms_loader)
-

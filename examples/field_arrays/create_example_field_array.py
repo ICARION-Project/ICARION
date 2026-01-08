@@ -200,8 +200,9 @@ if __name__ == '__main__':
     print("Creating Example Field Array HDF5 Files")
     print("=" * 60 + "\n")
     
-    # Create output directory if needed
-    output_dir = "field_arrays"
+    # Create output directory next to this script for consistent paths
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = script_dir
     os.makedirs(output_dir, exist_ok=True)
     
     # Generate test fields
@@ -225,12 +226,12 @@ if __name__ == '__main__':
   "fields": {
     "field_array_terms": [
       {
-        "file": "field_arrays/uniform_field.h5",
+        "file": "examples/field_arrays/uniform_field.h5",
         "scale_type": "Constant",
         "constant_V": 10.0
       },
       {
-        "file": "field_arrays/dc_axial_unit.h5",
+        "file": "examples/field_arrays/dc_axial_unit.h5",
         "scale_type": "DC_Axial"
       }
     ]

@@ -11,7 +11,8 @@ int main() {
     try {
         // Test 0: Load basic IMS config (existing file)
         std::cout << "=== Test 0: Basic IMS Configuration ===\n";
-        std::filesystem::path config_path0 = "/home/chsch95/ICARION/examples/ims/ims_basic.json";
+        const std::filesystem::path source_dir = ICARION_SOURCE_DIR;
+        std::filesystem::path config_path0 = source_dir / "examples/ims/ims_basic.json";
         auto config0 = ConfigLoader::load(config_path0);
         
         std::cout << "✓ Config loaded successfully\n";
@@ -21,7 +22,7 @@ int main() {
         
         // Test 1: Load config with multi-gas mixture
         std::cout << "\n=== Test 1: IMS with Multi-Gas Mixture ===\n";
-        std::filesystem::path config_path1 = "/home/chsch95/ICARION/examples/ims/ims_multi_gas_air.json";
+        std::filesystem::path config_path1 = source_dir / "examples/ims/ims_multi_gas_air.json";
         auto config1 = ConfigLoader::load(config_path1);
         
         std::cout << "✓ Config loaded successfully\n";
@@ -41,7 +42,7 @@ int main() {
         
         // Test 2: Load config with reactions
         std::cout << "\n=== Test 2: Reaction Demo ===\n";
-        std::filesystem::path config_path2 = "/home/chsch95/ICARION/examples/reactions/reaction_demo.json";
+        std::filesystem::path config_path2 = source_dir / "examples/reactions/reaction_demo.json";
         auto config2 = ConfigLoader::load(config_path2);
         
         std::cout << "✓ Config loaded successfully\n";

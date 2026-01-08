@@ -79,6 +79,7 @@ if (USE_GPU_ACCEL)
     add_executable(test_gpu_field_interpolation test_gpu_field_interpolation.cpp)
     target_link_libraries(test_gpu_field_interpolation PRIVATE icarion_core Catch2::Catch2WithMain)
     target_include_directories(test_gpu_field_interpolation PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_compile_definitions(test_gpu_field_interpolation PRIVATE ICARION_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     
     add_test(NAME test_gpu_field_interpolation COMMAND test_gpu_field_interpolation)
     set_tests_properties(test_gpu_field_interpolation PROPERTIES 

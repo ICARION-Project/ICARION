@@ -31,7 +31,10 @@ enum class WaveformType {
 struct ConstantWaveform {
     double value = 0.0;
     
-    double evaluate([[maybe_unused]] double t) const { return value; }
+    double evaluate(double t) const {
+        (void)t;
+        return value;
+    }
 };
 
 /**

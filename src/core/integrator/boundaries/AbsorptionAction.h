@@ -35,11 +35,13 @@ class AbsorptionAction : public BoundaryAction {
 public:
     void apply(
         IonState& ion,
-        const Vec3& /*normal*/,
+        const Vec3& normal,
         const Vec3& boundary_pos,
-        double /*temperature_K*/,
+        double temperature_K,
         double current_time
     ) override {
+        (void)normal;
+        (void)temperature_K;
         // Set position to boundary intersection (for accurate trajectory output)
         ion.pos = boundary_pos;
         

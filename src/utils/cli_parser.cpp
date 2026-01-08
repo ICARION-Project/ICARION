@@ -3,6 +3,7 @@
 
 #include "cli_parser.h"
 #include <cxxopts.hpp>
+#include <exception>
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
@@ -112,7 +113,7 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     cxxopts::ParseResult result;
     try {
         result = parser.parse(argc, argv);
-    } catch (const cxxopts::exceptions::exception& e) {
+    } catch (const std::exception& e) {
         // Note: Logger not yet initialized at this point, use stderr
         std::cerr << "Error parsing arguments: " << e.what() << "\n";
         std::cerr << "Use --help for usage information\n";

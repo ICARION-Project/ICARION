@@ -191,112 +191,114 @@ bool RK4Strategy::step_batch(
     (void)use_omp;
 #endif
 
-    auto compute_accels = [&](double t_stage, std::vector<Vec3>& acc_out) {
-        #pragma omp parallel if(use_omp)
-        {
-            #pragma omp for schedule(guided, kOmpChunk)
-            for (int i = 0; i < static_cast<int>(n); ++i) {
-                if (domain_indices[static_cast<size_t>(i)] < 0 || !active[i]) {
-                    continue;
-                }
-                const int dom = domain_indices[static_cast<size_t>(i)];
-                if (dom < 0 || dom >= static_cast<int>(registries.size())) {
-                    continue;
-                }
-                const auto& reg = registries[static_cast<size_t>(dom)];
-                if (!reg) {
-                    continue;
-                }
-                physics::ForceContext ctx;
-                ctx.domain = reg->domain();
-                ctx.field_model = reg->field_model();
-                ctx.ion_ensemble = &ensemble;
-                ctx.ion_index = static_cast<size_t>(i);
-                Vec3 F = reg->compute_total_force(ensemble, static_cast<size_t>(i), t_stage, ctx);
-                acc_out[static_cast<size_t>(i)] = F * (1.0 / mass[i]);
-            }
+    const int n_int = static_cast<int>(n);
+    const int reg_count = static_cast<int>(registries.size());
+    const double half_dt = dt * 0.5;
+
+    auto compute_accel = [&](int i, double t_stage, std::vector<Vec3>& acc_out) {
+        const size_t idx = static_cast<size_t>(i);
+        if (domain_indices[idx] < 0 || !active[idx]) {
+            return;
         }
+        const int dom = domain_indices[idx];
+        if (dom < 0 || dom >= reg_count) {
+            return;
+        }
+        const auto& reg = registries[static_cast<size_t>(dom)];
+        if (!reg) {
+            return;
+        }
+        physics::ForceContext ctx;
+        ctx.domain = reg->domain();
+        ctx.field_model = reg->field_model();
+        ctx.ion_ensemble = &ensemble;
+        ctx.ion_index = idx;
+        Vec3 F = reg->compute_total_force(ensemble, idx, t_stage, ctx);
+        acc_out[idx] = F * (1.0 / mass[idx]);
     };
 
     #pragma omp parallel if(use_omp)
     {
         #pragma omp for schedule(guided, kOmpChunk)
-        for (int i = 0; i < static_cast<int>(n); ++i) {
-            if (domain_indices[static_cast<size_t>(i)] < 0 || !active[i]) {
+        for (int i = 0; i < n_int; ++i) {
+            const size_t idx = static_cast<size_t>(i);
+            if (domain_indices[idx] < 0 || !active[idx]) {
                 continue;
             }
-            k1_v[static_cast<size_t>(i)] = Vec3{base_vx[i], base_vy[i], base_vz[i]};
+            k1_v[idx] = Vec3{base_vx[i], base_vy[i], base_vz[i]};
+            compute_accel(i, t, k1_a);
         }
-    }
-    compute_accels(t, k1_a);
 
-    #pragma omp parallel if(use_omp)
-    {
         #pragma omp for schedule(guided, kOmpChunk)
-        for (int i = 0; i < static_cast<int>(n); ++i) {
-            if (domain_indices[static_cast<size_t>(i)] < 0 || !active[i]) {
+        for (int i = 0; i < n_int; ++i) {
+            const size_t idx = static_cast<size_t>(i);
+            if (domain_indices[idx] < 0 || !active[idx]) {
                 continue;
             }
-            pos_x[i] = base_px[i] + k1_v[static_cast<size_t>(i)].x * (dt * 0.5);
-            pos_y[i] = base_py[i] + k1_v[static_cast<size_t>(i)].y * (dt * 0.5);
-            pos_z[i] = base_pz[i] + k1_v[static_cast<size_t>(i)].z * (dt * 0.5);
-            vel_x[i] = base_vx[i] + k1_a[static_cast<size_t>(i)].x * (dt * 0.5);
-            vel_y[i] = base_vy[i] + k1_a[static_cast<size_t>(i)].y * (dt * 0.5);
-            vel_z[i] = base_vz[i] + k1_a[static_cast<size_t>(i)].z * (dt * 0.5);
-            k2_v[static_cast<size_t>(i)] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+            pos_x[i] = base_px[i] + k1_v[idx].x * half_dt;
+            pos_y[i] = base_py[i] + k1_v[idx].y * half_dt;
+            pos_z[i] = base_pz[i] + k1_v[idx].z * half_dt;
+            vel_x[i] = base_vx[i] + k1_a[idx].x * half_dt;
+            vel_y[i] = base_vy[i] + k1_a[idx].y * half_dt;
+            vel_z[i] = base_vz[i] + k1_a[idx].z * half_dt;
+            k2_v[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
         }
-    }
-    compute_accels(t + dt * 0.5, k2_a);
 
-    #pragma omp parallel if(use_omp)
-    {
         #pragma omp for schedule(guided, kOmpChunk)
-        for (int i = 0; i < static_cast<int>(n); ++i) {
-            if (domain_indices[static_cast<size_t>(i)] < 0 || !active[i]) {
+        for (int i = 0; i < n_int; ++i) {
+            compute_accel(i, t + half_dt, k2_a);
+        }
+
+        #pragma omp for schedule(guided, kOmpChunk)
+        for (int i = 0; i < n_int; ++i) {
+            const size_t idx = static_cast<size_t>(i);
+            if (domain_indices[idx] < 0 || !active[idx]) {
                 continue;
             }
-            pos_x[i] = base_px[i] + k2_v[static_cast<size_t>(i)].x * (dt * 0.5);
-            pos_y[i] = base_py[i] + k2_v[static_cast<size_t>(i)].y * (dt * 0.5);
-            pos_z[i] = base_pz[i] + k2_v[static_cast<size_t>(i)].z * (dt * 0.5);
-            vel_x[i] = base_vx[i] + k2_a[static_cast<size_t>(i)].x * (dt * 0.5);
-            vel_y[i] = base_vy[i] + k2_a[static_cast<size_t>(i)].y * (dt * 0.5);
-            vel_z[i] = base_vz[i] + k2_a[static_cast<size_t>(i)].z * (dt * 0.5);
-            k3_v[static_cast<size_t>(i)] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+            pos_x[i] = base_px[i] + k2_v[idx].x * half_dt;
+            pos_y[i] = base_py[i] + k2_v[idx].y * half_dt;
+            pos_z[i] = base_pz[i] + k2_v[idx].z * half_dt;
+            vel_x[i] = base_vx[i] + k2_a[idx].x * half_dt;
+            vel_y[i] = base_vy[i] + k2_a[idx].y * half_dt;
+            vel_z[i] = base_vz[i] + k2_a[idx].z * half_dt;
+            k3_v[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
         }
-    }
-    compute_accels(t + dt * 0.5, k3_a);
 
-    #pragma omp parallel if(use_omp)
-    {
         #pragma omp for schedule(guided, kOmpChunk)
-        for (int i = 0; i < static_cast<int>(n); ++i) {
-            if (domain_indices[static_cast<size_t>(i)] < 0 || !active[i]) {
+        for (int i = 0; i < n_int; ++i) {
+            compute_accel(i, t + half_dt, k3_a);
+        }
+
+        #pragma omp for schedule(guided, kOmpChunk)
+        for (int i = 0; i < n_int; ++i) {
+            const size_t idx = static_cast<size_t>(i);
+            if (domain_indices[idx] < 0 || !active[idx]) {
                 continue;
             }
-            pos_x[i] = base_px[i] + k3_v[static_cast<size_t>(i)].x * dt;
-            pos_y[i] = base_py[i] + k3_v[static_cast<size_t>(i)].y * dt;
-            pos_z[i] = base_pz[i] + k3_v[static_cast<size_t>(i)].z * dt;
-            vel_x[i] = base_vx[i] + k3_a[static_cast<size_t>(i)].x * dt;
-            vel_y[i] = base_vy[i] + k3_a[static_cast<size_t>(i)].y * dt;
-            vel_z[i] = base_vz[i] + k3_a[static_cast<size_t>(i)].z * dt;
-            k4_v[static_cast<size_t>(i)] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+            pos_x[i] = base_px[i] + k3_v[idx].x * dt;
+            pos_y[i] = base_py[i] + k3_v[idx].y * dt;
+            pos_z[i] = base_pz[i] + k3_v[idx].z * dt;
+            vel_x[i] = base_vx[i] + k3_a[idx].x * dt;
+            vel_y[i] = base_vy[i] + k3_a[idx].y * dt;
+            vel_z[i] = base_vz[i] + k3_a[idx].z * dt;
+            k4_v[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
         }
-    }
-    compute_accels(t + dt, k4_a);
 
-    #pragma omp parallel if(use_omp)
-    {
         #pragma omp for schedule(guided, kOmpChunk)
-        for (int i = 0; i < static_cast<int>(n); ++i) {
-            if (domain_indices[static_cast<size_t>(i)] < 0 || !active[i]) {
+        for (int i = 0; i < n_int; ++i) {
+            compute_accel(i, t + dt, k4_a);
+        }
+
+        #pragma omp for schedule(guided, kOmpChunk)
+        for (int i = 0; i < n_int; ++i) {
+            const size_t idx = static_cast<size_t>(i);
+            if (domain_indices[idx] < 0 || !active[idx]) {
                 continue;
             }
             Vec3 pos_new = Vec3{base_px[i], base_py[i], base_pz[i]} +
-                (k1_v[static_cast<size_t>(i)] + k2_v[static_cast<size_t>(i)] * 2.0 +
-                 k3_v[static_cast<size_t>(i)] * 2.0 + k4_v[static_cast<size_t>(i)]) * (dt / 6.0);
+                (k1_v[idx] + k2_v[idx] * 2.0 + k3_v[idx] * 2.0 + k4_v[idx]) * (dt / 6.0);
             Vec3 vel_new = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
-                (k1_a[static_cast<size_t>(i)] + k2_a[static_cast<size_t>(i)] * 2.0 +
-                 k3_a[static_cast<size_t>(i)] * 2.0 + k4_a[static_cast<size_t>(i)]) * (dt / 6.0);
+                (k1_a[idx] + k2_a[idx] * 2.0 + k3_a[idx] * 2.0 + k4_a[idx]) * (dt / 6.0);
 
             pos_x[i] = pos_new.x;
             pos_y[i] = pos_new.y;

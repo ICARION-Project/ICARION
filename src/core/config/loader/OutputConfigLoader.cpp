@@ -22,6 +22,15 @@ OutputConfig OutputConfigLoader::load(const Json::Value& json) {
     if (json.isMember("print_progress") && json["print_progress"].isBool()) {
         config.print_progress = json["print_progress"].asBool();
     }
+
+    // Optional RAM cap for trajectory buffer
+    if (json.isMember("buffer_byte_cap") && json["buffer_byte_cap"].isNumeric()) {
+        auto cap = json["buffer_byte_cap"].asInt64();
+        if (cap < 0) {
+            throw std::runtime_error("output.buffer_byte_cap must be >= 0");
+        }
+        config.buffer_byte_cap = static_cast<size_t>(cap);
+    }
     
     // Validate
     config.validate();

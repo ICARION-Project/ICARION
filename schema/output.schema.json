@@ -20,11 +20,17 @@
     
     "print_progress": {
       "type": "boolean",
-      "default": false,
+      "default": true,
       "description": "Enable progress printing to console"
+    },
+
+    "buffer_byte_cap": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Optional RAM cap for trajectory buffer in bytes (0 = unlimited)"
     }
   },
-  
-  "required": ["trajectory_file"],
+
   "additionalProperties": false
 }

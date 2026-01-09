@@ -391,6 +391,8 @@ MagneticFieldConfig DomainConfigLoader::load_magnetic_fields(const Json::Value& 
     
     if (json.isMember("enabled") && json["enabled"].isBool()) {
         mag.enabled = json["enabled"].asBool();
+    } else if (json.isMember("enabled_magnetic_field") && json["enabled_magnetic_field"].isBool()) {
+        mag.enabled = json["enabled_magnetic_field"].asBool();
     }
     
     if (json.isMember("field_strength_T")) {

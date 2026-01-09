@@ -37,6 +37,27 @@ SimulationConfig SimulationConfigLoader::load(const Json::Value& json) {
     config.enable_gpu = get_bool(json, "enable_gpu", false);
     config.enable_openmp = get_bool(json, "enable_openmp", false);
     config.rng_seed = get_int(json, "rng_seed", 42);
+
+    // Numerical safety (optional)
+    if (json.isMember("numerical_safety") && json["numerical_safety"].isObject()) {
+        const auto& safety = json["numerical_safety"];
+        config.enable_safety_logging = get_bool(safety, "enable_logging", config.enable_safety_logging);
+        config.verbose_safety = get_bool(safety, "verbose_mode", config.verbose_safety);
+        config.safety_checks.enable_nan_checks =
+            get_bool(safety, "enable_nan_checks", config.safety_checks.enable_nan_checks);
+        config.safety_checks.enable_bounds_checks =
+            get_bool(safety, "enable_bounds_checks", config.safety_checks.enable_bounds_checks);
+        config.safety_checks.throw_on_violation =
+            get_bool(safety, "throw_on_violation", config.safety_checks.throw_on_violation);
+        config.safety_checks.attempt_recovery =
+            get_bool(safety, "attempt_recovery", config.safety_checks.attempt_recovery);
+        config.safety_checks.max_position_m =
+            get_double(safety, "max_position_m", config.safety_checks.max_position_m);
+        config.safety_checks.max_velocity_ms =
+            get_double(safety, "max_velocity_ms", config.safety_checks.max_velocity_ms);
+        config.safety_checks.max_acceleration_ms2 =
+            get_double(safety, "max_acceleration_ms2", config.safety_checks.max_acceleration_ms2);
+    }
     
     // Checkpointing
     config.continue_from = get_string(json, "continue_from", "");

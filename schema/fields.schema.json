@@ -6,7 +6,7 @@
   "type": "object",
   
   "properties": {
-    "field_arrays": {
+    "field_array_terms": {
       "type": "array",
       "description": "Optional list of precomputed field-array terms (1 V normalization)",
       "items": {
@@ -16,9 +16,9 @@
             "type": "string",
             "description": "Path to field-array file"
           },
-          "scale_kind": {
+          "scale_type": {
             "type": "string",
-            "enum": ["Constant", "dc_axial", "dc_quad", "dc_radial", "rf"],
+            "enum": ["Constant", "DC_Axial", "DC_Quad", "DC_Radial", "RF"],
             "description": "Scaling kind for this field term"
           },
           "constant_V": {
@@ -37,7 +37,7 @@
             "description": "Additional phase offset for this RF term [rad]"
           }
         },
-        "required": ["file", "scale_kind"],
+        "required": ["file"],
         "additionalProperties": false
       }
     },
@@ -49,7 +49,12 @@
         "EN_Td": {
           "oneOf": [
             {"$ref": "common-types.schema.json#/$defs/reduced_field_strength"},
-            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+            {"$ref": "waveform.schema.json#/definitions/Waveform"},
+            {
+              "type": "string",
+              "pattern": "^@[A-Za-z0-9_-]+$",
+              "description": "Reference to named waveform (@waveform_id)"
+            }
           ],
           "default": 0.0,
           "description": "Reduced electric field strength in Townsend (1 Td = 10^-21 V·m²). Can be static or time-varying (v1.0)"
@@ -57,7 +62,12 @@
         "axial_V": {
           "oneOf": [
             {"$ref": "common-types.schema.json#/$defs/voltage"},
-            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+            {"$ref": "waveform.schema.json#/definitions/Waveform"},
+            {
+              "type": "string",
+              "pattern": "^@[A-Za-z0-9_-]+$",
+              "description": "Reference to named waveform (@waveform_id)"
+            }
           ],
           "default": 0.0,
           "description": "Axial DC voltage [V]. Can be static value, inline waveform, or @waveform_ref (v1.0)"
@@ -65,7 +75,12 @@
         "radial_V": {
           "oneOf": [
             {"$ref": "common-types.schema.json#/$defs/voltage"},
-            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+            {"$ref": "waveform.schema.json#/definitions/Waveform"},
+            {
+              "type": "string",
+              "pattern": "^@[A-Za-z0-9_-]+$",
+              "description": "Reference to named waveform (@waveform_id)"
+            }
           ],
           "default": 0.0,
           "description": "Radial DC voltage [V]. Can be static value, inline waveform, or @waveform_ref (v1.0)"
@@ -73,7 +88,12 @@
         "quad_V": {
           "oneOf": [
             {"$ref": "common-types.schema.json#/$defs/voltage"},
-            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+            {"$ref": "waveform.schema.json#/definitions/Waveform"},
+            {
+              "type": "string",
+              "pattern": "^@[A-Za-z0-9_-]+$",
+              "description": "Reference to named waveform (@waveform_id)"
+            }
           ],
           "default": 0.0,
           "description": "Quadrupolar DC voltage [V]. Can be static value, inline waveform, or @waveform_ref (v1.0)"
@@ -101,6 +121,11 @@
       },
       "additionalProperties": false
     },
+
+    "waveforms": {
+      "$ref": "waveform.schema.json#/definitions/WaveformLibrary",
+      "description": "Optional domain-local waveform library (for @references)"
+    },
     
     "RF": {
       "type": "object",
@@ -109,7 +134,12 @@
         "voltage_V": {
           "oneOf": [
             {"$ref": "common-types.schema.json#/$defs/voltage"},
-            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+            {"$ref": "waveform.schema.json#/definitions/Waveform"},
+            {
+              "type": "string",
+              "pattern": "^@[A-Za-z0-9_-]+$",
+              "description": "Reference to named waveform (@waveform_id)"
+            }
           ],
           "default": 0.0,
           "description": "RF amplitude in volts [V]. Can be static value, inline waveform, or @waveform_ref (v1.0)"
@@ -117,7 +147,12 @@
         "frequency_Hz": {
           "oneOf": [
             {"$ref": "common-types.schema.json#/$defs/frequency"},
-            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+            {"$ref": "waveform.schema.json#/definitions/Waveform"},
+            {
+              "type": "string",
+              "pattern": "^@[A-Za-z0-9_-]+$",
+              "description": "Reference to named waveform (@waveform_id)"
+            }
           ],
           "default": 0.0,
           "description": "RF frequency in Hz. Can be static or time-varying (chirp) (v1.0)"
@@ -138,7 +173,12 @@
         "voltage_V": {
           "oneOf": [
             {"$ref": "common-types.schema.json#/$defs/voltage"},
-            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+            {"$ref": "waveform.schema.json#/definitions/Waveform"},
+            {
+              "type": "string",
+              "pattern": "^@[A-Za-z0-9_-]+$",
+              "description": "Reference to named waveform (@waveform_id)"
+            }
           ],
           "default": 0.0,
           "description": "AC excitation amplitude in volts [V]. Can be static value, inline waveform, or @waveform_ref (v1.0)"
@@ -146,7 +186,12 @@
         "frequency_Hz": {
           "oneOf": [
             {"$ref": "common-types.schema.json#/$defs/frequency"},
-            {"$ref": "waveform.schema.json#/definitions/ValueOrWaveform"}
+            {"$ref": "waveform.schema.json#/definitions/Waveform"},
+            {
+              "type": "string",
+              "pattern": "^@[A-Za-z0-9_-]+$",
+              "description": "Reference to named waveform (@waveform_id)"
+            }
           ],
           "default": 0.0,
           "description": "AC excitation frequency in Hz. Can be static or time-varying (v1.0)"
@@ -194,10 +239,15 @@
       "type": "object",
       "description": "Magnetic field parameters",
       "properties": {
-        "enabled_magnetic_field": {
+        "enabled": {
           "type": "boolean",
           "default": false,
           "description": "Enable magnetic field"
+        },
+        "enabled_magnetic_field": {
+          "type": "boolean",
+          "default": false,
+          "description": "Legacy alias for enabled"
         },
         "field_strength_T": {
           "$ref": "common-types.schema.json#/$defs/magnetic_field_vector",
@@ -211,6 +261,11 @@
         }
       },
       "additionalProperties": false
+    },
+
+    "magnetic": {
+      "$ref": "#/properties/B",
+      "description": "Alias for B (magnetic field parameters)"
     }
   },
   

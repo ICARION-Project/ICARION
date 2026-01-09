@@ -71,6 +71,9 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         else if (key == "output.print_progress") {
             config.output.print_progress = parse_bool(value, key);
         }
+        else if (key == "output.buffer_byte_cap") {
+            config.output.buffer_byte_cap = static_cast<size_t>(parse_uint64(value, key));
+        }
         
         // === Database paths ===
         else if (key == "species_database" || key == "database.species") {
@@ -116,6 +119,18 @@ unsigned int ConfigOverride::parse_uint(const std::string& value, const std::str
         return static_cast<unsigned int>(val);
     } catch (const std::exception& e) {
         throw std::runtime_error("Invalid unsigned int value for '" + key + "': " + value);
+    }
+}
+
+uint64_t ConfigOverride::parse_uint64(const std::string& value, const std::string& key) {
+    try {
+        long long val = std::stoll(value);
+        if (val < 0) {
+            throw std::runtime_error("Negative value not allowed");
+        }
+        return static_cast<uint64_t>(val);
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Invalid uint64 value for '" + key + "': " + value);
     }
 }
 

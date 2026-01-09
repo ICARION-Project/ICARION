@@ -9,6 +9,7 @@
 #include <map>
 #include <stdexcept>
 #include <sstream>
+#include <cstdint>
 
 namespace ICARION::config {
 
@@ -43,6 +44,9 @@ private:
     
     // Helper: Parse unsigned int value
     static unsigned int parse_uint(const std::string& value, const std::string& key);
+
+    // Helper: Parse uint64 value
+    static uint64_t parse_uint64(const std::string& value, const std::string& key);
 };
 
 } // namespace ICARION::config

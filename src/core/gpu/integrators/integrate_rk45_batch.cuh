@@ -30,8 +30,8 @@ struct RK45Params {
  * @brief Batch RK45 integration on GPU with constant fields (experimental)
  * 
  * Integrates all ions from t to t+dt using adaptive 4th/5th-order
- * Dormand-Prince method with local error control. Experimental path used by
- * GPUIntegrationHelper tests; not wired into SimulationEngine and not
+ * Dormand-Prince method with local error control. Used by GPUIntegrationHelper
+ * (and GPUIntegrationStrategy when eligible). Experimental and not fully
  * validated against the CPU RK45.
  * 
  * Each ion adapts its substep independently based on local error.

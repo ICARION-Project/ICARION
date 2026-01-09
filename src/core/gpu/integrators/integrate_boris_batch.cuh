@@ -18,7 +18,8 @@ struct FieldArrayGPU;
  * @brief Batch Boris pusher integration on GPU with constant fields (experimental)
  * 
  * Integrates all ions from t to t+dt using symplectic Boris algorithm.
- * Experimental path (tested in isolation), not wired into SimulationEngine.
+ * Experimental path used by GPUIntegrationHelper (and GPUIntegrationStrategy
+ * when eligible).
  * Optimal for magnetic field-dominated systems (ICR, Orbitrap, Penning).
  * CPU parity not established.
  * 

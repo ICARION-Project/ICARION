@@ -15,7 +15,7 @@ namespace gpu {
  * 
  * Stores electric and magnetic field components in CUDA texture memory for
  * hardware trilinear interpolation. Converts host doubles to float; intended
- * for the experimental GPUIntegrationHelper path only.
+ * for the experimental GPUIntegrationHelper path.
  * 
  * Memory layout:
  * - 3D texture objects for each field component (Ex, Ey, Ez, Bx, By, Bz)
@@ -23,7 +23,7 @@ namespace gpu {
  * - CUDA arrays backing the texture objects
  * 
  * @note Uses single-precision textures; precision-sensitive setups should
- *       prefer CPU interpolation. Not wired into SimulationEngine by default.
+ *       prefer CPU interpolation.
  */
 struct FieldArrayGPU {
     // Texture objects for electric field components

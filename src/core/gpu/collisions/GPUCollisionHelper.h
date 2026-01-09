@@ -16,7 +16,7 @@
  * - Persistent buffers and cuRAND states reused across timesteps
  * - Minimal statistics tracking (batch/ion counters, timing placeholders)
  * 
- * **Integration with SimulationEngine (not wired by default):**
+ * **Integration with SimulationEngine (via GPUCollisionHandler):**
  * ```cpp
  * if (gpu_collision_helper_ && ions.size() >= threshold) {
  *     if (gpu_collision_helper_->process_collisions_batch(ions, dt, env)) {
@@ -25,7 +25,8 @@
  * }
  * // Fallback to CPU
  * for (auto& ion : ions) {
- *     collision_handler->handle_collision(ion, dt, rng, env);
+ *     auto view = ensemble.collision_data(i);
+ *     collision_handler->handle_collision(view, dt, rng, env);
  * }
  * ```
  */

@@ -19,7 +19,7 @@ struct FieldArrayGPU;
  * @brief Batch RK4 integration on GPU with constant fields (experimental)
  * 
  * Integrates all ions from t to t+dt using 4th-order Runge-Kutta. Used only
- * by GPUIntegrationHelper tests; not wired into SimulationEngine.
+ * by GPUIntegrationHelper (and GPUIntegrationStrategy when eligible).
  * 
  * @param ions_in Input ion states at time t
  * @param ions_out Output ion states at time t+dt (must be pre-allocated)

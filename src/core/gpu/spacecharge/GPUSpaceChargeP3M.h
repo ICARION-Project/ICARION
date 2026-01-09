@@ -5,10 +5,10 @@
  * @file GPUSpaceChargeP3M.h
  * @brief GPU-accelerated space charge field calculation using P³M algorithm
  * 
- * Experimental prototype for GPU P³M. Not wired into SimulationEngine; not
+ * Experimental GPU P³M solver. Wired through SpaceChargeGPUModel when
+ * `physics.enable_space_charge_gpu` is enabled and CUDA is available. Not
  * validated against CPU results; geometry handling and boundary conditions are
- * incomplete. Avoid using for production until integration and validation are
- * completed.
+ * incomplete. Avoid using for production until validation is completed.
  * 
  * **Algorithm:**
  * 1. Particle-to-Grid (P2G): Scatter ion charges to 3D grid (CIC or NGP)
@@ -36,8 +36,8 @@ namespace gpu {
 /**
  * @brief GPU-accelerated P³M space charge solver
  * 
- * **Status:** Experimental helper only; not used anywhere by default.
- * **When to use:** Prefer CPU direct until this path is validated.
+ * **Status:** Experimental helper used by SpaceChargeGPUModel when enabled.
+ * **When to use:** Prefer CPU direct/grid until this path is validated.
  * 
  * **Limitations:**
  * - Rectangular domain only; no cylindrical/Orbitrap geometry support.

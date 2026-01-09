@@ -7,8 +7,8 @@
  * 
  * Provides bridge between ICARION's CPU field representation (FieldArray)
  * and GPU texture-based field storage (FieldArrayGPU). Only electric field
- * components are uploaded; this path is experimental and used only by the
- * GPUIntegrationHelper prototype.
+ * components are uploaded; this path is experimental and used by the
+ * GPUIntegrationHelper path.
  */
 
 #ifndef ICARION_FIELD_ARRAY_GPU_CONVERSION_H

@@ -16,7 +16,7 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 - **Stable surface:** JSON configuration schema is considered stable for v1.x.
 - **Internal API:** C++ headers/classes are internal and may evolve between minor releases.
 - **License:** MIT (see `LICENSE`); third-party dependencies listed in `CMakeLists.txt` and `cmake/`.
-- **Experimental components (off-path for v1.0 results):** GPU EHSS geometry upload, GPU space-charge P³M, and adaptive field interpolation are present but incomplete and are hard-disabled at runtime in v1.0 (any `enable_gpu=true` runs on CPU).
+- **Experimental components (off-path for v1.0 results):** GPU EHSS geometry upload, GPU space-charge P³M, and adaptive field interpolation are present but incomplete; the primary runtime GPU path in `SimulationEngine` is disabled for v1.0 (helpers remain buildable for dev/testing).
 
 # Documentation
 
@@ -24,18 +24,22 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 - [docs/CLI_USAGE.md](docs/CLI_USAGE.md) — command-line flags and batch usage.
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common build/run issues (incl. WSL).
 - [docs/HDF5_OUTPUT_STRUCTURE.md](docs/HDF5_OUTPUT_STRUCTURE.md) — output file layout.
-- [docs/COLLISION_MODELS.md](docs/COLLISION_MODELS.md) — collision/reaction physics background.
+- [docs/COLLISION_MODELS.md](docs/COLLISION_MODELS.md) — collision physics background and model guidance.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — high-level design and module overview.
+- [docs/GPU_ARCHITECTURE.md](docs/GPU_ARCHITECTURE.md) — GPU code structure and data flow.
+- [docs/JSON_LOGGING.md](docs/JSON_LOGGING.md) — structured logging format and examples.
 - [validation/README.md](validation/README.md) — validation suite and ready-to-run configs.
+- [validation/VALIDATION_REPORT_v1.0.md](validation/VALIDATION_REPORT_v1.0.md) — detailed physics validation results for v1.0.
 
 # What & Who
 
 - **What is ICARION?** Modular ion trajectory simulator (C++17) for mass spectrometry, ion mobility devices and ion optics with collision and reaction support.
 - **What can it do in v1.0?** IMS, RF quadrupole, Orbitrap, TOF, LQIT, FT-ICR; EHSS/HSS stochastic collision models Friction/Langevin/HardSphere deterministic collision models; Arrhenius reactions; RK4/RK45/Boris integrators; HDF5 with reproducibility metadata and config snapshot.
 - **What can it not do yet?** No full-field solver, no optimizer loop, limited GPU coverage (see below), magnetic field map providers not wired (analytical/uniform B only).
-- **Who is it for?** Researchers/engineers needing reproducible ion mobility / MS simulations with configurable physics and domains.
+- **Who is it for?** Researchers/engineers needing reproducible ion mobility / MS simulations with configurable physics and domains or scientists researching on ion transport regimes/phenomena.
 - **Expectation management:** ICARION prioritizes physical correctness and modularity. Performance optimization and GPU offloading are active development areas.
-- **Integrator note:** RK45 now keeps per-ion adaptive state and is OpenMP-safe; batch paths (CPU/GPU) require uniform `dt` across active ions.
-- **GPU status:** GPU codepaths are compiled but runtime-disabled for v1.0; `enable_gpu=true` is ignored and falls back to CPU. The backend remains experimental for developers only.
+- **Integrator note:** RK45 keeps per-ion adaptive state; OpenMP determinism is covered by tests. Batch paths (CPU/GPU) require uniform `dt` across active ions.
+- **GPU status:** GPU codepaths are compiled but the primary runtime GPU path is disabled for v1.0; helpers remain experimental for developers.
 - **Output memory guard:** Set `output.buffer_byte_cap` (bytes) to cap in-memory trajectory buffering and fail fast before OOM; `0` disables the cap.
 
 # Keywords & Acronyms
@@ -72,7 +76,6 @@ Run produces `results/ims/ims_trajectories.h5` (plus a config snapshot `ims_traj
 
 - Deterministic & stochastic collisions (see docs/COLLISION_MODELS.md)
 - Ion–neutral reactions with temperature-dependent rates
-- Mason–Schamp CCS/mobility conversion
 - Domain-dependent gas environments
 - DC, RF, AC, magnetic fields (magnetic maps are not wired; analytical/uniform B only; electric fields either analytical or initialized from precomputed field arrays)
 
@@ -90,7 +93,7 @@ Run produces `results/ims/ims_trajectories.h5` (plus a config snapshot `ims_traj
 - fixed-step RK4, adaptive RK45, Boris pusher
 - Deterministic + stochastic collision loop
 - OpenMP support (multi-core CPU)
-- GPU support (compiled, but runtime-disabled in v1.0; `enable_gpu` falls back to CPU)
+- GPU support (compiled; primary runtime GPU path disabled in v1.0; helpers remain experimental)
 
 ## Input System
 
@@ -117,6 +120,7 @@ SSOT architecture:
 - C++17 compiler (GCC/Clang/MSVC)
 - CMake ≥ 3.16
 - HDF5 ≥ 1.10, Eigen3 ≥ 3.4, jsoncpp ≥ 1.9, nlohmann_json ≥ 3.10, OpenSSL, BLAS, spdlog, cxxopts
+- Catch2 v3 (for tests/ctest)
 - OpenMP recommended (auto-detected if available)
 - (Optional) CUDA ≥ 11 **only** when `-DUSE_GPU_ACCEL=ON` (default is OFF; CPU works without CUDA).
 
@@ -127,6 +131,9 @@ sudo apt update && sudo apt install -y \
   build-essential cmake git pkg-config \
   libeigen3-dev libjsoncpp-dev nlohmann-json3-dev libhdf5-dev \
   libssl-dev libopenblas-dev libspdlog-dev libcxxopts-dev
+
+# Optional (tests/ctest): Catch2 v3. If your distro only ships Catch2 v2,
+# install Catch2 v3 from source.
 
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
@@ -365,19 +372,26 @@ Generated by `hdf5Writer.cpp`.
 /ions (contains initial data)
 /domains
   /domain_0
-    /metadata
+    /name
+    /instrument
+    /solver
     /geometry
     /environment
     /fields
+      /dc
+      /rf
+      /ac
+      /waveforms (optional)
   /domain_1
     ...
 /metadata
   /config (selected simulation parameters)
+  /physics (collision/reaction handler metadata)
   /reproducibility (seed, version, build information)
   /system (basic system info)
   /species (metadata from species.json, only used species are stored)
   /reactions (metadata from reactions.json, only reactions involving used species are stored)
-  /completion (performance metrics)
+  /completion (run status + final time/active ions)
 
 ```
 
@@ -399,13 +413,28 @@ ICARION v1.0 provides built-in validation configurations:
 - TOF energy-time scaling
 - LQIT secular frequency checks
 
+Full physics results are documented in `validation/VALIDATION_REPORT_v1.0.md` (see `validation/README.md` for how to run the suite).
+
+Fast regression tests (CTests) live under `tests/` and are recommended after a build.
+See `tests/README.md` for the complete list and tags. Run from `build/`:
+
+```bash
+ctest --output-on-failure
+```
+
 ---
 
 # Directory Structure
 
 ```
 ICARION/
+├── CHANGELOG.md                # Release history
+├── CMakeLists.txt              # Root CMake configuration
+├── LICENSE                     # MIT License
+├── README.md                   # This file
+├── RELEASE_NOTES_v1.0.md       # v1.0 release notes
 ├── build/                      # CMake build artifacts (generated)
+├── analysis/                   # Analysis scripts/outputs
 ├── cmake/                      # CMake modules and configuration
 │   ├── CompilerSettings.cmake  # Compiler flags and optimizations
 │   ├── CUDAConfig.cmake        # CUDA detection and configuration
@@ -425,6 +454,7 @@ ICARION/
 │   ├── JSON_LOGGING.md         # Logging system documentation
 │   └── TROUBLESHOOTING.md      # Common issues and solutions
 ├── examples/                   # Ready-to-run example configurations
+│   ├── fticr/                  # FT-ICR examples
 │   ├── lqit/                   # Linear quadrupole ion trap examples
 │   ├── orbitrap/               # Orbitrap mass analyzer examples
 │   ├── quadrupole/             # Quadrupole mass filter examples
@@ -432,9 +462,10 @@ ICARION/
 │   ├── ims/                    # Ion mobility spectrometry examples
 │   ├── field_arrays/           # Pre-computed field data
 │   ├── ion_clouds/             # Initial ion distributions
+│   ├── tof/                    # Time-of-flight examples
 │   ├── waveforms/              # Custom RF/DC waveforms
 │   └── README.md
-├── results/                    # Simulation output (HDF5, JSON logs)
+├── phase0_analysis/            # Legacy analysis runs
 ├── schema/                     # JSON schema definitions
 │   ├── icarion-config.schema.json  # Main config schema
 │   ├── species.schema.json
@@ -442,8 +473,11 @@ ICARION/
 │   ├── validator.py            # Schema validation tool
 │   └── README.md
 ├── scripts/                    # Utility scripts
-│   ├── compute_ccs_maps.py     # CCS precomputation
 │   ├── create_config.py        # Config file generator
+│   ├── generate_ims_en_sweep.py # IMS E/N sweep generator
+│   ├── generate_lqit_ac_sweep.py # LQIT AC sweep generator
+│   ├── run_ims_en_sweep.sh      # IMS sweep runner
+│   ├── run_lqit_ac_sweep.sh     # LQIT sweep runner
 │   └── README.md
 ├── src/                        # C++ source code
 │   ├── core/                   # Core simulation engine
@@ -452,7 +486,6 @@ ICARION/
 │   │   ├── integrator/         # SimulationEngine, strategies, domains
 │   │   ├── io/                 # HDF5 writer/reader
 │   │   ├── log/                # Logging wrappers
-│   │   ├── param/              # Legacy/bridge parameters
 │   │   ├── physics/            # Forces, collisions, reactions
 │   │   ├── types/              # IonState, IonEnsemble, Vec3, enums
 │   │   └── utils/              # Math, safety, profiling helpers
@@ -461,13 +494,17 @@ ICARION/
 │   ├── optimizer/              # Optimization module (future)
 │   └── utils/                  # Shared utilities (logging, math, CLI helpers)
 ├── tests/                      # Unit and integration tests
-│   ├── unit/                   # Unit tests (Catch2)
-│   ├── integration/            # End-to-end tests
-│   ├── collision/              # Collision model tests
+│   ├── config/                 # Config loader tests
+│   ├── gpu/                    # GPU kernel tests
+│   ├── helpers/                # Test helpers
 │   ├── instruments/            # Instrument-specific tests
+│   ├── integration/            # End-to-end tests
+│   ├── integrator/             # Integrator/engine tests
+│   ├── io/                     # HDF5 writer tests
+│   ├── physics/                # Forces/collisions/reactions tests
+│   ├── unit/                   # Unit tests (Catch2)
+│   ├── utils/                  # Hashing and utility tests
 │   └── README.md
-├── tmp/                        # Temporary files and planning docs
-│   └── docs/                   # Development planning documents
 ├── tools/                      # Standalone tools
 │   └── ccs_precompute.cpp      # CCS precomputation utility
 ├── validation/                 # Physics validation suite
@@ -476,10 +513,11 @@ ICARION/
 │   │   ├── physics/            # Physics benchmark tests
 │   │   └── performance/        # Performance benchmarks
 │   ├── scripts/                # Validation automation scripts
-│   └── README.md
-├── CMakeLists.txt              # Root CMake configuration
-├── LICENSE                     # MIT License
-└── README.md                   # This file
+│   ├── figures/                # Validation plots
+│   ├── logs/                   # Validation logs
+│   ├── results/                # Validation outputs
+│   ├── README.md
+│   └── VALIDATION_REPORT_v1.0.md
 ```
 
 ---
@@ -488,7 +526,7 @@ ICARION/
 
 - FieldSolver integration (BEM/FMM)
 - Optimizer module (genetic algorithms, gradient descent)
-- Advanced collision models (long-range potentials, velocity-dependent CCS)
+- Advanced collision or reaction models (e.g., long-range potentials)
 
 ---
 

@@ -2,7 +2,7 @@
 
 **IMPORTANT: CTests vs Validation Suite**
 
-This directory contains **CTests** - fast regression tests for CI/CD (<5s runtime).
+This directory contains **CTests** - regression tests for CI/CD (generally short; some benchmarks/GPU tests can run longer).
 
 For scientific validation (long, high-fidelity tests for publications), see `validation/` directory.
 
@@ -11,10 +11,10 @@ For scientific validation (long, high-fidelity tests for publications), see `val
 | Aspect | CTests (`tests/`) | Validation Suite (`validation/`) |
 |--------|-------------------|----------------------------------|
 | **Purpose** | Regression testing, CI/CD | Scientific validation for papers |
-| **Runtime** | <5 seconds per test | Up to 30 minutes per test |
-| **Ensemble Size** | Small (10-100 ions) | Large (1000-10000 ions) |
+| **Runtime** | Seconds to minutes (varies; benchmarks/GPU tests can be longer) | Up to ~30 minutes per test |
+| **Ensemble Size** | Varies (10-50k ions depending on test) | Large (1k-10k ions typical) |
 | **Output** | Pass/Fail | Plots, tables, quantitative metrics |
-| **Frequency** | Every commit (GitHub Actions) | Before releases/publications |
+| **Frequency** | In CI when configured | Before releases/publications |
 
 ---
 
@@ -34,7 +34,6 @@ tests/
 ├── unit/           # SoA benchmarks/tests (IonEnsemble, SimulationEngine SoA, OpenMP benchmarks)
 ├── utils/          # Hashing utilities
 ├── helpers/        # Test utilities (headers only)
-└── collision/ ...  # (legacy alias; main collision tests live under physics/collisions)
 ```
 
 ## Notable Test Files (by area)
@@ -44,7 +43,7 @@ tests/
 - **Physics – Collisions (GPU EHSS):** `test_gpu_ehss_mapping.cpp` (geometry→species map), `test_gpu_ehss_parity.cpp` (CPU vs GPU thermalization sanity)
 - **Physics – Forces:** `test_electric_field_force.cpp`, `test_field_model_parity.cpp`, `test_field_model_provider.cpp`, `test_magnetic_damping_forces.cpp`, `test_force_registry.cpp`
 - **Physics – Reactions:** `test_reaction_factory.cpp`, `test_stochastic_reaction_handler.cpp`, `test_multi_gas_reaction.cpp`, SoA parity (`test_reaction_soa_parity.cpp`)
-- **Physics – Reactions (GPU):** `test_gpu_reaction_parity.cpp` (GPU vs CPU stochastic parity for constant/Arrhenius/modified rates incl. multi-gas; requires `USE_GPU_ACCEL=ON`, uses pooled GPU buffers)
+- **Physics – Reactions (GPU):** `test_gpu_reaction_parity.cpp` (GPU vs CPU stochastic parity for constant/Arrhenius/modified rates incl. multi-gas; requires `USE_GPU_ACCEL=ON`)
 - **Physics – Space Charge:** `test_poisson_solver.cpp`, `test_charge_deposition.cpp`, `test_space_charge_integration.cpp`, `test_space_charge_model_direct.cpp`, `test_space_charge_model_parity.cpp`, `test_space_charge_gpu_model.cpp`
 - **Physics – Gas Flow Transport:** `test_gas_flow_transport.cpp`
 - **Integrator:** `test_rk4_strategy.cpp`, `test_rk45_strategy.cpp`, `test_boris_strategy.cpp`, `test_domain_manager.cpp`, `test_domain_geometry.cpp`, `test_output_manager.cpp`, `test_simulation_engine.cpp` (SoA parity, birth/transition), GPU integration/parity tests (`test_gpu_integration.cpp`, `test_gpu_rk45.cpp`, `test_gpu_boris.cpp`, `test_rk45_boris_parity.cpp`, `test_gpu_field_interpolation.cpp`), `test_simulation_engine_soa.cpp` (SoA unit/parity)
@@ -94,9 +93,9 @@ If CTest times out in constrained environments, run the desired binary directly 
 
 ## Notes and Known Status
 
-- GPU tests require building with `-DUSE_GPU_ACCEL=ON` and a CUDA-capable device; they skip otherwise.
+- GPU tests are only built with `-DUSE_GPU_ACCEL=ON` (defines `ICARION_USE_GPU`); some assume a CUDA device and do not skip if none is available.
 - EHSS/HSS mobility/thermalization tests have stochastic tolerance; occasional seed sensitivity may appear—rerun if needed.
 - Space-charge GPU model is opt-in (`physics.enable_space_charge_gpu`) and falls back automatically; GPU tests validate helper behavior while CPU-only builds exercise the stub.
 - HDF5 writer v2 is the primary path; legacy writer tests remain for regression coverage.
 
-For full test intent/details, see the individual test files.***
+For full test intent/details, see the individual test files.

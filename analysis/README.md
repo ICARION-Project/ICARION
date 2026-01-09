@@ -5,6 +5,7 @@ Small, runnable examples for ICARION HDF5 trajectories. Focused on quick visuali
 ## Requirements
 - Python 3
 - `h5py`, `numpy`, `matplotlib`
+- Optional: `pillow` (GIF writer) or `ffmpeg` (MP4 writer) for animations
 
 ## Scripts
 - `analysis/plot_trajectories.py`: Static plot (XY and XZ projection plus optional 3D) for a selected subset of ions.
@@ -18,15 +19,15 @@ Small, runnable examples for ICARION HDF5 trajectories. Focused on quick visuali
 ```bash
 # Static plot from an LQIT simulation
 python analysis/plot_trajectories.py \
-  --traj results/lqit/lqit_trajectories.h5 \
+  --traj validation/results/v1.0_test/instruments/lqit/lqit_vacuum_q0.700_a0.000.h5 \
   --out analysis/output/lqit_trajectory.png \
-  --species Mass80_CCS25 Mass88_CCS50 \
+  --species H3O+ \
   --max-ions 80 \
   --time-stride 5
 
 # XY animation as GIF (Pillow writer) with automatic downsampling
 python analysis/animate_trajectories.py \
-  --traj results/lqit/lqit_trajectories.h5 \
+  --traj validation/results/v1.0_test/instruments/lqit/lqit_vacuum_q0.700_a0.000.h5 \
   --out analysis/output/lqit_xy.gif \
   --projection xy \
   --max-ions 60 \
@@ -35,9 +36,9 @@ python analysis/animate_trajectories.py \
 
 # Elimination histogram (radial vs axial); auto-detects Orbitrap, otherwise radial/axial
 python analysis/elimination_histograms.py \
-  --traj results/orbitrap/orbitrap_trajectories.h5 \
+  --traj validation/results/v1.0_test/instruments/orbitrap/orbitrap_ReserpineH+_V3500.00.h5 \
   --out analysis/output/orbitrap_elimination.png \
-  --species ReserpineH \
+  --species ReserpineH+ \
   --max-ions 300 \
   --log-bins \
   --tol-frac 0.05
@@ -45,24 +46,25 @@ python analysis/elimination_histograms.py \
 
 # Mean radial/axial positions (per species)
 python analysis/mean_positions.py \
-  --traj results/lqit/lqit_trajectories.h5 \
+  --traj validation/results/v1.0_test/instruments/lqit/lqit_vacuum_q0.700_a0.000.h5 \
   --out analysis/output/lqit_mean_positions.png \
-  --species Mass80_CCS25 Mass88_CCS50 \
+  --species H3O+ \
   --time-stride 5 \
   --max-ions 300
 
 # Thermalization check: temperature curve + MB overlay on last speeds
 python analysis/thermalization_check.py \
-  --traj results/v1.0_test/physics/thermalization/therm_hss_300K_20Pa.h5 \
+  --traj validation/results/v1.0_test/physics/thermalization/therm_hss_H3Op_300K_20.0Pa.h5 \
   --out analysis/output/thermalization_check.png \
   --time-stride 10 \
   --window 10
 
 # IMS mobility / reduced mobility from arrival times
 python analysis/ims_mobility.py \
-  --traj results/ims/ims_trajectories.h5 \
+  --traj validation/results/v1.0_test/instruments/ims/ims_hss_48Vm_200Pa.h5 \
   --out analysis/output/ims_mobility.png \
   --out-csv analysis/output/ims_mobility.csv \
+  --species H3O+ \
   --bins 60 \
   --time-stride 2
 ```

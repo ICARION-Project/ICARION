@@ -6,21 +6,21 @@ JSON Schema definitions for validating ICARION configuration files.
 
 ```
 schema/
-├── icarion-config.schema.json    # Master schema (entry point)
-├── simulation.schema.json        # Simulation parameters
-├── physics.schema.json           # Collision models, reactions
-├── ions.schema.json              # Ion initialization
-├── domain.schema.json            # Domain definition
-├── geometry.schema.json          # Trap geometry
-├── environment.schema.json       # Gas conditions
-├── fields.schema.json            # Electric/magnetic fields
-├── waveform.schema.json          # Time-varying fields
-├── output.schema.json            # Output settings
-├── species.schema.json           # Species database format
-├── reactions.schema.json         # Reactions database format
-├── common-types.schema.json      # Reusable definitions
-├── boundary.schema.json          # Boundary conditions
-└── validator.py                  # Validation script
+|-- icarion-config.schema.json    # Master schema (entry point)
+|-- simulation.schema.json        # Simulation parameters
+|-- physics.schema.json           # Collision models, reactions
+|-- ions.schema.json              # Ion initialization
+|-- domain.schema.json            # Domain definition
+|-- geometry.schema.json          # Trap geometry
+|-- environment.schema.json       # Gas conditions
+|-- fields.schema.json            # Electric/magnetic fields
+|-- waveform.schema.json          # Time-varying fields
+|-- output.schema.json            # Output settings
+|-- species.schema.json           # Species database format
+|-- reactions.schema.json         # Reactions database format
+|-- common-types.schema.json      # Reusable definitions
+|-- boundary.schema.json          # Boundary conditions
+`-- validator.py                  # Validation script
 ```
 
 ## Validation
@@ -32,16 +32,21 @@ pip install jsonschema
 
 **Command-line:**
 ```bash
-./validator.py path/to/config.json           # Single file
-./validator.py examples/*.json               # Multiple files
-./validator.py --verbose config.json         # Detailed output
+./schema/validator.py path/to/config.json    # Single file (from repo root)
+./schema/validator.py examples/*.json        # Multiple files
+./schema/validator.py --verbose config.json  # Detailed output
 ```
 
-**Python API:**
+**Python API (from repo root):**
 ```python
+from pathlib import Path
+import sys
+
+sys.path.append("schema")
 from validator import IcarionConfigValidator
-validator = IcarionConfigValidator()
-is_valid, errors = validator.validate_file("config.json")
+
+validator = IcarionConfigValidator(Path("schema"))
+is_valid, errors = validator.validate_file(Path("config.json"))
 ```
 
 ## Waveform Support
@@ -69,7 +74,8 @@ See `docs/CONFIG_GUIDE.md` and `examples/waveforms/` for details.
 - **Validation**: Required fields, numeric/array constraints, enum validation
 - **Strict mode**: `additionalProperties: false` catches typos
 
-All schemas use JSON Schema Draft 2020-12 (some legacy schemas still on Draft-07)
+Most schemas use JSON Schema Draft 2020-12; `ions.schema.json`,
+`species.schema.json`, and `reactions.schema.json` still use Draft-07.
 
 ## References
 

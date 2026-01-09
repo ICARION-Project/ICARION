@@ -8,34 +8,34 @@ Example configurations demonstrating mass spectrometry instruments and simulatio
 ./build/src/icarion_main examples/<folder>/<config>.json
 ```
 
-Results written to `results/`. GPU flag is ignored in v1.0 (runtime GPU path disabled; CPU-only).
+Results written to `results/`. GPU runtime path is disabled in v1.0; `enable_gpu=true` falls back to CPU.
 
 ## Instrument Examples
 
 ### Linear Quadrupole Ion Trap (LQIT) - `lqit/`
-- **lqit_basic.json**: RF trapping at q=0.40 (620V @ 1MHz), N₂ buffer gas (3.75 mTorr), ReserpineH+
+- **lqit_basic.json**: RF trapping at q~=0.40 (620 V @ 1 MHz), N2 buffer gas (0.5 Pa / 3.75 mTorr), ReserpineH+ (includes a small axial DC term).
 
 ### Orbitrap - `orbitrap/`
-- **orbitrap_basic.json**: Hyperlogarithmic field, f ∝ 1/√m, R > 100k
+- **orbitrap_basic.json**: Hyperlogarithmic field, collisionless, two species (ReserpineH+, CaffeineH+), radial_V=3500 V.
 
 ### Quadrupole Mass Filter - `quadrupole/`
-- **quadrupole_basic.json**: RF-only mode (DC=0V), ion transmission without mass filtering
+- **quadrupole_basic.json**: RF quadrupole field (DC quad_V=0, axial_V=500 V), CaffeineH+ beam transport.
 
 ### Time-of-Flight - `tof/`
-- **tof_basic.json**: Linear TOF, 1m flight tube, t ∝ √m
-- **tof_reflectron.json**: Orthogonal reflectron, energy focusing
+- **tof_basic.json**: Linear TOF, 1 m flight tube, 2 kV acceleration, two species.
+- **tof_reflectron.json**: Reflectron mirror with radial offset, energy focusing.
 
 ### FTICR - `fticr/`
-- **fticr_basic.json**: 7T B-field, f_c = qB/(2πm), Penning trap
+- **fticr_basic.json**: 7 T B-field, quadrupolar trapping, collisionless ions.
 
 ### Ion Mobility - `ims/`
-- **ims_basic.json**: Drift tube, 5000 H₃O⁺ ions, HSS collisions
-- **ims_with_field_array.json**: External field (400 V/cm, scaled by DC.axial_V)
-- **ims_field_array_time_varying.json**: Superposition of DC (500 V/cm) + RF (±100V @ 1MHz)
-- **ims_field_array_multi_domain.json**: Two-stage drift (600 V/cm → 300 V/cm)
+- **ims_basic.json**: Drift tube, 500 H3O+ + 500 26DTBPH+ ions, HSS collisions.
+- **ims_with_field_array.json**: Field array example (200 V/cm base array scaled by DC.axial_V to 400 V/cm).
+- **ims_field_array_time_varying.json**: Superposition of DC (500 V/cm) + RF (+/-100 V @ 1 MHz)
+- **ims_field_array_multi_domain.json**: Two-stage drift (600 V/cm to 300 V/cm)
 
 ### Reactions - `reactions/`
-- **reaction_demo.json**: First-order decay kinetics
+- **reaction_demo.json**: Ion-molecule reaction demo (H3O+ + Pentanal -> PentanalH+) in a gas mixture.
 
 ## Configuration Format
 
@@ -68,8 +68,8 @@ Basic structure (see `schema/` for full specification):
       "name": "drift",
       "instrument": "IMS",
       "geometry": {"origin_m": [0,0,0], "length_m": 0.05, "radius_m": 0.01},
-      "environment": {"temperature_K": 300, "pressure_Pa": 200, "gas_species": "He"},
-      "fields": {"dc": {"EN_Td": 10.0}}
+      "env": {"temperature_K": 300, "pressure_Pa": 200, "gas_species": "He"},
+      "fields": {"DC": {"EN_Td": 10.0}}
     }
   ]
 }
@@ -77,8 +77,8 @@ Basic structure (see `schema/` for full specification):
 
 ## Output
 
-- **HDF5**: `results/<name>/<name>_trajectories.h5` (positions, velocities, species, timestamps)
-- **Log**: `results/<name>/simulation.log` (if enabled via config)
+- **HDF5**: `output.folder/output.trajectory_file` (positions, velocities, species, timestamps)
+- **Log**: `output.folder/simulation.log` (if enabled by the run)
 
 ## Documentation
 

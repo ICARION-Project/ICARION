@@ -23,8 +23,6 @@
       {
         "_comment": "Reserpine [M+H]+ at m/z 609",
         "id": "ReserpineH+",
-        "mass_Da": 609.28,
-        "charge": 1,
         "count": 50,
         "position": {
           "type": "gaussian",
@@ -39,8 +37,6 @@
       {
         "_comment": "Caffeine [M+H]+ at m/z 195",
         "id": "CaffeineH+",
-        "mass_Da": 195.09,
-        "charge": 1,
         "count": 50,
         "position": {
           "type": "gaussian",

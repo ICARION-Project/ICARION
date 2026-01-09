@@ -1,6 +1,6 @@
 {
   "title": "Reusable Named Waveforms Example (SSOT-Compliant)",
-  "description": "Multi-domain simulation with global waveform library",
+  "_comment": "Multi-domain simulation with global waveform library",
   
   "simulation": {
     "total_time_s": 0.01,

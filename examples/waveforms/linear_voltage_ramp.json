@@ -1,6 +1,6 @@
 {
   "title": "Linear Voltage Ramp Example",
-  "description": "IMS with linear voltage ramp from 0V to 500V over 1ms",
+  "_comment": "IMS with linear voltage ramp from 0V to 500V over 1ms",
   
   "simulation": {
     "total_time_s": 0.005,

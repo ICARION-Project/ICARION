@@ -5,7 +5,6 @@
     "write_interval": 10,
     "integrator": "RK4",
     "enable_gpu": false,
-    "gpu_threshold": 50,
     "enable_openmp": true,
     "rng_seed": 42
   },

@@ -1,6 +1,6 @@
 {
   "title": "RF Frequency Chirp Example",
-  "description": "RF quadrupole with linear frequency sweep (chirp) from 1MHz to 2MHz",
+  "_comment": "RF quadrupole with linear frequency sweep (chirp) from 1MHz to 2MHz",
   
   "simulation": {
     "total_time_s": 0.01,

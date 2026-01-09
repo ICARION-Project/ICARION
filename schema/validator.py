@@ -88,6 +88,10 @@ class IcarionConfigValidator:
             Tuple of (is_valid, error_messages)
         """
         errors = []
+        config = self._strip_comments(config)
+
+        if self._is_ion_cloud(config):
+            return self._validate_ion_cloud(config)
         
         try:
             # Validate against schema
@@ -102,6 +106,66 @@ class IcarionConfigValidator:
         except SchemaError as e:
             return False, [f"Schema error: {e}"]
         
+        return len(errors) == 0, errors
+
+    def _strip_comments(self, value):
+        """
+        Recursively remove comment-style fields (keys starting with "_")
+        before validation.
+        """
+        if isinstance(value, dict):
+            return {
+                key: self._strip_comments(val)
+                for key, val in value.items()
+                if not key.startswith("_")
+            }
+        if isinstance(value, list):
+            return [self._strip_comments(item) for item in value]
+        return value
+
+    def _is_ion_cloud(self, config: Dict) -> bool:
+        """
+        Detect standalone ion cloud files (not full simulation configs).
+        """
+        if not isinstance(config, dict):
+            return False
+        if "ions" not in config or not isinstance(config.get("ions"), list):
+            return False
+        has_full_sections = any(
+            key in config for key in ("simulation", "physics", "output", "domains")
+        )
+        return not has_full_sections
+
+    def _validate_ion_cloud(self, config: Dict) -> tuple[bool, List[str]]:
+        """
+        Validate ion cloud file structure.
+        """
+        errors = []
+        ions = config.get("ions", [])
+        if not isinstance(ions, list):
+            return False, ["[ions] must be an array"]
+
+        for idx, ion in enumerate(ions):
+            path_prefix = f"ions[{idx}]"
+            if not isinstance(ion, dict):
+                errors.append(f"[{path_prefix}] must be an object")
+                continue
+            species = ion.get("species")
+            if not isinstance(species, str) or not species:
+                errors.append(f"[{path_prefix} → species] must be a non-empty string")
+            for vec_key in ("pos", "vel"):
+                if vec_key in ion:
+                    vec = ion.get(vec_key)
+                    if (
+                        not isinstance(vec, list)
+                        or len(vec) < 3
+                        or not all(isinstance(v, (int, float)) for v in vec[:3])
+                    ):
+                        errors.append(f"[{path_prefix} → {vec_key}] must be a 3-element numeric array")
+            if "birth_time" in ion:
+                if not isinstance(ion.get("birth_time"), (int, float)):
+                    errors.append(f"[{path_prefix} → birth_time] must be a number")
+
         return len(errors) == 0, errors
 
 

@@ -1,6 +1,6 @@
 {
   "title": "Multi-Gas Example: Air Mixture",
-  "description": "Demonstrates N2/O2/Ar collision and reaction weighting with automatic CCS derivation",
+  "_comment": "Demonstrates N2/O2/Ar collision and reaction weighting with automatic CCS derivation",
   
   "simulation": {
     "total_time_s": 0.001,
@@ -30,6 +30,7 @@
       "env": {
         "temperature_K": 300.0,
         "pressure_Pa": 101325.0,
+        "gas_species": "N2",
         "gas_mixture": [
           {
             "species": "N2",
@@ -81,9 +82,6 @@
   
   "output": {
     "folder": "./results/multi_gas_air",
-    "trajectory_file": "trajectories.h5",
-    "sampling": {
-      "interval_steps": 100
-    }
+    "trajectory_file": "trajectories.h5"
   }
 }

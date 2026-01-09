@@ -1,6 +1,6 @@
 {
   "title": "Arbitrary Waveform Example",
-  "description": "Custom voltage profile from experimental data",
+  "_comment": "Custom voltage profile from experimental data",
   
   "simulation": {
     "total_time_s": 0.005,

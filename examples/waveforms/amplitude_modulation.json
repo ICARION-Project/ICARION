@@ -1,6 +1,6 @@
 {
   "title": "Amplitude Modulation Example",
-  "description": "AC field with sinusoidal amplitude modulation",
+  "_comment": "AC field with sinusoidal amplitude modulation",
   
   "simulation": {
     "total_time_s": 0.01,

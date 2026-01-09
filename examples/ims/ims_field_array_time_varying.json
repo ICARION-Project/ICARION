@@ -10,7 +10,7 @@
     "rng_seed": 42
   },
   "physics": {
-    "collision_model": "None",
+    "collision_model": "NoCollisions",
     "enable_space_charge": false
   },
   "output": {

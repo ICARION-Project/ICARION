@@ -46,12 +46,13 @@
       "env": {
         "temperature_K": 300.0,
         "pressure_Pa": 200.0,
-        "gases": [
+        "gas_species": "He",
+        "gas_mixture": [
           {
             "species": "He",
             "mole_fraction": 0.999,
             "participates_in_reactions": false,
-            "participates_in_collisions": true,
+            "participates_in_collisions": true
           },
           {
             "species": "Pentanal",

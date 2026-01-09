@@ -1,6 +1,6 @@
 # ICARION Command-Line Interface (CLI) Guide
 
-**Version:** 1.0  
+**Version:** 1.0.0  
 **Last Updated:** December 2025
 
 ---
@@ -64,8 +64,10 @@ Display version information, git commit hash, and build type.
 ```bash
 icarion --version
 # Output:
-# ICARION v1.0.0 (commit: 4a2cbee)
-# Build: Release | GPU: Disabled | OpenMP: Disabled
+# ICARION v1.0.0
+# Git commit: 4a2cbee
+# Build type: Full (with FieldSolver & Optimizer)
+# GPU acceleration: Disabled
 ```
 
 ### `--config <FILE>`
@@ -93,7 +95,7 @@ icarion --dry-run config.json
 
 ### `--validate-config`
 Similar to `--dry-run`, but provides more detailed validation output  
-including warnings and suggestions.
+including warnings and errors.
 
 ```bash
 icarion --validate-config config.json
@@ -142,7 +144,7 @@ icarion --log-file simulation.log config.json
 
 Set the log output format. Available formats:
 
-- `text` - Human-readable colored console output (default)
+- `text` - Human-readable text output (default)
 - `json` - Machine-readable JSON format for automated analysis
 
 ```bash
@@ -256,15 +258,16 @@ Can be specified multiple times to override multiple values.
 - `simulation.write_interval` - Output write interval
 - `simulation.rng_seed` - Random number seed
 - `simulation.integrator` - Integration method (RK4, RK45, Boris)
-- `simulation.enable_gpu` - Enable GPU acceleration (true/false) — ignored at runtime in v1.0 (GPU path disabled)
-- `simulation.enable_openmp` - Enable OpenMP parallelization (true/false)
+- `simulation.rk45_min_step_s` - Absolute minimum step size for RK45 [seconds]
+- `simulation.enable_gpu` - Enable GPU acceleration (true/false; requires CUDA build, otherwise CPU fallback)
+- `simulation.enable_openmp` - Enable OpenMP parallelization (true/false; requires OpenMP build)
 
 **Physics parameters:**
-- `physics.collision_model` - Collision model (NoCollisions, HSD, Langevin, Friction, HSS, EHSS)
+- `physics.collision_model` - Collision model (NoCollisions, HardSphere/HSD, Langevin, Friction, HSS, EHSS)
 - `physics.enable_reactions` - Enable chemical reactions (true/false)
 - `physics.enable_space_charge` - Enable space charge effects (true/false)
 - `physics.enable_space_charge_gpu` - Prefer GPU-based P³M space charge (if built with CUDA; falls back to CPU if unavailable)
-- `physics.enable_ou_thermalization` - Enable Ornstein-Uhlenbeck thermalization (true/false)
+- `physics.enable_ou_thermalization` - Enable Ornstein-Uhlenbeck thermalization for deterministic collision models (requires custom wiring of `gamma_for_ou`; incompatible with HSS/EHSS)
 
 **Output parameters:**
 - `output.folder` - Output directory path
@@ -321,10 +324,10 @@ icarion --dump-hdf5-schema
 ```
 
 Shows the structure of output HDF5 files including:
-- `/metadata/` - Simulation metadata
+- `/metadata/` - Config, reproducibility, system, species, reactions, completion
 - `/trajectory/` - Ion trajectory data
-- `/species/` - Species properties
-- `/config/` - Complete configuration snapshot
+- `/ions/` - Ion initial conditions
+- `/domains/` - Per-domain geometry, environment, and fields
 
 ### `--dump-config-schema`
 Show available JSON configuration schemas.
@@ -344,10 +347,10 @@ icarion --list-collision-models
 
 **Available models:**
 - **NoCollisions** - No collision modeling (free flight)
-- **HSD** - Hard sphere collisions (deterministic)
+- **HardSphere** - Hard sphere collisions (deterministic; same as HSD)
 - **Langevin** - Langevin collisions (polarization)
 - **Friction** - Frictional drag
-- **HSS** - Hard sphere stochastical
+- **HSS** - Hard sphere stochastic
 - **EHSS** - Enhanced hard sphere statistical
 
 ### `--list-integrators`

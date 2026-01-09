@@ -332,7 +332,7 @@ void print_build_info() {
 
 void print_hdf5_schema() {
     std::cout << R"(
-ICARION HDF5 Output Schema v1.0 (FullConfig-based)
+ICARION HDF5 Output Schema v1.0.0 (FullConfig-based)
 ===================================================
 
 Hierarchical Structure:
@@ -340,36 +340,76 @@ Hierarchical Structure:
 
 /metadata/
   /config/
-    format_version      string      Config format version
-    config_json         string      Full FullConfig as JSON (TODO(v1.1): serializer)
+    format_version      string      HDF5 format version (currently 2.0.0)
+    config_json         string      Resolved config snapshot (validated + CLI overrides)
     dt_s                float64     Timestep [s]
     total_time_s        float64     Total simulation time [s]
     total_steps         int32       Number of integration steps
     write_interval      int32       Output write interval
-    integrator          string      Solver type (RK4, RK45, Leapfrog, etc.)
+    integrator          string      Solver type (RK4, RK45, Boris)
     collision_model     string      Collision model (EHSS, HSS, etc.)
     enable_reactions        bool        Chemical reactions enabled?
     enable_space_charge     bool        Space charge enabled?
     enable_space_charge_gpu bool        Prefer GPU space charge (if available)?
     enable_gpu          bool        GPU acceleration enabled?
-  
+    output_file         string      Output trajectory file name
+
+    /integrator_params/
+      name              string      Integrator name
+      rk45_atol         float64     RK45 absolute tolerance (if RK45)
+      rk45_rtol         float64     RK45 relative tolerance (if RK45)
+      rk45_safety_factor float64    RK45 safety factor (if RK45)
+      rk45_min_step_factor float64  RK45 min step factor (if RK45)
+      rk45_max_step_factor float64  RK45 max step factor (if RK45)
+      rk45_min_step_s   float64     RK45 minimum step [s] (if RK45)
+      rk45_max_step_increase float64 RK45 max growth per step (if RK45)
+      rk45_max_step_decrease float64 RK45 max shrink per step (if RK45)
+      rk45_absolute_min_step_s float64 RK45 absolute min step [s] (if RK45)
+      openmp_enabled    bool        OpenMP enabled?
+      gpu_collision_threshold int32 Minimum ions for GPU collision dispatch
+      gpu_space_charge_threshold int32 Minimum ions for GPU space-charge dispatch
+
+    /derived_summary/
+      num_domains       int32       Number of domains in config
+      num_species_db    int32       Species entries loaded
+      num_reactions_db  int32       Reactions loaded
+
+  /physics/
+    collision_handler   string      Collision handler name
+    reaction_handler    string      Reaction handler name (or None)
+    reaction_gpu_threshold int32    Minimum ions for GPU reaction dispatch
+    collision_gpu_threshold int32   Minimum ions for GPU collision dispatch
+    collision_mixture_limit string  Max mixture components in GPU helper
+
   /reproducibility/
     global_seed         uint32      RNG seed for reproducibility
     rng_algorithm       string      RNG type (std::mt19937_64)
     seed_scheme         string      Seeding strategy description
+    per_ion_rng_scope   string      Per-ion RNG scope
     git_hash            string      Git commit hash
     git_dirty           bool        Uncommitted changes in repo?
     code_version        string      ICARION version
     build_type          string      Release or Debug
     compiler_cxx        string      Compiler version
     build_info          string      Build information string
-    openmp_threads      int32       OpenMP thread count (if enabled)
+    openmp_enabled      bool        OpenMP enabled at build time?
+    openmp_threads      int32       OpenMP thread count (1 if disabled)
     cuda_version        string      CUDA version (if GPU enabled)
     /input_hash/
       config_sha256     string      SHA256 hash of config file
       species_db_sha256 string      SHA256 hash of species DB (N/A if embedded)
       reaction_db_sha256 string     SHA256 hash of reaction DB (N/A if embedded)
-  
+      /field_arrays/
+        files           string[]    Field array file paths
+        sha256          string[]    SHA256 hashes for field arrays
+    /input_blobs/
+      config_json       string      Embedded config JSON (or {})
+      species_db_json   string      Embedded species DB (or {})
+      reaction_db_json  string      Embedded reaction DB (or {})
+      /field_arrays/
+        blob_<i>         uint8[]     Raw bytes (if embedded)
+        blob_<i>_filename string    Original path
+
   /system/
     hostname            string      Machine hostname
     username            string      Username
@@ -382,26 +422,26 @@ Hierarchical Structure:
     gpu_memory_gb       float64     GPU memory [GB] (if CUDA enabled)
     driver_version      string      GPU driver version (if CUDA enabled)
     timestamp           string      ISO8601 simulation start time (UTC)
-  
+
   /species/                         # Tabular format (pandas-compatible)
     names               string[N]   Species names (variable-length strings)
     mass_kg             float64[N]  Masses [kg]
     charge_C            float64[N]  Charges [C]
     mobility_m2Vs       float64[N]  Reduced mobilities [m²/(V·s)]
     ccs_m2              float64[N]  Collision cross sections [m²]
-    
+
     Note: Only species referenced by ions are written (filters large databases)
-  
+
   /reactions/                       # Tabular format (if reactions enabled)
     id                  string[R]   Reaction identifiers
     reactant_1          string[R]   First reactant species name
     reactant_2          string[R]   Second reactant (empty if unimolecular)
     product_1           string[R]   First product species name
-    rate_constant   float64[R]  Rate constant [m³/s]
-    type                int32[R]    Reaction type enum (2=two-body)
-    
+    rate_constant_m3s   float64[R]  Rate constant [m^3/s]
+    type                int32[R]    Reaction type enum (currently 2=two-body)
+
     Note: Only reactions involving present species are written (filters large networks)
-  
+
   /completion/                      # Written at simulation end
     success             bool        Simulation completed successfully?
     final_time_s        float64     Final time reached [s]
@@ -412,8 +452,10 @@ Hierarchical Structure:
   time                  float64[T]      Time snapshots [s]
   positions             float64[T×N×3]  Ion positions [m] (x,y,z)
   velocities            float64[T×N×3]  Ion velocities [m/s] (vx,vy,vz)
-  species_ids           string[T×N]     Species name per ion per timestep
   domain_indices        int32[T×N]      Domain index per ion per timestep
+  species_id_indices    uint32[T×N]     Species pool index per ion per timestep
+  time_per_ion          float64[T×N]    Per-ion times (adaptive dt snapshots)
+  species_ids           string[T×N]     Species name per ion per timestep (optional compatibility)
 
 /ions/                              # Per-ion initial conditions
   initial_species_id    string[N]       Initial species name
@@ -431,11 +473,10 @@ Hierarchical Structure:
   /domain_0/
     name                string      Domain name
     instrument          string      Instrument type (IMS, TOF, LQIT, Orbitrap, etc.)
-    solver              string      Solver type (RK4, RK45, Leapfrog, etc.)
-    domain_index        int32       Domain index
+    solver              string      Solver type (RK4, RK45, Boris)
     /geometry/
       length_m          float64     Domain length [m]
-      radius_m          float64     Inner radius [m]
+      radius_m          float64     Domain radius [m]
       radius_in_m       float64     Inner radius (for LQIT) [m]
       radius_out_m      float64     Outer radius (for LQIT) [m]
       origin_m          float64[3]  Origin position [m] (x,y,z)
@@ -447,12 +488,13 @@ Hierarchical Structure:
       mean_thermal_velocity_ms float64 Mean thermal velocity [m/s]
       gas_velocity_ms   float64[3]  Gas flow velocity [m/s] (x,y,z)
     /fields/
-      /waveforms/                       # v1.1: Waveform library (if present)
+      /waveforms/                       # Waveform library (named + inline)
         /<waveform_name>/
           type          string      Waveform type (constant, linear, quadratic, sinusoidal, pulsed, arbitrary)
           ...           varies      Type-specific parameters (start_value, end_value, frequency_Hz, etc.)
       /dc/
         axial_V         float64     DC drift voltage [V] (t=0 if waveform)
+        radial_V        float64     DC radial voltage [V] (t=0 if waveform)
         EN_Td           float64     Reduced electric field [Td] (t=0 if waveform)
         quad_V          float64     Quadrupole DC voltage [V] (LQIT) (t=0 if waveform)
       /rf/
@@ -469,8 +511,8 @@ Hierarchical Structure:
 
 Storage Properties:
 -------------------
-- Chunked storage: Trajectory datasets use [100 × N × 3] chunks for efficient appending
-- GZIP compression: Level 6 applied to trajectory data (~3-5× size reduction)
+- Chunked storage: Trajectory datasets use [min(steps, 100) x N x 3] chunks for efficient appending
+- GZIP compression: Level 2 for buffered batch writes; level 6 for single-step append
 - Unlimited dimensions: Time dimension is extendable (H5S_UNLIMITED)
 - Variable-length strings: For species names, reaction IDs, and text fields
 - SI units: All physical quantities use SI base units
@@ -493,9 +535,8 @@ See docs/HDF5_OUTPUT_STRUCTURE.md for MATLAB examples.
 Full Documentation:
 -------------------
 - Detailed format specification: docs/HDF5_OUTPUT_STRUCTURE.md
-- C++ API reference: src/core/io/hdf5Writer_v2.h
+- C++ API reference: src/core/io/hdf5Writer.h
 - Test examples and usage: tests/io/test_hdf5_writer_v2.cpp
-- Migration plan: tmp/HDF5_REFACTORING_PLAN.md
 
 Compatibility:
 --------------
@@ -513,7 +554,7 @@ Get compression info:    h5stat icarion_output.h5
 
 Notes:
 ------
-- SHA256 hashing is implemented for config files, species/reaction DBs are embedded
+- SHA256 hashing covers config/species/reaction DBs and field arrays; input blobs are embedded when paths are available
 - All physical quantities use SI base units (meters, seconds, kilograms, etc.)
 - Timestamps are in UTC timezone for international collaboration
 

@@ -7,7 +7,7 @@ ICARION supports structured logging in JSON format for automated analysis with p
 **Flag:** `--log-format json`  
 **Executable:** `icarion_main` (in your build directory, e.g., `./build/src/icarion_main`)
 
-Each log entry is a single-line JSON object with `time`, `level`, `cat` (category), and `msg`:
+Each log entry from the logger is a single-line JSON object with `time`, `level`, `cat` (category), and `msg`. Non-logger output (help text, one-off CLI messages) may still be plain text.
 
 ```json
 {"time":"2025-11-21T10:30:52.704","level":"info","cat":"main","msg":"ICARION v1.0.0 starting"}
@@ -67,7 +67,7 @@ print(df['cat'].unique())
 errors = df[df['level'] == 'error']
 
 # Warnings and errors
-issues = df[df['level'].isin(['warn', 'error'])]
+issues = df[df['level'].isin(['warning', 'error'])]
 
 # Debug logs
 debug = df[df['level'] == 'debug']
@@ -106,9 +106,9 @@ Each log entry is a single-line JSON object:
 
 **Fields:**
 
-- `time`: ISO 8601 timestamp with milliseconds
-- `level`: debug | info | warn | error
-- `cat`: main | config | integrator | hdf5 | physics | perf | gpu | reactions
+- `time`: local timestamp with milliseconds (no timezone suffix)
+- `level`: debug | info | warning | error | critical
+- `cat`: common categories include main | config | integrator | hdf5 | physics | perf | gpu | reactions
 - `msg`: Log message (string)
 
 ## Common Queries

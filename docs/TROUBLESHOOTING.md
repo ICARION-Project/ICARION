@@ -1,6 +1,6 @@
 # ICARION Troubleshooting Guide
 
-**Version:** 1.0  
+**Version:** 1.0.0  
 **Last Updated:** December 2025
 
 This guide helps users diagnose and resolve common issues when running ICARION simulations.
@@ -124,7 +124,7 @@ This is especially problematic at **low pressure** where:
 **Additional Tips:**
 - Use wide radius (≥ 5× length) to prevent radial losses
 - For low pressure (< 10 Pa): consider larger buffers or higher pressure
-- v1.0 uses absorbing boundaries only (reflecting/periodic boundaries planned for v1.1)
+- Default boundary action is absorption. Specular/diffuse/thermal reflection are supported via `boundary` config; periodic boundaries are not supported.
 
 ---
 
@@ -203,20 +203,19 @@ time ./icarion_main config.json  # Should be ~4-5× faster
    export OMP_PROC_BIND=close
    ```
 
-3. **GPU acceleration** (N > 5k ions recommended; Boris starts ~2.5k):
+3. **GPU acceleration** (CUDA builds; experimental):
    ```json
    "simulation": {
-     "enable_gpu": true  // Ignored in v1.0 runtime (GPU path disabled; CPU only)
+     "enable_gpu": true
    }
    ```
-   - Boris integrator: GPU beneficial at ~2500 ions
-   - RK4/RK45: GPU beneficial at ~5000 ions
+   - Dispatch is conditional (single-domain batches, uniform `dt`, grid-backed E-field, supported force mix).
+   - Check logs for fallback reasons if no speedup is observed.
 
 **Performance Tips:**
 - **CPU-only**: Optimal at 4-8 threads
-- **GPU available**: Use GPU for N > 10,000 ions
-- **Hybrid**: CPU collisions + GPU integration
-- **Benchmark**: Use `validation/scripts/benchmark_thread_scaling.sh`
+- **GPU available**: Benchmark on your hardware and force mix
+- **Benchmark**: Use `validation/scripts/performance/benchmark_thread_scaling.sh`
 
 ### Simulation Running Extremely Slow
 
@@ -241,7 +240,7 @@ time ./icarion_main config.json  # Should be ~4-5× faster
 **Solution:**
 - Increase timestep: `dt_s = 1e-9` (1 ns) for typical ion dynamics
 - Reduce simulation time to minimum needed
-- Use RK45 adaptive integrator for efficiency; if space charge is enabled and you need deterministic behavior, leave `ICARION_ADAPTIVE_SC` unset (default) to get stage-synchronous SC. Set `ICARION_ADAPTIVE_SC=0` to fall back to macro-step SC updates (faster, less accurate).
+- Use RK45 adaptive integrator for efficiency. If space charge is enabled, `ICARION_ADAPTIVE_SC=0` disables adaptive RK45 with space charge (the run will error). Use RK4 or disable space charge instead.
 
 #### 2. Very Low Pressure with Small Timestep
 
@@ -272,7 +271,7 @@ time ./icarion_main config.json  # Should be ~4-5× faster
 **Solution:**
 - Reduce ion count for testing
 - Disable space charge if not critical: `"enable_space_charge": false`
-- Note: v1.0 uses CPU direct summation only; GPU P³M helper exists but is not called from the main loop yet.
+- Note: GPU P³M is used when `enable_space_charge_gpu=true` and CUDA is available (above the threshold); otherwise the direct or grid model is used.
 
 ---
 
@@ -308,7 +307,7 @@ Timestep too large for:
    "fields": {
      "rf": {
        "frequency_Hz": 1e6,     ← 1 MHz
-       "amplitude_V": 1000      ← Check not too strong
+       "voltage_V": 1000        ← Check not too strong
      }
    }
    ```
@@ -326,25 +325,25 @@ Timestep too large for:
 
 **Cause:**
 
-**Fixed in v1.0** (commit 6ec653f - "Fix GPU collision physics bugs"):
+**Fixed in v1.0.0:**
 
 Older versions had velocity sampling inconsistencies in collision calculations, creating systematic bias in thermalization.
 
 **Solution:**
 
-Update to v1.0 or later. The fix:
+Update to v1.0.0 or later. The fix:
 1. Sample neutral velocity FIRST from Maxwell-Boltzmann distribution
 2. Calculate collision probability using SAME sampled velocity
 3. Apply collision with that consistent velocity
 
 **Verification:**
 
-Run thermalization test:
+Run thermalization tests:
 ```bash
-./build/tests/test_physics_validation "OU thermalization"
+validation/scripts/thermalization/run_thermalization_tests.sh quick
 ```
 
-Expected: Mean kinetic energy = (3/2) k_B T within 5% after ~100 collisions.
+Expected: Mean kinetic energy should approach (3/2) k_B T; convergence typically within ~5% after O(100) collisions depending on pressure/model.
 
 ---
 
@@ -366,11 +365,11 @@ Expected: Mean kinetic energy = (3/2) k_B T within 5% after ~100 collisions.
 
 2. **Gas pressure and temperature:**
    ```json
-   "environment": {
-     "gas_molecule": "N2",
-     "pressure_Pa": 101325,   ← 1 atm
-     "temperature_K": 300
-   }
+    "environment": {
+      "gas_species": "N2",
+      "pressure_Pa": 101325,   ← 1 atm
+      "temperature_K": 300
+    }
    ```
 
 3. **Number density calculation:**
@@ -404,7 +403,7 @@ v_mean ≈ √(8 k_B T / π m) ≈ 580 m/s  (for H3O+)
 
 2. **Enable debug:** Set `"write_interval": 10` in config for detailed output
 3. **Minimal reproducer:** Simplify to single ion, short time, simple geometry
-4. **Run validation:** `cd build && ctest -R validation`
+4. **Run tests:** `cd build && ctest` (see `tests/README.md` for the test list)
 5. **GitHub issue:** Include config JSON, error messages, ICARION version
 
 **Reference:** [`CONFIG_GUIDE.md`](CONFIG_GUIDE.md), [`DEVELOPERS_GUIDE.md`](DEVELOPERS_GUIDE.md)

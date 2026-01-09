@@ -6,42 +6,43 @@ This document contains the detailed GPU architecture information for ICARION. Fo
 
 ## GPU Acceleration Implementation
 
-**Status:** Core features implemented (v1.0) with CPU fallback; space-charge and GPU boundary helpers exist but are not called from the main loop yet.
+**Status:** Core GPU paths are implemented with CPU fallback. Space charge can use `SpaceChargeGPUModel` when enabled; the boundary-check helper exists but is not wired into the main loop.
 
 ### Hybrid CPU/GPU Architecture
 
-ICARION uses automatic dispatch inside `SimulationEngine::process_timestep()`:
+ICARION uses automatic dispatch inside `SimulationEngine::process_timestep()` via the strategy/handler interfaces:
 
-- Integration: `try_gpu_integration` uses total ion count and a cached integrator type. Default threshold is 5000 ions, halved for Boris (cheap kernel). If below threshold, unknown integrator, or GPU unavailable, CPU path runs.
-- Collisions: `try_gpu_collisions` uses **active** ion count with a 5000 threshold. Falls back to CPU on failure or below threshold.
-- Space charge: P³M helper exists (`try_gpu_space_charge`) but is not invoked from the main loop yet.
-- Boundary checks: Helper exists for absorption/cylindrical domains but is not wired into the main loop.
+- Integration: `IntegrationStrategyFactory` wraps the selected CPU strategy in `GPUIntegrationStrategy` when `simulation.enable_gpu` is true and ICARION is built with CUDA. Batch dispatch happens inside `SimulationEngine::perform_integration()` when all active ions share the same `dt`. The GPU path requires a single domain with exactly one `ElectricFieldForce` and a field provider; it falls back on space charge, magnetic forces, damping unless GPU damping is enabled, unsupported force mixes, or missing field providers. `GridFieldProvider` + `FieldArray` is required for non-zero fields; non-grid or snapshot-based providers run with zero fields, so avoid GPU dispatch in those cases. GPU damping must be enabled explicitly via `GPUIntegrationStrategy` setters (not wired from config).
+- Collisions: `CollisionHandlerFactory` can return a `GPUCollisionHandler` for HSS/EHSS when `simulation.enable_gpu` is true. `SimulationEngine::perform_collisions()` groups ions per domain and calls `handle_batch()` when the handler advertises `supports_batch()` and the domain has uniform `dt`. The handler falls back to CPU below its threshold or on GPU errors.
+- Reactions: `ReactionHandlerFactory` can return a `GPUReactionHandler` (wrapper around `GPUReactionBackend`) when GPU is enabled; `SimulationEngine::perform_reactions()` uses the batch hook when available and `dt` is uniform across active ions.
+- Space charge: `SpaceChargeModelFactory` may construct `SpaceChargeGPUModel` when `physics.enable_space_charge_gpu` is set and CUDA is available; `SimulationEngine::update_space_charge_models()` calls `update_fields()` on the chosen model.
+- Boundary checks: A helper exists for absorption/cylindrical domains but is not currently dispatched in the main loop.
 
 ### GPU Memory Management
 
-**AoS Upload (current implementation):**
-- CPU holds ions as `std::vector<IonState>` (AoS). GPU helpers upload AoS buffers internally; SoA conversion is not used for GPU paths yet.
-- `try_gpu_boundary_check` converts SoA (`IonEnsemble`) back to AoS before dispatching to the helper.
+**Host-side layout (current implementation):**
+- The simulation state lives in `IonEnsemble` (SoA). GPU integration/collision paths gather active ions into temporary `std::vector<IonState>` (AoS) before upload. GPU reactions operate directly on the SoA ensemble.
+- Device buffers use `IonStateGPU` (SoA). There is no direct SoA upload from `IonEnsemble` yet.
 
 **Implications:**
 - Coalescing is limited by AoS layout; future SoA upload would improve bandwidth.
-- Single-domain field provider (domain 0) is passed to GPU integration helper when available.
+- The GPU integration helper is passed the selected domain’s field provider; only `GridFieldProvider` with a `FieldArray` is supported. Non-grid providers are treated as unsupported and result in zero-field integration, so GPU dispatch should be avoided in those cases.
 
 ### GPU Integration Kernels
 
 **Integration Helpers:**
-- Batch kernels exist for RK4, RK45 (with atol/rtol), and Boris. Dispatch is selected without repeated dynamic casts (type cached).
-- Kernel signatures are helper-specific; code above is schematic. Refer to `GPUIntegrationHelper` for exact interfaces.
+- Batch kernels exist for RK4, RK45 (adaptive), and Boris. Dispatch is selected by the `GPUIntegrationStrategy::Kind` set at construction.
+- Kernel signatures are helper-specific; refer to `GPUIntegrationHelper` for exact interfaces and parameter defaults.
 
 ### GPU Collision Implementation
 
 **Collision Helper (HSS/EHSS):**
 - Uses active ion count threshold (default 5000).
-- EHSS geometry upload is noted as TODO; helper currently supports HSS/EHSS dispatch with CPU fallback.
+- EHSS geometry upload is supported when a geometry map is provided; the helper falls back to CPU on errors or missing prerequisites.
 
 ### Field Array GPU Implementation
 
-- GPU integration helper accepts a field provider pointer (when present in domain 0’s ForceRegistry). Field upload details are encapsulated in the helper; texture binding is implementation-specific and not exposed at the interface.
+- GPU integration helper accepts a field provider pointer from the selected domain. Only `GridFieldProvider` + `FieldArray` are uploaded; providers using snapshots are skipped and non-grid providers are treated as unsupported (zero fields).
 
 ### GPU Error Handling
 
@@ -63,9 +64,8 @@ bool GPUIntegrationHelper::integrate_batch(std::vector<IonState>& ions, double d
         
         return true;
         
-    } catch (const CudaException& e) {
-        spdlog::warn("GPU integration failed: {}", e.what());
-        spdlog::info("Falling back to CPU integration");
+    } catch (const std::exception& e) {
+        // Log and fall back to CPU
         return false;  // Caller will use CPU path
     }
 }
@@ -139,21 +139,32 @@ Benchmark your specific use case to determine optimal settings.
 
 **Example Test:**
 ```cpp
-TEST(GPUIntegrationTest, RK4_Parity) {
+using Catch::Matchers::WithinAbs;
+
+TEST_CASE("RK4: CPU/GPU parity - Free particle", "[gpu][rk4][parity]") {
+    if (!GPUContext::is_cuda_available()) {
+        SKIP("CUDA not available");
+    }
+
     std::vector<IonState> ions_cpu = create_test_ions(10000);
     std::vector<IonState> ions_gpu = ions_cpu;
-    
-    // CPU integration
-    cpu_integrator->integrate_batch(ions_cpu, dt, t);
-    
+
+    // CPU integration (per-ion)
+    RK4Strategy cpu_integrator;
+    auto ensemble_cpu = core::IonEnsemble::from_legacy(ions_cpu);
+    for (size_t i = 0; i < ensemble_cpu.size(); ++i) {
+        cpu_integrator.step(ensemble_cpu, i, 0.0, dt, force_registry);
+    }
+
     // GPU integration
-    gpu_helper->integrate_batch(ions_gpu, dt, t);
-    
+    auto context = GPUContext::create(0);
+    auto helper = GPUIntegrationHelper::create(*context, 100);
+    REQUIRE(helper);
+    helper->integrate_batch_rk4(ions_gpu, dt, 0.0);
+
     // Compare results
     for (size_t i = 0; i < ions_cpu.size(); ++i) {
-        EXPECT_NEAR(ions_cpu[i].pos.x, ions_gpu[i].pos.x, 1e-6);
-        EXPECT_NEAR(ions_cpu[i].pos.y, ions_gpu[i].pos.y, 1e-6);
-        EXPECT_NEAR(ions_cpu[i].pos.z, ions_gpu[i].pos.z, 1e-6);
+        REQUIRE_THAT(ions_gpu[i].pos.x, WithinAbs(ions_cpu[i].pos.x, 1e-6));
     }
 }
 ```

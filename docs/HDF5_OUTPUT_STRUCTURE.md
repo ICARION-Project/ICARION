@@ -1,9 +1,9 @@
 # HDF5 Output Structure
 
-**Version:** 1.0  
+**Version:** 1.0.0  
 **Last Updated:** December 2025  
-**Status:** Implemented (v1.0); waveform library stored (v1.1); full config/species/reaction DBs and field arrays are embedded in HDF5 (snapshot also written alongside output, larger files).  
-**Implementation:** Writer is SoA-native (IonEnsemble) in v1.0; legacy AoS calls still accepted for compatibility.
+**Status:** Implemented in v1.0.0; waveform library, config/species/reaction DBs, and field arrays are embedded in HDF5 (config snapshot also written alongside output).  
+**Implementation:** Writer is SoA-native (IonEnsemble) in v1.0.0.
 
 ---
 
@@ -23,6 +23,7 @@ ICARION writes simulation results to HDF5 files with a hierarchical structure de
 simulation.h5
 ├── metadata/
 │   ├── config/                    # Selected configuration parameters
+│   ├── physics/                   # Physics handler metadata
 │   ├── reproducibility/           # Git hash, RNG seed, build info
 │   ├── system/                    # System information
 │   ├── species/                   # Species database (tabular)
@@ -32,8 +33,10 @@ simulation.h5
 │   ├── time                       # Time points [T]
 │   ├── positions                  # Ion positions [T × N × 3]
 │   ├── velocities                 # Ion velocities [T × N × 3]
-│   ├── species_ids                # Species per ion [T × N]
-│   └── domain_indices             # Domain index per ion [T × N]
+│   ├── domain_indices             # Domain index per ion [T × N]
+│   ├── species_id_indices         # Species pool indices [T × N]
+│   ├── time_per_ion               # Per-ion times [T × N] (if adaptive dt)
+│   └── species_ids                # Species per ion [T × N] (optional compatibility)
 ├── ions/
 │   ├── initial_species_id         # Species name [N]
 │   ├── initial_pos_x/y/z          # Initial position [N]
@@ -78,7 +81,8 @@ Configuration parameters extracted from `FullConfig`.
 | `collision_model` | string | Collision model (EHSS, HSS, Langevin) | - |
 | `enable_reactions` | bool | Reactions enabled? | - |
 | `enable_space_charge` | bool | Space charge enabled? | - |
-| `enable_gpu` | bool | GPU acceleration enabled? (ignored in v1.0 runtime; CPU only) | - |
+| `enable_space_charge_gpu` | bool | Space charge GPU requested? | - |
+| `enable_gpu` | bool | GPU acceleration enabled? | - |
 | `output_file` | string | Output file path | - |
 | `config_json` | string | Embedded resolved config snapshot (validated + CLI overrides) | - |
 | `integrator_params/name` | string | Integrator name | - |
@@ -97,13 +101,24 @@ Configuration parameters extracted from `FullConfig`.
 | `derived_summary/num_domains` | int | Number of domains in config | - |
 | `derived_summary/num_species_db` | int | Species entries loaded | - |
 | `derived_summary/num_reactions_db` | int | Reactions loaded | - |
-| `physics/collision_handler` | string | Collision handler (HSS, EHSS, etc.) | - |
-| `physics/reaction_handler` | string | Reaction handler (or None) | - |
-| `physics/reaction_gpu_threshold` | int | Minimum ions for GPU reaction dispatch (default 2000) | - |
-| `physics/collision_gpu_threshold` | int | Minimum ions for GPU collision dispatch (default 5000) | - |
-| `physics/collision_mixture_limit` | string | Max mixture components in GPU helper (default 8) | - |
 
-**Note:** Full resolved config snapshot is embedded as `config_json` (identical to the `.config.json` snapshot written alongside the HDF5). Selected key fields remain broken out as individual datasets for fast access.
+**Note:** `format_version` is currently `2.0.0` in the v1.0.0 release. The full resolved config snapshot is embedded as `config_json` (also written as a `.config.json` snapshot alongside the HDF5). Selected key fields remain broken out as individual datasets for fast access.
+
+---
+
+### `/metadata/physics/`
+
+Physics handler metadata stored separately from config.
+
+**Datasets:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `collision_handler` | string | Collision handler name |
+| `reaction_handler` | string | Reaction handler name (or "None") |
+| `reaction_gpu_threshold` | int | Minimum ions for GPU reaction dispatch |
+| `collision_gpu_threshold` | int | Minimum ions for GPU collision dispatch |
+| `collision_mixture_limit` | string | Max mixture components in GPU helper |
 
 ---
 
@@ -126,7 +141,6 @@ Information required to reproduce the simulation exactly.
 | `compiler_cxx` | string | C++ compiler version |
 | `build_info` | string | Build flags summary (type, OpenMP, CUDA, mode) |
 | `cuda_version` | string | CUDA version (if enabled) |
-| `gpu_arch` | string | GPU architecture (if enabled) |
 | `openmp_enabled` | bool | OpenMP enabled at build time? |
 | `openmp_threads` | int | Number of OpenMP threads (1 if disabled) |
 
@@ -137,6 +151,8 @@ Information required to reproduce the simulation exactly.
 | `config_sha256` | string | SHA256 hash of config file |
 | `species_db_sha256` | string | SHA256 hash of species database (N/A if not provided) |
 | `reaction_db_sha256` | string | SHA256 hash of reaction database (N/A if not provided) |
+| `field_arrays/files` | string[] | Field array file paths |
+| `field_arrays/sha256` | string[] | SHA256 hashes for field array files |
 
 ---
 
@@ -152,7 +168,7 @@ Embedded copies of external inputs (for reruns without external files).
 | `field_arrays/blob_<i>` | uint8 array | Raw bytes of field array file *i* (if embedded) |
 | `field_arrays/blob_<i>_filename` | string | Original path of field array file *i* |
 
-All inputs are embedded unconditionally; downstream scripts should prefer these blobs over external files for reproducibility.
+When source paths are available, inputs are embedded for reproducibility. Missing inputs are stored as `{}` or empty blobs.
 
 ---
 
@@ -279,15 +295,17 @@ Time-series data for all ions at each output timestep.
 | `time` | double | [T] | Time points | s |
 | `positions` | double | [T × N × 3] | Ion positions (x, y, z) | m |
 | `velocities` | double | [T × N × 3] | Ion velocities (vx, vy, vz) | m/s |
-| `species_ids` | string | [T × N] | Species identifier per ion | - |
 | `domain_indices` | int | [T × N] | Domain index per ion | - |
+| `species_id_indices` | uint32 | [T × N] | Species pool index per ion | - |
+| `time_per_ion` | double | [T × N] | Per-ion times (adaptive dt snapshots) | s |
+| `species_ids` | string | [T × N] | Species identifier per ion (optional compatibility) | - |
 
 **T** = Number of timesteps written  
 **N** = Number of ions
 
 **Storage:**
 - Chunked storage for efficient partial reads
-- GZIP compression level 6
+- GZIP compression level 2 for buffered batch writes (level 6 for single-step append)
 - Typical compression ratio: 3-5x
 
 **Python Example:**
@@ -382,9 +400,9 @@ Configuration for each instrument domain.
 
 **Subgroup:** `/domains/domain_<i>/fields/`
 
-Contains subgroups for DC, RF, and AC fields with voltage, frequency, and phase parameters. 
+Contains subgroups for DC, RF, and AC fields with voltage/frequency parameters. RF includes `phase_rad`; AC has no phase field.
 
-**Waveform Support:** If time-varying waveforms are used, a `/fields/waveforms/` subgroup is created with one group per named waveform containing its type and parameters. DC/RF/AC fields store the t=0 evaluation for backward compatibility.
+**Waveform Support:** If time-varying waveforms are used, a `/fields/waveforms/` subgroup is created with one group per named or inline waveform containing its type and parameters. DC/RF/AC fields store the t=0 evaluation for backward compatibility.
 
 ---
 
@@ -484,26 +502,26 @@ with h5py.File('simulation.h5', 'r') as f:
 
 ## File Size Estimates
 
-Typical file sizes for various simulations:
+Typical file sizes for various simulations (numeric-only trajectory datasets; excludes optional `species_ids` strings):
 
-| Simulation | Ions | Timesteps | File Size | Compressed |
-|------------|------|-----------|-----------|------------|
-| IMS small | 100 | 1,000 | 2.4 MB | 0.6 MB |
-| IMS medium | 1,000 | 5,000 | 120 MB | 30 MB |
-| LQIT | 10,000 | 10,000 | 2.4 GB | 600 MB |
-| TOF large | 100,000 | 50,000 | 120 GB | 30 GB |
+| Simulation | Ions | Timesteps | Raw (numeric only) | Compressed (3-5x) |
+|------------|------|-----------|--------------------|-------------------|
+| IMS small | 100 | 1,000 | ~6.4 MB | ~1.3-2.1 MB |
+| IMS medium | 1,000 | 5,000 | ~320 MB | ~64-107 MB |
+| LQIT | 10,000 | 10,000 | ~6.4 GB | ~1.3-2.1 GB |
 
-**Storage formula (trajectory data only):**
+**Storage formula (trajectory data only, numeric datasets):**
 ```
-size_bytes ≈ (N_ions × N_timesteps × 6 × 8 + N_timesteps × 8) / compression_ratio
+size_bytes ≈ N_ions * N_timesteps * (6*8 + 8 + 4 + 4) + N_timesteps * 8
 ```
 
 where:
 - 6 values per ion per timestep: pos[3], vel[3] (doubles)
+- time_per_ion per ion per timestep (double)
+- domain_indices (int32) and species_id_indices (uint32)
 - 1 time value per timestep (double)
-- Additional: species_ids (strings), domain_indices (ints)
-- 8 bytes per double, 4 bytes per int
-- Typical compression ratio: 3-5x
+- Typical compression ratio: 3-5x for numeric datasets
+- `species_ids` (varlen strings) can add significant overhead when written
 - **Note:** Metadata (config, species, reactions, domains) adds ~1-2 MB overhead
 
 ---
@@ -513,7 +531,7 @@ where:
 ### HDF5 Version
 - **Minimum:** HDF5 1.10.0
 - **Recommended:** HDF5 1.12.0+
-- **Compression:** GZIP level 6
+- **Compression:** GZIP level 2 for buffered batch writes, level 6 for single-step append
 
 ### Python Libraries
 ```bash

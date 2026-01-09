@@ -1,6 +1,6 @@
 # ICARION Developer's Guide
 
-**Version:** 1.0 
+**Version:** 1.0.0 
 **Last Updated:** December 2025
 
 This guide provides practical instructions for extending ICARION with new features.  
@@ -25,11 +25,11 @@ This guide provides practical instructions for extending ICARION with new featur
 
 ### Overview
 
-ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement a single SoA entry point `IForce::compute(...)` (ensemble + ion index + time + context) and are managed by `ForceRegistry`. AoS hooks have been removed from the hot path; tests wrap single ions into a scratch SoA when needed.  
+ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement SoA entry points `IForce::compute(...)` (ensemble + ion index + time + context) and `IForce::compute_soa(...)` (snapshot state), and are managed by `ForceRegistry`. AoS hooks have been removed from the hot path; tests wrap single ions into a scratch SoA when needed.  
 
 **New in v1.0 SoA path:**  
 - `IForce::compute_soa(const ForceState&, t, ctx)` is required; it must use the provided state (no ensemble fetches).  
-- `ForceRegistry::compute_total_force_soa` aggregates via `compute_soa` and uses `ForceState::ensemble_index` for space-charge (no AoS staging).  
+- `ForceRegistry::compute_total_force_soa` aggregates via `compute_soa` and uses `ForceState::ensemble_index` for space-charge; AoS conversion happens only if a force declares `requires_aos_state()`.  
 - RK45 calls only the SoA path; no scratch ensembles are built in integration stages.
 
 **Version:** 1.0 uses **const config references** (Single Source of Truth pattern)
@@ -62,7 +62,7 @@ ICARION's force system follows a plugin architecture using the **IForce interfac
 #include "ForceContext.h"
 #include "core/types/Vec3.h"
 #include "core/types/IonState.h"
-#include "core/config/DomainConfig.h"  // Direct config reference
+#include "core/config/types/DomainConfig.h"  // Direct config reference
 
 namespace ICARION {
 namespace physics {
@@ -86,8 +86,10 @@ public:
      */
     explicit YourForce(const config::DomainConfig& domain, double additional_param = 0.0);
     
-Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override;  // AoS (tests)
-Vec3 compute(const core::IonEnsemble& ensemble, size_t i, double t, const ForceContext& ctx) const override; // SoA hot path
+    Vec3 compute(const core::IonEnsemble& ensemble, size_t i, double t,
+                 const ForceContext& ctx) const override;  // SoA hot path
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override;
     
 private:
     const config::DomainConfig& domain_;  ///< Reference, not copy!
@@ -112,18 +114,30 @@ YourForce::YourForce(const config::DomainConfig& domain, double additional_param
     , additional_param_(additional_param) {
 }
 
-Vec3 YourForce::compute(const IonState& ion, double t, const ForceContext& ctx) const {
+Vec3 YourForce::compute(const core::IonEnsemble& ensemble, size_t i, double t,
+                        const ForceContext& ctx) const {
+    ForceState state;
+    state.pos = ensemble.get_pos(i);
+    state.vel = ensemble.get_vel(i);
+    state.mass_kg = ensemble.mass_data()[i];
+    state.ion_charge_C = ensemble.charge_data()[i];
+    state.ensemble_index = i;
+    return compute_soa(state, t, ctx);
+}
+
+Vec3 YourForce::compute_soa(const ForceState& state, double t,
+                            const ForceContext& ctx) const {
     // Read config directly from domain_
     if (!domain_.enable_some_feature) {
         return Vec3{0, 0, 0};
     }
-    
+
     // Example: Use domain config parameters
     double param = domain_.some_config_value;
     Vec3 force = {0, 0, 0};
-    
-    // ... implement physics using domain_ and ctx ...
-    
+
+    // ... implement physics using state, domain_, and ctx ...
+
     return force;
 }
 
@@ -138,7 +152,7 @@ Vec3 YourForce::compute(const IonState& ion, double t, const ForceContext& ctx) 
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "core/physics/forces/YourForce.h"
-#include "core/config/DomainConfig.h"
+#include "core/config/types/DomainConfig.h"
 
 using namespace ICARION::physics;
 using namespace ICARION::config;
@@ -148,7 +162,7 @@ TEST_CASE("YourForce - Basic functionality", "[forces][yourforce]") {
     // Create config (SSOT)
     DomainConfig domain;
     domain.name = "test_domain";
-    domain.instrument = InstrumentType::NoFixedInstrument;
+    domain.instrument = config::Instrument::NoFixedInstrument;
     
     YourForce force(domain, 0.5);  // Pass by reference
     
@@ -160,8 +174,9 @@ TEST_CASE("YourForce - Basic functionality", "[forces][yourforce]") {
     ion.vel = Vec3{100, 0, 0};
     ion.ion_charge_C = 1.602e-19;  // Elementary charge
     ion.mass_kg = 100.0 * 1.66e-27;  // 100 amu
-    
-    Vec3 F = force.compute(ion, 0.0, ctx);
+
+    auto ensemble = core::IonEnsemble::from_legacy({ion});
+    Vec3 F = force.compute(ensemble, 0, 0.0, ctx);
     
     // Add your assertions
     REQUIRE(std::isfinite(F.x));
@@ -204,10 +219,11 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 
 **DO:**
 
-- Implement `compute` (SoA-only); tests may wrap single ions into a scratch ensemble if needed.
+- Implement `compute` and `compute_soa`; make `compute` a thin wrapper over `compute_soa`.
+- Tests may wrap single ions into a scratch `IonEnsemble` if needed.
 - **Use const config references**, not parameter structs
 - **Store references as members**: `const config::DomainConfig& domain_;`
-- **Read config on-demand**: `double V = domain_.fields.dc.axial_V;`
+- **Read config on-demand**: `double V = domain_.fields.dc.axial_V.evaluate(t, domain_.fields.waveform_library);`
 - **Write comprehensive unit tests** (aim for >90% coverage)
 - **Document physics equations** in class docstrings
 - **Use const correctness** (`compute()` must be const)
@@ -273,7 +289,7 @@ public:
     explicit YourCollisionHandler(double your_param = 1.0);
     
     bool handle_collision(
-        IonState& ion,
+        core::IonCollisionData& view,
         double dt,
         PhysicsRng& rng,
         const config::EnvironmentConfig& env  // SSOT!
@@ -303,26 +319,26 @@ YourCollisionHandler::YourCollisionHandler(double your_param)
 {}
 
 bool YourCollisionHandler::handle_collision(
-    IonState& ion,
+    core::IonCollisionData& view,
     double dt,
     PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
-    // Read parameters directly from env (SSOT!)
+    // Read parameters directly from env/view (SSOT!)
     const double T_K = env.temperature_K;
-    const double n = env.particle_density_m_3;
-    const double m_neutral = env.neutral_mass_kg;
+    const double n = view.get_gas_density();
+    const double m_neutral = view.get_neutral_mass();
     const Vec3 v_gas = env.gas_velocity_m_s;
-    
+
     // Your collision physics here
     // ...
-    
+
     // Modify ion velocity if collision occurs
     if (collision_occurred) {
-        ion.vel = new_velocity;
+        view.kin.set_vel(new_velocity);
         return true;
     }
-    
+
     return false;
 }
 
@@ -339,7 +355,12 @@ bool YourCollisionHandler::handle_collision(
 std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
     const config::PhysicsConfig& config,
     const GeometryMap* geometry_map,
-    double gamma_for_ou
+    double gamma_for_ou,
+    bool enable_logging,
+    const config::SpeciesDatabase* species_db,
+    bool enable_gpu,
+    unsigned long long gpu_seed,
+    size_t gpu_threshold
 ) {
     switch (config.collision_model) {
         // ... existing cases ...
@@ -398,21 +419,27 @@ TEST_CASE("YourCollisionHandler: Basic functionality", "[collision][yourmodel]")
     ion.vel = Vec3{100, 0, 0};
     ion.mass_kg = 50.0 * 1.66e-27;  // 50 amu
     ion.ion_charge_C = 1.602e-19;
+    ion.CCS_m2 = 1e-18;
     
     config::EnvironmentConfig env;
     env.temperature_K = 300.0;
     env.pressure_Pa = 101325.0;
+    env.compute_derived_properties();
     // ...
     
     PhysicsRng rng(42);
     double dt = 1e-9;
+
+    auto ensemble = core::IonEnsemble::from_legacy({ion});
+    ensemble.update_domain_cache(0, 0, env.temperature_K, env.particle_density_m_3, env.gas_mass_kg);
+    auto view = ensemble.collision_data(0);
     
     // Act
-    bool collision = handler.handle_collision(ion, dt, rng, env);
+    bool collision = handler.handle_collision(view, dt, rng, env);
     
     // Assert
     if (collision) {
-        REQUIRE(ion.vel.magnitude() < 100.0);  // Velocity changed
+        REQUIRE(view.kin.vel().magnitude() < 100.0);  // Velocity changed
     }
 }
 ```
@@ -436,9 +463,9 @@ add_test(NAME YourCollisionHandler COMMAND test_your_collision_handler)
 
 1. **SSOT Compliance:** Always read from `EnvironmentConfig` directly
 2. **Return Value:** Return `true` if collision occurred, `false` otherwise
-3. **In-Place Modification:** Modify `ion.vel` directly (don't return new velocity)
+3. **In-Place Modification:** Update velocity via `view.kin.set_vel(...)` (don't return new velocity)
 4. **Validation:** Check for invalid parameters in constructor
-5. **Logging:** Use `io::debug_log()` for warnings/diagnostics
+5. **Logging:** Use `log::debug_log()` for warnings/diagnostics
 6. **Testing:** Test edge cases (zero velocity, zero density, etc.)
 
 ### Common Patterns
@@ -470,7 +497,7 @@ v_new.x = v_thermal * std::sin(theta) * std::cos(phi);
 v_new.y = v_thermal * std::sin(theta) * std::sin(phi);
 v_new.z = v_thermal * std::cos(theta);
 
-ion.vel = v_new + v_gas;  // Add gas velocity
+view.kin.set_vel(v_new + v_gas);  // Add gas velocity
 ```
 
 ### Troubleshooting
@@ -527,11 +554,10 @@ domain.geometry.radius_m = 0.5;                     // Wide radius to prevent ra
 - **Wide radius**: Use `radius_m ≥ 5 × length_m` to prevent radial losses from diffusion
 
 **Future Development:**
-- **v1.1+**: Planned boundary types beyond current absorbing boundaries:
-  - `BoundaryType::Reflecting` - elastic reflection at boundaries
-  - `BoundaryType::Emitting` - continuous ion source at entrance
-  - `BoundaryType::Periodic` - wraparound for bulk simulations
-- **Current (v1.0)**: Only absorbing boundaries implemented
+- Planned boundary actions beyond the current set:
+  - Emitting (continuous ion source at entrance)
+  - Periodic (wraparound for bulk simulations)
+- **Current (v1.0)**: `Absorption`, `SpecularReflection`, `DiffuseReflection`, `ThermalReflection`
 
 **Related Issues:**
 - See `tests/instruments/test_ims_drift.cpp` for working example
@@ -551,10 +577,10 @@ Multi-domain geometry handling lives in `IDomainGeometry` strategies (e.g., `Cyl
 
 - `ISpaceChargeModel` exposes `update_fields()` + `sample_electric_field()`. ForceRegistry owns an optional instance and adds Coulomb force directly in the SoA loop (no fallback AoS conversions).
 - Models:
-  - `SpaceChargeDirectModel` – exact O(N²), shared across domains for small ion counts.
+  - `SpaceChargeDirectModel` – exact O(N²), per-domain for small ion counts.
   - `SpaceChargeGridModel` – geometry-driven Poisson solver (Dirichlet masks + bounding boxes from `IDomainGeometry`).
   - `SpaceChargeGPUModel` – wraps `gpu::GPUSpaceChargeP3M`; compiles as a stub in CPU-only builds.
-- `SpaceChargeModelFactory` decides per-domain: try GPU if `physics.enable_space_charge_gpu` and CUDA build, else grid, else direct. Logging records fallbacks automatically.
+- `SpaceChargeModelFactory` decides per-domain: try GPU when `physics.enable_space_charge_gpu` and CUDA build (and ion count meets the GPU threshold), otherwise use direct for small ensembles and grid for larger ones. Logging records fallbacks automatically.
 - Configuration overrides / CLI: `physics.enable_space_charge` toggles feature, `physics.enable_space_charge_gpu` requests GPU acceleration (safe to enable even on CPU because the factory degrades gracefully).
 
 ### Step-by-Step Guide
@@ -607,7 +633,7 @@ Add a parity or direct test for your FieldModel and ElectricFieldForce:
 ```cpp
 TEST_CASE("YourFieldModel parity", "[forces][field]") {
     DomainConfig domain;
-    domain.instrument = InstrumentType::YourInstrument;
+    domain.instrument = config::Instrument::YourInstrument;
     domain.fields.dc.axial_V = ValueOrWaveform(1000.0);
     // instrument-specific params...
     domain.finalize();
@@ -623,7 +649,8 @@ TEST_CASE("YourFieldModel parity", "[forces][field]") {
     ctx.field_model = &model;
     ctx.domain = &domain;
 
-    Vec3 F = force.compute(ion, 0.0, ctx);
+    auto ensemble = core::IonEnsemble::from_legacy({ion});
+    Vec3 F = force.compute(ensemble, 0, 0.0, ctx);
     REQUIRE(std::isfinite(F.x));
     REQUIRE(std::isfinite(F.y));
     REQUIRE(std::isfinite(F.z));
@@ -662,16 +689,16 @@ Add to class docstring or separate documentation:
 ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
 
 **Current GPU Features (v1.0):**
-- RK4/RK45/Boris batch integrators via `GPUIntegrationStrategy` (factory-selected wrapper; automatic fallback + grid/E-field checks)
-- HSS/EHSS collision helper (active-ion threshold default 5000; EHSS geometry upload TODO)
+- RK4/RK45/Boris batch integrators via `GPUIntegrationStrategy` (factory-selected wrapper; intended for single-domain batches with exactly one `ElectricFieldForce` backed by a `GridFieldProvider`; falls back on space charge, magnetic forces, damping unless GPU damping is enabled, unsupported force types, or missing field providers. Non-grid providers or snapshot-based grids result in zero-field GPU integration, so avoid GPU dispatch in those cases.)
+- HSS/EHSS collision helper (active-ion threshold default 5000; geometry upload supported when provided)
 - Reactions via `GPUReactionBackend` (constant / Arrhenius / modified Arrhenius, mixtures). Flattens per-domain tables, launches XORWOW kernel, updates SoA species/mass/charge/CCS/mobility. Device buffers are pooled (RNG, species/domain/flags/reaction tables); CPU stochastic handler is the fallback.
-- Field-provider upload for integration when ElectricFieldForce is present
+- Grid field arrays can be uploaded for integration when `ElectricFieldForce` uses a `GridFieldProvider` (`FieldArray` only). Non-grid providers are treated as unsupported (GPU helper falls back to zero fields).
 - Space charge P³M helper wired through `SpaceChargeGPUModel` (opt-in via `physics.enable_space_charge_gpu`, CPU fallback guaranteed)
 - Boundary check helper supports absorption/cylindrical only and is not wired into the main loop
 
-`IntegrationStrategyFactory` emits the GPU wrapper automatically whenever `simulation.enable_gpu` is true (and CUDA is available); the wrapper calls `IIntegrationStrategy::step_batch()` internally and falls back to the CPU strategy if the batch conditions are not met.
+`IntegrationStrategyFactory` emits the GPU wrapper automatically whenever `simulation.enable_gpu` is true (and ICARION is built with CUDA). The wrapper attempts to create a GPU context and falls back to the CPU strategy when GPU eligibility checks fail (e.g., multi-domain batches, missing grid fields, unsupported force mixes, or space charge).
 
-**Note:** In v1.0 the runtime GPU path is disabled (CPU-only), even if `enable_gpu` is set. CUDA builds still compile GPU code for development; CPU fallback always wins.
+**Note:** GPU paths are experimental and may fall back depending on force mix, domain count, and thresholds.
 
 ### Prerequisites
 
@@ -800,25 +827,37 @@ void collision_batch(
 - **Multi-gas support:** The CUDA kernels now sample neutral velocities per mixture component (matching the CPU algorithm), accumulate component-specific collision rates, and select the actual collision partner using the same Monte-Carlo scheme. For cache efficiency the device struct keeps a fixed-size mixture buffer (`MAX_GPU_GAS_COMPONENTS = 8`); additional components are truncated with a runtime warning.
 ```cpp
 void SimulationEngine::perform_collisions(IonEnsemble& ensemble,
-                                          double dt,
-                                          const std::vector<int>& domains) {
+                                          const std::vector<double>& dt_used_per_ion,
+                                          const std::vector<int>& domain_indices) {
     if (!collision_handler_) return;
     const bool has_batch = collision_handler_->supports_batch();
     for (size_t dom = 0; dom < config_.domains.size(); ++dom) {
-        auto& indices = domain_buckets[dom];
+        auto& indices = per_domain[dom];
         if (indices.empty()) continue;
         const auto& env = config_.domains[dom].environment;
-        bool handled = has_batch &&
-            collision_handler_->handle_batch(ensemble, indices, dt,
-                                             env, rng_by_ion_);
+        bool handled = false;
+        if (has_batch) {
+            double dt_batch = dt_used_per_ion[indices.front()];
+            bool uniform_dt = true;
+            for (size_t idx : indices) {
+                if (dt_used_per_ion[idx] != dt_batch) {
+                    uniform_dt = false;
+                    break;
+                }
+            }
+            if (uniform_dt) {
+                handled = collision_handler_->handle_batch(ensemble, indices, dt_batch,
+                                                         env, rng_by_ion_);
+            }
+        }
         if (!handled) {
-            handle_collisions_cpu(ensemble, dt, indices, env);
+            handle_collisions_cpu(ensemble, dt_used_per_ion, indices, env);
         }
     }
 }
 ```
 
-This keeps the SimulationEngine agnostic of GPU specifics—the handler encapsulates accelerator logic, and SoA data never round-trips through temporary AoS buffers.
+This keeps the SimulationEngine agnostic of GPU specifics—the handler encapsulates accelerator logic, while current GPU helpers still materialize AoS batches for upload.
 
 ### GPU Development Best Practices
 
@@ -927,14 +966,14 @@ nsys-ui report.nsys-rep
 
 **Test GPU context:**
 ```cpp
-TEST(GPUContext, Creation) {
+TEST_CASE("GPUContext: Creation", "[gpu][context]") {
     if (!GPUContext::is_cuda_available()) {
-        GTEST_SKIP() << "CUDA not available";
+        SKIP("CUDA not available");
     }
-    
+
     auto context = GPUContext::create(0);
-    ASSERT_NE(context, nullptr);
-    EXPECT_GT(context->get_properties().total_memory, 0);
+    REQUIRE(context);
+    REQUIRE(context->get_properties().total_memory > 0);
 }
 ```
 
@@ -942,20 +981,28 @@ TEST(GPUContext, Creation) {
 
 **Test kernel correctness:**
 ```cpp
-TEST(IntegrationKernel, SingleIon) {
+using Catch::Matchers::WithinAbs;
+
+TEST_CASE("IntegrationKernel: Single ion", "[gpu][integration]") {
+    if (!GPUContext::is_cuda_available()) {
+        SKIP("CUDA not available");
+    }
+
     auto context = GPUContext::create(0);
-    
+    REQUIRE(context);
+
     // CPU reference
     IonState ion_cpu = /* initial state */;
     rk4_step_cpu(ion_cpu, dt);
-    
+
     // GPU result
     std::vector<IonState> ions = {ion_cpu};
-    GPUIntegrationHelper helper(context, 1);  // Threshold = 1
-    helper.integrate_batch_rk4(ions, dt, 0.0);
-    
+    auto helper = GPUIntegrationHelper::create(*context, 1);  // Threshold = 1
+    REQUIRE(helper);
+    helper->integrate_batch_rk4(ions, dt, 0.0);
+
     // Compare (tolerance: 1e-12)
-    EXPECT_NEAR(ions[0].pos.x, ion_cpu.pos.x, 1e-12);
+    REQUIRE_THAT(ions[0].pos.x, WithinAbs(ion_cpu.pos.x, 1e-12));
 }
 ```
 
@@ -963,22 +1010,29 @@ TEST(IntegrationKernel, SingleIon) {
 
 **Measure speedup:**
 ```cpp
-TEST(GPUPerformance, LargeScale) {
+TEST_CASE("GPUPerformance: LargeScale", "[gpu][performance]") {
+    if (!GPUContext::is_cuda_available()) {
+        SKIP("CUDA not available");
+    }
+
     auto context = GPUContext::create(0);
+    REQUIRE(context);
+    auto helper = GPUIntegrationHelper::create(*context, 1);
+    REQUIRE(helper);
     std::vector<IonState> ions(100000);
-    
+
     // CPU baseline
     auto t0 = now();
     cpu_integrate(ions, dt);
     auto cpu_time = elapsed(t0);
-    
+
     // GPU time
     t0 = now();
-    gpu_helper->integrate_batch_rk4(ions, dt, 0.0);
+    helper->integrate_batch_rk4(ions, dt, 0.0);
     auto gpu_time = elapsed(t0);
-    
+
     double speedup = cpu_time / gpu_time;
-    EXPECT_GT(speedup, 1.0);  // Verify GPU is faster
+    REQUIRE(speedup > 1.0);  // Verify GPU is faster
 }
 ```
 
@@ -1132,18 +1186,31 @@ bool GPUIntegrationHelper::integrate_batch_verlet(
     const IFieldProvider* field_provider
 ) {
     // Same pattern as RK4/Boris
-    auto ions_in = pool_->get_device_buffer<IonStateGPU>(1);
-    auto ions_out = pool_->get_device_buffer<IonStateGPU>(1);
+    const size_t N = ions.size();
+    if (N > allocated_capacity_) {
+        if (ions_gpu_in_.is_allocated()) {
+            ions_gpu_in_.free();
+        }
+        if (ions_gpu_out_.is_allocated()) {
+            ions_gpu_out_.free();
+        }
+        const size_t new_capacity = N + N / 5;  // headroom
+        ions_gpu_in_.allocate(new_capacity);
+        ions_gpu_out_.allocate(new_capacity);
+        allocated_capacity_ = new_capacity;
+    }
+    ions_gpu_in_.count = N;
+    ions_gpu_out_.count = N;
     
     // Upload
-    ion_state_conversion::upload_ions(ions, *ions_in, context_.get_stream());
+    ion_state_conversion::upload_ions(ions, ions_gpu_in_, context_.get_stream());
     
     // Compute
     Vec3 E{0,0,0}, B{0,0,0};  // Or extract from field_provider
-    integrate_verlet_batch(*ions_in, *ions_out, E, B, dt, context_.get_stream());
+    integrate_verlet_batch(ions_gpu_in_, ions_gpu_out_, E, B, dt, context_.get_stream());
     
     // Download
-    ion_state_conversion::download_ions(*ions_out, ions, context_.get_stream());
+    ion_state_conversion::download_ions(ions_gpu_out_, ions, context_.get_stream());
     context_.synchronize();
     
     stats_.gpu_integrations++;
@@ -1151,26 +1218,24 @@ bool GPUIntegrationHelper::integrate_batch_verlet(
 }
 ```
 
-#### Step 3: Update SimulationEngine Dispatch
+#### Step 3: Update GPUIntegrationStrategy Dispatch
 
-**In `SimulationEngine.h`:**
+**In `GPUIntegrationStrategy.h`:**
 ```cpp
-#ifdef ICARION_USE_GPU
-    enum class IntegratorType { RK4, RK45, Boris, Verlet, Unknown };
-#endif
+enum class Kind { RK4, RK45, Boris, Verlet };
 ```
 
-**In `SimulationEngine.cpp`:**
+**In `GPUIntegrationStrategy.cpp`:**
 ```cpp
-// Cache integrator type
-if (dynamic_cast<VerletStrategy*>(integrator_.get())) {
-    integrator_type_ = IntegratorType::Verlet;
-}
+case Kind::Verlet:
+    return gpu_helper_->integrate_batch_verlet(gpu_ions, dt, t, field_provider);
+```
 
-// Dispatch
-case IntegratorType::Verlet:
-    threshold /= 2;  // Verlet: 2 force evals, same as Boris
-    return gpu_helper_->integrate_batch_verlet(ions, dt, t, field_provider);
+**In `IntegrationStrategyFactory.h`:**
+```cpp
+if (strategy_name == "VERLET") {
+    kind = GPUIntegrationStrategy::Kind::Verlet;
+}
 ```
 
 #### Step 4: Validate CPU/GPU Parity
@@ -1186,8 +1251,9 @@ TEST_CASE("Verlet GPU/CPU Parity - Free Particle", "[gpu][verlet][parity]") {
     
     // CPU reference
     VerletStrategy verlet_cpu;
-    for (auto& ion : ions_cpu) {
-        verlet_cpu.step(ion, 0.0, 1e-9, force_registry, ions_cpu);
+    auto ensemble_cpu = core::IonEnsemble::from_legacy(ions_cpu);
+    for (size_t i = 0; i < ensemble_cpu.size(); ++i) {
+        verlet_cpu.step(ensemble_cpu, i, 0.0, 1e-9, force_registry);
     }
     
     // GPU
@@ -1221,11 +1287,9 @@ for (int N : {1000, 2000, 3000, 5000, 10000}) {
 **Smart Threshold Selection:**
 ```cpp
 // Rule of thumb: threshold ∝ 1 / (force_evaluations_per_step)
-// Default base threshold: 5000 ions (configurable via gpu_threshold)
-Boris:   1 eval  → threshold / 2
-Verlet:  2 evals → threshold / 2
-RK4:     4 evals → threshold
-RK45:    6 evals → threshold
+// Default base threshold: 5000 ions (see GPUIntegrationStrategy ctor)
+// Tuning tip: adjust thresholds manually if adding new integrators with
+// different force-evaluation costs (current code uses one threshold per strategy).
 ```
 
 **Reuse Shared Code:**
@@ -1278,9 +1342,9 @@ __device__ double kahan_add(double sum, double x, double& c) {
 
 **ICARION GPU Reference (v1.0):**
 - GPU integration available for RK4, RK45, Boris integrators
-- Automatic dispatch based on particle count (default threshold: 5000, Boris: 2500)
+- Automatic dispatch based on particle count and force mix (default threshold: 5000 in `GPUIntegrationStrategy`)
 - Implementation details in `src/core/integrator/` and integration strategy classes
-- Validation tests: `tests/integrator/test_rk45_boris_parity.cpp` (407 lines)
+- Validation tests: `tests/integrator/test_rk45_boris_parity.cpp`
 - Space charge GPU: `src/core/physics/spacecharge/SpaceChargeGPUModel.{h,cpp}` + `GPUSpaceChargeP3M.{h,cu}`
 
 **GPU Performance:**
@@ -1297,13 +1361,14 @@ tests/physics/forces/
 ├── test_force_registry.cpp          # ForceRegistry functionality
 ├── test_electric_field_force.cpp    # All instrument types
 ├── test_magnetic_damping_forces.cpp # Magnetic + damping
-├── test_space_charge_force.cpp      # Space charge
+├── test_field_model_parity.cpp      # Analytical vs provider parity
+├── test_field_model_provider.cpp    # Provider-backed E fields
+├── test_gas_flow_transport.cpp      # Gas flow/transport checks
 ├── test_force_integration.cpp       # Multi-force scenarios
 └── minimal/                         # Standalone debug tests
     ├── minimal_electric_force.cpp
     ├── minimal_magnetic_force.cpp
     ├── minimal_damping_force.cpp
-    └── minimal_space_charge_force.cpp
 ```
 
 ### Test Categories
@@ -1322,9 +1387,9 @@ cd build && ctest
 ctest -R "Force"
 
 # Specific test
-./tests/physics/forces/test_electric_field_force
+cd build && ./tests/physics/forces/test_electric_field_force
 
-# Minimal tests (no CMake needed)
+# Minimal tests (manual build; binaries may already exist)
 cd tests/physics/forces/minimal
 ./minimal_electric_force
 ```
@@ -1337,9 +1402,10 @@ TEST_CASE("Descriptive name explaining what is tested", "[tag1][tag2]") {
         // Arrange
         YourForce force(params);
         IonState ion = create_test_ion(/*...*/);
+        auto ensemble = core::IonEnsemble::from_legacy({ion});
         
         // Act
-        Vec3 F = force.compute(ion, 0.0, ctx);
+        Vec3 F = force.compute(ensemble, 0, 0.0, ctx);
         
         // Assert
         REQUIRE_THAT(F.x, WithinAbs(expected_Fx, 1e-10));
@@ -1385,19 +1451,12 @@ TEST_CASE("Descriptive name explaining what is tested", "[tag1][tag2]") {
    double r_hi = R;
    ```
 
-**Solution:** For Orbitrap instruments in `SimulationEngine`, use:
-```cpp
-if (domain_config.instrument == config::Instrument::Orbitrap) {
-    Vec3 pos_global = domain_manager_->local_to_global_pos(pos_after, domain_idx);
-    int check_domain = domain_manager_->find_domain_index(pos_global);
-    still_inside = (check_domain == domain_idx);
-}
-```
+**Solution:** Rely on `DomainManager::find_domain_index(pos)` for Orbitrap domains (it uses `OrbitrapGeometry::contains` when any Orbitrap domain is present). Avoid cylindrical-radius shortcuts in tests.
 
 **Affected Files:**
-- `src/core/integrator/SimulationEngine.cpp` (boundary checks after integration)
-- `src/core/integrator/DomainManager.cpp` (bisection solver for r(z))
-- `tests/integrator/test_domain_manager.cpp` (test bisection implementation)
+- `src/core/integrator/DomainManager.cpp` (geometry-based containment checks)
+- `src/core/config/types/OrbitrapGeometry.*` (geometry solver)
+- `tests/integrator/test_domain_manager.cpp` (bisection solver tests)
 
 **See:** Commit `b4f358a` - "fix: Correct Orbitrap boundary checking"
 
@@ -1433,14 +1492,14 @@ Use Doxygen-style comments:
 /**
  * @brief Brief description (one line)
  * 
- * @param ion The ion state
+ * @param state The SoA force state
  * @param t Simulation time [s]
  * @param ctx Force computation context
  * @return Force vector [N]
  * 
  * Detailed description with physics equations and assumptions.
  */
-Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const;
+Vec3 compute_soa(const ForceState& state, double t, const ForceContext& ctx) const;
 ```
 
 ### SSOT Compliance
@@ -1453,9 +1512,20 @@ class MyForce : public IForce {
 public:
     MyForce(const config::DomainConfig& domain);
     
-    Vec3 compute(const IonState& ion, double t, const ForceContext& ctx) const override {
+    Vec3 compute(const core::IonEnsemble& ensemble, size_t i, double t,
+                 const ForceContext& ctx) const override {
+        ForceState state;
+        state.pos = ensemble.get_pos(i);
+        state.vel = ensemble.get_vel(i);
+        state.mass_kg = ensemble.mass_data()[i];
+        state.ion_charge_C = ensemble.charge_data()[i];
+        return compute_soa(state, t, ctx);
+    }
+
+    Vec3 compute_soa(const ForceState& state, double t,
+                     const ForceContext& ctx) const override {
         // Read config on-demand
-        double axial_V = domain_.fields.dc.axial_V;
+        double axial_V = domain_.fields.dc.axial_V.evaluate(t, domain_.fields.waveform_library);
         // ...
     }
     
@@ -1518,38 +1588,25 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
    - Wire reaction_handler directly into integrator
    - Delete legacy reaction loading code
 
-2. **SimulationEngine Integration**:
-   - Main simulation loop using integration strategies
-   - Orchestration of ForceRegistry + CollisionHandler + ReactionHandler
-   - Boundary condition handling
-   - Output management (HDF5Writer v2)
-
 ### Planned
 
-1. **InstrumentType Location** (Low priority, approximately 30min):
-   - Move instrument/InstrumentTypes.h to core/config/types/InstrumentType.h
-   - Eliminates dependency cycle config to instrument
-
-2. **Stochastic Forces** (Design phase):
+1. **Stochastic Forces** (Design phase):
    - Separate random kicks from deterministic forces
    - New IStochasticForce interface (similar to collision handlers)
 
 2. **Space Charge** [AVAILABLE]:
-   - Automatic method selection: N<1000→Direct (O(N²)), N≥1000→Grid (O(N log N))
-   - CIC charge deposition with O(h²) convergence
-   - Poisson solver with 5 methods (Gauss-Seidel, SOR, CG, Multigrid, FFT)
-   - Files: `src/core/physics/spacecharge/*`, `src/core/physics/forces/SpaceCharge{Direct,Grid}.{h,cpp}`
+   - Automatic method selection: N<1000→Direct (O(N²)), N≥1000→Grid (iterative Poisson solve); optional GPU P³M when enabled and threshold is met
+   - Charge deposition: CIC (default), NGP fallback for ultra-large ensembles
+   - Poisson solver: Gauss-Seidel + Red-Black SOR; Conjugate Gradient implemented; Multigrid falls back to CG; FFT path stubbed
+   - Files: `src/core/physics/spacecharge/*`
    - **When to use Direct:** N<1000, exact results needed
    - **When to use Grid:** N≥1000, fast approximation
    - **Configuration:** Set `physics.enable_space_charge = true` in config
-   - **Performance tuning:** Adjust grid size (default 64³), update frequency
-   - **Limitations:** CPU-only (GPU planned for future release), Dirichlet BC causes errors near boundaries
+   - **Performance tuning:** Adjust target resolution hint (default 64) and update frequency in code
+   - **GPU option:** `SpaceChargeGPUModel` (P³M) when built with CUDA and `physics.enable_space_charge_gpu = true`
+   - **Limitations:** Dirichlet BC can bias fields near boundaries; validate for your geometry
 
-3. **GPU Space Charge Acceleration** (Planned for future release):
-   - CUDA kernels for space charge Poisson solver
-   - Grid-based field evaluation on GPU
-
-4. **Field Caching**:
+3. **Field Caching**:
    - Pre-compute field on regular grid
    - Trilinear interpolation for fast evaluation
    - Benefit: Reduces repeated analytical field evaluations
@@ -1558,19 +1615,20 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
 
 - **Force System SSOT**:
   - IForce interface with ForceRegistry
-  - ElectricFieldForce, MagneticFieldForce, DampingForce, SpaceChargeForce
-  - Full unit test coverage
+  - ElectricFieldForce, MagneticFieldForce, DampingForce, plus SpaceChargeModel integration in ForceRegistry
+  - Unit tests cover core forces
 
 - **Collision System SSOT**:
   - ICollisionHandler interface with factory
-  - EHSS, HSS, OU collision handlers (SoA overrides implemented)
+  - EHSS, HSS collision handlers (SoA overrides implemented)
+  - OU thermalization handler exists for deterministic models, but default setup does not wire `gamma_for_ou` (custom wiring required; incompatible with HSS/EHSS)
   - Energy conservation validation
   - Parity check: `tests/physics/collisions/test_collision_soa_parity.cpp`
 
 - **Reaction System Handlers**:
   - IReactionHandler interface with factory
   - StochasticReactionHandler implementation (SoA path implemented)
-  - GPUReactionHandler wrapper + `GPUReactionBackend` stub (factory returns the wrapper when `simulation.enable_gpu` is true; currently logs and falls back to CPU until kernels land)
+  - GPUReactionHandler wrapper + `GPUReactionBackend` (CUDA builds; falls back when GPU is unavailable or below threshold)
   - Parity check: `tests/physics/reactions/test_reaction_soa_parity.cpp`
   - Database-driven reaction loading
 
@@ -1580,7 +1638,7 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
   - RK45Strategy (Dormand-Prince 5(4), adaptive timestep with FSAL)
   - BorisStrategy (symplectic pusher for electromagnetic fields)
   - IntegrationStrategyFactory for runtime selection
-  - SSOT-compliant (uses DomainConfig pointer, callback-based acceleration)
+  - Integrators operate on `IonEnsemble` + `ForceRegistry` without owning config
   - Files: `src/core/integrator/strategies/*`
 
 ---

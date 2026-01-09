@@ -8,31 +8,31 @@ ICARION implements multiple collision models for ion-neutral interactions. This 
 
 | Model | Status | Use Case | Validation |
 |-------|--------|----------|------------|
-| **NoCollisions** | **PRODUCTION READY** | Vacuum simulations | N/A |
-| **Friction** | **PRODUCTION (mobility required; CCS fallback approximate)** | High-pressure / low E/N drift; use only when reduced mobility is known | Validated (1–10 Td); CCS fallback is approximate |
-| **HSS** | **PRODUCTION READY** | Stochastic collisions | Validated |
-| **EHSS** | **PRODUCTION (mobility bias noted)** | Molecular structure resolved scattering | Thermalization validated; mobility overestimates |
-| **HSD** | **EXPERIMENTAL** | Deterministic hard sphere | Partially validated |
-| **Langevin** | **EXPERIMENTAL** | Polarizable gases only | Not validated for N2 |
+| **NoCollisions** | **STABLE** | Vacuum simulations | N/A |
+| **Friction** | **USABLE (mobility required; deterministic)** | Drift-only when K0 is known; no diffusion | IMS drift sanity test; validation report includes low E/N comparisons |
+| **HSS** | **VALIDATED (thermalization + drift)** | Stochastic collisions with diffusion | Validation suite + IMS drift tests (see validation report); constant-CCS limits at high E/N |
+| **EHSS** | **VALIDATED (thermalization), drift bias** | Geometry-resolved stochastic collisions | Thermalization validated; drift shows systematic bias (see validation report) |
+| **HSD** | **EXPERIMENTAL** | Deterministic hard sphere (no diffusion) | Basic IMS test only |
+| **Langevin** | **EXPERIMENTAL** | Polarizable gases only | N2 drift test shows large error (manual) |
 
 ---
 
-## Production-Ready Models
+## Recommended Models
 
-### 1. Friction (CollisionModel::Friction) **Recommended for high pressure, low-to-moderate E/N drift when mobility is known**
+### 1. Friction (CollisionModel::Friction) **Recommended when mobility is known and deterministic drift is acceptable**
 
 **Formula:** γ = q/(K·m) where K = K₀·(n₀/n)
 
 **Advantages:**
-- Based on experimentally measured or literature mobility (K₀)
+- Based on experimentally measured, modelled (e.g., IMoS [https://www.imospedia.com/imos/], MobCal-MPI 2.0 [https://github.com/HopkinsLaboratory/MobCal-MPI]) or literature mobility (K₀)
 - Mason-Schamp equation foundation
-- Validated in IMS drift window 1–10 Td at 100–5000 Pa
-- Density correction included automatically
+- Deterministic drift speed when K0 is known
+- Number density correction included automatically
 
 **Validation:**
-- IMS drift (N2): Validated 1–10 Td, 100–5000 Pa
-- Outside this envelope the surrogate over-predicts velocity; use stochastic models instead
-- Model provides good approximation, but does not account for diffusion (no randomization)
+- IMS drift sanity test exists in `tests/instruments/test_ims_drift.cpp` (single config, broad tolerance)
+- Validation report compares Friction against Mason-Schamp across low-field sweeps; treat it as a mobility surrogate
+- Model provides deterministic drift speed; diffusion is not modeled
 
 **Usage:**
 ```cpp
@@ -41,13 +41,14 @@ config::CollisionModel::Friction
 ```
 
 **When to use:**
-- At high pressures (> 100 mbar) and low-to-moderate E/N (validated 1–10 Td)
-- IMS, DTIMS where experimental reduced mobility is known
+- When reduced mobility is known and you want deterministic drift speed (i.e., correct arrival times)
+- As a baseline in IMS/DTIMS comparisons
 - When diffusion is not critical
 
 **Important limitations:**
-- Requires `ion.reduced_mobility_cm2_Vs`; when missing, the code falls back to CCS-derived damping (approximate) and emits debug logs to stderr.
-- Not validated for high E/N; prefer HSS/EHSS for diffusion or outside the validated envelope.
+- Requires `ion.reduced_mobility_cm2_Vs`; if missing, gamma is zero (no damping).
+- For gas mixtures, CCS_HSS (or `ion.CCS_m2` fallback) is only used to scale per-gas mobility, not to replace K0.
+- Not a stochastic model; diffusion is not modeled. Can therefore model peak position, but no reasonable peak shapes/distributions.
 
 ---
 
@@ -58,16 +59,17 @@ config::CollisionModel::Friction
 **Advantages:**
 - Full stochastic treatment (diffusion included)
 - Validated thermalization behavior (see [VALIDATION_REPORT_v1.0.md](../validation/VALIDATION_REPORT_v1.0.md))
-- Good agreement with mobility (±1%)
+- IMS drift tests use broad tolerances; validation report shows ~10% accuracy once collisions are frequent
 
 **Validation:**
-- H3O+ in N2: 360 m/s measured vs 357 m/s theory (0.8% error)
-- Diffusion coefficient correct
-- Full stochastic treatment provides realistic thermal behavior
+- IMS drift test for H3O+ is manual (`[.]` tag) and reports close agreement at one point
+- Validation report shows a low-field accuracy corridor once enough collisions occur
+- Cross-tool comparisons to IDSimF/SIMION are ongoing; treat any external agreement as qualitative until a public report is available
+- Thermalization and diffusion behavior are validated in the collision test suite
 
 **Note**
 - Simplified elastic collision model
-- Does not account for molecular structure (in contras to EHSS model)
+- Does not account for molecular structure (contrast to EHSS)
 - Does not account for inelastic collisions
 
 **Usage:**
@@ -77,26 +79,26 @@ config::CollisionModel::HSS
 ```
 
 **When to use:**
-- Need accurate thermal diffusion
+- Need accurate thermal diffusion/peak shapes
 - Trajectory-level accuracy required
 - Modeling real experimental conditions
 - No DFT-optimized structures available 
 
 ---
 
-### 3. EHSS (Exact hard-sphere scattering)
+### 3. EHSS (Explicit hard-sphere scattering)
 
-**Formula:** Exact scattering angles + stochastic rteatment
+**Formula:** Explicit scattering with stochastic treatment
 
 **Validation:**
-- H3O+ in N2: ~23% higher drift velocity than theory in simple CTest
-- Thermalization behavior correct; mobility bias remains
+- Thermalization behavior is validated in the collision test suite and validation report
+- IMS drift test for H3O+ is manual (`[.]` tag) and shows large deviation; the validation report notes a systematic drift bias; however, note that this is still a simplified model that neglects long-range interactions
 - More accurate angular scattering than HSS when molecular structure is important
 
 **Usage:**
 ```cpp
 config::CollisionModel::EHSS
-// Requires: ion.CCS_m2
+// Prefer: CCS_EHSS map or geometry; falls back to derived/reference CCS with warnings
 ```
 
 **Note**
@@ -120,11 +122,9 @@ config::CollisionModel::EHSS
 **Status:** Under validation, use with caution
 
 **Known Issues:**
-- Gives γ = 1.20e8 Hz (16% lower than Friction: 1.43e8 Hz)
-- Requires **accurate CCS for target gas** !
-- Example: H3O+ CCS = 104 Å in N2 
-- CCS must be calculated from Mason-Schamp for each gas
-- Missing thermal diffusion (needs OU thermalization)
+- Requires accurate CCS for the target gas (not a reference gas)
+- Gas-specific CCS should be derived per gas (Mason-Schamp or `ccs_precompute`)
+- Missing thermal diffusion
 
 **When NOT yet to use:**
 - Production simulations
@@ -143,6 +143,9 @@ CCS = (3*q)/(16*N₀*K₀) × √(2π/(μ*kB*T))
 # For H3O+ in N2: CCS = 104 Å (not 24.9 Å from He!)
 ```
 
+**Note**
+- might only provide good agreement with experimental or literature mobility values under certain conditions (e.g., when long-range interactions can be neglected)
+
 ---
 
 ### 5. Langevin (CollisionModel::Langevin) - EXPERIMENTAL
@@ -152,9 +155,9 @@ CCS = (3*q)/(16*N₀*K₀) × √(2π/(μ*kB*T))
 **Status:** **Not validated**
 
 **Critical Limitations:**
-- Predicts K = 0.042 cm²/(V·s) for H3O+ in N2 vs measured 3.2 cm²/(V·s) at 100 Td
-- Model should better describe mobility at low E/N!
-- Overpredicts damping by factor of 6
+- IMS drift fixture for N2 shows order-of-magnitude mobility error (manual test, `[.]` tag)
+- Model should better describe mobility at low E/N in polarizable gases, but N2 is non-polar
+- Overpredicts damping in the N2 fixture compared to Friction
 
 **When NOT to use:**
 - Gases with low polarizability (N2, O2, Ar, He)
@@ -171,21 +174,20 @@ CCS = (3*q)/(16*N₀*K₀) × √(2π/(μ*kB*T))
 ## Recommendations by Simulation Type
 
 ### IMS/DTIMS Drift Time Measurements
-**Use:** `Friction` model
-- Exact mobility match
-- Validated extensively
-- Most reliable for production
+**Use:** `HSS` for stochastic drift + diffusion; `Friction` when K0 is known and you want deterministic drift
+- HSS is the primary validated stochastic model for drift in the validation report
+- Friction is a mobility surrogate without diffusion
 
 ### Trajectory Simulations with Diffusion
 **Use:** `HSS` model
 - Full stochastic treatment
 - Accurate diffusion
-- Good mobility agreement
+- Drift accuracy in the low-field validation envelope
 
 ### Structure-Dependent Scattering Studies
 **Use:** `EHSS` model
 - Detailed scattering physics
-- Requires CCS from DFT/ab initio
+- Requires geometry or CCS_EHSS map (DFT/ab initio recommended)
 
 ### Research / Model Development
 **Use with caution:** `HSD`, `Langevin`
@@ -225,5 +227,5 @@ CCS = (3*q)/(16*N₀*K₀) × √(2π/(μ*kB*T))
 ---
 
 **Last Updated:** December 2025  
-**Version:** v1.0
+**Version:** 1.0.0
 **Maintainer:** ICARION Development Team

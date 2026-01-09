@@ -1,6 +1,6 @@
 # ICARION Architecture Overview
 
-**Version:** v1.0
+**Version:** 1.0.0
 **Purpose:** High-level system design and architectural decisions for ICARION ion trajectory simulation framework
 
 ## Table of Contents
@@ -38,7 +38,7 @@ ICARION is a modular C++17 framework for ion trajectory simulation in mass spect
 - **SimulationEngine as conductor:** Owns the timestep loop and delegates; physics behavior comes from injected strategies (integrator, collisions, reactions, forces).
 - **Strategy everywhere:** Integrators, collision/reaction handlers, and field providers are interchangeable strategies chosen by factories from the JSON config (RK4/RK45/Boris; HSS/EHSS/Langevin; CPU/GPU variants).
 - **ForceRegistry as composite:** Active forces are registered once and executed as a composite over the SoA ensemble each step. Adding a new force = implement interface + register; the engine loop stays unchanged.
-- **SSOT config:** JSON + schema is the single source of truth; factories derive domains, fields, and physics switches directly from it. No hidden hardcoded defaults.
+- **SSOT config:** JSON + schema is the single source of truth for runtime inputs; defaults live in config structs and are overridden by JSON/CLI.
 - **Domain-centric:** Each domain owns geometry/environment/field model; DomainManager resolves per-ion domain state and hands the correct strategies to the engine.
 - **CPU/GPU split with transparent fallback:** CPU paths are canonical; GPU helpers wrap the same strategies and take over only when enabled/thresholded, otherwise falling back without diverging user logic.
 
@@ -68,9 +68,10 @@ tools/                 # Developer tools and scripts
 
 ### Core Dependencies
 
-- **Required**: C++17, CMake 3.16+, HDF5, spdlog
-- **Optional**: CUDA 11.0+ (GPU acceleration), OpenMP (threading)
-- **External**: cxxopts (CLI), nlohmann/json (config parsing)
+- **Required**: C++17, CMake 3.16+, HDF5, jsoncpp, OpenSSL, Threads, BLAS
+- **Optional**: CUDA 11.0+ (GPU acceleration), OpenMP 4.5+ (threading)
+- **External (fetched if missing)**: cxxopts (CLI), spdlog (logging)
+- **Header-only**: nlohmann/json (CLI snapshot + fieldsolver helpers)
 
 ## Core Architecture
 
@@ -87,14 +88,14 @@ tools/                 # Developer tools and scripts
 Swapping a strategy/factory changes behavior without touching the loop.
 
 1. Initialize `DomainManager` and `OutputManager`, log metadata (AoS init uses a temporary conversion in the SoA path).
-2. Optionally initialize GPU helpers (integration/collisions; space charge/boundary helpers exist but are not yet dispatched).
+2. GPU-capable strategies/handlers are constructed during setup when `simulation.enable_gpu` is true; boundary helpers remain unused by the main loop.
 3. Per-timestep loop:
    - Apply ion birth timing (SoA birth flags).
    - Per-ion processing (OpenMP-capable): domain lookup, domain property updates, collisions (if handler), reactions (if enabled), integrator step, boundary checks/domain transitions, time update, safety checks.
    - Output write every `write_interval` steps.
 4. Finalize output and optional numerical safety report; GPU stats if used.
 
-**Note:** GPU space-charge and GPU boundary checks have helpers but are not wired into the main loop yet; CPU paths run instead.
+**Note:** GPU boundary checks have helpers but are not wired into the main loop yet; space charge uses `SpaceChargeGPUModel` when enabled and available.
 
 **Key Files:**
 - `src/core/integrator/SimulationEngine.{h,cpp}` - Main simulation loop
@@ -114,10 +115,10 @@ Forces implement `IForce` and register with `ForceRegistry`. There is a single S
 
 **Space-Charge Pipeline**
 - `ISpaceChargeModel` – interface implemented by:
-  - `SpaceChargeDirectModel` (shared across domains, O(N²))
+  - `SpaceChargeDirectModel` (per-domain, O(N²))
   - `SpaceChargeGridModel` (geometry-aware Poisson solver)
   - `SpaceChargeGPUModel` (experimental GPU P³M; enabled via `physics.enable_space_charge_gpu`)
-- `SpaceChargeModelFactory` selects the model per-domain (GPU → Grid → Direct) and `ForceRegistry` injects the Coulomb field into the SoA loop without AoS fallbacks.
+- `SpaceChargeModelFactory` selects the model per-domain (GPU if available, otherwise Direct for small N, else Grid) and `ForceRegistry` injects the Coulomb field into the SoA loop without AoS fallbacks.
 
 **Key Files:**
 - `src/core/physics/forces/ForceRegistry.{h,cpp}` - Force management
@@ -131,11 +132,11 @@ Integration strategies implement `IIntegrationStrategy::step(...)` on the SoA co
 
 **Available Strategies:**
 - `RK4Strategy` – 4th order Runge-Kutta (fixed step)
-- `RK45Strategy` – Dormand-Prince (adaptive, per-ion dt/state, OpenMP-safe)
+- `RK45Strategy` - Dormand-Prince (adaptive, per-ion dt/state; OpenMP disabled for adaptive RK45 in SimulationEngine)
 - `BorisStrategy` – Boris pusher
 - `GPUIntegrationStrategy` – wrapper that delegates to RK4/RK45/Boris and hands off batches to the CUDA helper when possible (auto CPU fallback)
 
-**Parallelism note:** RK45 maintains per-ion adaptive state; OpenMP is allowed. Batch paths (CPU/GPU) are only used when all active ions share the same `dt`.
+**Parallelism note:** RK45 maintains per-ion adaptive state; SimulationEngine disables OpenMP for adaptive RK45. Batch paths (CPU/GPU) are only used when all active ions share the same `dt`.
 
 **Key Files:**
 - `src/core/integrator/strategies/IntegrationStrategyFactory.h`
@@ -146,13 +147,12 @@ Integration strategies implement `IIntegrationStrategy::step(...)` on the SoA co
 
 **Architecture Pattern:** Hybrid CPU/GPU with automatic dispatch
 
-GPU acceleration uses threshold-based dispatch (default integration/collisions: 5000 ions):
-- N < threshold → CPU path (OpenMP-capable)
-- N ≥ threshold → GPU integration helper (RK4/RK45/Boris) and optional GPU collision helper (HSS/EHSS).
+GPU acceleration uses threshold-based dispatch (default integration/collisions: 5000 ions). Batch GPU integration requires uniform `dt`, a single active domain, and a supported force mix (no space charge, magnetic, or damping unless explicitly enabled in the GPU strategy; GPU damping is not wired from config yet). It expects a grid-backed E-field; non-grid or snapshot-based providers yield zero-field GPU integration, so avoid GPU dispatch in those cases. Collisions/reactions use batch hooks only when `dt` is uniform (per-domain for collisions, global for reactions) and fall back on failure or low counts.
 
 **GPU Features (current state):**
-- Integration: `GPUIntegrationStrategy` uses `GPUIntegrationHelper` to run RK4/RK45/Boris batches when one domain + grid-backed E-field is active; otherwise it falls back to the CPU strategy transparently
+- Integration: `GPUIntegrationStrategy` uses `GPUIntegrationHelper` to run RK4/RK45/Boris batches when one domain + `ElectricFieldForce` is active and no unsupported forces are present; `GridFieldProvider` + `FieldArray` is required for non-zero fields (non-grid or snapshot providers yield zero-field integration)
 - Collisions: `GPUCollisionHandler` wraps EHSS/HSS CPU models, advertises `supports_batch()`, and `SimulationEngine::perform_collisions()` groups ions per domain before invoking the GPU helper with automatic CPU fallback. Multi-gas mixtures are supported (up to 8 components per domain; additional entries are truncated with a warning)
+- Reactions: `GPUReactionHandler` wraps the stochastic CPU handler and invokes `GPUReactionBackend` batches when enabled and `dt` is uniform across active ions; otherwise it falls back to CPU
 - Space charge: P³M helper exposed through `SpaceChargeGPUModel`; enabled when `physics.enable_space_charge_gpu=true` and `ICARION_USE_GPU` is defined (falls back to Grid/Direct otherwise)
 - Boundary checks: Helper exists for absorption/cylindrical only, not wired into the loop
 - Automatic CPU fallback on errors or below-threshold counts
@@ -172,8 +172,8 @@ GPU acceleration uses threshold-based dispatch (default integration/collisions: 
 All configurations use JSON Schema for validation:
 
 ```bash
-# Validate any config
-python3 schema/validator.py schema/icarion-config.schema.json my_config.json
+# Validate any config (from repo root)
+python3 schema/validator.py my_config.json
 ```
 
 **Schema Files:**
@@ -182,7 +182,7 @@ python3 schema/validator.py schema/icarion-config.schema.json my_config.json
 - `schema/physics.schema.json` - Physics models
 - `schema/domain.schema.json` - Geometry and fields
 
-Find all allowed schemes in the schema/ folder!
+Find all allowed schemas in the schema/ folder!
 
 **Key Files:**
 - `src/core/config/loader/ConfigLoader.{h,cpp}` - JSON loading
@@ -196,7 +196,7 @@ Find all allowed schemes in the schema/ folder!
 
 1. **Define Interface** (`IForce`, `ICollisionHandler`, etc.)
 2. **Implement Plugin** (inherit from interface)
-3. **Register with Factory** (automatic discovery)
+3. **Register with Factory** (explicit registration in factory switch/registry)
 4. **Configure via JSON** (string-based selection)
 
 ### RAII and Smart Pointers
@@ -207,9 +207,9 @@ Find all allowed schemes in the schema/ folder!
 
 ### Single Source of Truth (SSOT)
 
-- **Configuration**: JSON files are authoritative (not hardcoded defaults)
+- **Configuration**: JSON files are authoritative for runtime settings; defaults live in config structs
 - **Physics**: Formula implementations in single location
-- **Documentation**: Schema files generate validation and docs
+- **Documentation**: Schema files define validation rules and are referenced by docs
 
 ## Performance Architecture
 
@@ -229,7 +229,6 @@ Find all allowed schemes in the schema/ folder!
 
 - **HDF5 Compression**: Automatic compression for trajectory data
 - **Chunked Writing**: Efficient large dataset handling
-- **Metadata Caching**: Reduce repeated schema validation
 
 ## Testing Strategy
 

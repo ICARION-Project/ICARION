@@ -223,6 +223,14 @@ public:
     const double* birth_time_data() const { return cold_.birth_time.data(); }
     const double* death_time_data() const { return cold_.death_time.data(); }
     const std::vector<std::string>* species_pool() const { return &cold_.species_pool; }
+
+    /**
+     * @brief Prepopulate the species pool/index mapping.
+     *
+     * This must be called before any parallel region that may call
+     * reaction handling, because species-id mapping is shared.
+     */
+    void prepopulate_species_pool(const std::vector<std::string>& species_ids);
     const uint32_t* species_id_indices() const { return cold_.species_id.data(); }
     
     // Domain cache (const access)
@@ -383,16 +391,14 @@ struct IonReactionData {
         return (*species_pool)[species_id_index[kin.index]]; 
     }
     void set_species_id(const std::string& id) {
+        // IMPORTANT: This is called from OpenMP-parallel reaction processing.
+        // Do not mutate the shared pool/map here (would data-race).
+        // The pool must be prepopulated single-threaded before the simulation starts.
         auto it = species_index->find(id);
-        uint32_t idx;
-        if (it != species_index->end()) {
-            idx = it->second;
-        } else {
-            idx = static_cast<uint32_t>(species_pool->size());
-            species_index->emplace(id, idx);
-            const_cast<std::vector<std::string>*>(species_pool)->push_back(id);
+        if (it == species_index->end()) {
+            return;  // leave unchanged; missing species indicates misconfiguration
         }
-        species_id_index[kin.index] = idx;
+        species_id_index[kin.index] = it->second;
     }
     void set_species_index(uint32_t idx) { species_id_index[kin.index] = idx; }
     double get_CCS() const { return CCS[kin.index]; }

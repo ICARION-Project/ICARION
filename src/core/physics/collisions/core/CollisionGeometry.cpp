@@ -70,6 +70,39 @@ Vec3 CollisionGeometry::rotate_vector(
     };
 }
 
+void CollisionGeometry::quaternion_to_rotation(
+    const std::array<double, 4>& quat,
+    double R[3][3]
+) {
+    double w = quat[0];
+    double x = quat[1];
+    double y = quat[2];
+    double z = quat[3];
+
+    const double norm = std::sqrt(w * w + x * x + y * y + z * z);
+    if (norm <= 0.0) {
+        R[0][0] = 1.0; R[0][1] = 0.0; R[0][2] = 0.0;
+        R[1][0] = 0.0; R[1][1] = 1.0; R[1][2] = 0.0;
+        R[2][0] = 0.0; R[2][1] = 0.0; R[2][2] = 1.0;
+        return;
+    }
+
+    w /= norm;
+    x /= norm;
+    y /= norm;
+    z /= norm;
+
+    R[0][0] = 1.0 - 2.0 * (y * y + z * z);
+    R[0][1] = 2.0 * (x * y - z * w);
+    R[0][2] = 2.0 * (x * z + y * w);
+    R[1][0] = 2.0 * (x * y + z * w);
+    R[1][1] = 1.0 - 2.0 * (x * x + z * z);
+    R[1][2] = 2.0 * (y * z - x * w);
+    R[2][0] = 2.0 * (x * z - y * w);
+    R[2][1] = 2.0 * (y * z + x * w);
+    R[2][2] = 1.0 - 2.0 * (x * x + y * y);
+}
+
 bool CollisionGeometry::is_valid_rotation(
     const double R[3][3],
     double tolerance

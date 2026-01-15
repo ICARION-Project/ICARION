@@ -22,74 +22,117 @@ Vec3 CollisionKernels::ehss_collision(
     int max_attempts,
     double sigma_eff_m2
 ) {
-    // PHYSICS: Refactored from collisionHelpers.cpp::collide_ehss_cpu_geometry_given_neutral()
-    // Algorithm unchanged - only improved readability by extracting helper functions
-    
+    double Rm[3][3];
+    CollisionGeometry::generate_random_rotation(rng, Rm);
+
+    return ehss_collision_with_orientation(
+        v_ion_lab,
+        v_neutral_lab,
+        ion_mass,
+        neutral_mass,
+        ion_radius,
+        atom_centers,
+        atom_radii,
+        Rm,
+        rng,
+        max_attempts,
+        sigma_eff_m2,
+        false
+    );
+}
+
+Vec3 CollisionKernels::ehss_collision_with_orientation(
+    const Vec3& v_ion_lab,
+    const Vec3& v_neutral_lab,
+    double ion_mass,
+    double neutral_mass,
+    double ion_radius,
+    const std::vector<Vec3>& atom_centers,
+    const std::vector<double>& atom_radii,
+    const double orientation_axis_frame[3][3],
+    PhysicsRng& rng,
+    int max_attempts,
+    double sigma_eff_m2,
+    bool force_hit
+) {
+    // PHYSICS: Same kernel as ehss_collision, with caller-provided orientation
     // ========================================================================
     // Step 1: Validate geometry
     // ========================================================================
     const int nat = static_cast<int>(atom_centers.size());
-    if (nat == 0 || (int)atom_radii.size() < nat) {
+    if (nat == 0 || static_cast<int>(atom_radii.size()) < nat) {
         return v_ion_lab;  // Inconsistent geometry → no collision
     }
-    
+
     // ========================================================================
     // Step 2: Compute relative velocity and collision axis
     // ========================================================================
     Vec3 vrel = v_ion_lab - v_neutral_lab;
     double vrel_mag = norm(vrel);
-    
+
     // Handle near-zero relative velocity (assign small random direction)
     if (vrel_mag <= MIN_VELOCITY_MAG) {
         vrel = sample_isotropic_direction(rng) * MIN_VELOCITY_MAG;
         vrel_mag = MIN_VELOCITY_MAG;
     }
-    
+
     Vec3 collision_axis = vrel / vrel_mag;  // Direction of relative velocity
-    
+
     // ========================================================================
-    // Step 3: Rotate molecule and compute max impact parameter
+    // Step 3: Rotate molecule with provided orientation in collision-axis frame
     // ========================================================================
+    Vec3 t1, t2;
+    CollisionGeometry::construct_orthonormal_basis(collision_axis, t1, t2);
+
+    double basis[3][3] = {
+        {t1.x, t2.x, collision_axis.x},
+        {t1.y, t2.y, collision_axis.y},
+        {t1.z, t2.z, collision_axis.z}
+    };
+
+    double Rm[3][3];
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            Rm[i][j] = basis[i][0] * orientation_axis_frame[0][j]
+                     + basis[i][1] * orientation_axis_frame[1][j]
+                     + basis[i][2] * orientation_axis_frame[2][j];
+        }
+    }
+
     auto molecule = rotate_and_analyze_molecule(
-        atom_centers, atom_radii, collision_axis, 
-        ion_radius, sigma_eff_m2, rng
+        atom_centers, atom_radii, collision_axis,
+        ion_radius, sigma_eff_m2, Rm
     );
-    
+
     // ========================================================================
     // Step 4: Sample impact parameters until collision found
     // ========================================================================
-    for (int attempt = 0; attempt < max_attempts; ++attempt) {
-        // Sample impact geometry
+    const int attempt_limit = force_hit ? max_attempts * 16 : max_attempts;
+    for (int attempt = 0; attempt < attempt_limit; ++attempt) {
         auto impact = sample_impact_geometry(
-            collision_axis, 
-            molecule.max_impact_parameter, 
+            collision_axis,
+            molecule.max_impact_parameter,
             rng
         );
-        
-        // Check collision with atoms
+
         auto collision = detect_atom_collision(
-            molecule.atom_positions, 
+            molecule.atom_positions,
             atom_radii,
-            impact.neutral_offset, 
-            collision_axis, 
+            impact.neutral_offset,
+            collision_axis,
             ion_radius
         );
-        
+
         if (collision.hit) {
-            // Collision detected! Compute reflection and return
             Vec3 vrel_reflected = compute_reflected_velocity(vrel, collision.contact_normal);
             return to_lab_frame(vrel_reflected, v_ion_lab, v_neutral_lab, ion_mass, neutral_mass);
         }
-        
-        // Expand b_max if not finding collisions (helps with low-probability geometries)
+
         if (attempt == BMAX_EXPANSION_ATTEMPT) {
             molecule.max_impact_parameter *= BMAX_EXPANSION_FACTOR;
         }
     }
-    
-    // ========================================================================
-    // Step 5: No collision after max_attempts
-    // ========================================================================
+
     return v_ion_lab;
 }
 
@@ -182,43 +225,55 @@ CollisionKernels::RotatedMolecule CollisionKernels::rotate_and_analyze_molecule(
     double sigma_eff_m2,
     PhysicsRng& rng
 ) {
-    const int nat = static_cast<int>(atom_centers.size());
-    
-    // Generate random rotation matrix
     double Rm[3][3];
     CollisionGeometry::generate_random_rotation(rng, Rm);
-    
-    // Rotate all atoms and compute b_max
+
+    return rotate_and_analyze_molecule(
+        atom_centers,
+        atom_radii,
+        collision_axis,
+        ion_radius,
+        sigma_eff_m2,
+        Rm
+    );
+}
+
+CollisionKernels::RotatedMolecule CollisionKernels::rotate_and_analyze_molecule(
+    const std::vector<Vec3>& atom_centers,
+    const std::vector<double>& atom_radii,
+    const Vec3& collision_axis,
+    double ion_radius,
+    double sigma_eff_m2,
+    const double rotation[3][3]
+) {
+    const int nat = static_cast<int>(atom_centers.size());
+
     std::vector<Vec3> rotated_atoms(nat);
     double b_max = 0.0;
-    
+
     for (int j = 0; j < nat; ++j) {
-        Vec3 ra = CollisionGeometry::rotate_vector(atom_centers[j], Rm);
+        Vec3 ra = CollisionGeometry::rotate_vector(atom_centers[j], rotation);
         rotated_atoms[j] = ra;
-        
-        // Project atom onto impact plane (perpendicular to collision_axis)
+
         double sra = dot(collision_axis, ra);
         Vec3 ra_perp = ra - collision_axis * sra;
         double ra_perp_mag = norm(ra_perp);
-        
-        // Maximum impact parameter for this atom
+
         double cur = ra_perp_mag + atom_radii[j];
         if (cur > b_max) {
             b_max = cur;
         }
     }
-    
-    // Add ion radius
+
     b_max += ion_radius;
-    
-    // Optionally expand b_max based on effective cross-section
+
     if (sigma_eff_m2 > 0.0) {
         double b_sigma = std::sqrt(sigma_eff_m2 / M_PI);
         if (b_sigma > b_max) {
             b_max = b_sigma;
         }
     }
-    
+
     return RotatedMolecule{std::move(rotated_atoms), b_max};
 }
 

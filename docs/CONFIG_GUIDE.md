@@ -117,8 +117,9 @@ You can store gas-dependent CCS values (generated via `ccs_precompute`):
 ```
 
 - HSS: uses σ per gas from `CCS_HSS[gas]`, else mixture override `cross_section_m2`, else `ion.CCS_m2`.
-- EHSS: uses `CCS_EHSS[gas]` if present, else geometry, else (without geometry) throws.
+- EHSS: uses `CCS_EHSS[gas]` if present, else orientation samples (if provided), else geometry, else (without geometry) throws.
 - Tool: `./ccs_precompute --input species.json --output out.json --species H3O+ --ref-gas He --ref-ccs-A2 110.0 [--model HSS|EHSS] [--override] [--n-orientations 300]`.
+- Orientation samples tool: `./ehss_samples_precompute --input species.json --output h3o_samples.json --species H3O+ [--n-orientations 300] [--n-samples 8000]`.
 
 ---
 
@@ -171,6 +172,7 @@ Species databases define physical properties of ions and neutrals in user-friend
 
 - `name`: Human-readable name
 - `geometry_file`: Path to molecular geometry (e.g., .xyz, .pdb, required for EHSS)
+- `EHSS_samples_file`: Path to precomputed EHSS orientation samples (JSON)
 - `reference_temperature_K`: Temperature for mobility/CCS measurements (just for reproducibility)
 - `reference_pressure_Pa`: Pressure for mobility measurements (just for reproducibility)
 - `ccs_method`: Method used to determine CCS (`"trajectory"`, `"projection"`, etc., for reproducibility)

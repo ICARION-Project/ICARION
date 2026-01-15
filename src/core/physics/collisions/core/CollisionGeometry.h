@@ -13,6 +13,7 @@
 
 #include "core/types/Vec3.h"
 #include "core/types/CollisionTypes.h"  // For PhysicsRng
+#include <array>
 
 namespace ICARION::physics::collision_core {
 
@@ -88,6 +89,20 @@ public:
     static Vec3 rotate_vector(
         const Vec3& v,
         const double R[3][3]
+    );
+
+    /**
+     * @brief Convert quaternion to rotation matrix
+     *
+     * Quaternion is expected as [w, x, y, z]. The result is a proper rotation
+     * matrix suitable for rotating vectors in the lab frame.
+     *
+     * @param quat Input quaternion [w, x, y, z]
+     * @param R Output: 3x3 rotation matrix R[i][j]
+     */
+    static void quaternion_to_rotation(
+        const std::array<double, 4>& quat,
+        double R[3][3]
     );
     
     /**

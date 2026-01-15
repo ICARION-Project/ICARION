@@ -156,4 +156,10 @@ add_executable(ccs_precompute
 )
 target_link_libraries(ccs_precompute PRIVATE icarion_core)
 
+# EHSS samples precompute tool
+add_executable(ehss_samples_precompute
+    ../tools/ehss_samples_precompute.cpp
+)
+target_link_libraries(ehss_samples_precompute PRIVATE icarion_core)
+
 message(STATUS "ICARION Core configuration completed.")

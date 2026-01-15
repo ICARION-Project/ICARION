@@ -30,9 +30,13 @@ public:
      * @brief Load species database from parsed JSON
      * 
      * @param json Parsed JSON root object
+     * @param base_path Base path for resolving relative file references (optional)
      * @return Validated species database
      */
-    static SpeciesDatabase load_from_json(const Json::Value& json);
+    static SpeciesDatabase load_from_json(
+        const Json::Value& json,
+        const std::filesystem::path& base_path = {}
+    );
     
 private:
     /**

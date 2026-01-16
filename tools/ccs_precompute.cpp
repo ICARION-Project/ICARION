@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
                 if (std::filesystem::exists(abs_geom)) {
                 try {
                     auto molecule = ICARION::io::load_molecule(abs_geom.string());
-                    auto geom = ICARION::physics::convert_molecule_to_geometry(molecule);
+                    auto geom = ICARION::physics::convert_molecule_to_geometry(molecule, true);
                     for (const auto& g : gas_radius_m) {
                         double area = compute_oapa_ccs(geom.first, geom.second, g.second, n_orientations);
                         ccs_ehss_map[g.first] = area * M2_TO_A2;

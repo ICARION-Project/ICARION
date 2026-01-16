@@ -80,6 +80,7 @@
       "name": "Pentanal protonated",
       "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
+      "EHSS_sample_file": "../tmp/PentanalH+_EHSS_sample.json",
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/PentanalH+.json"
     },

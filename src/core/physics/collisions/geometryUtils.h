@@ -31,7 +31,8 @@ namespace ICARION::physics {
  * GeometryData geom = convert_molecule_to_geometry(molecule);
  * ```
  */
-inline GeometryData convert_molecule_to_geometry(const io::Molecule& molecule) {
+inline GeometryData convert_molecule_to_geometry(const io::Molecule& molecule,
+                                                 bool center_on_com = true) {
     // Conversion factor from Lennard-Jones sigma to hard-sphere radius
     // Physical basis: LJ potential V(r) = 4ε[(σ/r)¹² - (σ/r)⁶]
     // At r=σ, V(σ)=0 (zero-crossing), defining the "contact distance"
@@ -45,10 +46,24 @@ inline GeometryData convert_molecule_to_geometry(const io::Molecule& molecule) {
     centers.reserve(molecule.atoms.size());
     radii.reserve(molecule.atoms.size());
     
+    Vec3 center{0.0, 0.0, 0.0};
+    if (center_on_com && !molecule.atoms.empty()) {
+        double mass_sum = 0.0;
+        for (const auto& atom : molecule.atoms) {
+            center = center + atom.pos_m * atom.mass_u;
+            mass_sum += atom.mass_u;
+        }
+        if (mass_sum > 0.0) {
+            center = center / mass_sum;
+        } else {
+            center = Vec3{0.0, 0.0, 0.0};
+        }
+    }
+
     for (const auto& atom : molecule.atoms) {
         // NOTE: MoleculeLoader already converts JSON positions (Å) to SI units (m)
         // in atom.pos_m, so no further conversion needed here.
-        centers.push_back(atom.pos_m);
+        centers.push_back(atom.pos_m - center);
         
         radii.push_back(LJ_SIGMA_TO_HS_RADIUS * atom.LJ_sigma_m);
     }

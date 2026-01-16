@@ -172,7 +172,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto geometry = ICARION::physics::convert_molecule_to_geometry(molecule);
+    auto geometry = ICARION::physics::convert_molecule_to_geometry(molecule, true);
     const auto& centers = geometry.first;
     const auto& radii = geometry.second;
     if (centers.empty()) {

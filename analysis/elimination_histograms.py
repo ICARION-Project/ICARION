@@ -19,7 +19,7 @@ if __package__ is None or __package__ == "":
 
     sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from analysis.common import load_species_ids, open_trajectory, select_ion_indices
+from analysis.common import open_trajectory, select_ion_indices
 
 
 def parse_args() -> argparse.Namespace:
@@ -70,7 +70,7 @@ def main() -> int:
 
     with open_trajectory(traj_path) as h5:
         traj = h5["trajectory"]
-        species_ids = load_species_ids(traj)
+        species_ids = _load_species_ids_last(traj)
         ion_indices = select_ion_indices(
             species_ids,
             species_filter=set(args.species) if args.species else None,
@@ -127,6 +127,22 @@ def _read_death_times(h5, ion_indices) -> np.ndarray:
         raise KeyError("HDF5 file missing '/ions/death_time_s'")
     dt = h5["ions/death_time_s"][ion_indices]
     return np.asarray(dt, dtype=float)
+
+
+def _decode_species(val) -> str:
+    if isinstance(val, (bytes, bytearray)):
+        return val.decode("utf-8")
+    return str(val)
+
+
+def _load_species_ids_last(traj_group) -> np.ndarray:
+    """
+    Load species IDs for each ion using the last available frame when species
+    are time-dependent (e.g., reactions). Falls back to 1D datasets unchanged.
+    """
+    species_ds = traj_group["species_ids"]
+    row = species_ds[-1] if species_ds.ndim >= 2 else species_ds[()]
+    return np.array([_decode_species(v) for v in row])
 
 
 class Geometry:

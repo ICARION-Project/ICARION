@@ -61,3 +61,70 @@ map is kept under `CCS_EHSS`.
 ### References
 
 See `docs/CONFIG_GUIDE.md` for how the CCS maps are referenced in configurations.
+
+---
+
+## ehss_samples_precompute
+
+Precompute orientation-sampled projection areas for EHSS and store them in a
+per-species JSON file that can be referenced from `EHSS_samples_file`.
+
+### Build
+
+```bash
+cmake --build build --target ehss_samples_precompute
+```
+
+### Usage
+
+```bash
+build/ehss_samples_precompute \
+  --input species.json \
+  --output samples.json \
+  --species H3O+ \
+  [--n-orientations 300] \
+  [--n-samples 8000] \
+  [--seed 12345]
+```
+
+### Options
+
+- `--input`: Species JSON containing a top-level `species` object.
+- `--output`: Output samples JSON path.
+- `--species`: Target species ID (must include `geometry_file`).
+- `--n-orientations`: Number of random orientations to sample.
+- `--n-samples`: Monte Carlo samples per orientation.
+- `--seed`: RNG seed (default: 12345).
+
+### Notes
+
+- Uses Monte Carlo estimation of the projected union area per orientation.
+- Samples are computed for each supported gas radius (same list as above).
+- Output fields include `orientations_quat` and `areas_by_gas_m2`.
+
+---
+
+## ehss_samples_sanity
+
+Sanity checks for EHSS samples: summary stats, optional OAPA comparison, and
+histogram plots (Agg backend).
+
+### Usage
+
+```bash
+tools/ehss_samples_sanity.py --input samples.json --gas N2 --bins 30
+tools/ehss_samples_sanity.py --input samples.json --geometry-file molecule.json --plot-dir /tmp/ehss_hists
+```
+
+### Options
+
+- `--input`: Samples JSON path.
+- `--gas`: Gas key to inspect (default: all).
+- `--bins`: Histogram bins (default: 20).
+- `--geometry-file`: Geometry JSON for OAPA mean comparison.
+- `--plot`: Output PNG for a single gas histogram (requires `--gas`).
+- `--plot-dir`: Output directory for per-gas histograms.
+
+### References
+
+See `docs/CONFIG_GUIDE.md` for how `EHSS_samples_file` is used at runtime.

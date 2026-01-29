@@ -30,6 +30,7 @@
 #include "core/types/IonState.h"
 #include "core/types/Vec3.h"
 #include "core/config/types/SpeciesConfig.h"
+#include "EHSSSamples.h"
 #include <vector>
 #include <unordered_map>
 #include <utility>
@@ -114,6 +115,7 @@ private:
     const config::SpeciesDatabase* species_db_ = nullptr;
     mutable CollisionStats stats_;
     mutable std::unordered_set<std::string> warned_missing_sigma_;
+    std::unordered_map<std::string, EHSSOrientationSamples> orientation_samples_;
     
     /**
      * @brief Compute effective collision cross-section from geometry

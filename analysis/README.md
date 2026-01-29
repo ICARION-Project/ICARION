@@ -59,6 +59,13 @@ python analysis/thermalization_check.py \
   --time-stride 10 \
   --window 10
 
+# Export thermalization data (standalone; no analysis import)
+python tools/export_thermalization_data.py \
+  --traj-dir results/v1.0_test/physics/thermalization/ \
+  --out-dir analysis/output/thermalization_export/ \
+  --glob "*.h5" \
+  --time-stride 10
+
 # IMS mobility / reduced mobility from arrival times
 python analysis/ims_mobility.py \
   --traj validation/results/v1.0_test/instruments/ims/ims_hss_48Vm_200Pa.h5 \

@@ -3,7 +3,8 @@
 
 #pragma once
 #include <string>
-#include "trajsim/fieldArrayLoader.h"
+
+#include "core/io/fieldArrayLoader.h"
 
 // Write a FieldArray to HDF5 file
 void write_fieldarray_hdf5(const std::string& path, const FieldArray& fld);

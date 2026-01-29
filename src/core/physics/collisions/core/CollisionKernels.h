@@ -74,6 +74,28 @@ public:
         int max_attempts = 256,
         double sigma_eff_m2 = 0.0
     );
+
+    /**
+     * @brief EHSS collision with fixed molecular orientation
+     *
+     * Uses a caller-provided orientation (in collision-axis frame) instead of
+     * drawing a random rotation internally. When force_hit is enabled, the
+     * kernel resamples impact parameters until a collision is detected.
+     */
+    static Vec3 ehss_collision_with_orientation(
+        const Vec3& v_ion_lab,
+        const Vec3& v_neutral_lab,
+        double ion_mass,
+        double neutral_mass,
+        double ion_radius,
+        const std::vector<Vec3>& atom_centers,
+        const std::vector<double>& atom_radii,
+        const double orientation_axis_frame[3][3],
+        PhysicsRng& rng,
+        int max_attempts = 256,
+        double sigma_eff_m2 = 0.0,
+        bool force_hit = false
+    );
     
     /**
      * @brief HSS collision (isotropic hard-sphere)
@@ -210,6 +232,15 @@ private:
         double ion_radius,
         double sigma_eff_m2,
         PhysicsRng& rng
+    );
+
+    static RotatedMolecule rotate_and_analyze_molecule(
+        const std::vector<Vec3>& atom_centers,
+        const std::vector<double>& atom_radii,
+        const Vec3& collision_axis,
+        double ion_radius,
+        double sigma_eff_m2,
+        const double rotation[3][3]
     );
     
     /**

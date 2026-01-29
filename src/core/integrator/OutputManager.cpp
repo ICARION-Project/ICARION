@@ -3,6 +3,7 @@
 
 #include "OutputManager.h"
 #include "core/io/hdf5Writer.h"
+#include <H5Cpp.h>
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -97,9 +98,14 @@ OutputManager::~OutputManager() {
                     last_time_, // last known time
                     0           // active_ions unknown (set to 0)
                 );
-            } catch (const std::exception& finalize_err) {
+            } catch (const H5::Exception&) {
                 // Silently ignore - HDF5 file may not be in writable state
                 // This is acceptable since we're in destructor cleanup
+            } catch (const std::exception&) {
+                // Silently ignore - HDF5 file may not be in writable state
+                // This is acceptable since we're in destructor cleanup
+            } catch (...) {
+                // Silently ignore - destructor must not throw
             }
             
             // Note: Text log may be incomplete, but that's acceptable
@@ -343,9 +349,14 @@ void OutputManager::finalize(double t_final, const core::IonEnsemble& final_ense
             t_final,
             active_count
         );
+    } catch (const H5::Exception& e) {
+        std::cerr << "Warning: Failed to finalize HDF5 file: "
+                  << e.getCDetailMsg() << std::endl;
     } catch (const std::exception& e) {
-        std::cerr << "Warning: Failed to finalize HDF5 file: " 
+        std::cerr << "Warning: Failed to finalize HDF5 file: "
                   << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Warning: Failed to finalize HDF5 file (unknown error)" << std::endl;
     }
 
     // Text log completion summary

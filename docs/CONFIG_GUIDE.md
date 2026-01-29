@@ -27,23 +27,6 @@ This guide explains how to create and structure JSON configuration files for ICA
   "physics": {
     "collision_model": "NoCollisions"
   },
-  "ions": {
-    "species": [
-      {
-        "id": "H3O+",
-        "count": 100,
-        "position": {
-          "type": "gaussian",
-          "center": [0.0, 0.0, 0.001],
-          "std": [0.001, 0.001, 0.0005]
-        },
-        "velocity": {
-          "type": "thermal",
-          "temperature_K": 300.0
-        }
-      }
-    ]
-  },
   "output": {
     "folder": "./results",
     "trajectory_file": "trajectories.h5"
@@ -85,13 +68,12 @@ python3 scripts/create_config.py \
 
 ## Configuration Structure
 
-ICARION uses a hierarchical JSON configuration with five main sections:
+ICARION uses a hierarchical JSON configuration with four main sections:
 
 ```json
 {
   "simulation": { ... },    // Time parameters, integrator, execution mode
   "physics": { ... },       // Collision model, reactions, space charge
-  "ions": { ... },          // Ion initialization (required to run)
   "output": { ... },        // Output paths and options
   "domains": [ ... ]        // Array of instrument domains
 }
@@ -104,7 +86,7 @@ ICARION uses a hierarchical JSON configuration with five main sections:
   "title": "My Simulation",                          // Human-readable description
   "species_database": "data/species_database_v1.json",  // Species properties database (optional)
   "reaction_database": "data/reactions_database_v1.json", // Reaction rates database (optional)
-  "waveforms": { ... }                              // Optional global waveform library
+  "ion_cloud": "data/initial_cloud.h5"               // Initial ion distribution
 }
 ```
 
@@ -115,28 +97,29 @@ ICARION uses a hierarchical JSON configuration with five main sections:
   - `data/species_database_v1.json` (global species database)
   - `data/reactions_database_v1.json` (global reactions database)
 - The fallback search starts from the config file's directory and searches up to 5 levels
-- A log message like `[DatabaseLoader] ... using global fallback` indicates fallback usage
+- A log message `[INFO] No [species/reaction] database specified, using global fallback: ...` indicates fallback usage
 - If no database is found (neither specified nor fallback), databases remain empty (which is valid for simulations without reactions)
 
 ### Gas-specific CCS maps (HSS/EHSS)
 
 You can store gas-dependent CCS values (generated via `ccs_precompute`):
 ```json
-"species": {
-  "H3O+": {
-    "mass_amu": 19.0,
-    "charge": 1,
-    "CCS_reference_gas": "He",
-    "CCS_model": "HSS",
-    "CCS_HSS": { "He": 110.0, "N2": 130.0, "O2": 140.0 },   // A^2
-    "CCS_EHSS": { "He": 120.0 }  // optional, A^2
+\"species\": {
+  \"H3O+\": {
+    \"mass_amu\": 19.0,
+    \"charge\": 1,
+    \"CCS_reference_gas\": \"He\",
+    \"CCS_model\": \"HSS\",
+    \"CCS_HSS\": { \"He\": 110.0, \"N2\": 130.0, \"O2\": 140.0 },   // Å²
+    \"CCS_EHSS\": { \"He\": 120.0 }  // optional, Å² (nutzt geometry_file wenn nicht vorhanden)
   }
 }
 ```
 
 - HSS: uses σ per gas from `CCS_HSS[gas]`, else mixture override `cross_section_m2`, else `ion.CCS_m2`.
-- EHSS: uses `CCS_EHSS[gas]` if present, else geometry, else derives from reference gas if available, else falls back to `ion.CCS_m2` with a warning.
+- EHSS: uses `CCS_EHSS[gas]` if present, else orientation samples (if provided), else geometry, else (without geometry) throws.
 - Tool: `./ccs_precompute --input species.json --output out.json --species H3O+ --ref-gas He --ref-ccs-A2 110.0 [--model HSS|EHSS] [--override] [--n-orientations 300]`.
+- Orientation samples tool: `./ehss_samples_precompute --input species.json --output h3o_samples.json --species H3O+ [--n-orientations 300] [--n-samples 8000]`.
 
 ---
 
@@ -189,6 +172,7 @@ Species databases define physical properties of ions and neutrals in user-friend
 
 - `name`: Human-readable name
 - `geometry_file`: Path to molecular geometry (e.g., .xyz, .pdb, required for EHSS)
+- `EHSS_samples_file`: Path to precomputed EHSS orientation samples (JSON)
 - `reference_temperature_K`: Temperature for mobility/CCS measurements (just for reproducibility)
 - `reference_pressure_Pa`: Pressure for mobility measurements (just for reproducibility)
 - `ccs_method`: Method used to determine CCS (`"trajectory"`, `"projection"`, etc., for reproducibility)
@@ -280,9 +264,9 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
 **Optional fields (Concentration Dependence):**
 
 - `order`: Array of concentration-dependent terms
-  - `species`: Species ID for concentration dependence (must exist in species database)
+  - `species`: Species ID for concentration dependence (or `"neutral"` for buffer gas)
   - `exponent`: Concentration exponent (allowed: **0, 1, or 2**)
-  - `concentration_m3`: Fixed concentration [m⁻³] or **-1** to use `gas_mixture` for that species
+  - `concentration_m3`: Fixed concentration [m⁻³] or **-1** for buffer gas fallback
 - `description`: Human-readable description
 - `reference`: Literature reference
 
@@ -294,9 +278,9 @@ ICARION supports the following reaction types with **strict validation**:
 
 | **Case** | **JSON Configuration** | **Meaning** | **Example** |
 |----------|------------------------|-------------|-------------|
-| **1. Pseudo-first-order** | `"species": "N2"` <br> `"exponent": 1` <br> `"concentration_m3": -1` | Use N2 concentration from `gas_mixture` (set explicit concentration for single-gas runs) | H₃O⁺ + N₂ → products <br> (k in [m³/s], rate = k·[N2]) |
+| **1. Pseudo-first-order** | `"species": "neutral"` <br> `"exponent": 1` <br> `"concentration_m3": -1` | Use buffer gas density `n_gas` from simulation config | H₃O⁺ + N₂ → products <br> (k in [m³/s], rate = k·n_gas) |
 | **2. Explicit concentration** | `"species": "O2"` <br> `"exponent": 1` <br> `"concentration_m3": 2.5e25` | User-defined fixed concentration | H₃O⁺ + O₂ → H₃O⁺·O₂ <br> (k in [m³/s], n_O₂ = 2.5×10²⁵ m⁻³) |
-| **3. Bimolecular (Ion + X)** | `"species": "O2"` <br> `"exponent": 1` | Use explicit `concentration_m3` or `gas_mixture` lookup | H₃O⁺ + O₂ → products <br> (typical 2-body ion-molecule) |
+| **3. Bimolecular (Ion + X)** | `"species": "O2"` <br> `"exponent": 1` | Concentration from species_db or runtime | H₃O⁺ + O₂ → products <br> (typical 2-body ion-molecule) |
 | **4. Termolecular (3-body)** | `"species": "H2O"` <br> `"exponent": 2` | Quadratic concentration dependence | H₃O⁺ + 2 H₂O → H₃O⁺·(H₂O)₂ <br> (k in [m⁶/s]) |
 | **5. Autocatalytic** | `"species": "H3O+"` <br> `"exponent": 1` | Product species appears in order term | Ion → Ion collision chains <br> (mathematical only, rare) |
 
@@ -319,9 +303,9 @@ ICARION **strictly validates** all order terms:
 |----------|-----------|-------------------|
 | **#1: Exponent range** | `exponent ∈ {0, 1, 2}` | ERROR: `"exponent": 3` → "exponent must be 0, 1, or 2" |
 | **#2: Concentration range** | `concentration_m3 ≥ -1.0` | ERROR: `"concentration_m3": -5.0` → "must be ≥ -1.0" |
-| **#3: Species exists** | `species ∈ species_db` | ERROR: `"species": "XYZ"` → "species 'XYZ' not found" |
+| **#3: Species exists** | `species ∈ species_db` (if not `"neutral"`) | ERROR: `"species": "XYZ"` → "species 'XYZ' not found" |
 | **#4: No duplicate species** | Each `species` appears once | ERROR: Two terms with `"species": "O2"` → "duplicate order term for 'O2'. Use exponent=2 instead." |
-| **#5: Max one auto term** | At most one term with `concentration_m3 = -1` | ERROR: Two terms with `-1` → "only one term can use buffer gas fallback" |
+| **#5: Max one buffer gas** | At most one term with `concentration_m3 = -1` | ERROR: Two terms with `-1` → "only one term can use buffer gas fallback" |
 
 **Dimensional Consistency Warnings:**
 
@@ -413,8 +397,8 @@ See [Reaction Database Schema](#reaction-database-schema) for details on configu
 **Schema validation:** Use provided JSON schemas to validate databases:
 
 ```bash
-python3 -m jsonschema -i data/species_database_v1.json schema/species.schema.json
-python3 -m jsonschema -i data/reactions_database_v1.json schema/reactions.schema.json
+python3 schema/validator.py schema/species.schema.json data/species_database_v1.json
+python3 schema/validator.py schema/reactions.schema.json data/reactions_database_v1.json
 ```
 
 **Example configs:**
@@ -706,7 +690,7 @@ When `enable_reactions` is set in the `physics` section, you must provide a `rea
         {
           "species": "NH3",
           "exponent": 1,
-          "concentration_m3": 2.5e25
+          "concentration_m3": -1.0
         }
       ]
     }
@@ -742,14 +726,14 @@ Each entry in the `order` array defines a concentration dependence:
 
 | Field | Type | Values | Description |
 |-------|------|--------|-------------|
-| `species` | string | Species ID | Which species to use for concentration |
+| `species` | string | Species ID or `"neutral"` | Which species to use for concentration |
 | `exponent` | integer | 0, 1, 2 | Power to raise concentration to |
-| `concentration_m3` | number | ≥ -1.0 | Explicit concentration [m⁻³] or -1.0 for `gas_mixture` lookup |
+| `concentration_m3` | number | ≥ -1.0 | Explicit concentration [m⁻³] or -1.0 for buffer gas |
 
-**Auto Concentration (gas mixtures):**
+**Buffer Gas Fallback:**
 
-- If `concentration_m3 = -1.0` (or omitted), ICARION looks up the named species in `environment.gas_mixture`
-- If the species is not in the mixture, the term is treated as zero; set an explicit `concentration_m3` for single-gas runs
+- If `concentration_m3 = -1.0` (or omitted), use buffer gas density from `EnvironmentConfig.particle_density_m_3`
+- If `concentration_m3 > 0`, use the explicit value
 
 ### Rate Constant Units (Order-Dependent)
 
@@ -817,7 +801,7 @@ Where:
     {
       "species": "NH3",
       "exponent": 1,
-      "concentration_m3": 2.5e25
+      "concentration_m3": -1.0
     }
   ]
 }
@@ -837,12 +821,12 @@ Where:
     {
       "species": "H2O",
       "exponent": 1,
-      "concentration_m3": 2.0e25
+      "concentration_m3": 2.5e25
     },
     {
       "species": "He",
       "exponent": 1,
-      "concentration_m3": 2.5e25
+      "concentration_m3": -1.0
     }
   ]
 }
@@ -868,7 +852,7 @@ Where:
 Validate your reaction database with:
 
 ```bash
-python3 -m jsonschema -i my_reactions.json schema/reactions.schema.json
+python3 schema/validator.py schema/reactions.schema.json my_reactions.json
 ```
 
 
@@ -885,7 +869,7 @@ This section provides a quick reference for all configuration sections. For comp
   "simulation": { /* timing, integrator, GPU settings */ },
   "physics": { /* collision model, reactions, space charge */ },
   "output": { /* HDF5 output settings */ },
-  "ions": { /* initial ion distributions */ },
+  "ions": [ /* initial ion distributions */ ],
   "domains": [ /* simulation regions with fields and boundaries */ ]
 }
 ```
@@ -893,7 +877,7 @@ This section provides a quick reference for all configuration sections. For comp
 **Schema Files:**
 - Complete specification: `schema/icarion-config.schema.json`
 - Individual sections: `schema/simulation.schema.json`, `schema/physics.schema.json`, etc.
-- Validation: `python3 schema/validator.py your_config.json`
+- Validation: `python3 schema/validator.py schema/icarion-config.schema.json your_config.json`
 
 ### Simulation Section
 
@@ -905,7 +889,7 @@ This section provides a quick reference for all configuration sections. For comp
   "dt_s": 1e-9,
   "integrator": "RK4",           // RK4, RK45, Boris
   "write_interval": 100,
-  "enable_gpu": false,           // Requests GPU path if built with CUDA; otherwise CPU fallback
+  "enable_gpu": false,           // Ignored in v1.0 (GPU runtime disabled)
   "rng_seed": 42
 }
 ```
@@ -946,11 +930,11 @@ See `schema/physics.schema.json` for all options.
 
 **Output Format:** See [HDF5_OUTPUT_STRUCTURE.md](HDF5_OUTPUT_STRUCTURE.md) for file structure.
 
-See `schema/output.schema.json` for core options. Use `--validate-config` if you rely on runtime-only fields like `buffer_byte_cap`.
+See `schema/output.schema.json` for all options.
 
 ### Domains Section
 
-**Required:** `instrument`, `geometry`, and `env` (or legacy `environment`)
+**Required:** `name`, `instrument`, `geometry`, `environment`
 
 ```json
 "domains": [
@@ -967,13 +951,11 @@ See `schema/output.schema.json` for core options. Use `--validate-config` if you
       "temperature_K": 300,
       "gas_species": "N2"
     },
-    "fields": { /* DC/RF/AC, field arrays, and optional B fields */ },
+    "fields": { /* DC, RF, or field arrays */ },
     "boundary": { "type": "Absorption" }
   }
 ]
 ```
-
-Use `env` for new configs; `environment` is kept for backward compatibility.
 
 See `schema/domain.schema.json`, `schema/geometry.schema.json`, `schema/environment.schema.json` for details.
 
@@ -995,7 +977,7 @@ See `schema/boundary.schema.json` for parameters.
 **DC Fields:**
 ```json
 "fields": {
-  "DC": {
+  "dc": {
     "axial_V": 100.0,              // Can be constant or waveform
     "EN_Td": 50.0
   }
@@ -1004,33 +986,27 @@ See `schema/boundary.schema.json` for parameters.
 
 **Field Arrays (HDF5):**
 ```json
-"fields": {
-  "field_array_terms": [
-    {
-      "file": "field_arrays/my_field.h5",
-      "scale_type": "DC_Axial",    // Constant, DC_Axial, DC_Quad, DC_Radial, RF
-      "constant_V": 1.0
-    }
-  ]
-}
+"field_array_terms": [
+  {
+    "file": "field_arrays/my_field.h5",
+    "scale_kind": "DC_Axial",     // DC_Axial, RF_Voltage, Constant
+    "scale_factor": 1.0
+  }
+]
 ```
 
 **Waveforms:**
 ```json
-"fields": {
-  "DC": {
-    "axial_V": {
-      "type": "sinusoidal",
-      "amplitude": 100.0,
-      "frequency_Hz": 1e6,
-      "offset": 0.0,
-      "phase_rad": 0.0
-    }
-  }
+"axial_V": {
+  "waveform_type": "sine",
+  "amplitude": 100.0,
+  "frequency_Hz": 1e6,
+  "offset": 0.0,
+  "phase_rad": 0.0
 }
 ```
 
-**Supported waveform types:** `constant`, `linear`, `quadratic`, `sinusoidal`, `pulsed`, `arbitrary`
+**Supported waveform types:** `constant`, `sine`, `square`, `triangle`, `sawtooth`, `pulse`, `exponential_decay`, `gaussian_pulse`, `chirp`
 
 See `schema/waveform.schema.json` and `schema/fields.schema.json` for complete specifications.
 
@@ -1057,22 +1033,17 @@ All configuration schemas are located in `schema/`:
 - **`species.schema.json`** - Species database
 - **`common-types.schema.json`** - Reusable type definitions
 
-**Note:** The JSON schema validator is strict; runtime validation also checks cross-field constraints. Use `--validate-config` to see runtime warnings and errors.
-
 ### Validating Your Config
 
 #### Using Python Validator
 
 ```bash
 # Validate a config file
-python3 schema/validator.py my_config.json
+python3 schema/validator.py schema/icarion-config.schema.json my_config.json
 
 # Validate multiple files
-for f in examples/*/*.json; do python3 schema/validator.py "$f"; done
+for f in examples/*/*.json; do python3 schema/validator.py schema/icarion-config.schema.json "$f"; done
 ```
-
-If you use `python3 -m jsonschema`, it will try to resolve the `$id` URLs over the network. Use `schema/validator.py` for offline validation.
-The local validator ignores `_comment` fields, so you can annotate configs without breaking validation.
 
 #### Using ICARION CLI
 
@@ -1100,7 +1071,6 @@ Define gas mixtures in the domain `environment` section:
 "environment": {
   "temperature_K": 300.0,
   "pressure_Pa": 101325.0,
-  "gas_species": "N2",
   "gas_mixture": [
     { "species": "N2", "mole_fraction": 0.78 },
     { "species": "O2", "mole_fraction": 0.21 },
@@ -1110,21 +1080,20 @@ Define gas mixtures in the domain `environment` section:
 ```
 
 **Requirements:**
-- Mole fractions should sum to 1.0 (a warning is issued if they do not)
-- Unknown gas species fall back to He-like properties; provide `cross_section_m2`/`polarizability_m3` for accuracy
-- `gas_species` is still required by the JSON schema (ignored when `gas_mixture` is non-empty)
+- Mole fractions must sum to 1.0 (validated at load time)
+- All species must exist in species database or have `cross_section_m2` specified
 
 ### Collision Cross Sections
 
-**Option 1: Built-in gas constants (recommended)**
+**Option 1: Use species database (recommended)**
 ```json
 { "species": "N2", "mole_fraction": 0.78 }
-// Uses built-in mass/radius/polarizability for N2
+// CCS loaded from species_database.json
 ```
 
-**Option 2: Explicit overrides**
+**Option 2: Explicit cross section**
 ```json
-{ "species": "N2", "mole_fraction": 0.78, "cross_section_m2": 4.0e-19, "polarizability_m3": 1.7e-30 }
+{ "species": "N2", "mole_fraction": 0.78, "cross_section_m2": 4.0e-19 }
 ```
 
 ### Backward Compatibility
@@ -1235,26 +1204,20 @@ Complete configuration examples for all supported instruments are available in `
     "collision_model": "HSS"
   },
   "output": {
-    "folder": "results/ims",
-    "trajectory_file": "ims_output.h5"
+    "directory": "results/ims",
+    "basename": "ims_output"
   },
-  "ions": {
-    "species": [
-      {
-        "id": "H3O+",
-        "count": 1000,
-        "position": {
-          "type": "gaussian",
-          "center": [0, 0, 0.001],
-          "std": [0.001, 0.001, 0.0005]
-        },
-        "velocity": {
-          "type": "thermal",
-          "temperature_K": 300.0
-        }
+  "ions": [
+    {
+      "species": "H3O+",
+      "count": 1000,
+      "position": {
+        "type": "Gaussian",
+        "mean": [0, 0, 0.001],
+        "std_dev": [0.001, 0.001, 0.0005]
       }
-    ]
-  },
+    }
+  ],
   "domains": [
     {
       "name": "drift_region",
@@ -1270,7 +1233,7 @@ Complete configuration examples for all supported instruments are available in `
         "gas_species": "He"
       },
       "fields": {
-        "DC": {
+        "dc": {
           "EN_Td": 10.0
         }
       }
@@ -1340,9 +1303,9 @@ Use the global `simulation.integrator` as default, but override for specific dom
 
 - Solution: Add `"total_time_s": 1e-3` to simulation section
 
-**Error: Domain missing required 'instrument', 'geometry', or 'env' field**
+**Error: Domain missing required 'name' field**
 
-- Solution: Add missing fields (`instrument`, `geometry`, and `env`/`environment`) to each domain
+- Solution: Add `"name": "my_domain"` to each domain
 
 **Error: Configuration validation failed**
 
@@ -1373,7 +1336,7 @@ Use the global `simulation.integrator` as default, but override for specific dom
 
 4. **Check units**: All values in SI units (meters, seconds, Pascal, Kelvin)
 
-5. **Enable GPU** for large simulations (`enable_gpu: true`) when built with CUDA; otherwise the runtime falls back to CPU
+5. **Enable GPU** for large simulations (`enable_gpu: true`) — ignored in v1.0 (runtime GPU path is disabled; CPU only)
 
 ---
 

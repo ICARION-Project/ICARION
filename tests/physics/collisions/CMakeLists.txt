@@ -121,6 +121,18 @@ target_include_directories(test_collision_energy_conservation PRIVATE
 )
 add_test(NAME CollisionEnergyConservation COMMAND test_collision_energy_conservation)
 
+# Test: EHSS samples loader
+add_executable(test_ehss_samples_loader test_ehss_samples_loader.cpp)
+target_link_libraries(test_ehss_samples_loader PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_ehss_samples_loader PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME EHSSSamplesLoader COMMAND test_ehss_samples_loader)
+
 # Diagnostic: Energy distribution analysis
 add_executable(test_collision_energy_diagnostic test_collision_energy_diagnostic.cpp)
 target_link_libraries(test_collision_energy_diagnostic PRIVATE

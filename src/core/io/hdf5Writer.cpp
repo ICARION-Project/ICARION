@@ -678,6 +678,11 @@ void HDF5Writer::finalize(
         H5::Group meta = file.openGroup("/metadata");
         
         // Create completion subgroup
+        // Make finalize idempotent: if a previous finalize attempt created the group,
+        // remove it so we can recreate it cleanly.
+        if (H5Lexists(meta.getId(), "completion", H5P_DEFAULT) > 0) {
+            (void)H5Ldelete(meta.getId(), "completion", H5P_DEFAULT);
+        }
         H5::Group completion = meta.createGroup("completion");
         
         write_scalar(completion, "success", success ? 1 : 0);

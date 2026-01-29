@@ -36,7 +36,7 @@ GeometryMap load_geometry_map(
             io::Molecule molecule = io::load_molecule(file_path);
             
             // SSOT: Use central conversion function
-            GeometryData geom = convert_molecule_to_geometry(molecule);
+            GeometryData geom = convert_molecule_to_geometry(molecule, true);
             
             if (!geom.first.empty()) {
                 log::debug_log(

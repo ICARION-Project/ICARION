@@ -28,6 +28,23 @@ EHSSCollisionHandler::EHSSCollisionHandler(
     if (geometry_map_.empty()) {
         throw std::invalid_argument("EHSSCollisionHandler: geometry_map cannot be empty!");
     }
+
+    if (species_db_) {
+        for (const auto& [id, props] : species_db_->species) {
+            if (!props.ehss_samples_file) {
+                continue;
+            }
+            EHSSOrientationSamples samples;
+            std::string error_msg;
+            if (!load_ehss_samples_file(*props.ehss_samples_file, samples, &error_msg)) {
+                ICARION::log::Logger::get("collision")->warn(
+                    "[EHSS] Failed to load orientation samples for '{}': {}",
+                    id, error_msg);
+                continue;
+            }
+            orientation_samples_.emplace(id, std::move(samples));
+        }
+    }
 }
 
 bool EHSSCollisionHandler::handle_collision(
@@ -43,23 +60,48 @@ bool EHSSCollisionHandler::handle_collision(
     ion.CCS_m2 = view.get_CCS();
     ion.species_id = view.species_id();
 
-    // Mixture-aware handling
-    auto do_collision = [&](double n, double T_K, double m_neutral, const Vec3& v_gas, double neutral_radius) -> bool {
-        const double sigma_eff = compute_effective_ccs(ion, neutral_radius, "");
+    const EHSSOrientationSamples* samples = nullptr;
+    size_t sample_idx = 0;
+    bool use_samples = false;
 
-        EHSSParams p;
-        p.n = n;
-        p.dt = dt;
-        p.mi = ion.mass_kg;
-        p.mn = m_neutral;
-        p.kB = BOLTZMANN_CONSTANT;
-        p.Tn = T_K;
-        p.ubx = v_gas.x;
-        p.uby = v_gas.y;
-        p.ubz = v_gas.z;
-        p.Rn = neutral_radius;
-        p.sigma_eff = sigma_eff;
+    if (!orientation_samples_.empty()) {
+        auto it = orientation_samples_.find(ion.species_id);
+        if (it != orientation_samples_.end() && !it->second.orientations_quat.empty()) {
+            samples = &it->second;
+            const size_t n_orientations = samples->orientations_quat.size();
+            bool ready = true;
+            if (!env.gas_mixture.empty()) {
+                for (const auto& comp : env.gas_mixture) {
+                    auto itg = samples->areas_by_gas_m2.find(comp.species);
+                    if (itg == samples->areas_by_gas_m2.end() || itg->second.size() != n_orientations) {
+                        ready = false;
+                        break;
+                    }
+                }
+            } else {
+                auto itg = samples->areas_by_gas_m2.find(env.gas_species);
+                if (itg == samples->areas_by_gas_m2.end() || itg->second.size() != n_orientations) {
+                    ready = false;
+                }
+            }
 
+            if (ready) {
+                double r = rng.uniform01() * static_cast<double>(n_orientations);
+                sample_idx = static_cast<size_t>(r);
+                if (sample_idx >= n_orientations) {
+                    sample_idx = n_orientations - 1;
+                }
+                use_samples = true;
+            }
+        }
+    }
+
+    auto apply_collision = [&](double n,
+                               bool check_probability,
+                               double T_K,
+                               double m_neutral,
+                               const Vec3& v_gas,
+                               double sigma_eff) -> bool {
         const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(
             T_K, m_neutral, v_gas, rng
         );
@@ -69,20 +111,32 @@ bool EHSSCollisionHandler::handle_collision(
             return false;
         }
 
-        const double P = 1.0 - std::exp(-n * sigma_eff * v_rel_mag * dt);
-        if (rng.uniform01() >= P) {
-            return false;
+        if (check_probability) {
+            const double P = 1.0 - std::exp(-n * sigma_eff * v_rel_mag * dt);
+            if (rng.uniform01() >= P) {
+                return false;
+            }
         }
 
         auto it = geometry_map_.find(ion.species_id);
         Vec3 v_post;
         if (it != geometry_map_.end() && !it->second.first.empty()) {
             const auto& [centers, radii] = it->second;
-            // Compute ion radius from CCS or geometry
             double ion_radius = std::sqrt(ion.CCS_m2 / M_PI);
-            v_post = collision_core::CollisionKernels::ehss_collision(
-                ion.vel, v_neutral, p.mi, m_neutral, ion_radius, centers, radii, rng
-            );
+            if (use_samples && samples) {
+                double Rori[3][3];
+                collision_core::CollisionGeometry::quaternion_to_rotation(
+                    samples->orientations_quat[sample_idx], Rori
+                );
+                v_post = collision_core::CollisionKernels::ehss_collision_with_orientation(
+                    ion.vel, v_neutral, ion.mass_kg, m_neutral, ion_radius,
+                    centers, radii, Rori, rng, 256, sigma_eff, true
+                );
+            } else {
+                v_post = collision_core::CollisionKernels::ehss_collision(
+                    ion.vel, v_neutral, ion.mass_kg, m_neutral, ion_radius, centers, radii, rng
+                );
+            }
         } else {
             throw std::runtime_error("[EHSSCollisionHandler] No geometry for species '" + ion.species_id + "'");
         }
@@ -104,7 +158,16 @@ bool EHSSCollisionHandler::handle_collision(
         k_values.reserve(env.gas_mixture.size());
         double k_total = 0.0;
         for (const auto& comp : env.gas_mixture) {
-            double sigma_i = compute_effective_ccs(ion, comp.radius_m > 0.0 ? comp.radius_m : env.gas_radius_m, comp.species);
+            double sigma_i = 0.0;
+            if (use_samples && samples) {
+                sigma_i = samples->areas_by_gas_m2.at(comp.species)[sample_idx];
+            } else {
+                sigma_i = compute_effective_ccs(
+                    ion,
+                    comp.radius_m > 0.0 ? comp.radius_m : env.gas_radius_m,
+                    comp.species
+                );
+            }
             double n_i = comp.density_m3;
             if (sigma_i <= 0.0 || n_i <= 0.0) {
                 k_values.push_back(0.0);
@@ -135,17 +198,48 @@ bool EHSSCollisionHandler::handle_collision(
             idx = env.gas_mixture.size() - 1;
         }
         const auto& comp = env.gas_mixture[idx];
-        return do_collision(comp.density_m3, env.temperature_K, comp.mass_kg, env.gas_velocity_m_s,
-                            comp.radius_m > 0.0 ? comp.radius_m : env.gas_radius_m);
+        double sigma_eff = 0.0;
+        if (use_samples && samples) {
+            sigma_eff = samples->areas_by_gas_m2.at(comp.species)[sample_idx];
+        } else {
+            sigma_eff = compute_effective_ccs(
+                ion,
+                comp.radius_m > 0.0 ? comp.radius_m : env.gas_radius_m,
+                comp.species
+            );
+        }
+        if (sigma_eff <= 0.0) {
+            return false;
+        }
+
+        return apply_collision(
+            comp.density_m3,
+            false,
+            env.temperature_K,
+            comp.mass_kg,
+            env.gas_velocity_m_s,
+            sigma_eff
+        );
     }
 
     // Single gas path
-    return do_collision(
+    double sigma_eff = 0.0;
+    if (use_samples && samples) {
+        sigma_eff = samples->areas_by_gas_m2.at(env.gas_species)[sample_idx];
+    } else {
+        sigma_eff = compute_effective_ccs(ion, env.gas_radius_m, env.gas_species);
+    }
+    if (sigma_eff <= 0.0) {
+        return false;
+    }
+
+    return apply_collision(
         env.particle_density_m_3,
+        true,
         env.temperature_K,
         env.gas_mass_kg,
         env.gas_velocity_m_s,
-        env.gas_radius_m
+        sigma_eff
     );
 }
 

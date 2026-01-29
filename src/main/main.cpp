@@ -397,6 +397,17 @@ int main(int argc, char* argv[]) {
         }
         log::Logger::main()->info("✓ {} ions generated", ions.size());
         core::IonEnsemble ensemble = core::IonEnsemble::from_legacy(ions);
+
+        // Prepopulate species pool/index to make reaction processing thread-safe.
+        // Reactions can create product ions of species that are not present initially.
+        {
+            std::vector<std::string> all_species_ids;
+            all_species_ids.reserve(config.species_db.species.size());
+            for (const auto& kv : config.species_db.species) {
+                all_species_ids.push_back(kv.first);
+            }
+            ensemble.prepopulate_species_pool(all_species_ids);
+        }
         
         // === 5. Create physics dependencies ===
         setup::PhysicsModules physics;

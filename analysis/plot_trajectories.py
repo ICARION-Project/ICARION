@@ -7,8 +7,25 @@ Default output shows XY and XZ projections plus a simple 3D view.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
+import matplotlib
+
+
+def _configure_matplotlib_backend() -> None:
+    if os.environ.get("MPLBACKEND"):
+        return
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--backend", default=None)
+    args, _ = parser.parse_known_args()
+    if args.backend:
+        matplotlib.use(args.backend)
+    else:
+        matplotlib.use("Agg")
+
+
+_configure_matplotlib_backend()
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -81,6 +98,11 @@ def parse_args() -> argparse.Namespace:
         "--no-3d",
         action="store_true",
         help="Skip the 3D panel (useful when running headless/slow).",
+    )
+    p.add_argument(
+        "--backend",
+        default=None,
+        help="Matplotlib backend (default: Agg unless MPLBACKEND is set).",
     )
     return p.parse_args()
 

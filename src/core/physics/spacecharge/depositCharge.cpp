@@ -2,10 +2,11 @@
 // MIT License - Copyright (c) 2025 ICARION Project Contributors
 
 #include "core/physics/spacecharge/depositCharge.h"
+#include "core/log/Logger.h"
 #include "core/utils/safety/numericalSafetyGuards.h"
 #include <cmath>
 #include <algorithm>
-#include <iostream>
+#include <string>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -39,8 +40,10 @@ std::vector<double> deposit_charge(const std::vector<IonState>& ions,
     
     // Performance optimization for many ions
     const size_t num_ions = ions.size();
-    if (num_ions > HIGH_PERFORMANCE_THRESHOLD) {
-        std::cout << "[deposit_charge] High-performance mode for " << num_ions << " ions..." << std::endl;
+    const bool debug_enabled = ICARION::log::Logger::is_debug_enabled();
+    if (debug_enabled && num_ions > HIGH_PERFORMANCE_THRESHOLD) {
+        ICARION::log::Logger::physics()->debug(
+            "[deposit_charge] High-performance mode for {} ions...", num_ions);
     }
 
     // Pre-calculate cell volume (constant for uniform grid)
@@ -54,26 +57,26 @@ std::vector<double> deposit_charge(const std::vector<IonState>& ions,
     const double inv_cell_volume = 1.0 / cell_volume;
     
     // Validate grid resolution vs. ion distribution
-    if (num_ions > 0) {
+    if (debug_enabled && num_ions > 0) {
         // Estimate ion cloud size from first active ion's typical scale
         double grid_domain_size = std::max({grid.dx * Nx, grid.dy * Ny, grid.dz * Nz});
         double max_cell_size = std::max({grid.dx, grid.dy, grid.dz});
         
         // Warning: Grid too coarse (cell size > 10% of domain)
         if (max_cell_size > 0.1 * grid_domain_size && Nx < 32 && Ny < 32 && Nz < 32) {
-            std::cerr << "[deposit_charge] WARNING: Coarse grid detected (" 
-                     << Nx << "x" << Ny << "x" << Nz << "), "
-                     << "cell size = " << max_cell_size*1e6 << " μm. "
-                     << "Consider finer resolution for better accuracy." << std::endl;
+            ICARION::log::Logger::physics()->debug(
+                "[deposit_charge] WARNING: Coarse grid detected ({}x{}x{}), cell size = {} μm. "
+                "Consider finer resolution for better accuracy.",
+                Nx, Ny, Nz, max_cell_size * 1e6);
         }
         
         // Critical: Very few grid points with many ions
         size_t total_cells = static_cast<size_t>(Nx) * Ny * Nz;
         if (num_ions > total_cells * 10) {
-            std::cerr << "[deposit_charge] WARNING: High ion density! "
-                     << num_ions << " ions on " << total_cells << " grid cells "
-                     << "(" << (num_ions / static_cast<double>(total_cells)) << " ions/cell avg). "
-                     << "Grid may be under-resolved. Consider increasing resolution." << std::endl;
+            ICARION::log::Logger::physics()->debug(
+                "[deposit_charge] WARNING: High ion density! {} ions on {} grid cells "
+                "({} ions/cell avg). Grid may be under-resolved. Consider increasing resolution.",
+                num_ions, total_cells, (num_ions / static_cast<double>(total_cells)));
         }
     }
     
@@ -181,10 +184,12 @@ std::vector<double> deposit_charge(const std::vector<IonState>& ions,
             }
         }
     }
-    double total_charge = 0.0;
-    for (double r : rho) total_charge += r * (grid.dx * grid.dy * grid.dz);
-    std::cout << "[deposit_charge] Total deposited charge = "
-            << total_charge << " C" << std::endl;
+    if (debug_enabled) {
+        double total_charge = 0.0;
+        for (double r : rho) total_charge += r * (grid.dx * grid.dy * grid.dz);
+        ICARION::log::Logger::physics()->debug(
+            "[deposit_charge] Total deposited charge = {} C", total_charge);
+    }
     return rho;
 }
 
@@ -206,6 +211,7 @@ std::vector<double> deposit_charge(const ICARION::core::IonEnsemble& ions,
     const double inv_cell_volume = 1.0 / cell_volume;
 
     const size_t num_ions = ions.size();
+    const bool debug_enabled = ICARION::log::Logger::is_debug_enabled();
 
     const auto* pos_x = ions.pos_x_data();
     const auto* pos_y = ions.pos_y_data();
@@ -305,9 +311,11 @@ std::vector<double> deposit_charge(const ICARION::core::IonEnsemble& ions,
         }
     }
 
-    double total_charge = 0.0;
-    for (double r : rho) total_charge += r * (grid.dx * grid.dy * grid.dz);
-    std::cout << "[deposit_charge] Total deposited charge = "
-            << total_charge << " C" << std::endl;
+    if (debug_enabled) {
+        double total_charge = 0.0;
+        for (double r : rho) total_charge += r * (grid.dx * grid.dy * grid.dz);
+        ICARION::log::Logger::physics()->debug(
+            "[deposit_charge] Total deposited charge = {} C", total_charge);
+    }
     return rho;
 }

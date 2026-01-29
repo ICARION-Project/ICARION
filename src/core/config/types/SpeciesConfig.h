@@ -34,6 +34,7 @@ struct SpeciesProperties {
     // === Optional metadata ===
     std::optional<std::string> name;        ///< Human-readable name
     std::optional<std::string> geometry_file; ///< Path to molecular geometry JSON
+    std::optional<std::string> ehss_samples_file; ///< Path to precomputed EHSS orientation samples
     
     // === Reference conditions (optional) ===
     std::optional<double> reference_temperature_K; ///< Temperature for mobility/CCS [K]

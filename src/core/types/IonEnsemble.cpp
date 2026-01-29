@@ -218,6 +218,16 @@ void IonEnsemble::clear() {
     output_.t.clear();
 }
 
+void IonEnsemble::prepopulate_species_pool(const std::vector<std::string>& species_ids) {
+    // Reserve to minimize reallocations, but keep existing indices stable.
+    cold_.species_pool.reserve(cold_.species_pool.size() + species_ids.size());
+    cold_.species_index.reserve(cold_.species_index.size() + species_ids.size());
+
+    for (const auto& id : species_ids) {
+        (void)get_species_index(id);
+    }
+}
+
 size_t IonEnsemble::compact_inactive() {
     const size_t n = size();
     size_t write_idx = 0;

@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #ifndef ICARION_VERSION
-#define ICARION_VERSION "1.0.0"
+#define ICARION_VERSION "1.0.4"
 #endif
 
 #ifndef GIT_HASH

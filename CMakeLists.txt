@@ -17,7 +17,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # Project name aligned with repository. Enable CUDA language so that
 # check_language(CUDA) works reliably when -DUSE_GPU_ACCEL=ON is passed.
-project(ICARION VERSION 1.0.1 LANGUAGES C CXX)
+project(ICARION VERSION 1.0.4 LANGUAGES C CXX)
 
 # ─────────────────────────────────────────────────────────────────────
 # Build Configuration Options

@@ -1,0 +1,11 @@
+{
+  "suite": "full",
+  "run_id": "full_suite_20260209_091028_green",
+  "run_dir": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green",
+  "timestamp_utc": "2026-02-09T08:10:28.188160+00:00",
+  "repo_root": "/home/chsch95/ICARION",
+  "validation_dir": "/home/chsch95/ICARION/validation",
+  "command": "validation/scripts/run_all_suites.sh --run-id full_suite_20260209_091028_green ",
+  "git_commit": "43446310452713c3430aa4fc04c50a92a1381708",
+  "git_dirty": true
+}

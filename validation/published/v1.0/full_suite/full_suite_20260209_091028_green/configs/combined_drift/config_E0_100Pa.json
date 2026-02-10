@@ -1,0 +1,76 @@
+{
+  "simulation": {
+    "total_time_s": 1e-06,
+    "dt_s": 1e-09,
+    "write_interval": 200,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "EHSS",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/combined_drift",
+    "trajectory_file": "combined_E0_100Pa.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 1000,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            0.05
+          ],
+          "std": [
+            0.0005,
+            0.0005,
+            0.0001
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "domains": [
+    {
+      "name": "combined_drift_test",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "length_m": 0.2,
+        "radius_m": 0.1
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 100.0,
+        "gas_species": "He",
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          50.0
+        ]
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0
+        }
+      }
+    }
+  ]
+}

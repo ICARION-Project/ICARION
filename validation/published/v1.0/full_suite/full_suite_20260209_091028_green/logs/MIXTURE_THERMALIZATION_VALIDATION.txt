@@ -1,0 +1,113 @@
+================================================================================
+GAS MIXTURE THERMALIZATION VALIDATION
+================================================================================
+Start time: 2026-02-09 09:46:49
+
+Purpose: Validate HSS collision model thermalization in gas mixtures
+Method: Cold start (0.1 K) → thermalize to ambient (300 K)
+
+Test Species: H3O+
+Gas Mixture: He/N2 (5 ratios)
+Conditions: P=1000.0 Pa, T=300.0 K, E=0 V/m
+Duration: ~50 collision times each
+
+────────────────────────────────────────────────────────────────────────────────
+TEST: 100He_0N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=100%, N2=0%
+Collision frequency: 8.55e+07 Hz
+Collision time:      0.01 µs
+
+▶ Running simulation: config_100He_0N2.json
+  Total time: 0.023 ms (2000 collision times)
+  ✓ Simulation complete
+
+📊 Analyzing: therm_100He_0N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 300.3 ± 10.3 K
+  Expected:            300.0 K
+  Error:               0.1%  ✅
+────────────────────────────────────────────────────────────────────────────────
+TEST: 75He_25N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=75%, N2=25%
+Collision frequency: 1.11e+08 Hz
+Collision time:      0.01 µs
+
+▶ Running simulation: config_75He_25N2.json
+  Total time: 0.018 ms (2000 collision times)
+  ✓ Simulation complete
+
+📊 Analyzing: therm_75He_25N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 302.0 ± 9.9 K
+  Expected:            300.0 K
+  Error:               0.7%  ✅
+────────────────────────────────────────────────────────────────────────────────
+TEST: 50He_50N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=50%, N2=50%
+Collision frequency: 1.37e+08 Hz
+Collision time:      0.01 µs
+
+▶ Running simulation: config_50He_50N2.json
+  Total time: 0.015 ms (2000 collision times)
+  ✓ Simulation complete
+
+📊 Analyzing: therm_50He_50N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 302.2 ± 10.7 K
+  Expected:            300.0 K
+  Error:               0.7%  ✅
+────────────────────────────────────────────────────────────────────────────────
+TEST: 25He_75N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=25%, N2=75%
+Collision frequency: 1.62e+08 Hz
+Collision time:      0.01 µs
+
+▶ Running simulation: config_25He_75N2.json
+  Total time: 0.012 ms (2000 collision times)
+  ✓ Simulation complete
+
+📊 Analyzing: therm_25He_75N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 300.3 ± 10.6 K
+  Expected:            300.0 K
+  Error:               0.1%  ✅
+────────────────────────────────────────────────────────────────────────────────
+TEST: 0He_100N2
+────────────────────────────────────────────────────────────────────────────────
+Composition: He=0%, N2=100%
+Collision frequency: 1.88e+08 Hz
+Collision time:      0.01 µs
+
+▶ Running simulation: config_0He_100N2.json
+  Total time: 0.011 ms (2000 collision times)
+  ✓ Simulation complete
+
+📊 Analyzing: therm_0He_100N2.h5
+  Ions active (final): 500/500
+  Temperature (final): 300.2 ± 10.9 K
+  Expected:            300.0 K
+  Error:               0.1%  ✅
+
+================================================================================
+VALIDATION SUMMARY
+================================================================================
+  100He_0N2      : ✅    0.1% error
+  75He_25N2      : ✅    0.7% error
+  50He_50N2      : ✅    0.7% error
+  25He_75N2      : ✅    0.1% error
+  0He_100N2      : ✅    0.1% error
+
+✅ ALL VALIDATIONS PASSED (5/5)
+
+📈 Creating validation plot...
+  ✓ Saved: /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/figures/physics/mixture_thermalization_validation.png
+
+================================================================================
+End time: 2026-02-09 09:49:07
+Duration: 137.6 seconds
+Log file: /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/logs/MIXTURE_THERMALIZATION_VALIDATION.txt
+================================================================================

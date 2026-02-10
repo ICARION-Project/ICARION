@@ -1,0 +1,12 @@
+{
+  "suite": "performance",
+  "run_id": "full_suite_20260209_091028_green",
+  "run_dir": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green",
+  "timestamp_utc": "2026-02-09T11:58:48.088104+00:00",
+  "repo_root": "/home/chsch95/ICARION",
+  "validation_dir": "/home/chsch95/ICARION/validation",
+  "command": "/home/chsch95/ICARION/validation/scripts/performance/run_performance_suite.sh --run-id full_suite_20260209_091028_green --run-dir /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green ",
+  "icarion_bin": "/home/chsch95/ICARION/build/src/icarion_main",
+  "git_commit": "43446310452713c3430aa4fc04c50a92a1381708",
+  "git_dirty": true
+}

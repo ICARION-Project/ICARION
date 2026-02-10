@@ -1,0 +1,81 @@
+{
+  "simulation": {
+    "total_time_s": 0.0001,
+    "dt_s": 1e-09,
+    "write_interval": 10,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/gas_mixture_mobility",
+    "trajectory_file": "drift_0He_100N2.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 500,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            0.01
+          ],
+          "std": [
+            0.001,
+            0.001,
+            0.001
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "domains": [
+    {
+      "name": "mixture_test_0He_100N2",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "length_m": 0.2,
+        "radius_m": 0.1
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1000.0,
+        "gas_mixture": [
+          {
+            "species": "N2",
+            "mole_fraction": 1.0
+          }
+        ],
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 200.0
+        }
+      }
+    }
+  ]
+}

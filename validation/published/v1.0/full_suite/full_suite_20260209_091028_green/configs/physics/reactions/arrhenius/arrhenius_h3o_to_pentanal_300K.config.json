@@ -1,0 +1,87 @@
+{
+  "domains": [
+    {
+      "boundary": {
+        "type": "SpecularReflection"
+      },
+      "domain_index": 0,
+      "env": {
+        "gas_mixture": [
+          {
+            "mole_fraction": 1.0,
+            "participates_in_collisions": true,
+            "participates_in_reactions": true,
+            "species": "He"
+          }
+        ],
+        "gas_species": "He",
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "pressure_Pa": 400.0,
+        "temperature_K": 300.0
+      },
+      "fields": {},
+      "geometry": {
+        "length_m": 10.0,
+        "origin_m": [
+          0.0,
+          0.0,
+          -5.0
+        ],
+        "radius_m": 5.0
+      },
+      "instrument": "IMS",
+      "name": "Arrhenius sweep 300 K"
+    }
+  ],
+  "ions": {
+    "species": [
+      {
+        "count": 10000,
+        "position": {
+          "max": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "type": "uniform_box"
+        },
+        "species_id": "H3O+",
+        "velocity": {
+          "temperature_K": 300.0,
+          "type": "thermal"
+        }
+      }
+    ]
+  },
+  "output": {
+    "folder": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/physics/reactions/arrhenius",
+    "print_progress": true,
+    "trajectory_file": "arrhenius_h3o_to_pentanal_300K.h5"
+  },
+  "physics": {
+    "collision_model": "None",
+    "enable_reactions": true,
+    "enable_space_charge": false
+  },
+  "reaction_database": "/home/chsch95/ICARION/validation/configs/physics/reactions/databases/arrhenius_h3o_to_pentanal.json",
+  "simulation": {
+    "dt_s": 1e-06,
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "integrator": "RK4",
+    "rng_seed": 300,
+    "total_time_s": 0.004,
+    "write_interval": 5
+  },
+  "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "title": "Arrhenius H3O+ -> PentanalH+ @ 300 K"
+}

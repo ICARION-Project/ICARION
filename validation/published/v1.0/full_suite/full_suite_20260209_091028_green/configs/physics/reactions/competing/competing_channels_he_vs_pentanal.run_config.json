@@ -1,0 +1,93 @@
+{
+  "title": "Competing bimolecular channels: He vs Pentanal",
+  "simulation": {
+    "total_time_s": 0.004,
+    "dt_s": 1e-06,
+    "write_interval": 5,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 31415
+  },
+  "physics": {
+    "collision_model": "None",
+    "enable_space_charge": false,
+    "enable_reactions": true
+  },
+  "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "reaction_database": "/home/chsch95/ICARION/validation/configs/physics/reactions/databases/competing_channels_he_vs_pentanal.json",
+  "output": {
+    "folder": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/physics/reactions/competing",
+    "trajectory_file": "competing_channels_he_vs_pentanal.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "H3O+",
+        "count": 10000,
+        "position": {
+          "type": "uniform_box",
+          "min": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "Competing bimolecular channels",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          -5.0
+        ],
+        "length_m": 10.0,
+        "radius_m": 5.0
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 400.0,
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "gas_mixture": [
+          {
+            "species": "He",
+            "mole_fraction": 0.999999,
+            "participates_in_collisions": true,
+            "participates_in_reactions": true
+          },
+          {
+            "species": "Pentanal",
+            "mole_fraction": 1e-06,
+            "participates_in_collisions": false,
+            "participates_in_reactions": true
+          }
+        ]
+      },
+      "fields": {},
+      "boundary": {
+        "type": "SpecularReflection"
+      }
+    }
+  ]
+}

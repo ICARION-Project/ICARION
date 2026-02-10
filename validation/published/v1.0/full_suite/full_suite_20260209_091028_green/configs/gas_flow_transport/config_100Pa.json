@@ -1,0 +1,76 @@
+{
+  "simulation": {
+    "total_time_s": 5e-07,
+    "dt_s": 1e-09,
+    "write_interval": 1000,
+    "integrator": "RK4",
+    "enable_gpu": true,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/gas_flow_transport",
+    "trajectory_file": "gas_flow_100Pa.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 1000,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            0.1
+          ],
+          "std": [
+            0.001,
+            0.001,
+            0.001
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "domains": [
+    {
+      "name": "gas_flow_test",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "length_m": 0.2,
+        "radius_m": 0.1
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 100.0,
+        "gas_species": "N2",
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          100.0
+        ]
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0
+        }
+      }
+    }
+  ]
+}

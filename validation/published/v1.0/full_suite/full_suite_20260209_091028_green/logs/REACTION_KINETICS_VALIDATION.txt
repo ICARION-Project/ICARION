@@ -1,0 +1,71 @@
+================================================================================
+REACTION KINETICS VALIDATION
+================================================================================
+Project root: /home/chsch95/ICARION
+Icarion binary: /home/chsch95/ICARION/build/src/icarion_main
+Dry run: False
+Output root: /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/physics/reactions
+Log dir: /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/logs
+Start: 2026-02-09T10:20:06.167900
+
+--- Scenario: equilibrium ---
+Reversible first-order pair expected to settle at a 75/25 split.
+  - kf=1800.0 s^-1, kr=600.0 s^-1
+  - Time constant tau=0.417 ms
+  - Equilibrium populations → H3O+=250.0, PentanalH+=750.0
+
+  → Running /home/chsch95/ICARION/validation/configs/physics/reactions/reversible_equilibrium_h3o_pentanal.json
+  → Running validation/runs/full_suite_20260209_091028_green/results/physics/reactions/equilibrium/reversible_equilibrium_h3o_pentanal.run_config.json
+  ✓ Simulation complete
+
+--- Scenario: first_order ---
+Single-channel decay to benchmark first-order kinetics (k=5e3 s^-1).
+  - Decay constant k=5000.0 s^-1
+  - Tau=200.00 µs, t1/2=138.63 µs
+
+  → Running /home/chsch95/ICARION/validation/configs/physics/reactions/first_order_decay_reference.json
+  → Running validation/runs/full_suite_20260209_091028_green/results/physics/reactions/first_order/first_order_decay_reference.run_config.json
+  ✓ Simulation complete
+
+--- Scenario: competing ---
+Bimolecular competition between Pentanal and He channels.
+  - Effective rates: Pentanal=1.086e+08 s^-1, He=8.450e+07 s^-1
+  - Expected branching → PentanalH+=56.2%, 2,6-DTBP=43.8%
+
+  → Running /home/chsch95/ICARION/validation/configs/physics/reactions/competing_channels_he_vs_pentanal.json
+  → Running validation/runs/full_suite_20260209_091028_green/results/physics/reactions/competing/competing_channels_he_vs_pentanal.run_config.json
+  ✓ Simulation complete
+
+--- Scenario: sequential ---
+Two-step sequential chain ending in CaffeineH+.
+  - k1=1200.0 s^-1, tau1=0.833 ms
+  - k2=800.0 s^-1, tau2=1.250 ms
+  - PentanalH+ peak near 1.014 ms
+
+  → Running /home/chsch95/ICARION/validation/configs/physics/reactions/sequential_chain_three_species.json
+  → Running validation/runs/full_suite_20260209_091028_green/results/physics/reactions/sequential/sequential_chain_three_species.run_config.json
+  ✓ Simulation complete
+
+--- Scenario: arrhenius ---
+Arrhenius sweep for H3O+ -> PentanalH+ across 250/300/350 K.
+  - Prefactor A=2.00e+05 s^-1, Ea=0.080 eV
+  - Predicted rates per temperature:
+  -   250K: k(T)=4.879e+03 s^-1, tau=204.97 µs
+  -   300K: k(T)=9.059e+03 s^-1, tau=110.39 µs
+  -   350K: k(T)=1.410e+04 s^-1, tau=70.94 µs
+
+  → Running /home/chsch95/ICARION/validation/configs/physics/reactions/arrhenius_h3o_to_pentanal_250K.json
+  → Running validation/runs/full_suite_20260209_091028_green/results/physics/reactions/arrhenius/arrhenius_h3o_to_pentanal_250K.run_config.json
+  ✓ Simulation complete
+
+  → Running /home/chsch95/ICARION/validation/configs/physics/reactions/arrhenius_h3o_to_pentanal_300K.json
+  → Running validation/runs/full_suite_20260209_091028_green/results/physics/reactions/arrhenius/arrhenius_h3o_to_pentanal_300K.run_config.json
+  ✓ Simulation complete
+
+  → Running /home/chsch95/ICARION/validation/configs/physics/reactions/arrhenius_h3o_to_pentanal_350K.json
+  → Running validation/runs/full_suite_20260209_091028_green/results/physics/reactions/arrhenius/arrhenius_h3o_to_pentanal_350K.run_config.json
+  ✓ Simulation complete
+
+All requested scenarios finished.
+Next step: use analyze_reactions.py for quantitative fits once time-resolved species data is available.
+End: 2026-02-09T10:26:14.801511

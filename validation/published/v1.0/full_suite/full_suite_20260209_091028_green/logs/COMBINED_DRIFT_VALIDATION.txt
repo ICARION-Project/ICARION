@@ -1,0 +1,114 @@
+================================================================================
+COMBINED DRIFT VALIDATION: E-field + Gas Flow
+================================================================================
+Start time: 2026-02-09 09:41:14
+
+Purpose: Validate combined drift: v_drift = μ·E + v_gas
+Theory: Linear superposition of mobility and convection
+
+
+────────────────────────────────────────────────────────────────────────────────
+TEST: E0_100Pa
+────────────────────────────────────────────────────────────────────────────────
+Conditions:
+  E-field:        0.0 V/m
+  Pressure:       100 Pa
+  Reduced E/N:    0.00 Td
+  Gas velocity:   50 m/s (axial)
+  Temperature:    300 K
+
+Theory (H3O+ in He):
+  Mobility drift: 0.0 m/s (μ·E)
+  Gas flow:       50.0 m/s
+  Total expected: 50.0 m/s
+
+▶ Running simulation: config_E0_100Pa.json
+  Config: /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/combined_drift/config_E0_100Pa.json
+  ✓ Simulation complete
+
+📊 Analyzing: combined_E0_100Pa.h5
+  Ions: 1000/1000 active
+  Drift velocity (steady):       47.7 ±  360.5 m/s  ← PRIMARY
+  Drift velocity (fit):          49.8 m/s  (diagnostic)
+  Expected:                      50.0 m/s
+  Error (steady):   4.6%  ← PRIMARY
+  Error (fit):      0.4%
+
+────────────────────────────────────────────────────────────────────────────────
+TEST: E0_1000Pa
+────────────────────────────────────────────────────────────────────────────────
+Conditions:
+  E-field:        0.0 V/m
+  Pressure:       1000 Pa
+  Reduced E/N:    0.00 Td
+  Gas velocity:   50 m/s (axial)
+  Temperature:    300 K
+
+Theory (H3O+ in He):
+  Mobility drift: 0.0 m/s (μ·E)
+  Gas flow:       50.0 m/s
+  Total expected: 50.0 m/s
+
+▶ Running simulation: config_E0_1000Pa.json
+  Config: /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/combined_drift/config_E0_1000Pa.json
+  ✓ Simulation complete
+
+📊 Analyzing: combined_E0_1000Pa.h5
+  Ions: 1000/1000 active
+  Drift velocity (steady):       46.5 ±  364.5 m/s  ← PRIMARY
+  Drift velocity (fit):          54.2 m/s  (diagnostic)
+  Expected:                      50.0 m/s
+  Error (steady):   7.0%  ← PRIMARY
+  Error (fit):      8.4%
+
+────────────────────────────────────────────────────────────────────────────────
+TEST: E1000_1000Pa
+────────────────────────────────────────────────────────────────────────────────
+Conditions:
+  E-field:        1000.0 V/m
+  Pressure:       1000 Pa
+  Reduced E/N:    4.14 Td
+  Gas velocity:   50 m/s (axial)
+  Temperature:    300 K
+
+Theory (H3O+ in He):
+  Mobility drift: 268.2 m/s (μ·E)
+  Gas flow:       50.0 m/s
+  Total expected: 318.2 m/s
+
+▶ Running simulation: config_E1000_1000Pa.json
+  Config: /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/combined_drift/config_E1000_1000Pa.json
+  ✓ Simulation complete
+
+📊 Analyzing: combined_E1000_1000Pa.h5
+  Ions: 1000/1000 active
+  Drift velocity (steady):      278.5 ±  376.5 m/s  ← PRIMARY
+  Drift velocity (fit):         284.1 m/s  (diagnostic)
+  Expected:                     318.2 m/s
+  Error (steady):   12.5%  ← PRIMARY
+  Error (fit):      10.7%
+  μ_measured:     2285.28 cm²/(V·s)
+  μ_expected:     2681.97 cm²/(V·s)
+  μ_ratio:         0.85× theory
+
+📈 Creating validation plot...
+  ✓ Saved: /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/figures/physics/combined_drift_validation.png
+
+================================================================================
+VALIDATION SUMMARY
+================================================================================
+  E0_100Pa: ✓ PASSED (error = 4.6%)
+  E0_1000Pa: ✓ PASSED (error = 7.0%)
+  E1000_1000Pa: ✓ PASSED (error = 12.5%)
+
+✓ ALL VALIDATIONS PASSED
+
+Key Findings:
+  - Baseline IMS geometry reproduced
+  - Drift velocity follows μ·E once sufficient collisions occur
+  - Ready to reintroduce axial gas flow after baseline pass
+
+End time: 2026-02-09 09:41:17
+Log file: /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/logs/COMBINED_DRIFT_VALIDATION.txt
+Figures:  /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/figures/physics/combined_drift_validation.png
+================================================================================

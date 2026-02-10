@@ -1,0 +1,76 @@
+{
+  "simulation": {
+    "total_time_s": 2.3384342531799957e-05,
+    "dt_s": 2.3384342531799955e-10,
+    "write_interval": 200,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/mixture_thermalization",
+    "trajectory_file": "therm_100He_0N2.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 500,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            0.1
+          ],
+          "std": [
+            0.001,
+            0.001,
+            0.001
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 0.1
+        }
+      }
+    ]
+  },
+  "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "domains": [
+    {
+      "name": "therm_test_100He_0N2",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "length_m": 0.2,
+        "radius_m": 0.1
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1000.0,
+        "gas_mixture": [
+          {
+            "species": "He",
+            "mole_fraction": 1.0
+          }
+        ]
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "domains": [
+    {
+      "domain_index": 0,
+      "env": {
+        "gas_species": "He",
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "pressure_Pa": 1e-06,
+        "temperature_K": 300.0
+      },
+      "fields": {},
+      "geometry": {
+        "dimensions": [
+          0.01,
+          0.01,
+          0.01
+        ],
+        "origin_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "type": "box"
+      },
+      "instrument": "NoFixedInstrument",
+      "name": "Long baseline scaling (N=100000)"
+    }
+  ],
+  "ions": {
+    "species": [
+      {
+        "count": 100000,
+        "position": {
+          "max": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "min": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "type": "uniform_box"
+        },
+        "species_id": "H3O+",
+        "velocity": {
+          "temperature_K": 300.0,
+          "type": "thermal"
+        }
+      }
+    ]
+  },
+  "output": {
+    "folder": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green/results/performance/sim_output/scaling_longrun_N100000",
+    "print_progress": true,
+    "trajectory_file": "scaling_longrun_N100000.h5"
+  },
+  "physics": {
+    "collision_model": "None",
+    "enable_reactions": false,
+    "enable_space_charge": false
+  },
+  "simulation": {
+    "dt_s": 1e-09,
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "integrator": "RK4",
+    "rng_seed": 42,
+    "total_time_s": 0.0001,
+    "write_interval": 10000
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json"
+}

@@ -1,0 +1,13 @@
+{
+  "suite": "physics",
+  "run_id": "full_suite_20260209_091028_green",
+  "run_dir": "/home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green",
+  "timestamp_utc": "2026-02-09T08:10:28.236676+00:00",
+  "repo_root": "/home/chsch95/ICARION",
+  "validation_dir": "/home/chsch95/ICARION/validation",
+  "command": "/home/chsch95/ICARION/validation/scripts/run_physics_suite.sh --python python3 --thermalization-mode full --config-jobs 8 --run-id full_suite_20260209_091028_green --run-dir /home/chsch95/ICARION/validation/runs/full_suite_20260209_091028_green ",
+  "python": "python3",
+  "icarion_bin": "/home/chsch95/ICARION/build/src/icarion_main",
+  "git_commit": "43446310452713c3430aa4fc04c50a92a1381708",
+  "git_dirty": true
+}

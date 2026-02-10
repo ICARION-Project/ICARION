@@ -1,0 +1,16 @@
+{
+  "reactions": [
+    {
+      "id": "rxn_chain_step1_h3o_to_pentanal",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 1200.0
+    },
+    {
+      "id": "rxn_chain_step2_pentanal_to_caffeine",
+      "reactant": "PentanalH+",
+      "product": "CaffeineH+",
+      "rate_constant": 800.0
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "reactions": [
+    {
+      "id": "rxn_arrhenius_h3o_to_pentanal",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 200000.0,
+      "rate_model": "Arrhenius",
+      "activation_energy_eV": 0.08
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "simulation": {
+    "total_time_s": 2e-05,
+    "dt_s": 1e-9,
+    "write_interval": 20000,
+    "integrator": "RK4",
+    "enable_openmp": true,
+    "enable_gpu": false,
+    "rng_seed": 1337
+  },
+  "physics": {
+    "collision_model": "None",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "species_database_path": "data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/performance/thread_scaling_longrun",
+    "trajectory_file": "thread_scaling_longrun.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "H3O+",
+        "count": 400000,
+        "position": {
+          "type": "uniform_box",
+          "min": [0.0, 0.0, 0.0],
+          "max": [0.02, 0.02, 0.02]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "Long-run thermalization",
+      "instrument": "IMS",
+      "geometry": {
+        "type": "cylinder",
+        "origin_m": [0.0, 0.0, -5.0],
+        "length_m": 10.0,
+        "radius_m": 5.0
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 0.05,
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {},
+      "boundary": {
+        "type": "SpecularReflection"
+      }
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "simulation": {
+    "total_time_s": 0.0005,
+    "dt_s": 1e-9,
+    "write_interval": 1000,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "None",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "species_database_path": "data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/instruments/fticr",
+    "trajectory_file": "fticr_PentanalH+_B7.0T.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "PentanalH+",
+        "count": 500,
+        "position": {
+          "type": "point",
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 1.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "FTICR cell (PentanalH+) B=7T",
+      "instrument": "FTICR",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          -0.025
+        ],
+        "length_m": 0.05,
+        "radius_m": 0.015
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-9,
+        "gas_species": "He"
+      },
+      "fields": {
+        "B": {
+          "field_strength_T": [
+            0.0,
+            0.0,
+            7.0
+          ]
+        },
+        "DC": {
+          "radial_V": 20.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    }
+  ]
+}

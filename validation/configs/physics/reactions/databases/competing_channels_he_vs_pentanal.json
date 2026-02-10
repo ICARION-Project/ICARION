@@ -1,0 +1,30 @@
+{
+  "reactions": [
+    {
+      "id": "rxn_competition_pentanal_channel",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 3.75e-15,
+      "order": [
+        {
+          "species": "Pentanal",
+          "exponent": 1,
+          "concentration_m3": 2.897188206415968e22
+        }
+      ]
+    },
+    {
+      "id": "rxn_competition_helium_channel",
+      "reactant": "H3O+",
+      "product": "26DTBP",
+      "rate_constant": 1.25e-15,
+      "order": [
+        {
+          "species": "He",
+          "exponent": 1,
+          "concentration_m3": 6.760105814970592e22
+        }
+      ]
+    }
+  ]
+}

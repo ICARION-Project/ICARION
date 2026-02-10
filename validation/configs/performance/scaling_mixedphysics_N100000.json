@@ -1,0 +1,78 @@
+{
+  "simulation": {
+    "total_time_s": 5e-05,
+    "dt_s": 1e-09,
+    "write_interval": 10000,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": true,
+    "enable_reactions": false
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/performance",
+    "trajectory_file": "scaling_mixedphysics_N100000.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "H3O+",
+        "count": 100000,
+        "position": {
+          "type": "uniform_box",
+          "min": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.01,
+            0.01,
+            0.01
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "Mixed physics scaling (N=100000)",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "type": "box",
+        "dimensions": [
+          0.01,
+          0.01,
+          0.01
+        ],
+        "origin_m": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 100.0,
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {}
+    }
+  ]
+}

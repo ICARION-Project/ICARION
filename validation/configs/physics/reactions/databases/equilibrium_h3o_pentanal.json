@@ -1,0 +1,16 @@
+{
+  "reactions": [
+    {
+      "id": "rxn_eq_forward_h3o_to_pentanal",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 1800.0
+    },
+    {
+      "id": "rxn_eq_reverse_pentanal_to_h3o",
+      "reactant": "PentanalH+",
+      "product": "H3O+",
+      "rate_constant": 600.0
+    }
+  ]
+}

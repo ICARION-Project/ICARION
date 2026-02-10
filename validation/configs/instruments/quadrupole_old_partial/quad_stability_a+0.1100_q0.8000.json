@@ -1,0 +1,90 @@
+{
+  "simulation": {
+    "total_time_s": 5e-05,
+    "dt_s": 1e-09,
+    "write_interval": 500,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "num_threads": 4,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "NoCollisions",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "output": {
+    "folder": "validation/results/v1.0_test/instruments/quadrupole",
+    "trajectory_file": "quad_a0.1100_q0.8000.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "CaffeineH+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            -0.025
+          ],
+          "std": [
+            0.0002,
+            0.0002,
+            0.0005
+          ]
+        },
+        "velocity": {
+          "type": "kinetic",
+          "energy_eV": 5.0,
+          "direction": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "spread_angle_deg": 2.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "Quadrupole Mass Filter",
+      "instrument": "Quadrupole",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          -0.05
+        ],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 0.001,
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {
+        "RF": {
+          "voltage_V": 1596.3980294443095,
+          "frequency_Hz": 2000000.0,
+          "phase_rad": 0.0
+        },
+        "DC": {
+          "quad_V": 109.7523645242963,
+          "axial_V": 50.0
+        }
+      }
+    }
+  ]
+}

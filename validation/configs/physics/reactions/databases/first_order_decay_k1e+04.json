@@ -1,0 +1,10 @@
+{
+  "reactions": [
+    {
+      "id": "rxn_decay_k1e4_h3o_to_pentanal",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 10000.0
+    }
+  ]
+}

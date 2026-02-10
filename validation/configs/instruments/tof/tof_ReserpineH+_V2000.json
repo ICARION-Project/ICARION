@@ -1,0 +1,123 @@
+{
+  "simulation": {
+    "total_time_s": 0.0001,
+    "dt_s": 1e-10,
+    "write_interval": 100,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "NoCollisions",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/instruments/tof",
+    "print_progress": true,
+    "trajectory_file": "tof_ReserpineH+_V2000.h5"
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "tof_acceleration",
+      "instrument": "TOF",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "length_m": 1.0,
+        "radius_m": 0.05,
+        "acc_length_m": 0.02
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-06,
+        "gas_species": "He",
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 2000.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    },
+    {
+      "domain_index": 1,
+      "name": "tof_detector",
+      "instrument": "NoFixedInstrument",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          0.999
+        ],
+        "length_m": 0.001,
+        "radius_m": 0.05
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1e-06,
+        "gas_species": "He",
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 0.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    }
+  ],
+  "ions": {
+    "species": [
+      {
+        "species_id": "ReserpineH+",
+        "count": 10,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            0.001
+          ],
+          "std": [
+            0.0005,
+            0.0005,
+            0.0002
+          ]
+        },
+        "velocity": {
+          "type": "gaussian",
+          "mean": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "std": [
+            0.1,
+            0.1,
+            0.1
+          ]
+        }
+      }
+    ]
+  }
+}

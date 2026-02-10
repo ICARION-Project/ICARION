@@ -1,0 +1,79 @@
+{
+  "simulation": {
+    "total_time_s": 0.0006177472544388513,
+    "dt_s": 1.4997202064503326e-08,
+    "write_interval": 206,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "num_threads": 4,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "Friction",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "output": {
+    "folder": "results/v1.0_test/instruments/ims",
+    "trajectory_file": "ims_friction_72Vm_100Pa.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "H3O+",
+        "count": 1000,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "std": [
+            0.0005,
+            0.0005,
+            0.0001
+          ]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "IMS Drift Tube",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [
+          0.0,
+          0.0,
+          -0.01
+        ],
+        "length_m": 0.06,
+        "radius_m": 0.05
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 100.0,
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 3.0
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "simulation": {
+    "total_time_s": 0.08,
+    "dt_s": 1e-09,
+    "write_interval": 500,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
+  "output": {
+    "folder": "validation/results/v1.0_test/physics/spacecharge",
+    "trajectory_file": "ims_spacecharge_off_N15000.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "species_id": "H3O+",
+        "count": 15000,
+        "position": {
+          "type": "gaussian",
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "std": [
+            0.002,
+            0.002,
+            0.00025
+          ]
+        },
+        "velocity": {
+          "type": "gaussian",
+          "mean": [
+            0.0,
+            0.0,
+            200.0
+          ],
+          "std": [
+            30.0,
+            30.0,
+            30.0
+          ]
+        }
+      }
+    ]
+  },
+  "domains": [
+    {
+      "domain_index": 0,
+      "name": "IMS with space charge OFF (15k)",
+      "instrument": "IMS",
+      "geometry": {
+        "type": "cylinder",
+        "length_m": 0.08,
+        "radius_m": 0.05,
+        "origin_m": [
+          0.0,
+          0.0,
+          -0.02
+        ]
+      },
+      "env": {
+        "gas_species": "He",
+        "temperature_K": 300.0,
+        "pressure_Pa": 1000.0,
+        "gas_velocity_m_s": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 1000.0
+        }
+      }
+    }
+  ]
+}

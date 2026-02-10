@@ -35,9 +35,26 @@ compile_commands.json
 Testing/
 CTestTestfile.cmake
 
-# Validation suite configs
-validation/**/*.json
+# Tmp configs
 tmp/**/*.json
+
+# Validation suite artifacts (avoid accidental nested output trees)
+validation/validation/
+validation/scripts/validation/
+validation/scripts/results/
+validation/scripts/configs/
+
+# Generated JSON logs
+validation/logs/*.json
+
+# Validation suite outputs (generated)
+validation/runs/
+validation/_quarantine/
+
+# Ignore generated validation results by default, but keep the frozen baseline.
+validation/results/**
+!validation/results/v1.0_test/
+!validation/results/v1.0_test/**
 
 # Analysis outputs
 analysis/output/

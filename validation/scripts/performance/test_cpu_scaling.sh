@@ -2,7 +2,6 @@
 # Test OpenMP CPU core scaling with different thread counts
 
 CONFIG="$1"
-RESULTS_DIR="results/cpu_scaling_$(date +%Y%m%d_%H%M%S)"
 
 if [ -z "$CONFIG" ]; then
     echo "Usage: $0 <config.json>"
@@ -12,6 +11,9 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ICARION_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 ICARION_BIN="$ICARION_ROOT/build/src/icarion_main"
+
+VALIDATION_DIR="$ICARION_ROOT/validation"
+RESULTS_DIR="$VALIDATION_DIR/results/performance/cpu_scaling_$(date +%Y%m%d_%H%M%S)"
 
 mkdir -p "$RESULTS_DIR"
 
@@ -43,7 +45,7 @@ for THREADS in 1 2 4 8 16 32; do
     sed "s|scaling_cpu_cores.h5|scaling_threads_${THREADS}.h5|g" "$CONFIG" > "$TEMP_CONFIG"
     
     # Run simulation and capture timing
-    /usr/bin/time -v "$ICARION_BIN" "$TEMP_CONFIG" > "$LOG_FILE" 2>&1
+    (cd "$ICARION_ROOT" && /usr/bin/time -v "$ICARION_BIN" "$TEMP_CONFIG" > "$LOG_FILE" 2>&1)
     EXIT_CODE=$?
     
     # Extract CPU time from log

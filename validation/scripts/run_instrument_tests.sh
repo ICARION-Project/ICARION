@@ -166,10 +166,24 @@ case "$INSTRUMENT" in
 esac
 
 if [[ -n "$DELEGATE" && -x "$DELEGATE" ]]; then
-  if [[ "$CUSTOM_OPTIONS_USED" == true ]]; then
-    echo "NOTE: '$INSTRUMENT' uses dedicated runner $DELEGATE; generic options (-j/-t/-c/-o/-b) are ignored."
-  fi
   echo "Delegating to instrument-specific runner: $DELEGATE"
+
+  # Forward common settings via environment so instrument-specific runners can
+  # write into the same output tree as the generic runner.
+  if [[ -n "$BINARY_OVERRIDE" ]]; then
+    export ICARION_BIN_OVERRIDE="$(to_abs_path "$BINARY_OVERRIDE")"
+  fi
+  if [[ -n "$CONFIG_OVERRIDE" ]]; then
+    export INSTRUMENT_CONFIG_DIR_OVERRIDE="$(to_abs_path "$CONFIG_OVERRIDE")"
+  fi
+  if [[ -n "$OUTPUT_OVERRIDE" ]]; then
+    export INSTRUMENT_OUTPUT_ROOT_OVERRIDE="$(to_abs_path "$OUTPUT_OVERRIDE")"
+  fi
+
+  # Standardized concurrency knobs
+  export INSTRUMENT_JOBS="$JOBS"
+  export INSTRUMENT_THREADS="$THREADS"
+
   exec "$DELEGATE" "${INSTRUMENT_ARGS[@]}"
 fi
 
@@ -252,11 +266,50 @@ run_config() {
   local total="$3"
   local name
   name="$(basename "$config" .json)"
+  local effective_config="$config"
   local stdout_log="$SESSION_LOG_DIR/${name}_stdout.log"
   local stderr_log="$SESSION_LOG_DIR/${name}_stderr.log"
 
+  # Snapshot config and override output.folder into OUTPUT_ROOT so generic mode
+  # does not clobber committed baselines and so run-dir outputs stay contained.
+  if command -v python3 >/dev/null 2>&1; then
+    local snapshot_cfg="$SESSION_LOG_DIR/${name}.run_config.json"
+    REPO_ROOT="$REPO_ROOT" \
+    OUT_DIR="$OUTPUT_ROOT" \
+    python3 - "$config" "$snapshot_cfg" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+repo_root = Path(os.environ["REPO_ROOT"]).resolve()
+out_dir = Path(os.environ["OUT_DIR"]).resolve()
+
+with src.open("r", encoding="utf-8") as handle:
+    cfg = json.load(handle)
+
+output = cfg.get("output") or {}
+output["folder"] = str(out_dir)
+cfg["output"] = output
+
+for key in ("species_database_path", "species_database", "reaction_database", "reaction_database_path"):
+    if key in cfg and isinstance(cfg[key], str):
+        p = Path(cfg[key])
+        if not p.is_absolute():
+            cfg[key] = str((repo_root / p).resolve())
+
+dst.parent.mkdir(parents=True, exist_ok=True)
+with dst.open("w", encoding="utf-8") as handle:
+    json.dump(cfg, handle, indent=2)
+    handle.write("\n")
+PY
+    effective_config="$snapshot_cfg"
+  fi
+
   printf '[%s] [%d/%d] Starting %s\n' "$(date '+%H:%M:%S')" "$ordinal" "$total" "$name"
-  if (cd "$REPO_ROOT" && "$ICARION_BIN" "$config" --threads "$THREADS" >"$stdout_log" 2>"$stderr_log"); then
+  if (cd "$REPO_ROOT" && "$ICARION_BIN" "$effective_config" --threads "$THREADS" >"$stdout_log" 2>"$stderr_log"); then
     printf '[%s] [%d/%d] ✅ %s\n' "$(date '+%H:%M:%S')" "$ordinal" "$total" "$name"
     return 0
   else

@@ -16,7 +16,8 @@ fi
 # Extract test name from config path
 TEST_NAME=$(basename "$CONFIG" .json)
 ICARION_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-OUTPUT_DIR="results/validation_$(date +%Y%m%d_%H%M%S)_${TEST_NAME}"
+VALIDATION_DIR="$ICARION_ROOT/validation"
+OUTPUT_DIR="$VALIDATION_DIR/results/performance/single_$(date +%Y%m%d_%H%M%S)_${TEST_NAME}"
 
 echo "==========================================="
 echo "ICARION Validation Suite - Single Test"
@@ -36,7 +37,7 @@ cp "$CONFIG" "$OUTPUT_DIR/config.json"
 echo "Starting simulation..."
 START_TIME=$(date +%s)
 
-if "$ICARION_ROOT/build/src/icarion_main" "$CONFIG" --threads 4 > "$OUTPUT_DIR/simulation.log" 2>&1; then
+if (cd "$ICARION_ROOT" && "$ICARION_ROOT/build/src/icarion_main" "$CONFIG" --threads 4 > "$OUTPUT_DIR/simulation.log" 2>&1); then
     END_TIME=$(date +%s)
     RUNTIME=$((END_TIME - START_TIME))
     

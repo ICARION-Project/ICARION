@@ -3,6 +3,8 @@
 
 set -euo pipefail
 
+ORIGINAL_ARGS=("$@")
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNNER="$VALIDATION_DIR/scripts/run_instrument_tests.sh"
@@ -17,6 +19,9 @@ BINARY=""
 CONFIG_ROOT=""
 OUTPUT_ROOT=""
 SUITE_JOBS=1
+RUN_ID=${RUN_ID:-""}
+RUN_DIR=${RUN_DIR:-""}
+BASELINE_OUTPUT=false
 
 print_usage() {
   cat <<'EOF'
@@ -28,6 +33,9 @@ Options:
   -b, --binary PATH     Override path to icarion_main
   -c, --config-root DIR Use DIR/<instrument> for config overrides
   -o, --output-root DIR Use DIR/<instrument> for output overrides
+  --run-id ID         Run identifier (default: YYYYmmdd_HHMMSS)
+  --run-dir PATH      Output directory for this run (default: validation/runs/<run-id>)
+  --baseline-output   Write into validation/results/v1.0_test/instruments (legacy)
   -J, --suite-jobs N    Number of instruments to run concurrently (default: 1)
   --list                Show normalized instrument keys and exit
   -h, --help            Show this help text
@@ -120,6 +128,20 @@ while [[ $# -gt 0 ]]; do
       OUTPUT_ROOT="$2"
       shift 2
       ;;
+    --run-id)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      RUN_ID="$2"
+      shift 2
+      ;;
+    --run-dir)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      RUN_DIR="$2"
+      shift 2
+      ;;
+    --baseline-output)
+      BASELINE_OUTPUT=true
+      shift
+      ;;
     -J|--suite-jobs)
       [[ $# -lt 2 ]] && print_usage && exit 1
       SUITE_JOBS="$2"
@@ -180,10 +202,87 @@ if [[ -n "$OUTPUT_ROOT" ]]; then
   OUTPUT_ROOT="$(abs_path "$OUTPUT_ROOT")"
 fi
 
+if [[ -z "$RUN_ID" ]]; then
+  RUN_ID=$(date +%Y%m%d_%H%M%S)
+fi
+
+if [[ -z "$RUN_DIR" ]]; then
+  RUN_DIR="$VALIDATION_DIR/runs/$RUN_ID"
+fi
+
+RUN_DIR_ABS=$(cd "$(dirname "$RUN_DIR")" && pwd)/"$(basename "$RUN_DIR")"
+mkdir -p "$RUN_DIR_ABS/logs" "$RUN_DIR_ABS/figures" "$RUN_DIR_ABS/results"
+export ICARION_VALIDATION_RUN_DIR="$RUN_DIR_ABS"
+
+write_manifest() {
+  local out_file="$1"
+  if ! command -v python3 >/dev/null 2>&1; then
+    return 0
+  fi
+  local cmd
+  cmd=$(printf '%q ' "$0" "${ORIGINAL_ARGS[@]}")
+
+  SUITE_NAME="instruments" \
+  RUN_ID="$RUN_ID" \
+  RUN_DIR="$RUN_DIR_ABS" \
+  REPO_ROOT="$(cd "$VALIDATION_DIR/.." && pwd)" \
+  VALIDATION_DIR="$VALIDATION_DIR" \
+  ICARION_BIN="${BINARY:-}" \
+  COMMAND_LINE="$cmd" \
+  python3 - "$out_file" <<'PY'
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+out_file = sys.argv[1]
+
+def _cmd(argv):
+    try:
+        return subprocess.check_output(argv, stderr=subprocess.DEVNULL, text=True).strip()
+    except Exception:
+        return None
+
+repo_root = os.environ.get("REPO_ROOT")
+
+data = {
+    "suite": os.environ.get("SUITE_NAME"),
+    "run_id": os.environ.get("RUN_ID"),
+    "run_dir": os.environ.get("RUN_DIR"),
+    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+    "repo_root": repo_root,
+    "validation_dir": os.environ.get("VALIDATION_DIR"),
+    "command": os.environ.get("COMMAND_LINE"),
+    "icarion_bin": os.environ.get("ICARION_BIN") or None,
+}
+
+data["git_commit"] = _cmd(["git", "-C", repo_root, "rev-parse", "HEAD"]) if repo_root else None
+git_status = _cmd(["git", "-C", repo_root, "status", "--porcelain"]) if repo_root else None
+data["git_dirty"] = bool(git_status)
+
+os.makedirs(os.path.dirname(out_file), exist_ok=True)
+with open(out_file, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+PY
+}
+
+write_manifest "$RUN_DIR_ABS/manifest.instruments.json" || true
+
+if [[ -z "$OUTPUT_ROOT" ]]; then
+  if $BASELINE_OUTPUT; then
+    OUTPUT_ROOT="$DEFAULT_OUTPUT_ROOT"
+  else
+    OUTPUT_ROOT="$RUN_DIR_ABS/results/instruments"
+  fi
+fi
+
 TOTAL=0
 PASSED=0
+SKIPPED=0
 FAILED=0
 FAILED_LIST=()
+SKIPPED_LIST=()
 
 STATUS_LOG="$(mktemp "$VALIDATION_DIR/suite_status_XXXX.tsv")"
 declare -a RUNNING_PIDS=()
@@ -206,12 +305,36 @@ printf 'Threads     : %s\n' "${THREADS:-default}"
 printf 'Suite jobs  : %s\n' "$SUITE_JOBS"
 printf 'Binary      : %s\n' "${BINARY:-auto}"
 printf 'Config root : %s\n' "${CONFIG_ROOT:-$DEFAULT_CONFIG_ROOT}" 
-printf 'Output root : %s\n' "${OUTPUT_ROOT:-$DEFAULT_OUTPUT_ROOT}"
+printf 'Run ID      : %s\n' "$RUN_ID"
+printf 'Run dir     : %s\n' "$RUN_DIR_ABS"
+printf 'Output root : %s\n' "$OUTPUT_ROOT"
 printf 'Targets     : %s\n' "${SELECTED_INSTRUMENTS[*]}"
 printf '==============================================\n\n'
 
 run_single() {
   local instrument="$1"
+
+  # Proactively skip instruments without config directories (or without any json configs)
+  # so the suite remains reproducible across repos/branches where some instruments
+  # are intentionally not shipped.
+  local cfg_dir=""
+  if [[ -n "${CONFIG_ROOT:-}" ]]; then
+    cfg_dir="$CONFIG_ROOT/$instrument"
+  else
+    cfg_dir="$DEFAULT_CONFIG_ROOT/$instrument"
+  fi
+  if [[ ! -d "$cfg_dir" ]]; then
+    echo "[${instrument}] ⏭ skipped (config dir not found: $cfg_dir)"
+    return 2
+  fi
+  shopt -s nullglob
+  local cfg_matches=("$cfg_dir"/*.json)
+  shopt -u nullglob
+  if [[ ${#cfg_matches[@]} -eq 0 ]]; then
+    echo "[${instrument}] ⏭ skipped (no *.json configs in: $cfg_dir)"
+    return 2
+  fi
+
   local cmd=("$RUNNER")
   if [[ -n "$JOBS" ]]; then
     cmd+=("-j" "$JOBS")
@@ -234,6 +357,10 @@ run_single() {
   if "${cmd[@]}"; then
     echo "[${instrument}] ✅ completed"
     return 0
+  elif [[ $? -eq 2 ]]; then
+    # (kept for future: runner-level skip)
+    echo "[${instrument}] ⏭ skipped"
+    return 2
   else
     echo "[${instrument}] ❌ failed" >&2
     return 1
@@ -243,8 +370,10 @@ run_single() {
 for instrument in "${SELECTED_INSTRUMENTS[@]}"; do
   TOTAL=$((TOTAL + 1))
   (
+    set +e
     run_single "$instrument"
     status=$?
+    set -e
     printf '%s\t%d\n' "$instrument" "$status" >>"$STATUS_LOG"
     exit "$status"
   ) &
@@ -269,6 +398,9 @@ while IFS=$'\t' read -r instrument status; do
   fi
   if [[ "$status" -eq 0 ]]; then
     PASSED=$((PASSED + 1))
+  elif [[ "$status" -eq 2 ]]; then
+    SKIPPED=$((SKIPPED + 1))
+    SKIPPED_LIST+=("$instrument")
   else
     FAILED=$((FAILED + 1))
     FAILED_LIST+=("$instrument")
@@ -282,7 +414,11 @@ printf 'Suite summary\n'
 printf '==============================================\n'
 printf 'Total instruments : %d\n' "$TOTAL"
 printf 'Succeeded         : %d\n' "$PASSED"
+printf 'Skipped           : %d\n' "$SKIPPED"
 printf 'Failed            : %d\n' "$FAILED"
+if [[ $SKIPPED -gt 0 ]]; then
+  printf 'Skipped list      : %s\n' "${SKIPPED_LIST[*]}"
+fi
 if [[ $FAILED -gt 0 ]]; then
   printf 'Failures          : %s\n' "${FAILED_LIST[*]}"
 fi

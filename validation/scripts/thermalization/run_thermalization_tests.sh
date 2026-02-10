@@ -6,7 +6,12 @@ MODE="${1:-quick}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VALIDATION_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_DIR="$VALIDATION_DIR/configs/physics/thermalization"
-RESULTS_DIR="$SCRIPT_DIR/../results/thermalization_session_$(date +%Y%m%d_%H%M%S)"
+RUN_DIR="${ICARION_VALIDATION_RUN_DIR:-}"
+if [[ -n "$RUN_DIR" ]]; then
+    RESULTS_DIR="$RUN_DIR/results/physics/thermalization_session_$(date +%Y%m%d_%H%M%S)"
+else
+    RESULTS_DIR="$VALIDATION_DIR/results/thermalization_session_$(date +%Y%m%d_%H%M%S)"
+fi
 THERM_JOBS=${THERM_JOBS:-1}
 
 echo "=============================================="

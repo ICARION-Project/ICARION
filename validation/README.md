@@ -75,7 +75,8 @@ python3 scripts/thermalization/generate_thermalization_configs.py
   - Quadrupole: `scripts/instrumentation/configs/generate_quadrupole_stability_map.py`, `scripts/instrumentation/quadrupole/analyze_quadrupole_stability_map.py`
   - TOF: `scripts/instrumentation/tof/analyze_tof_flight_time.py`
   - FT-ICR: `scripts/instrumentation/configs/generate_fticr_configs.py`, `scripts/instrumentation/fticr/analyze_fticr_frequencies.py`
-- Results: `results/v1.0_test/instruments/`
+- Results (baseline): `results/v1.0_test/instruments/`
+- Results (per-run): `runs/<run-id>/results/instruments/`
 
 #### Physics (includes thermalization, transport, reactions, space charge)
 - Runner: `scripts/run_physics_suite.sh`
@@ -86,7 +87,8 @@ python3 scripts/thermalization/generate_thermalization_configs.py
 #### Performance
 - CPU: `scripts/performance/run_performance_suite.sh`, `scripts/performance/run_performance_analysis.sh`
 - GPU: `scripts/performance/generate_gpu_performance_configs.py` (generated configs; GPU runtime disabled in v1.0)
-- Results: `results/performance/`
+- Results (baseline): `results/v1.0_test/performance/logs/`
+- Results (per-run): `runs/<run-id>/results/performance/logs/`
 
 ### Physics components (covered by the physics runner)
 
@@ -140,6 +142,7 @@ validation/
 |-- figures/                    # plots (generated)
 |-- logs/                       # analysis summaries
 |-- results/                    # test outputs (HDF5, logs)
+|-- runs/                       # per-run structured artifacts (generated, gitignored)
 `-- README.md                   # this file
 ```
 
@@ -148,9 +151,39 @@ validation/
 **Results layout:**
 - `validation/results/v1.0_test/instruments/<instrument>/...`
 - `validation/results/<suite>/` for gas flow, combined drift, mixture mobility/thermalization, reactions
-- `validation/results/performance/`
+- `validation/results/v1.0_test/performance/logs/`
 - `validation/results/v1.0_test/` for frozen baselines
 - Legacy runs may exist under `validation/results/physics/<suite>/`
+
+---
+
+## Per-run output folders (recommended)
+
+Historically, many scripts wrote directly into `validation/logs/`, `validation/figures/`, and `validation/results/`, which makes it hard to compare runs over time.
+
+The suite runners can create a per-run folder and export `ICARION_VALIDATION_RUN_DIR` so validators write into a clean, timestamped structure:
+
+```
+validation/runs/<run-id>/
+|-- logs/
+|-- figures/physics/
+`-- results/
+```
+
+You can override the identifier and output location:
+
+```bash
+./scripts/run_physics_suite.sh --run-id my_tag
+./scripts/run_physics_suite.sh --run-dir /tmp/icarion_physics_run
+
+./scripts/run_instrument_suite.sh --run-id my_tag
+./scripts/run_instrument_suite.sh --run-dir /tmp/icarion_instrument_run
+
+./scripts/performance/run_performance_suite.sh --run-id my_tag
+./scripts/performance/run_performance_suite.sh --run-dir /tmp/icarion_performance_run
+```
+
+To force legacy/baseline output locations, pass `--baseline-output` to the instrument or performance runners.
 
 ---
 
@@ -165,5 +198,10 @@ validation/
 ## Notes
 
 - GPU runtime is disabled in v1.0; any `enable_gpu=true` falls back to CPU.
-- FT-ICR configs are generated on demand and are not checked in by default.
+- FT-ICR configs are provided under `validation/configs/instruments/fticr/` (you can regenerate them via `scripts/instrumentation/configs/generate_fticr_configs.py`).
 - Diffusion validation is not implemented yet.
+
+## Publishing results (recommended)
+
+If you want to publish validation results without checking in large `*.h5` files, see [validation/PUBLISHING.md](PUBLISHING.md).
+The flow is: run into `validation/runs/<run-id>/`, then export a git-friendly bundle via `scripts/export_run_bundle.sh`.

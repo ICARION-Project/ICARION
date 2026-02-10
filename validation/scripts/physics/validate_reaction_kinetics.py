@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List
+import os
 
 # Physical constants
 K_B = 1.380649e-23  # Boltzmann constant [J/K]
@@ -32,12 +33,16 @@ E_CHARGE = 1.602176634e-19  # Elementary charge [C]
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 CONFIG_DIR = PROJECT_ROOT / "validation" / "configs" / "physics" / "reactions"
-RESULTS_ROOT = PROJECT_ROOT / "validation" / "results" / "physics" / "reactions"
-LOG_DIR = PROJECT_ROOT / "validation" / "logs"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
-LOG_FILE = LOG_DIR / "REACTION_KINETICS_VALIDATION.txt"
 ICARION_BIN_DEFAULT = PROJECT_ROOT / "build" / "src" / "icarion_main"
+
+RUN_DIR = os.environ.get("ICARION_VALIDATION_RUN_DIR")
+DEFAULT_RESULTS_ROOT = PROJECT_ROOT / "validation" / "results" / "physics" / "reactions"
+DEFAULT_LOG_DIR = PROJECT_ROOT / "validation" / "logs"
+if RUN_DIR:
+    RUN_DIR = Path(RUN_DIR)
+    DEFAULT_RESULTS_ROOT = RUN_DIR / "results" / "physics" / "reactions"
+    DEFAULT_LOG_DIR = RUN_DIR / "logs"
+
 
 
 @dataclass
@@ -147,17 +152,27 @@ def ensure_config_exists(run: ScenarioRun) -> None:
         raise FileNotFoundError(f"Missing config: {run.config_path}")
 
 
-def ensure_output_directory(config_path: Path) -> None:
+def prepare_config_for_run(config_path: Path, output_folder: Path, snapshot_path: Path) -> Path:
+    """Write a per-run snapshot of a config with an overridden output folder."""
+
     with open(config_path, "r", encoding="utf-8") as handle:
         cfg = json.load(handle)
-    out_cfg = cfg.get("output", {})
-    folder = out_cfg.get("folder")
-    if not folder:
-        return
-    folder_path = Path(folder)
-    if not folder_path.is_absolute():
-        folder_path = PROJECT_ROOT / folder
-    folder_path.mkdir(parents=True, exist_ok=True)
+
+    # Many configs use paths relative to the *config file* location.
+    # Once we snapshot the config into the run directory, those relative paths
+    # would break unless we rewrite them.
+    base_dir = config_path.parent
+    for key in ("species_database", "reaction_database"):
+        value = cfg.get(key)
+        if isinstance(value, str) and value and not Path(value).is_absolute():
+            cfg[key] = str((base_dir / value).resolve())
+
+    cfg.setdefault("output", {})["folder"] = str(output_folder)
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(snapshot_path, "w", encoding="utf-8") as handle:
+        json.dump(cfg, handle, indent=2)
+    output_folder.mkdir(parents=True, exist_ok=True)
+    return snapshot_path
 
 
 def run_simulation(config_path: Path, icarion_bin: Path, dry_run: bool, logf) -> bool:
@@ -172,12 +187,25 @@ def run_simulation(config_path: Path, icarion_bin: Path, dry_run: bool, logf) ->
         cmd,
         cwd=PROJECT_ROOT,
         text=True,
+        stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     if result.returncode != 0:
         log("  ✗ Simulation failed", logf)
-        err = (result.stderr or "").strip()
-        log(f"    STDERR: {err}", logf)
+
+        stderr = (result.stderr or "").strip()
+        stdout = (result.stdout or "").strip()
+
+        def tail_lines(text: str, limit: int = 40) -> str:
+            lines = text.splitlines()
+            if len(lines) <= limit:
+                return text
+            return "\n".join(lines[-limit:])
+
+        log(f"    STDERR: {tail_lines(stderr) if stderr else ''}", logf)
+        if stdout:
+            log("    STDOUT (tail):", logf)
+            log(tail_lines(stdout), logf)
         return False
 
     log("  ✓ Simulation complete", logf)
@@ -266,67 +294,111 @@ def scenario_notes(scenario: Scenario) -> Iterable[str]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run reaction kinetics validation scenarios.")
-    parser.add_argument(
-        "--scenarios",
-        nargs="+",
-        default=["all"],
-        choices=["all"] + sorted(SCENARIOS.keys()),
-        help="Subset of scenarios to execute",
-    )
+    parser = argparse.ArgumentParser(description="Run ICARION reaction kinetics validation scenarios")
     parser.add_argument(
         "--icarion-bin",
         type=Path,
         default=ICARION_BIN_DEFAULT,
-        help="Path to the icarion_main executable",
+        help="Path to icarion_main (default: build/src/icarion_main)",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print commands without running simulations",
+        help="Print what would run without executing simulations",
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_RESULTS_ROOT,
+        help="Root folder for reaction outputs (per-scenario subfolders will be created)",
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=DEFAULT_LOG_DIR,
+        help="Folder for validation logs",
+    )
+    parser.add_argument(
+        "scenarios",
+        nargs="*",
+        help=f"Optional subset of scenarios to run (choices: {', '.join(SCENARIOS.keys())}); default: all",
     )
     return parser.parse_args()
 
 
-def main() -> None:
+def main() -> int:
     args = parse_args()
-    if not args.icarion_bin.exists() and not args.dry_run:
-        raise SystemExit(f"icarion_main not found at {args.icarion_bin}")
 
-    selected = list(SCENARIOS.keys()) if "all" in args.scenarios else args.scenarios
+    icarion_bin = args.icarion_bin
+    if not icarion_bin.is_absolute():
+        icarion_bin = (PROJECT_ROOT / icarion_bin).resolve()
 
-    start = datetime.now()
-    with open(LOG_FILE, "w", encoding="utf-8") as logf:
+    output_root = args.output_root
+    if not output_root.is_absolute():
+        output_root = (PROJECT_ROOT / output_root).resolve()
+
+    log_dir = args.log_dir
+    if not log_dir.is_absolute():
+        log_dir = (PROJECT_ROOT / log_dir).resolve()
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    log_file = log_dir / "REACTION_KINETICS_VALIDATION.txt"
+
+    requested = [s for s in args.scenarios if s]
+    if requested:
+        unknown = [s for s in requested if s not in SCENARIOS]
+        if unknown:
+            raise SystemExit(f"Unknown scenario(s): {', '.join(unknown)}")
+        scenarios: Iterable[Scenario] = [SCENARIOS[s] for s in requested]
+    else:
+        scenarios = SCENARIOS.values()
+
+    start = datetime.now().isoformat(timespec="microseconds")
+
+    with open(log_file, "w", encoding="utf-8") as logf:
         log("=" * 80, logf)
         log("REACTION KINETICS VALIDATION", logf)
         log("=" * 80, logf)
         log(f"Project root: {PROJECT_ROOT}", logf)
-        log(f"Icarion binary: {args.icarion_bin}", logf)
+        log(f"Icarion binary: {icarion_bin}", logf)
         log(f"Dry run: {args.dry_run}", logf)
-        log(f"Start: {start.isoformat()}", logf)
+        log(f"Output root: {output_root}", logf)
+        log(f"Log dir: {log_dir}", logf)
+        log(f"Start: {start}", logf)
         log("", logf)
 
-        for key in selected:
-            scenario = SCENARIOS[key]
+        all_ok = True
+        for scenario in scenarios:
             log(f"--- Scenario: {scenario.key} ---", logf)
             log(scenario.description, logf)
-            for note in scenario_notes(scenario):
-                log(f"  - {note}", logf)
-            log("", logf)
+
+            for line in scenario_notes(scenario):
+                log(f"  - {line}", logf)
 
             for run in scenario.runs:
                 ensure_config_exists(run)
-                ensure_output_directory(run.config_path)
-                success = run_simulation(run.config_path, args.icarion_bin, args.dry_run, logf)
-                if not success:
-                    log("Aborting remaining runs due to failure.", logf)
-                    return
+
+                # Write per-run config snapshot into the output tree so configs and outputs stay together.
+                scenario_out = output_root / scenario.key
+                cfg_snapshot = scenario_out / f"{run.config_path.stem}.run_config.json"
+                cfg_to_run = prepare_config_for_run(run.config_path, scenario_out, cfg_snapshot)
+
+                log(f"\n  → Running {run.config_path}", logf)
+                ok = run_simulation(cfg_to_run, icarion_bin, args.dry_run, logf)
+                if not ok:
+                    all_ok = False
             log("", logf)
 
-        log("All requested scenarios finished.", logf)
-        log("Next step: use analyze_reactions.py for quantitative fits once time-resolved species data is available.", logf)
-        log(f"End: {datetime.now().isoformat()}", logf)
+        end = datetime.now().isoformat(timespec="microseconds")
+        if all_ok:
+            log("All requested scenarios finished.", logf)
+            log("Next step: use analyze_reactions.py for quantitative fits once time-resolved species data is available.", logf)
+        else:
+            log("One or more scenarios failed.", logf)
+        log(f"End: {end}", logf)
+
+    return 0 if all_ok else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

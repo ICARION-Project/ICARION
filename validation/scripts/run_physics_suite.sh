@@ -3,6 +3,8 @@
 
 set -euo pipefail
 
+ORIGINAL_ARGS=("$@")
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$VALIDATION_DIR/.." && pwd)"
@@ -17,6 +19,8 @@ ICARION_BIN=""
 DRY_RUN=false
 CONFIG_JOBS=${CONFIG_JOBS:-8}
 SELECTED_TARGETS=()
+RUN_ID=${RUN_ID:-""}
+RUN_DIR=${RUN_DIR:-""}
 
 AVAILABLE_TARGETS=(
   thermalization
@@ -46,6 +50,8 @@ Options:
   --python PATH              Python interpreter to use (default: $PYTHON_BIN)
   --thermalization-mode MODE Mode passed to run_thermalization_tests.sh (quick|subset|full)
   --icarion-bin PATH         Forward PATH to validate_reaction_kinetics.py
+  --run-id ID                Run identifier (default: YYYYmmdd_HHMMSS)
+  --run-dir PATH             Output directory for this run (default: validation/runs/<run-id>)
   --dry-run                  Show the commands without executing them
   --config-jobs N            Max configs to run in parallel (where applicable, default: $CONFIG_JOBS)
   --list                     Show available targets and exit
@@ -138,6 +144,16 @@ while [[ $# -gt 0 ]]; do
       ICARION_BIN="$2"
       shift 2
       ;;
+    --run-id)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      RUN_ID="$2"
+      shift 2
+      ;;
+    --run-dir)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      RUN_DIR="$2"
+      shift 2
+      ;;
     --dry-run)
       DRY_RUN=true
       shift
@@ -214,6 +230,72 @@ if $NEED_ICARION; then
   fi
 fi
 
+if [[ -z "$RUN_ID" ]]; then
+  RUN_ID=$(date +%Y%m%d_%H%M%S)
+fi
+
+if [[ -z "$RUN_DIR" ]]; then
+  RUN_DIR="$VALIDATION_DIR/runs/$RUN_ID"
+fi
+
+RUN_DIR_ABS=$(cd "$(dirname "$RUN_DIR")" && pwd)/"$(basename "$RUN_DIR")"
+mkdir -p "$RUN_DIR_ABS/logs" "$RUN_DIR_ABS/figures/physics" "$RUN_DIR_ABS/results"
+export ICARION_VALIDATION_RUN_DIR="$RUN_DIR_ABS"
+
+write_manifest() {
+  local out_file="$1"
+  local cmd
+  cmd=$(printf '%q ' "$0" "${ORIGINAL_ARGS[@]}")
+
+  SUITE_NAME="physics" \
+  RUN_ID="$RUN_ID" \
+  RUN_DIR="$RUN_DIR_ABS" \
+  REPO_ROOT="$REPO_ROOT" \
+  VALIDATION_DIR="$VALIDATION_DIR" \
+  PYTHON_BIN="$PYTHON_BIN" \
+  ICARION_BIN="${ICARION_BIN:-}" \
+  COMMAND_LINE="$cmd" \
+  "$PYTHON_BIN" - "$out_file" <<'PY'
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+out_file = sys.argv[1]
+
+def _cmd(argv):
+    try:
+        return subprocess.check_output(argv, stderr=subprocess.DEVNULL, text=True).strip()
+    except Exception:
+        return None
+
+repo_root = os.environ.get("REPO_ROOT")
+
+data = {
+    "suite": os.environ.get("SUITE_NAME"),
+    "run_id": os.environ.get("RUN_ID"),
+    "run_dir": os.environ.get("RUN_DIR"),
+    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+    "repo_root": repo_root,
+    "validation_dir": os.environ.get("VALIDATION_DIR"),
+    "command": os.environ.get("COMMAND_LINE"),
+    "python": os.environ.get("PYTHON_BIN"),
+    "icarion_bin": os.environ.get("ICARION_BIN") or None,
+}
+
+data["git_commit"] = _cmd(["git", "-C", repo_root, "rev-parse", "HEAD"]) if repo_root else None
+git_status = _cmd(["git", "-C", repo_root, "status", "--porcelain"]) if repo_root else None
+data["git_dirty"] = bool(git_status)
+
+os.makedirs(os.path.dirname(out_file), exist_ok=True)
+with open(out_file, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+PY
+}
+
+write_manifest "$RUN_DIR_ABS/manifest.physics.json" || true
+
 run_in_repo() {
   (cd "$REPO_ROOT" && "$@")
 }
@@ -222,6 +304,16 @@ run_spacecharge_configs() {
   local bin="${ICARION_BIN:-$REPO_ROOT/build/src/icarion_main}"
   local cfg_dir="$REPO_ROOT/validation/configs/physics/spacecharge"
   local -a cfgs=("$cfg_dir"/*.json)
+  local out_root="${ICARION_VALIDATION_RUN_DIR:-}"
+  local out_dir=""
+
+  if [[ -n "$out_root" ]]; then
+    out_dir="$out_root/results/physics/spacecharge"
+  else
+    # Fallback (kept for compatibility): write into the frozen baseline.
+    out_dir="$REPO_ROOT/validation/results/v1.0_test/physics/spacecharge"
+  fi
+  mkdir -p "$out_dir"
 
   if [[ ! -x "$bin" ]]; then
     echo "[spacecharge] icarion_main not found or not executable at '$bin'" >&2
@@ -237,8 +329,26 @@ run_spacecharge_configs() {
 
   for cfg in "${cfgs[@]}"; do
     [[ ! -f "$cfg" ]] && continue
-    echo "[spacecharge] running $cfg"
-    ("$bin" "$cfg" --threads 1 >/dev/null 2>&1) &
+
+    # Write a per-run copy of the config with an overridden output folder so we
+    # do not clobber the committed v1.0_test baseline outputs.
+    local cfg_base
+    cfg_base=$(basename "$cfg")
+    local tmp_cfg="$out_dir/${cfg_base%.json}.run_${RUN_ID}.config.json"
+    "$PYTHON_BIN" - "$cfg" "$tmp_cfg" "$out_dir" <<'PY'
+import json
+import sys
+
+src, dst, out_dir = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(src, "r", encoding="utf-8") as handle:
+    cfg = json.load(handle)
+cfg.setdefault("output", {})["folder"] = out_dir
+with open(dst, "w", encoding="utf-8") as handle:
+    json.dump(cfg, handle, indent=2)
+PY
+
+    echo "[spacecharge] running $cfg_base"
+    ("$bin" "$tmp_cfg" --threads 1 >/dev/null 2>&1) &
     pids+=("$!")
 
     while [[ ${#pids[@]} -ge $CONFIG_JOBS && $CONFIG_JOBS -gt 0 ]]; do
@@ -293,6 +403,12 @@ build_command() {
       printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_reaction_kinetics.py"
       if [[ -n "$ICARION_BIN" ]]; then
         printf '%q ' --icarion-bin "$ICARION_BIN"
+      fi
+      # Keep all reaction artifacts grouped into the run folder when invoked
+      # via this suite runner.
+      if [[ -n "${ICARION_VALIDATION_RUN_DIR:-}" ]]; then
+        printf '%q ' --output-root "$ICARION_VALIDATION_RUN_DIR/results/physics/reactions"
+        printf '%q ' --log-dir "$ICARION_VALIDATION_RUN_DIR/logs"
       fi
       ;;
     *)
@@ -364,6 +480,8 @@ echo "Python         : $PYTHON_BIN"
 echo "Therm mode     : $THERMALIZATION_MODE"
 echo "ICARION bin    : ${ICARION_BIN:-default from scripts}"
 echo "Dry run        : $DRY_RUN"
+echo "Run ID         : $RUN_ID"
+echo "Run dir        : $RUN_DIR_ABS"
 echo "Targets        : ${SELECTED_TARGETS[*]}"
 echo "Started        : $START_TIME"
 echo "=============================================="

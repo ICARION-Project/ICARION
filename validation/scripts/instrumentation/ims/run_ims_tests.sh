@@ -5,10 +5,29 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VALIDATION_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 REPO_ROOT="$(cd "$VALIDATION_DIR/.." && pwd)"
-CONFIG_DIR="$VALIDATION_DIR/configs/instruments/ims"
-RESULTS_ROOT="$VALIDATION_DIR/results/instruments/ims"
-RESULTS_DIR="$RESULTS_ROOT/session_$(date +%Y%m%d_%H%M%S)"
-ICARION_BIN="$REPO_ROOT/build/src/icarion_main"
+
+CONFIG_DIR_DEFAULT="$VALIDATION_DIR/configs/instruments/ims"
+RESULTS_ROOT_DEFAULT="$VALIDATION_DIR/results/instruments/ims"
+ICARION_BIN_DEFAULT="$REPO_ROOT/build/src/icarion_main"
+
+RUN_DIR="${ICARION_VALIDATION_RUN_DIR:-}"
+if [[ -n "$RUN_DIR" ]]; then
+    RESULTS_ROOT_DEFAULT="$RUN_DIR/results/instruments/ims"
+fi
+
+CONFIG_DIR="${INSTRUMENT_CONFIG_DIR_OVERRIDE:-$CONFIG_DIR_DEFAULT}"
+RESULTS_ROOT="${INSTRUMENT_OUTPUT_ROOT_OVERRIDE:-$RESULTS_ROOT_DEFAULT}"
+ICARION_BIN="${ICARION_BIN_OVERRIDE:-$ICARION_BIN_DEFAULT}"
+
+CONFIG_DIR="$(cd "$CONFIG_DIR" && pwd)"
+mkdir -p "$RESULTS_ROOT"
+RESULTS_ROOT="$(cd "$RESULTS_ROOT" && pwd)"
+
+if [[ -n "$RUN_DIR" ]]; then
+    RESULTS_DIR="$RESULTS_ROOT"
+else
+    RESULTS_DIR="$RESULTS_ROOT/session_$(date +%Y%m%d_%H%M%S)"
+fi
 
 echo "=============================================="
 echo "ICARION Validation Suite - Session 2"
@@ -43,8 +62,8 @@ CONFIG_COUNT=$(ls "$CONFIG_DIR"/*.json 2>/dev/null | wc -l)
 echo "Found $CONFIG_COUNT IMS configurations"
 echo ""
 
-JOBS=${IMS_JOBS:-2}
-THREADS=${IMS_THREADS:-4}
+JOBS=${INSTRUMENT_JOBS:-${IMS_JOBS:-2}}
+THREADS=${INSTRUMENT_THREADS:-${IMS_THREADS:-4}}
 PASSED=0
 FAILED=0
 TOTAL=0
@@ -72,7 +91,7 @@ run_test() {
     output_dir="$RESULTS_DIR/$basename"
     mkdir -p "$output_dir"
     
-    if "$ICARION_BIN" "$config" --threads "$THREADS" > "$output_dir/stdout.log" 2> "$output_dir/stderr.log"; then
+    if (cd "$REPO_ROOT" && "$ICARION_BIN" "$config" --threads "$THREADS" > "$output_dir/stdout.log" 2> "$output_dir/stderr.log"); then
         echo "  ✅ PASS: $basename"
         return 0
     else
@@ -83,7 +102,7 @@ run_test() {
 }
 
 export -f run_test
-export ICARION_BIN RESULTS_DIR CONFIG_COUNT
+export ICARION_BIN RESULTS_DIR CONFIG_COUNT REPO_ROOT
 
 # Collect all configs into array
 CONFIGS=("$CONFIG_DIR"/*.json)

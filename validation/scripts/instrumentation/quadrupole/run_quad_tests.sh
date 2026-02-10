@@ -12,18 +12,104 @@
 #   ./run_quad_tests.sh 2    # Run 2 simulations in parallel
 #   nohup ./run_quad_tests.sh 4 > quad_stability.log 2>&1 &  # Background with 4 parallel jobs
 
-set -e
+set -euo pipefail
 
-# Configuration
-ICARION_BIN="/home/chsch95/ICARION/build/src/icarion_main"
-CONFIG_DIR="/home/chsch95/ICARION/validation/configs/instruments/quadrupole"
-OUTPUT_DIR="/home/chsch95/ICARION/validation/results/v1.0_test/instruments/quadrupole_first_region"
-LOG_DIR="${OUTPUT_DIR}/logs"
-MAX_PARALLEL=${1:-2}  # Default to 2 parallel jobs
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VALIDATION_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$VALIDATION_DIR/.." && pwd)"
+
+ICARION_BIN_DEFAULT="$REPO_ROOT/build/src/icarion_main"
+CONFIG_DIR_DEFAULT="$VALIDATION_DIR/configs/instruments/quadrupole"
+OUTPUT_DIR_DEFAULT="$VALIDATION_DIR/results/v1.0_test/instruments/quadrupole_first_region"
+
+RUN_DIR="${ICARION_VALIDATION_RUN_DIR:-}"
+if [[ -n "$RUN_DIR" ]]; then
+    OUTPUT_DIR_DEFAULT="$RUN_DIR/results/instruments/quadrupole_first_region"
+fi
+
+ICARION_BIN="${ICARION_BIN_OVERRIDE:-$ICARION_BIN_DEFAULT}"
+CONFIG_DIR="${INSTRUMENT_CONFIG_DIR_OVERRIDE:-$CONFIG_DIR_DEFAULT}"
+OUTPUT_DIR="${INSTRUMENT_OUTPUT_ROOT_OVERRIDE:-$OUTPUT_DIR_DEFAULT}"
+
+JOBS_DEFAULT=${INSTRUMENT_JOBS:-2}
+THREADS_DEFAULT=${INSTRUMENT_THREADS:-1}
+
+MAX_PARALLEL="$JOBS_DEFAULT"
+THREADS="$THREADS_DEFAULT"
+
+print_usage() {
+    cat <<'EOF'
+Usage: run_quad_tests.sh [options]
+
+Options:
+    -j, --jobs N         Parallel jobs (default: from INSTRUMENT_JOBS or 2)
+    -t, --threads N      Threads passed to icarion_main (default: from INSTRUMENT_THREADS or 1)
+    -b, --binary PATH    Path to icarion_main (default: build/src/icarion_main)
+    -c, --config-dir DIR Config directory (default: validation/configs/instruments/quadrupole)
+    -o, --output-dir DIR Output directory root (default: validation/results/... or validation/runs/<id>/results/...)
+    -h, --help           Show this help
+
+Back-compat:
+    run_quad_tests.sh 4  # treated as --jobs 4
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -j|--jobs)
+            MAX_PARALLEL="$2"; shift 2 ;;
+        -t|--threads)
+            THREADS="$2"; shift 2 ;;
+        -b|--binary)
+            ICARION_BIN="$2"; shift 2 ;;
+        -c|--config-dir)
+            CONFIG_DIR="$2"; shift 2 ;;
+        -o|--output-dir)
+            OUTPUT_DIR="$2"; shift 2 ;;
+        -h|--help)
+            print_usage; exit 0 ;;
+        --)
+            shift; break ;;
+        -* )
+            echo "Unknown option: $1" >&2
+            print_usage >&2
+            exit 1
+            ;;
+        *)
+            # Back-compat: first bare arg is jobs
+            if [[ "$1" =~ ^[0-9]+$ ]]; then
+                MAX_PARALLEL="$1"; shift
+            else
+                echo "Unknown argument: $1" >&2
+                print_usage >&2
+                exit 1
+            fi
+            ;;
+    esac
+done
+
+if [[ "$ICARION_BIN" != /* ]]; then
+    ICARION_BIN="$REPO_ROOT/$ICARION_BIN"
+fi
+if [[ "$CONFIG_DIR" != /* ]]; then
+    CONFIG_DIR="$REPO_ROOT/$CONFIG_DIR"
+fi
+if [[ "$OUTPUT_DIR" != /* ]]; then
+    OUTPUT_DIR="$REPO_ROOT/$OUTPUT_DIR"
+fi
+
+ICARION_BIN="$(cd "$(dirname "$ICARION_BIN")" && pwd)/$(basename "$ICARION_BIN")"
+CONFIG_DIR="$(cd "$CONFIG_DIR" && pwd)"
+mkdir -p "$OUTPUT_DIR"
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
+
+LOG_DIR="$OUTPUT_DIR/logs"
+CFG_SNAPSHOT_DIR="$OUTPUT_DIR/run_configs"
 
 # Create output directories
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${LOG_DIR}"
+mkdir -p "${CFG_SNAPSHOT_DIR}"
 
 # Check if executable exists
 if [[ ! -f "${ICARION_BIN}" ]]; then
@@ -54,6 +140,7 @@ echo "Configs:     ${CONFIG_DIR}"
 echo "Output:      ${OUTPUT_DIR}"
 echo "Total tests: ${TOTAL_CONFIGS}"
 echo "Parallel:    ${MAX_PARALLEL} jobs"
+echo "Threads:     ${THREADS}"
 echo "=============================================="
 echo ""
 
@@ -62,11 +149,25 @@ run_test() {
     local config_file=$1
     local config_name=$(basename "${config_file}" .json)
     local log_file="${LOG_DIR}/${config_name}.log"
+
+    # Snapshot config with overridden output.folder so artifacts land in OUTPUT_DIR.
+    local run_cfg="${CFG_SNAPSHOT_DIR}/${config_name}.run_config.json"
+    python3 - "${config_file}" "${run_cfg}" "${OUTPUT_DIR}" <<'PY'
+import json
+import sys
+
+src, dst, out_dir = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(src, 'r', encoding='utf-8') as handle:
+    cfg = json.load(handle)
+cfg.setdefault('output', {})['folder'] = out_dir
+with open(dst, 'w', encoding='utf-8') as handle:
+    json.dump(cfg, handle, indent=2)
+PY
     
     echo "[$(date '+%H:%M:%S')] Running ${config_name}..."
     
     # Run simulation and capture output
-    if "${ICARION_BIN}" "${config_file}" > "${log_file}" 2>&1; then
+    if (cd "$REPO_ROOT" && "${ICARION_BIN}" "${run_cfg}" --threads "${THREADS}" > "${log_file}" 2>&1); then
         echo "[$(date '+%H:%M:%S')] ✅ ${config_name} completed"
         return 0
     else
@@ -78,7 +179,11 @@ run_test() {
 # Export function for parallel execution
 export -f run_test
 export ICARION_BIN
+export REPO_ROOT
 export LOG_DIR
+export OUTPUT_DIR
+export CFG_SNAPSHOT_DIR
+export THREADS
 
 # Start time
 START_TIME=$(date +%s)

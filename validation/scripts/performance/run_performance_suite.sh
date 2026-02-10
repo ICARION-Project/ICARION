@@ -3,6 +3,8 @@
 
 set -euo pipefail
 
+ORIGINAL_ARGS=("$@")
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/build"
@@ -12,6 +14,13 @@ CPU_RESULT_DIR="$PROJECT_ROOT/validation/results/v1.0_test/performance/logs"
 GPU_RESULT_DIR="$PROJECT_ROOT/validation/results/v1.0_test/performance/gpu_logs"
 ICARION_BIN="$BUILD_DIR/src/icarion_main"
 CMAKE_CACHE="$BUILD_DIR/CMakeCache.txt"
+
+RUN_ID=${RUN_ID:-""}
+RUN_DIR=${RUN_DIR:-""}
+BASELINE_OUTPUT=false
+
+RUN_ID_SET=false
+RUN_DIR_SET=false
 
 declare -A CPU_CATEGORY_GLOBS=(
   [baseline]="scaling_baseline_*.json"
@@ -38,6 +47,9 @@ Usage: $(basename "$0") [options] [category ...]
 Options:
   --cpu-only        Run only CPU benchmark categories (default)
   --gpu-only        (ignored in v1.0) GPU runtime is disabled; GPU categories are skipped
+  --run-id ID        Run identifier (default: YYYYmmdd_HHMMSS)
+  --run-dir PATH     Output directory for this run (default: validation/runs/<run-id>)
+  --baseline-output  Write into validation/results/v1.0_test/performance (legacy)
   -h, --help        Show this help and exit
 
 Categories:
@@ -75,6 +87,20 @@ while [[ $# -gt 0 ]]; do
       MODE="gpu"
       shift
       ;;
+    --run-id)
+      RUN_ID="$2"
+      RUN_ID_SET=true
+      shift 2
+      ;;
+    --run-dir)
+      RUN_DIR="$2"
+      RUN_DIR_SET=true
+      shift 2
+      ;;
+    --baseline-output)
+      BASELINE_OUTPUT=true
+      shift
+      ;;
     -h|--help)
       print_usage
       exit 0
@@ -85,6 +111,73 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -z "$RUN_ID" ]]; then
+  RUN_ID=$(date +%Y%m%d_%H%M%S)
+fi
+
+RUN_DIR_ABS=""
+if ! $BASELINE_OUTPUT || $RUN_ID_SET || $RUN_DIR_SET; then
+  if [[ -z "$RUN_DIR" ]]; then
+    RUN_DIR="$PROJECT_ROOT/validation/runs/$RUN_ID"
+  fi
+
+  RUN_DIR_ABS=$(cd "$(dirname "$RUN_DIR")" && pwd)/"$(basename "$RUN_DIR")"
+  mkdir -p "$RUN_DIR_ABS/logs" "$RUN_DIR_ABS/figures" "$RUN_DIR_ABS/results"
+  export ICARION_VALIDATION_RUN_DIR="$RUN_DIR_ABS"
+
+  if ! $BASELINE_OUTPUT; then
+    CPU_RESULT_DIR="$RUN_DIR_ABS/results/performance/logs"
+    GPU_RESULT_DIR="$RUN_DIR_ABS/results/performance/gpu_logs"
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    cmd=$(printf '%q ' "$0" "${ORIGINAL_ARGS[@]}")
+    SUITE_NAME="performance" \
+    RUN_ID="$RUN_ID" \
+    RUN_DIR="$RUN_DIR_ABS" \
+    REPO_ROOT="$PROJECT_ROOT" \
+    VALIDATION_DIR="$PROJECT_ROOT/validation" \
+    ICARION_BIN="$ICARION_BIN" \
+    COMMAND_LINE="$cmd" \
+    python3 - "$RUN_DIR_ABS/manifest.performance.json" <<'PY'
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+out_file = sys.argv[1]
+
+def _cmd(argv):
+    try:
+        return subprocess.check_output(argv, stderr=subprocess.DEVNULL, text=True).strip()
+    except Exception:
+        return None
+
+repo_root = os.environ.get("REPO_ROOT")
+
+data = {
+    "suite": os.environ.get("SUITE_NAME"),
+    "run_id": os.environ.get("RUN_ID"),
+    "run_dir": os.environ.get("RUN_DIR"),
+    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+    "repo_root": repo_root,
+    "validation_dir": os.environ.get("VALIDATION_DIR"),
+    "command": os.environ.get("COMMAND_LINE"),
+    "icarion_bin": os.environ.get("ICARION_BIN") or None,
+}
+
+data["git_commit"] = _cmd(["git", "-C", repo_root, "rev-parse", "HEAD"]) if repo_root else None
+git_status = _cmd(["git", "-C", repo_root, "status", "--porcelain"]) if repo_root else None
+data["git_dirty"] = bool(git_status)
+
+os.makedirs(os.path.dirname(out_file), exist_ok=True)
+with open(out_file, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+PY
+  fi
+fi
 
 declare -a CPU_SELECTED=()
 declare -a GPU_SELECTED=()
@@ -126,7 +219,7 @@ elif [[ "$MODE" == "gpu" ]]; then
 fi
 
 dedupe_array CPU_SELECTED
- dedupe_array GPU_SELECTED
+dedupe_array GPU_SELECTED
 
 # GPU runtime is disabled in v1.0; honor CPU selections only and skip GPU categories.
 if [[ "$MODE" == "gpu" ]] || [[ ${#GPU_SELECTED[@]} -gt 0 ]]; then
@@ -174,6 +267,11 @@ echo "============================================================"
 echo "ICARION Performance Benchmark Suite"
 echo "============================================================"
 echo "Binary:  $ICARION_BIN"
+if [[ -n "$RUN_DIR_ABS" ]]; then
+  echo "Run dir: $RUN_DIR_ABS"
+else
+  echo "Run dir: (baseline-output)"
+fi
 echo "CPU configs: $CPU_CONFIG_DIR"
 echo "GPU configs: $GPU_CONFIG_DIR"
 echo "============================================================"
@@ -190,8 +288,50 @@ run_config() {
   local log_file="$result_dir/$name.log"
   local time_file="$result_dir/$name.time"
 
+  local effective_config_path="$config_path"
+  if [[ -n "${RUN_DIR_ABS:-}" ]] && command -v python3 >/dev/null 2>&1; then
+    local snapshot_dir="$RUN_DIR_ABS/results/performance/config_snapshots"
+    local sim_output_dir="$RUN_DIR_ABS/results/performance/sim_output/$name"
+    mkdir -p "$snapshot_dir" "$sim_output_dir"
+    local snapshot_path="$snapshot_dir/$name.run_config.json"
+
+    PROJECT_ROOT="$PROJECT_ROOT" \
+    OUT_DIR="$sim_output_dir" \
+    python3 - "$config_path" "$snapshot_path" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+project_root = Path(os.environ["PROJECT_ROOT"])  # repo root
+out_dir = Path(os.environ["OUT_DIR"])            # per-config sim output dir
+
+with src.open("r", encoding="utf-8") as handle:
+    cfg = json.load(handle)
+
+output = cfg.get("output") or {}
+output["folder"] = str(out_dir)
+cfg["output"] = output
+
+for key in ("species_database_path", "species_database", "reaction_database", "reaction_database_path"):
+    if key in cfg and isinstance(cfg[key], str):
+        p = Path(cfg[key])
+        if not p.is_absolute():
+            cfg[key] = str((project_root / p).resolve())
+
+dst.parent.mkdir(parents=True, exist_ok=True)
+with dst.open("w", encoding="utf-8") as handle:
+    json.dump(cfg, handle, indent=2)
+    handle.write("\n")
+PY
+
+    effective_config_path="$snapshot_path"
+  fi
+
   echo "→ Running $name"
-  if /usr/bin/time -f "%e" -o "$time_file" "$ICARION_BIN" "$config_path" > "$log_file" 2>&1; then
+  if (cd "$PROJECT_ROOT" && /usr/bin/time -f "%e" -o "$time_file" "$ICARION_BIN" "$effective_config_path" > "$log_file" 2>&1); then
     local elapsed
     elapsed="$(cat "$time_file")"
     echo "  ✓ Completed (${elapsed}s)"
@@ -238,24 +378,26 @@ run_category() {
   fi
 }
 
-for category in "${CPU_SELECTED[@]:-}"; do
+for category in "${CPU_SELECTED[@]}"; do
+  [[ -n "$category" ]] || continue
   pattern=${CPU_CATEGORY_GLOBS[$category]:-}
   if [ -n "$pattern" ]; then
     run_category "$CPU_CONFIG_DIR" "$CPU_RESULT_DIR" "$category" "$pattern" "cpu"
   fi
- done
+done
 
 if [ ${#GPU_SELECTED[@]} -gt 0 ]; then
   echo ""
   echo "GPU benchmarks enabled (USE_GPU_ACCEL=ON)"
 fi
 
-for category in "${GPU_SELECTED[@]:-}"; do
+for category in "${GPU_SELECTED[@]}"; do
+  [[ -n "$category" ]] || continue
   pattern=${GPU_CATEGORY_GLOBS[$category]:-}
   if [ -n "$pattern" ]; then
     run_category "$GPU_CONFIG_DIR" "$GPU_RESULT_DIR" "$category" "$pattern" "gpu"
   fi
- done
+done
 
 if [ $TOTAL_RUNS -eq 0 ]; then
   echo "No benchmarks were executed."

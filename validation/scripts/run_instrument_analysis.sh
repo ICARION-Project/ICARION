@@ -185,6 +185,9 @@ build_results_roots() {
   if [[ -n "$RESULTS_ROOT_OVERRIDE" ]]; then
     RESULT_ROOTS+=("$(abs_path "$RESULTS_ROOT_OVERRIDE")")
   fi
+  if [[ -n "${ICARION_VALIDATION_RUN_DIR:-}" ]]; then
+    RESULT_ROOTS+=("$(abs_path "$ICARION_VALIDATION_RUN_DIR/results/instruments")")
+  fi
   RESULT_ROOTS+=(
     "$VALIDATION_DIR/results/instruments"
     "$VALIDATION_DIR/results/v1.0_test/instruments"

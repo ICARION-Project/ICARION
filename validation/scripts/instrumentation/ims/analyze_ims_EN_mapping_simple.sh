@@ -2,7 +2,50 @@
 # Analyze IMS E/N mapping results using the analyze_ims_drift.py output
 # Parse simulation logs directly
 
-RESULTS_DIR="/home/chsch95/ICARION/results/v1.0_test/instruments/ims"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VALIDATION_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$VALIDATION_DIR/.." && pwd)"
+
+RUN_DIR="${ICARION_VALIDATION_RUN_DIR:-}"
+
+pick_results_dir() {
+    local candidate
+
+    if [[ -n "$RUN_DIR" ]]; then
+        candidate="$RUN_DIR/results/instruments/ims"
+        if [[ -d "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    fi
+
+    candidate="$VALIDATION_DIR/results/v1.0_test/instruments/ims"
+    if [[ -d "$candidate" ]]; then
+        echo "$candidate"
+        return 0
+    fi
+
+    candidate="$REPO_ROOT/results/v1.0_test/instruments/ims"
+    if [[ -d "$candidate" ]]; then
+        echo "$candidate"
+        return 0
+    fi
+
+    echo "" 
+    return 1
+}
+
+RESULTS_DIR="$(pick_results_dir)"
+if [[ -z "$RESULTS_DIR" ]]; then
+    echo "ERROR: Could not find IMS results directory." >&2
+    echo "Tried (in order):" >&2
+    echo "  - \$ICARION_VALIDATION_RUN_DIR/results/instruments/ims" >&2
+    echo "  - $VALIDATION_DIR/results/v1.0_test/instruments/ims" >&2
+    echo "  - $REPO_ROOT/results/v1.0_test/instruments/ims" >&2
+    exit 1
+fi
 
 echo "================================================================================"
 echo "IMS E/N Mapping Analysis (10-50 Td × 10,20,100,1000 Pa)"
@@ -10,7 +53,12 @@ echo "==========================================================================
 echo ""
 
 # Create output file
-OUTPUT="validation/results/ims_EN_mapping_summary.txt"
+if [[ -n "$RUN_DIR" ]]; then
+    OUTPUT="$RUN_DIR/logs/ims_EN_mapping_summary.txt"
+else
+    OUTPUT="$VALIDATION_DIR/logs/ims_EN_mapping_summary.txt"
+fi
+mkdir -p "$(dirname "$OUTPUT")"
 echo "IMS E/N Mapping Results" > "$OUTPUT"
 echo "Generated: $(date)" >> "$OUTPUT"
 echo "================================================================================" >> "$OUTPUT"

@@ -18,6 +18,7 @@ from pathlib import Path
 from datetime import datetime
 import matplotlib.pyplot as plt
 import sys
+import os
 
 # Shared HDF5 helpers (species IDs)
 COMMON_DIR = Path(__file__).resolve().parents[1] / "common"
@@ -54,9 +55,16 @@ amu_to_kg = 1.66053906660e-27
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 ICARION_BIN = PROJECT_ROOT / "build" / "src" / "icarion_main"
-RESULTS_DIR = PROJECT_ROOT / "validation" / "results" / "mixture_thermalization"
-FIGURES_DIR = PROJECT_ROOT / "validation" / "figures"
-LOGS_DIR = PROJECT_ROOT / "validation" / "logs"
+RUN_DIR = os.environ.get("ICARION_VALIDATION_RUN_DIR")
+if RUN_DIR:
+    RUN_DIR = Path(RUN_DIR)
+    RESULTS_DIR = RUN_DIR / "results" / "mixture_thermalization"
+    FIGURES_DIR = RUN_DIR / "figures" / "physics"
+    LOGS_DIR = RUN_DIR / "logs"
+else:
+    RESULTS_DIR = PROJECT_ROOT / "validation" / "results" / "mixture_thermalization"
+    FIGURES_DIR = PROJECT_ROOT / "validation" / "figures"
+    LOGS_DIR = PROJECT_ROOT / "validation" / "logs"
 
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)

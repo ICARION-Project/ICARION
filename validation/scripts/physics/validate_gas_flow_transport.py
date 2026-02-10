@@ -43,6 +43,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
 from datetime import datetime
+import os
 
 # Constants
 ELEM_CHARGE_C = 1.602176634e-19  # C
@@ -52,9 +53,16 @@ AMU_TO_KG = 1.66053906660e-27    # kg
 # Paths
 REPO_ROOT = Path(__file__).resolve().parents[3]  # Go up 3 levels: physics/ -> scripts/ -> validation/ -> repo_root/
 VALIDATION_DIR = REPO_ROOT / "validation"
-FIGURES_DIR = VALIDATION_DIR / "figures" / "physics"
-LOGS_DIR = VALIDATION_DIR / "logs"
-RESULTS_DIR = VALIDATION_DIR / "results" / "gas_flow_transport"
+RUN_DIR = os.environ.get("ICARION_VALIDATION_RUN_DIR")
+if RUN_DIR:
+    RUN_DIR = Path(RUN_DIR)
+    FIGURES_DIR = RUN_DIR / "figures" / "physics"
+    LOGS_DIR = RUN_DIR / "logs"
+    RESULTS_DIR = RUN_DIR / "results" / "gas_flow_transport"
+else:
+    FIGURES_DIR = VALIDATION_DIR / "figures" / "physics"
+    LOGS_DIR = VALIDATION_DIR / "logs"
+    RESULTS_DIR = VALIDATION_DIR / "results" / "gas_flow_transport"
 ICARION_BIN = REPO_ROOT / "build" / "src" / "icarion_main"
 
 # Create directories

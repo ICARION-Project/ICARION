@@ -2,10 +2,14 @@
 # ICARION Thread Scaling Benchmark
 # Tests CPU performance with different thread counts
 
-set -e
+set -euo pipefail
 
-CONFIG="configs/performance/thread_scaling_benchmark.json"
-RESULTS_DIR="./results/thread_scaling"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ICARION_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+VALIDATION_DIR="$ICARION_ROOT/validation"
+
+CONFIG="$VALIDATION_DIR/configs/performance/thread_scaling_benchmark.json"
+RESULTS_DIR="$VALIDATION_DIR/results/performance/thread_scaling"
 
 echo "============================================"
 echo "ICARION CPU Thread Scaling Benchmark"
@@ -41,7 +45,7 @@ benchmark_threads() {
     
     # Run simulation and capture timing
     START_TIME=$(date +%s.%N)
-    ../build/src/icarion_main "$CONFIG" > /dev/null 2>&1
+    (cd "$ICARION_ROOT" && "$ICARION_ROOT/build/src/icarion_main" "$CONFIG" > /dev/null 2>&1)
     END_TIME=$(date +%s.%N)
     
     # Calculate elapsed time

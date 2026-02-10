@@ -25,7 +25,11 @@ if [[ ! -x "$ICARION_BIN" ]]; then
 fi
 
 TEST_NAME=$(basename "$CONFIG" .json)
-OUTPUT_DIR="$ICARION_ROOT/validation/results/thermalization_single/${TEST_NAME}_$(date +%Y%m%d_%H%M%S)"
+if [[ -n "${ICARION_VALIDATION_RUN_DIR:-}" ]]; then
+    OUTPUT_DIR="$ICARION_VALIDATION_RUN_DIR/results/physics/thermalization_single/${TEST_NAME}_$(date +%Y%m%d_%H%M%S)"
+else
+    OUTPUT_DIR="$ICARION_ROOT/validation/results/thermalization_single/${TEST_NAME}_$(date +%Y%m%d_%H%M%S)"
+fi
 mkdir -p "$OUTPUT_DIR"
 cp "$CONFIG" "$OUTPUT_DIR/config.json"
 
@@ -39,7 +43,7 @@ echo "Timestamp: $(date)"
 echo "==========================================="
 
 START_TIME=$(date +%s)
-if "$ICARION_BIN" "$CONFIG" --threads "$THERM_THREADS" >"$OUTPUT_DIR/simulation.log" 2>&1; then
+if (cd "$ICARION_ROOT" && "$ICARION_BIN" "$CONFIG" --threads "$THERM_THREADS" >"$OUTPUT_DIR/simulation.log" 2>&1); then
     END_TIME=$(date +%s)
     RUNTIME=$((END_TIME - START_TIME))
     echo "✅ SUCCESS (${RUNTIME}s)"

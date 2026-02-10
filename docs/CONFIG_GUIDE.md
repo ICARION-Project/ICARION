@@ -977,7 +977,7 @@ See `schema/boundary.schema.json` for parameters.
 **DC Fields:**
 ```json
 "fields": {
-  "dc": {
+  "DC": {
     "axial_V": 100.0,              // Can be constant or waveform
     "EN_Td": 50.0
   }
@@ -998,7 +998,7 @@ See `schema/boundary.schema.json` for parameters.
 **Waveforms:**
 ```json
 "axial_V": {
-  "waveform_type": "sine",
+  "type": "sinusoidal",
   "amplitude": 100.0,
   "frequency_Hz": 1e6,
   "offset": 0.0,
@@ -1006,7 +1006,9 @@ See `schema/boundary.schema.json` for parameters.
 }
 ```
 
-**Supported waveform types:** `constant`, `sine`, `square`, `triangle`, `sawtooth`, `pulse`, `exponential_decay`, `gaussian_pulse`, `chirp`
+**Supported waveform types:** `constant`, `linear`, `quadratic`, `exponential`, `sinusoidal`, `pwm`, `pulsed`, `arbitrary`
+
+`environment.pressure_Pa` supports the same value-or-waveform syntax (number, inline waveform object, or `@waveform_ref`).
 
 See `schema/waveform.schema.json` and `schema/fields.schema.json` for complete specifications.
 

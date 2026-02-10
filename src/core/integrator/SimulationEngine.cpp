@@ -73,6 +73,8 @@ SimulationEngine::SimulationEngine(
                 "SimulationEngine: ForceRegistry[" + std::to_string(i) + "] cannot be null"
             );
         }
+        // Rebind registries to the engine-local config copy (SSOT at runtime).
+        force_registries_[i]->set_domain(&config_.domains[i]);
     }
     
     if (!integrator_) {
@@ -493,11 +495,28 @@ void SimulationEngine::update_space_charge_models(core::IonEnsemble& ensemble) {
     }
 }
 
+void SimulationEngine::update_dynamic_environments(double t) {
+    for (auto& domain : config_.domains) {
+        if (!domain.environment.has_dynamic_pressure()) {
+            continue;
+        }
+
+        try {
+            domain.environment.update_time_dependent(t, config_.waveforms);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(
+                "Failed to evaluate pressure waveform for domain '" + domain.name + "': " + e.what());
+        }
+    }
+}
+
 double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
     const size_t n_ions = ensemble.size();
     if (dt_per_ion_.size() != n_ions) {
         dt_per_ion_.assign(n_ions, config_.simulation.dt_s);
     }
+
+    update_dynamic_environments(current_time_);
 
     // Refresh environment cache from SSOT domains (prevents drift)
     {

@@ -7,9 +7,21 @@
   
   "properties": {
     "pressure_Pa": {
-      "$ref": "common-types.schema.json#/$defs/pressure",
+      "oneOf": [
+        {
+          "$ref": "common-types.schema.json#/$defs/pressure"
+        },
+        {
+          "$ref": "waveform.schema.json#/definitions/Waveform"
+        },
+        {
+          "type": "string",
+          "pattern": "^@[A-Za-z0-9_-]+$",
+          "description": "Reference to named waveform (@waveform_id)"
+        }
+      ],
       "default": 101325.0,
-      "description": "Gas pressure in Pascals"
+      "description": "Gas pressure in Pascals (constant, inline waveform, or @waveform reference)"
     },
     
     "temperature_K": {

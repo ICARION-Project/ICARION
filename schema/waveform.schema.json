@@ -90,6 +90,46 @@
       },
       "additionalProperties": false
     },
+
+    "ExponentialWaveform": {
+      "type": "object",
+      "description": "Exponential function: y(t) = offset + amplitude * exp(rate_per_s * (t - start_time_s))",
+      "required": ["type", "amplitude", "rate_per_s"],
+      "properties": {
+        "type": {
+          "const": "exponential"
+        },
+        "offset": {
+          "type": "number",
+          "default": 0,
+          "description": "Baseline offset"
+        },
+        "amplitude": {
+          "type": "number",
+          "description": "Exponential scale factor"
+        },
+        "rate_per_s": {
+          "type": "number",
+          "description": "Exponential rate constant [1/s] (negative for decay, positive for growth)"
+        },
+        "start_time_s": {
+          "type": "number",
+          "default": 0,
+          "description": "Waveform start time [seconds]"
+        },
+        "end_time_s": {
+          "type": "number",
+          "default": 1e9,
+          "description": "Waveform end time [seconds]"
+        },
+        "clamp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Hold end value after end_time_s (true) or reset to start value (false)"
+        }
+      },
+      "additionalProperties": false
+    },
     
     "SinusoidalWaveform": {
       "type": "object",
@@ -117,6 +157,57 @@
           "type": "number",
           "default": 0,
           "description": "Phase offset [radians]"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "PWMWaveform": {
+      "type": "object",
+      "description": "PWM square wave: high for duty_cycle of each period, else low",
+      "required": ["type", "low", "high", "frequency_Hz", "duty_cycle"],
+      "properties": {
+        "type": {
+          "const": "pwm"
+        },
+        "low": {
+          "type": "number",
+          "description": "Low value"
+        },
+        "high": {
+          "type": "number",
+          "description": "High value"
+        },
+        "frequency_Hz": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "PWM frequency [Hz]"
+        },
+        "duty_cycle": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Duty cycle (fraction of period at high level)"
+        },
+        "phase_rad": {
+          "type": "number",
+          "default": 0,
+          "description": "Phase offset [radians]"
+        },
+        "start_time_s": {
+          "type": "number",
+          "default": 0,
+          "description": "Waveform start time [seconds]"
+        },
+        "end_time_s": {
+          "type": "number",
+          "default": 1e9,
+          "description": "Waveform end time [seconds]"
+        },
+        "clamp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Hold last value after end_time_s (true) or reset to low (false)"
         }
       },
       "additionalProperties": false
@@ -191,7 +282,9 @@
         {"$ref": "#/definitions/ConstantWaveform"},
         {"$ref": "#/definitions/LinearWaveform"},
         {"$ref": "#/definitions/QuadraticWaveform"},
+        {"$ref": "#/definitions/ExponentialWaveform"},
         {"$ref": "#/definitions/SinusoidalWaveform"},
+        {"$ref": "#/definitions/PWMWaveform"},
         {"$ref": "#/definitions/PulsedWaveform"},
         {"$ref": "#/definitions/ArbitraryWaveform"}
       ]
@@ -241,11 +334,28 @@
       "end_time_s": 0.001
     },
     {
+      "description": "Exponential decay",
+      "type": "exponential",
+      "offset": 500.0,
+      "amplitude": 500.0,
+      "rate_per_s": -2000.0,
+      "end_time_s": 0.005
+    },
+    {
       "description": "Sinusoidal modulation",
       "type": "sinusoidal",
       "offset": 250,
       "amplitude": 50,
       "frequency_Hz": 100
+    },
+    {
+      "description": "PWM excitation",
+      "type": "pwm",
+      "low": 0,
+      "high": 100,
+      "frequency_Hz": 1000,
+      "duty_cycle": 0.25,
+      "phase_rad": 0.0
     },
     {
       "description": "Waveform reference",

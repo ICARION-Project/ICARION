@@ -206,6 +206,11 @@ private:
      * Ensures each unique model recomputes its field cache once per timestep.
      */
     void update_space_charge_models(core::IonEnsemble& ensemble);
+
+    /**
+     * @brief Refresh time-varying environment parameters (e.g., pressure waveform).
+     */
+    void update_dynamic_environments(double t);
     
     /**
      * @brief Process one timestep using SoA (Structure of Arrays)

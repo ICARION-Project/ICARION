@@ -7,6 +7,7 @@
 #include "core/config/loader/ConfigLoader.h"
 #include <fstream>
 #include <filesystem>
+#include <cmath>
 
 using namespace ICARION::config;
 using Catch::Approx;
@@ -224,6 +225,74 @@ TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domain
     REQUIRE(cfg.domains[0].environment.particle_density_m_3 > 0.0);
     REQUIRE(cfg.domains[0].environment.mean_thermal_velocity_m_s > 0.0);
     REQUIRE(cfg.domains[1].environment.particle_density_m_3 > 0.0);
+}
+
+TEST_CASE("ConfigLoader supports pressure waveform in environment", "[config][loader][waveform][environment]") {
+    std::string config = R"({
+        "simulation": {
+            "dt_s": 1e-8,
+            "total_time_s": 1e-6,
+            "integrator": "RK4",
+            "write_interval": 100
+        },
+        "physics": {
+            "collision_model": "NoCollisions"
+        },
+        "output": {
+            "folder": "./output",
+            "trajectory_file": "test.h5"
+        },
+        "waveforms": {
+            "pumpdown": {
+                "type": "exponential",
+                "offset": 1000.0,
+                "amplitude": 1000.0,
+                "rate_per_s": -1000.0,
+                "start_time_s": 0.0,
+                "end_time_s": 1.0,
+                "clamp": true
+            }
+        },
+        "ions": {
+            "species": [
+                {
+                    "id": "H3O+",
+                    "count": 1,
+                    "position": { "type": "point", "center": [0.0, 0.0, 0.001] },
+                    "velocity": { "type": "thermal", "temperature_K": 300.0 }
+                }
+            ]
+        },
+        "domains": [
+            {
+                "name": "ims_domain",
+                "instrument": "IMS",
+                "geometry": {
+                    "length_m": 0.05,
+                    "radius_m": 0.01
+                },
+                "environment": {
+                    "pressure_Pa": "@pumpdown",
+                    "temperature_K": 300.0,
+                    "gas_species": "He"
+                },
+                "fields": {
+                    "DC": {"axial_V": 0.0}
+                }
+            }
+        ]
+    })";
+
+    std::string path = create_temp_config(config, "_pressure_waveform");
+    FullConfig cfg = ConfigLoader::load(path);
+
+    REQUIRE(cfg.domains.size() == 1);
+    REQUIRE(cfg.domains[0].environment.has_dynamic_pressure());
+    REQUIRE(cfg.domains[0].environment.pressure_Pa == Approx(2000.0));
+
+    cfg.domains[0].environment.update_time_dependent(0.001, cfg.waveforms);
+    REQUIRE(cfg.domains[0].environment.pressure_Pa == Approx(1000.0 + 1000.0 * std::exp(-1.0)).epsilon(1e-9));
+    REQUIRE(cfg.domains[0].environment.particle_density_m_3 > 0.0);
 }
 
 TEST_CASE("ConfigLoader handles file not found", "[config][loader]") {

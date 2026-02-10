@@ -74,13 +74,29 @@ Custom voltage profile from time-value pairs with linear interpolation.
 ./build/src/icarion_main examples/waveforms/arbitrary_waveform.json
 ```
 
+### 6. Exponential RF + Pressure Control (`exponential_pressure_control.json`)
+
+LQIT example with exponential RF amplitude decay and exponential pressure pump-down.
+
+**Features:**
+- Exponential waveform type (`type: "exponential"`)
+- Global waveform references in both `fields` and `env.pressure_Pa`
+- Use case: Pump-down, soft turn-off envelopes, collision-rate ramps
+
+**Run:**
+```bash
+./build/src/icarion_main examples/waveforms/exponential_pressure_control.json
+```
+
 ## Waveform Types Summary
 
 | Type | Parameters | Use Case |
 |------|------------|----------|
 | `linear` | start, end, duration_s | Voltage/frequency sweeps |
 | `quadratic` | a, b, c | Acceleration profiles |
+| `exponential` | offset, amplitude, rate_per_s | Pump-down, exponential envelopes |
 | `sinusoidal` | amplitude, frequency_Hz | Modulation, oscillation |
+| `pwm` | low, high, frequency_Hz, duty_cycle | PWM excitation, switching |
 | `pulsed` | low, high, pulse_start_s, pulse_width_s | Gating, injection |
 | `arbitrary` | times[], values[] | Custom experimental profiles |
 | `constant` | value | Static value (backward compatible) |

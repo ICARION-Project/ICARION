@@ -1521,12 +1521,32 @@ void HDF5Writer::write_waveform(
             write_scalar(wf_group, "start_time_s", w.start_time_s);
             write_scalar(wf_group, "end_time_s", w.end_time_s);
         }
+        else if constexpr (std::is_same_v<T, config::ExponentialWaveform>) {
+            write_string(wf_group, "type", "exponential");
+            write_scalar(wf_group, "offset", w.offset);
+            write_scalar(wf_group, "amplitude", w.amplitude);
+            write_scalar(wf_group, "rate_per_s", w.rate_per_s);
+            write_scalar(wf_group, "start_time_s", w.start_time_s);
+            write_scalar(wf_group, "end_time_s", w.end_time_s);
+            write_scalar(wf_group, "clamp", w.clamp);
+        }
         else if constexpr (std::is_same_v<T, config::SinusoidalWaveform>) {
             write_string(wf_group, "type", "sinusoidal");
             write_scalar(wf_group, "offset", w.offset);
             write_scalar(wf_group, "amplitude", w.amplitude);
             write_scalar(wf_group, "frequency_Hz", w.frequency_Hz);
             write_scalar(wf_group, "phase_rad", w.phase_rad);
+        }
+        else if constexpr (std::is_same_v<T, config::PWMWaveform>) {
+            write_string(wf_group, "type", "pwm");
+            write_scalar(wf_group, "low_value", w.low_value);
+            write_scalar(wf_group, "high_value", w.high_value);
+            write_scalar(wf_group, "frequency_Hz", w.frequency_Hz);
+            write_scalar(wf_group, "duty_cycle", w.duty_cycle);
+            write_scalar(wf_group, "phase_rad", w.phase_rad);
+            write_scalar(wf_group, "start_time_s", w.start_time_s);
+            write_scalar(wf_group, "end_time_s", w.end_time_s);
+            write_scalar(wf_group, "clamp", w.clamp);
         }
         else if constexpr (std::is_same_v<T, config::PulsedWaveform>) {
             write_string(wf_group, "type", "pulsed");

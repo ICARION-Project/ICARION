@@ -91,6 +91,22 @@ QuadraticWaveform WaveformLoader::load_quadratic(const Json::Value& json) {
     return w;
 }
 
+ExponentialWaveform WaveformLoader::load_exponential(const Json::Value& json) {
+    ExponentialWaveform w;
+    w.amplitude = get_required<double>(json, "amplitude", "exponential");
+    w.rate_per_s = get_required<double>(json, "rate_per_s", "exponential");
+    w.offset = get_optional<double>(json, "offset", 0.0);
+    w.start_time_s = get_optional<double>(json, "start_time_s", 0.0);
+    w.end_time_s = get_optional<double>(json, "end_time_s", 1e9);
+    w.clamp = get_optional<bool>(json, "clamp", true);
+
+    if (w.end_time_s <= w.start_time_s) {
+        throw std::runtime_error("ExponentialWaveform: end_time_s must be > start_time_s");
+    }
+
+    return w;
+}
+
 SinusoidalWaveform WaveformLoader::load_sinusoidal(const Json::Value& json) {
     SinusoidalWaveform w;
     w.amplitude = get_required<double>(json, "amplitude", "sinusoidal");
@@ -102,6 +118,30 @@ SinusoidalWaveform WaveformLoader::load_sinusoidal(const Json::Value& json) {
         throw std::runtime_error("SinusoidalWaveform: frequency_Hz must be positive");
     }
     
+    return w;
+}
+
+PWMWaveform WaveformLoader::load_pwm(const Json::Value& json) {
+    PWMWaveform w;
+    w.low_value = get_required<double>(json, "low", "pwm");
+    w.high_value = get_required<double>(json, "high", "pwm");
+    w.frequency_Hz = get_required<double>(json, "frequency_Hz", "pwm");
+    w.duty_cycle = get_required<double>(json, "duty_cycle", "pwm");
+    w.phase_rad = get_optional<double>(json, "phase_rad", 0.0);
+    w.start_time_s = get_optional<double>(json, "start_time_s", 0.0);
+    w.end_time_s = get_optional<double>(json, "end_time_s", 1e9);
+    w.clamp = get_optional<bool>(json, "clamp", true);
+
+    if (w.frequency_Hz <= 0.0) {
+        throw std::runtime_error("PWMWaveform: frequency_Hz must be positive");
+    }
+    if (w.duty_cycle < 0.0 || w.duty_cycle > 1.0) {
+        throw std::runtime_error("PWMWaveform: duty_cycle must be in [0, 1]");
+    }
+    if (w.end_time_s <= w.start_time_s) {
+        throw std::runtime_error("PWMWaveform: end_time_s must be > start_time_s");
+    }
+
     return w;
 }
 
@@ -206,8 +246,12 @@ Waveform WaveformLoader::load(const Json::Value& json) {
         waveform.data = load_linear(json);
     } else if (type == "quadratic") {
         waveform.data = load_quadratic(json);
+    } else if (type == "exponential") {
+        waveform.data = load_exponential(json);
     } else if (type == "sinusoidal") {
         waveform.data = load_sinusoidal(json);
+    } else if (type == "pwm") {
+        waveform.data = load_pwm(json);
     } else if (type == "pulsed") {
         waveform.data = load_pulsed(json);
     } else if (type == "arbitrary") {

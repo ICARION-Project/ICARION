@@ -20,7 +20,9 @@ enum class WaveformType {
     Constant,       ///< y = value
     Linear,         ///< y = start + (end - start) * t_norm
     Quadratic,      ///< y = a + b*t + c*t²
+    Exponential,    ///< y = offset + amplitude * exp(rate * t_rel)
     Sinusoidal,     ///< y = offset + amplitude * sin(2π*f*t + φ)
+    PWM,            ///< y = high for duty cycle, else low (periodic)
     Pulsed,         ///< y = high (during pulse), else low
     Arbitrary       ///< Interpolated from time table
 };
@@ -76,6 +78,38 @@ struct QuadraticWaveform {
 };
 
 /**
+ * @brief Exponential waveform
+ * y(t) = offset + amplitude * exp(rate_per_s * (t - start_time_s))
+ */
+struct ExponentialWaveform {
+    double offset = 0.0;
+    double amplitude = 0.0;
+    double rate_per_s = 0.0;
+    double start_time_s = 0.0;
+    double end_time_s = 1e9;
+    bool clamp = true;  ///< Hold end value after end_time
+
+    double evaluate(double t) const {
+        auto value_at = [this](double rel_t) {
+            return offset + amplitude * std::exp(rate_per_s * rel_t);
+        };
+
+        if (t < start_time_s) {
+            return value_at(0.0);
+        }
+
+        if (t >= end_time_s) {
+            if (!clamp) {
+                return value_at(0.0);
+            }
+            return value_at(end_time_s - start_time_s);
+        }
+
+        return value_at(t - start_time_s);
+    }
+};
+
+/**
  * @brief Sinusoidal modulation waveform
  */
 struct SinusoidalWaveform {
@@ -87,6 +121,48 @@ struct SinusoidalWaveform {
     double evaluate(double t) const {
         double omega = 2.0 * M_PI * frequency_Hz;
         return offset + amplitude * std::sin(omega * t + phase_rad);
+    }
+};
+
+/**
+ * @brief PWM (pulse-width modulation) waveform
+ * y(t) = high for duty_cycle of each period, else low
+ */
+struct PWMWaveform {
+    double low_value = 0.0;
+    double high_value = 0.0;
+    double frequency_Hz = 0.0;
+    double duty_cycle = 0.5;   ///< Fraction of period [0..1]
+    double phase_rad = 0.0;
+    double start_time_s = 0.0;
+    double end_time_s = 1e9;
+    bool clamp = true;  ///< Hold last value after end_time
+
+    double evaluate(double t) const {
+        if (frequency_Hz <= 0.0) {
+            return low_value;
+        }
+
+        auto eval_at = [this](double t_rel) {
+            const double period = 1.0 / frequency_Hz;
+            const double phase_shift = phase_rad / (2.0 * M_PI * frequency_Hz);
+            double phase = std::fmod(t_rel + phase_shift, period);
+            if (phase < 0.0) phase += period;
+            return (phase < duty_cycle * period) ? high_value : low_value;
+        };
+
+        if (t < start_time_s) {
+            return low_value;
+        }
+
+        if (t >= end_time_s) {
+            if (!clamp) {
+                return low_value;
+            }
+            return eval_at(end_time_s - start_time_s);
+        }
+
+        return eval_at(t - start_time_s);
     }
 };
 
@@ -131,7 +207,9 @@ using WaveformVariant = std::variant<
     ConstantWaveform,
     LinearWaveform,
     QuadraticWaveform,
+    ExponentialWaveform,
     SinusoidalWaveform,
+    PWMWaveform,
     PulsedWaveform,
     ArbitraryWaveform
 >;

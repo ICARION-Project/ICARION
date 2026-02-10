@@ -51,7 +51,8 @@ is_valid, errors = validator.validate_file(Path("config.json"))
 
 ## Waveform Support
 
-All voltage/frequency parameters support static values or time-varying waveforms:
+All voltage/frequency parameters support static values or time-varying waveforms.
+`environment.pressure_Pa` supports the same syntax:
 
 **Static (backward compatible):**
 ```json
@@ -63,7 +64,7 @@ All voltage/frequency parameters support static values or time-varying waveforms
 "voltage_V": {"type": "linear", "start": 0, "end": 500, "end_time_s": 0.001}
 ```
 
-**Waveform types:** `constant`, `linear`, `quadratic`, `sinusoidal`, `pulsed`, `arbitrary`
+**Waveform types:** `constant`, `linear`, `quadratic`, `exponential`, `sinusoidal`, `pwm`, `pulsed`, `arbitrary`
 
 See `docs/CONFIG_GUIDE.md` and `examples/waveforms/` for details.
 

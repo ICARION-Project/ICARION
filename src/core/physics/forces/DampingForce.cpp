@@ -87,12 +87,24 @@ std::string DampingForce::name() const {
 // ============================================================================
 
 double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ctx) const {
-    (void)ctx;  // SSOT: Read from env_ config directly
-    
-    // SSOT: Read gas properties from config
-    const double gas_density = env_->particle_density_m_3;
-    const double v_th = env_->mean_thermal_velocity_m_s;
-    const double m_neutral = env_->gas_mass_kg;
+    const auto* active_env = env_;
+    if (ctx.domain) {
+        active_env = &ctx.domain->environment;
+    }
+
+    // Prefer per-ion environment cache when available (keeps damping in sync with
+    // time-varying environment updates from SimulationEngine).
+    double gas_density = active_env->particle_density_m_3;
+    double temperature_K = active_env->temperature_K;
+    double m_neutral = active_env->gas_mass_kg;
+    if (ctx.ion_ensemble && ctx.ion_index < ctx.ion_ensemble->size()) {
+        gas_density = ctx.ion_ensemble->gas_density(ctx.ion_index);
+        temperature_K = ctx.ion_ensemble->temperature(ctx.ion_index);
+        m_neutral = ctx.ion_ensemble->neutral_mass(ctx.ion_index);
+    }
+    const double v_th = (temperature_K > 0.0 && m_neutral > 0.0)
+        ? std::sqrt(8.0 * BOLTZMANN_CONSTANT * temperature_K / (M_PI * m_neutral))
+        : 0.0;
     
     // ========================================================================
     // Model-specific damping coefficient calculation
@@ -119,7 +131,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             // γ = ν_Langevin = n·σ_L(v)·v_th·m_reduced/m_ion
             // where σ_L = π·q·√(α/(4πε₀·m_reduced))/|v|
             
-            const double alpha = env_->gas_polarizability_m3;
+            const double alpha = active_env->gas_polarizability_m3;
             
             const double m_ion = ion.mass_kg;
             const double q = ion.ion_charge_C;
@@ -155,7 +167,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             const double K0_m2_Vs = K0_cm2_Vs * 1e-4;
             const double N_ratio = LOSCHMIDT_CONSTANT / gas_density;
             // Temperature correction (Mason-Schamp): K ∝ sqrt(T0 / T)
-            const double teff_scale = std::sqrt(STP_TEMP / std::max(env_->temperature_K, 1.0));
+            const double teff_scale = std::sqrt(STP_TEMP / std::max(temperature_K, 1.0));
             const double K0_teff_m2_Vs = K0_m2_Vs * teff_scale;
 
             // DEBUG: Print what we're actually using
@@ -198,24 +210,24 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             };
 
             // If mixture present: use Blanc's law with per-gas mobility scaling
-            if (!env_->gas_mixture.empty()) {
+            if (!active_env->gas_mixture.empty()) {
                 const double sigma_ref = ion.CCS_m2;
                 if (sigma_ref <= 0.0) {
                     throw std::runtime_error("[DampingForce] Missing CCS for species '" + ion.species_id + "'");
                 }
-                if (env_->gas_mass_kg <= 0.0) {
+                if (active_env->gas_mass_kg <= 0.0) {
                     throw std::runtime_error("[DampingForce] Invalid mixture-averaged gas mass");
                 }
                 double frac_sum = 0.0;
                 double inv_K_sum = 0.0;
-                for (const auto& comp : env_->gas_mixture) {
+                for (const auto& comp : active_env->gas_mixture) {
                     if (!comp.participates_in_collisions) continue;
                     frac_sum += comp.mole_fraction;
                 }
                 if (frac_sum <= 0.0) {
                     throw std::runtime_error("[DampingForce] Gas mixture has zero participating fraction");
                 }
-                for (const auto& comp : env_->gas_mixture) {
+                for (const auto& comp : active_env->gas_mixture) {
                     if (!comp.participates_in_collisions) continue;
                     double f = comp.mole_fraction / frac_sum;
                     double sigma_i = lookup_sigma(comp);
@@ -229,7 +241,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
 
                     // Heuristic scaling: mobility ∝ 1/σ · sqrt(m_ref / m_gas)
                     double scale_sigma = sigma_ref / sigma_i;
-                    double scale_mass = std::sqrt(env_->gas_mass_kg / comp.mass_kg);
+                    double scale_mass = std::sqrt(active_env->gas_mass_kg / comp.mass_kg);
                     double Ki = K0_teff_m2_Vs * scale_sigma * scale_mass * N_ratio;
                     if (Ki <= 0.0) {
                         continue;

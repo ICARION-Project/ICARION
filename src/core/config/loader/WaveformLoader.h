@@ -53,7 +53,9 @@ private:
     static ConstantWaveform load_constant(const Json::Value& json);
     static LinearWaveform load_linear(const Json::Value& json);
     static QuadraticWaveform load_quadratic(const Json::Value& json);
+    static ExponentialWaveform load_exponential(const Json::Value& json);
     static SinusoidalWaveform load_sinusoidal(const Json::Value& json);
+    static PWMWaveform load_pwm(const Json::Value& json);
     static PulsedWaveform load_pulsed(const Json::Value& json);
     static ArbitraryWaveform load_arbitrary(const Json::Value& json);
     

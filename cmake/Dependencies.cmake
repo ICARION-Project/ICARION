@@ -48,6 +48,17 @@ if(NOT spdlog_FOUND)
     )
     FetchContent_MakeAvailable(spdlog)
 endif()
+
+# GCC 13 can emit a known false-positive -Warray-bounds warning in bundled fmt
+# used by spdlog (format.h bigint path). Keep warnings enabled globally, but
+# suppress this one only for the third-party spdlog build target.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
+   CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 13)
+    if(TARGET spdlog)
+        target_compile_options(spdlog PRIVATE -Wno-array-bounds)
+    endif()
+endif()
+
 list(APPEND ICARION_CORE_DEPS spdlog::spdlog)
 
 # OpenSSL (for SHA256 file hashing)
@@ -62,4 +73,3 @@ if(OpenMP_CXX_FOUND)
 else()
     message(WARNING "OpenMP 4.5+ not found - simulations will be single-threaded")
 endif()
-

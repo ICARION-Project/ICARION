@@ -42,7 +42,7 @@ DomainConfig DomainConfigLoader::load(
     if (json.isMember("env") || json.isMember("environment")) {
         // Support both "env" (new) and "environment" (legacy)
         const Json::Value& env_json = json.isMember("env") ? json["env"] : json["environment"];
-        config.environment = load_environment(env_json);
+        config.environment = load_environment(env_json, global_waveforms);
     } else {
         throw std::runtime_error("Domain '" + config.name + "' missing required 'env' section");
     }
@@ -115,12 +115,24 @@ GeometryConfig DomainConfigLoader::load_geometry(const Json::Value& json) {
     return geom;
 }
 
-EnvironmentConfig DomainConfigLoader::load_environment(const Json::Value& json) {
+EnvironmentConfig DomainConfigLoader::load_environment(
+    const Json::Value& json,
+    const std::map<std::string, Waveform>& global_waveforms
+) {
     EnvironmentConfig env;
     
     // Pressure
-    if (json.isMember("pressure_Pa") && json["pressure_Pa"].isNumeric()) {
-        env.pressure_Pa = json["pressure_Pa"].asDouble();
+    if (json.isMember("pressure_Pa")) {
+        try {
+            env.pressure_Pa_waveform = WaveformLoader::load_value_or_waveform(
+                json["pressure_Pa"],
+                {},  // no local environment waveform library
+                global_waveforms
+            );
+            env.pressure_Pa = env.pressure_Pa_waveform.evaluate(0.0, global_waveforms);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load environment pressure_Pa: ") + e.what());
+        }
     }
     
     // Temperature

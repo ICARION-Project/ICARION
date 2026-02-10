@@ -125,6 +125,13 @@ public:
   const config::DomainConfig *domain() const { return domain_; }
 
   /**
+   * @brief Rebind domain pointer (non-owning)
+   *
+   * Used when a copied configuration becomes the active SSOT.
+   */
+  void set_domain(const config::DomainConfig *domain) { domain_ = domain; }
+
+  /**
    * @brief Set optional field model (non-owning)
    *
    * Allows integrators to pass a constructed IFieldModel via ForceContext.

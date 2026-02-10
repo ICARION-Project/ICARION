@@ -81,6 +81,36 @@ TEST_CASE("QuadraticWaveform: after end time", "[waveform][quadratic]") {
     CHECK(w.evaluate(5.0) == 10.0);
 }
 
+TEST_CASE("ExponentialWaveform: growth and clamping", "[waveform][exponential]") {
+    ExponentialWaveform w;
+    w.offset = 2.0;
+    w.amplitude = 3.0;
+    w.rate_per_s = 1.0;
+    w.start_time_s = 1.0;
+    w.end_time_s = 2.0;
+    w.clamp = true;
+
+    // y = 2 + 3*exp(t-1)
+    CHECK_THAT(w.evaluate(0.5), WithinAbs(5.0, 1e-9));                        // before start -> start value
+    CHECK_THAT(w.evaluate(1.0), WithinAbs(5.0, 1e-9));                        // at start
+    CHECK_THAT(w.evaluate(1.5), WithinAbs(2.0 + 3.0 * std::exp(0.5), 1e-9));  // during active interval
+    CHECK_THAT(w.evaluate(3.0), WithinAbs(2.0 + 3.0 * std::exp(1.0), 1e-9));  // clamped at end
+}
+
+TEST_CASE("ExponentialWaveform: unclamped resets to start", "[waveform][exponential]") {
+    ExponentialWaveform w;
+    w.offset = 0.0;
+    w.amplitude = 10.0;
+    w.rate_per_s = -2.0;
+    w.start_time_s = 0.0;
+    w.end_time_s = 1.0;
+    w.clamp = false;
+
+    CHECK_THAT(w.evaluate(0.0), WithinAbs(10.0, 1e-9));
+    CHECK_THAT(w.evaluate(0.5), WithinAbs(10.0 * std::exp(-1.0), 1e-9));
+    CHECK_THAT(w.evaluate(2.0), WithinAbs(10.0, 1e-9));  // unclamped -> reset to start value
+}
+
 TEST_CASE("SinusoidalWaveform: at key phases", "[waveform][sinusoidal]") {
     // y = 250 + 50*sin(2π*100*t + 0)
     SinusoidalWaveform w{250.0, 50.0, 100.0, 0.0};
@@ -98,6 +128,23 @@ TEST_CASE("SinusoidalWaveform: with phase offset", "[waveform][sinusoidal]") {
     CHECK_THAT(w.evaluate(0.0), WithinAbs(1.0, 1e-9));     // cos(0) = 1
     CHECK_THAT(w.evaluate(0.25), WithinAbs(0.0, 1e-6));    // cos(π/2) = 0
     CHECK_THAT(w.evaluate(0.5), WithinAbs(-1.0, 1e-6));    // cos(π) = -1
+}
+
+TEST_CASE("PWMWaveform: duty cycle and phase", "[waveform][pwm]") {
+    PWMWaveform w;
+    w.low_value = 0.0;
+    w.high_value = 5.0;
+    w.frequency_Hz = 10.0;  // period = 0.1 s
+    w.duty_cycle = 0.25;    // high for 0.025 s
+    w.phase_rad = 0.0;
+    w.start_time_s = 0.0;
+    w.end_time_s = 1.0;
+    w.clamp = true;
+
+    CHECK(w.evaluate(0.0) == 5.0);
+    CHECK(w.evaluate(0.02) == 5.0);
+    CHECK(w.evaluate(0.03) == 0.0);
+    CHECK(w.evaluate(0.12) == 5.0);  // next period, still high at 0.02 rel
 }
 
 TEST_CASE("PulsedWaveform: before pulse", "[waveform][pulsed]") {
@@ -179,8 +226,8 @@ TEST_CASE("Waveform variant: evaluate via std::visit", "[waveform][variant]") {
     CHECK_THAT(w2.evaluate(0.5), WithinAbs(50.0, 1e-6));
     
     Waveform w3;
-    w3.data = SinusoidalWaveform{250.0, 50.0, 100.0, 0.0};
-    CHECK_THAT(w3.evaluate(0.0), WithinAbs(250.0, 1e-9));
+    w3.data = ExponentialWaveform{2.0, 3.0, 1.0, 0.0, 1.0, true};
+    CHECK_THAT(w3.evaluate(0.0), WithinAbs(5.0, 1e-9));
 }
 
 TEST_CASE("ValueOrWaveform: constant value", "[waveform][value_or_waveform]") {

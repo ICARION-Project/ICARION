@@ -1,0 +1,88 @@
+{
+  "title": "Exponential RF + Pressure Waveform Example",
+  "_comment": "Demonstrates exponential waveform support and dynamic pressure control",
+
+  "simulation": {
+    "total_time_s": 0.002,
+    "dt_s": 1e-8,
+    "integrator": "RK4",
+    "write_interval": 200
+  },
+
+  "physics": {
+    "collision_model": "HSS",
+    "enable_reactions": false,
+    "enable_space_charge": false
+  },
+
+  "output": {
+    "folder": "./results/waveform_outputs",
+    "trajectory_file": "exponential_pressure.h5",
+    "print_progress": true
+  },
+
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 100,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.001],
+          "std": [0.0005, 0.0005, 0.0002]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+
+  "waveforms": {
+    "rf_decay": {
+      "type": "exponential",
+      "offset": 0.0,
+      "amplitude": 400.0,
+      "rate_per_s": -1500.0,
+      "start_time_s": 0.0,
+      "end_time_s": 0.002,
+      "clamp": true
+    },
+    "pressure_pumpdown": {
+      "type": "exponential",
+      "offset": 200.0,
+      "amplitude": 80000.0,
+      "rate_per_s": -2500.0,
+      "start_time_s": 0.0,
+      "end_time_s": 0.002,
+      "clamp": true
+    }
+  },
+
+  "domains": [
+    {
+      "name": "lqit_region",
+      "instrument": "LQIT",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "pressure_Pa": "@pressure_pumpdown",
+        "temperature_K": 300.0,
+        "gas_species": "He"
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 30.0
+        },
+        "RF": {
+          "voltage_V": "@rf_decay",
+          "frequency_Hz": 1000000.0
+        }
+      }
+    }
+  ]
+}

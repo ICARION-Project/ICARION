@@ -13,6 +13,12 @@ add_library(icarion_core STATIC)
 
 target_compile_features(icarion_core PUBLIC cxx_std_20)
 
+# GCC 13 false-positive -Warray-bounds warning from spdlog/fmt headers.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
+   CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 13)
+    target_compile_options(icarion_core PRIVATE -Wno-array-bounds -Wno-stringop-overflow)
+endif()
+
 # ---------------------------------------------------------------------
 # Source groups for the core library
 # ---------------------------------------------------------------------

@@ -6,6 +6,7 @@
 
 #include "core/utils/mathUtils.h"
 #include "utils/constants.h"
+#include "WaveformConfig.h"
 #include "../validation/ValidationResult.h"
 #include <string>
 #include <cmath>
@@ -45,6 +46,7 @@ struct GasMixtureComponent {
 struct EnvironmentConfig {
     // === Input parameters ===
     double pressure_Pa = 101325.0;          ///< Pressure [Pa] (default: 1 atm)
+    ValueOrWaveform pressure_Pa_waveform{101325.0}; ///< Optional pressure waveform (evaluated at runtime)
     double temperature_K = 300.0;           ///< Temperature [K] (default: room temp)
     std::string gas_species = "He";         ///< Buffer gas species ID
     Vec3 gas_velocity_m_s = {0.0, 0.0, 0.0}; ///< Bulk gas flow velocity [m/s]
@@ -59,6 +61,23 @@ struct EnvironmentConfig {
     double gas_mass_kg = 0.0;               ///< Molecular mass [kg]
     double gas_polarizability_m3 = 0.0;     ///< Polarizability [m³]
     double gas_radius_m = 0.0;              ///< Hard-sphere radius [m]
+
+    bool has_dynamic_pressure() const {
+        return pressure_Pa_waveform.is_time_varying();
+    }
+
+    void update_time_dependent(double t_s, const std::map<std::string, Waveform>& waveform_library = {}) {
+        if (!has_dynamic_pressure()) {
+            return;
+        }
+
+        pressure_Pa = pressure_Pa_waveform.evaluate(t_s, waveform_library);
+        if (pressure_Pa <= 0.0) {
+            throw std::runtime_error("EnvironmentConfig: pressure waveform evaluated to non-positive value");
+        }
+
+        compute_derived_properties();
+    }
     
     /**
      * @brief Compute derived thermodynamic quantities
@@ -205,6 +224,10 @@ struct EnvironmentConfig {
      */
     ValidationResult validate() const {
         ValidationResult result;
+
+        if (!pressure_Pa_waveform.is_valid()) {
+            result.add_error("Pressure waveform configuration is invalid");
+        }
         
         if (pressure_Pa <= 0.0) {
             result.add_error("Pressure must be positive");

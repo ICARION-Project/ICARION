@@ -104,6 +104,30 @@ TEST_CASE("WaveformLoader: load quadratic waveform", "[waveform][loader]") {
     CHECK(qw.c == 2.0);
 }
 
+TEST_CASE("WaveformLoader: load exponential waveform", "[waveform][loader]") {
+    std::string json_str = R"({
+        "type": "exponential",
+        "offset": 1.0,
+        "amplitude": 4.0,
+        "rate_per_s": -10.0,
+        "start_time_s": 0.0,
+        "end_time_s": 0.5,
+        "clamp": true
+    })";
+
+    Json::Value json = parse_json(json_str);
+    Waveform w = WaveformLoader::load(json);
+
+    REQUIRE(std::holds_alternative<ExponentialWaveform>(w.data));
+    const auto& ew = std::get<ExponentialWaveform>(w.data);
+    CHECK(ew.offset == 1.0);
+    CHECK(ew.amplitude == 4.0);
+    CHECK(ew.rate_per_s == -10.0);
+    CHECK(ew.start_time_s == 0.0);
+    CHECK(ew.end_time_s == 0.5);
+    CHECK(ew.clamp == true);
+}
+
 TEST_CASE("WaveformLoader: load sinusoidal waveform", "[waveform][loader]") {
     std::string json_str = R"({
         "type": "sinusoidal",
@@ -122,6 +146,34 @@ TEST_CASE("WaveformLoader: load sinusoidal waveform", "[waveform][loader]") {
     CHECK(sw.amplitude == 50.0);
     CHECK(sw.frequency_Hz == 100.0);
     CHECK_THAT(sw.phase_rad, WithinAbs(1.57, 1e-9));
+}
+
+TEST_CASE("WaveformLoader: load PWM waveform", "[waveform][loader]") {
+    std::string json_str = R"({
+        "type": "pwm",
+        "low": 0.0,
+        "high": 5.0,
+        "frequency_Hz": 1000.0,
+        "duty_cycle": 0.1,
+        "phase_rad": 1.57,
+        "start_time_s": 0.0,
+        "end_time_s": 1.0,
+        "clamp": true
+    })";
+
+    Json::Value json = parse_json(json_str);
+    Waveform w = WaveformLoader::load(json);
+
+    REQUIRE(std::holds_alternative<PWMWaveform>(w.data));
+    const auto& pw = std::get<PWMWaveform>(w.data);
+    CHECK(pw.low_value == 0.0);
+    CHECK(pw.high_value == 5.0);
+    CHECK(pw.frequency_Hz == 1000.0);
+    CHECK(pw.duty_cycle == 0.1);
+    CHECK_THAT(pw.phase_rad, WithinAbs(1.57, 1e-9));
+    CHECK(pw.start_time_s == 0.0);
+    CHECK(pw.end_time_s == 1.0);
+    CHECK(pw.clamp == true);
 }
 
 TEST_CASE("WaveformLoader: load pulsed waveform", "[waveform][loader]") {
@@ -267,7 +319,7 @@ TEST_CASE("WaveformLoader: missing required field throws", "[waveform][loader][e
 
 TEST_CASE("WaveformLoader: unknown type throws", "[waveform][loader][error]") {
     std::string json_str = R"({
-        "type": "exponential",
+        "type": "nonexistent_waveform",
         "value": 100
     })";
     

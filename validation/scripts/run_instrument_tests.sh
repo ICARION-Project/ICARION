@@ -79,7 +79,7 @@ VALIDATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$VALIDATION_DIR/.." && pwd)"
 DEFAULT_BINARY="$REPO_ROOT/build/src/icarion_main"
 DEFAULT_CONFIG_ROOT="$VALIDATION_DIR/configs/instruments"
-DEFAULT_OUTPUT_ROOT="$VALIDATION_DIR/results/v1.0_test/instruments"
+DEFAULT_OUTPUT_ROOT="$VALIDATION_DIR/results/v1.0.0_test/instruments"
 
 JOBS=2
 THREADS=4

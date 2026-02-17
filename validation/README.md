@@ -1,9 +1,9 @@
 # ICARION Validation Suite
 
-**Version:** 1.0  
+**Version:** 1.0.0  
 **Last Updated:** 2026-01-09  
-**Branch:** `release/v1.0-prep`  
-**Goal:** Systematic validation of physics and performance for the v1.0 release. The suite ships with this repo and does not require external assets.
+**Branch:** `release/v1.0.0-prep`  
+**Goal:** Systematic validation of physics and performance for the v1.0.0 release. The suite ships with this repo and does not require external assets.
 
 **Validation vs CTests**
 
@@ -28,8 +28,8 @@ This directory contains high-fidelity validations (runtime up to ~30 minutes). F
 | Transport | Drift, gas flow, mixtures | `configs/physics/transport/` (generated) | `scripts/run_physics_suite.sh` | Partial | Diffusion validation pending |
 | Space Charge | Coulomb expansion, solver parity | `configs/physics/spacecharge/` | `scripts/run_physics_suite.sh spacecharge` | Complete | Samples checked in |
 | Reactions | First-order + bimolecular | `configs/physics/reactions/` | `scripts/run_physics_suite.sh reactions` | Complete | Samples checked in |
-| Performance (CPU) | Scaling + model overhead | 18 | `scripts/performance/run_performance_suite.sh` | Complete | CPU only in v1.0 |
-| Performance (GPU) | Speedup vs CPU | 31 (generated) | `scripts/performance/run_performance_suite.sh --gpu-only` | Skipped | Runtime GPU disabled in v1.0 |
+| Performance (CPU) | Scaling + model overhead | 18 | `scripts/performance/run_performance_suite.sh` | Complete | CPU only in v1.0.0 |
+| Performance (GPU) | Speedup vs CPU | 31 (generated) | `scripts/performance/run_performance_suite.sh --gpu-only` | Skipped | Runtime GPU disabled in v1.0.0 |
 
 ---
 
@@ -45,7 +45,7 @@ cd /home/chsch95/ICARION/validation
 # Physics (includes thermalization, transport, reactions, space charge)
 ./scripts/run_physics_suite.sh
 
-# Performance (CPU only in v1.0)
+# Performance (CPU only in v1.0.0)
 ./scripts/performance/run_performance_suite.sh
 ```
 
@@ -75,7 +75,7 @@ python3 scripts/thermalization/generate_thermalization_configs.py
   - Quadrupole: `scripts/instrumentation/configs/generate_quadrupole_stability_map.py`, `scripts/instrumentation/quadrupole/analyze_quadrupole_stability_map.py`
   - TOF: `scripts/instrumentation/tof/analyze_tof_flight_time.py`
   - FT-ICR: `scripts/instrumentation/configs/generate_fticr_configs.py`, `scripts/instrumentation/fticr/analyze_fticr_frequencies.py`
-- Results (baseline): `results/v1.0_test/instruments/`
+- Results (baseline): `results/v1.0.0_test/instruments/`
 - Results (per-run): `runs/<run-id>/results/instruments/`
 
 #### Physics (includes thermalization, transport, reactions, space charge)
@@ -86,8 +86,8 @@ python3 scripts/thermalization/generate_thermalization_configs.py
 
 #### Performance
 - CPU: `scripts/performance/run_performance_suite.sh`, `scripts/performance/run_performance_analysis.sh`
-- GPU: `scripts/performance/generate_gpu_performance_configs.py` (generated configs; GPU runtime disabled in v1.0)
-- Results (baseline): `results/v1.0_test/performance/logs/`
+- GPU: `scripts/performance/generate_gpu_performance_configs.py` (generated configs; GPU runtime disabled in v1.0.0)
+- Results (baseline): `results/v1.0.0_test/performance/logs/`
 - Results (per-run): `runs/<run-id>/results/performance/logs/`
 
 ### Physics components (covered by the physics runner)
@@ -97,7 +97,7 @@ python3 scripts/thermalization/generate_thermalization_configs.py
 - Runner: `scripts/thermalization/run_thermalization_tests.sh`
 - Analysis: `scripts/thermalization/analyze_thermalization_complete.py`
 - Configs: `configs/physics/thermalization/` (generated)
-- Results: `results/v1.0_test/physics/thermalization/`
+- Results: `results/v1.0.0_test/physics/thermalization/`
 
 #### Transport and Mixtures
 - Config generator: `scripts/instrumentation/configs/generate_transport_drift_configs.py`
@@ -112,7 +112,7 @@ python3 scripts/thermalization/generate_thermalization_configs.py
 #### Space Charge
 - Configs: `configs/physics/spacecharge/`
 - Scripts: `scripts/physics/validate_space_charge_adaptive_parity.py`, `scripts/physics/bench_space_charge_adaptive.py`, `scripts/physics/analyze_spacecharge.py`
-- Results: `results/v1.0_test/physics/spacecharge/`
+- Results: `results/v1.0.0_test/physics/spacecharge/`
 
 #### Reactions
 - Configs: `configs/physics/reactions/`
@@ -149,10 +149,10 @@ validation/
 **Config policy:** Generators emit JSON configs under `validation/configs/<category>/`. If a folder is empty, re-run the relevant generator. Legacy pre-generated configs may still live under `validation/scripts/configs/` for reference.
 
 **Results layout:**
-- `validation/results/v1.0_test/instruments/<instrument>/...`
+- `validation/results/v1.0.0_test/instruments/<instrument>/...`
 - `validation/results/<suite>/` for gas flow, combined drift, mixture mobility/thermalization, reactions
-- `validation/results/v1.0_test/performance/logs/`
-- `validation/results/v1.0_test/` for frozen baselines
+- `validation/results/v1.0.0_test/performance/logs/`
+- `validation/results/v1.0.0_test/` for frozen baselines
 - Legacy runs may exist under `validation/results/physics/<suite>/`
 
 ---
@@ -197,7 +197,7 @@ To force legacy/baseline output locations, pass `--baseline-output` to the instr
 
 ## Notes
 
-- GPU runtime is disabled in v1.0; any `enable_gpu=true` falls back to CPU.
+- GPU runtime is disabled in v1.0.0; any `enable_gpu=true` falls back to CPU.
 - FT-ICR configs are provided under `validation/configs/instruments/fticr/` (you can regenerate them via `scripts/instrumentation/configs/generate_fticr_configs.py`).
 - Diffusion validation is not implemented yet.
 

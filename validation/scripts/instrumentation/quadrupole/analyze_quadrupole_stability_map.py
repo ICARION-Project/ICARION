@@ -14,7 +14,7 @@ from matplotlib.patches import Polygon
 import json
 
 # Data directory
-DATA_DIR = Path("../results/v1.0_test/instruments/quadrupole_stability")
+DATA_DIR = Path("../results/v1.0.0_test/instruments/quadrupole_stability")
 
 def load_simulation_data(h5_file):
     """Load final ion state and measure confinement
@@ -203,7 +203,7 @@ ax2.set_ylim(-0.25, 0.25)
 plt.tight_layout()
 
 # Save plot
-out_file = "../results/v1.0_test/instruments/quadrupole_stability_map.png"
+out_file = "../results/v1.0.0_test/instruments/quadrupole_stability_map.png"
 plt.savefig(out_file, dpi=300, bbox_inches='tight')
 print(f"✅ Saved stability map: {out_file}\n")
 
@@ -244,7 +244,7 @@ if np.any(q04_mask):
     ax4.set_ylim(-5, 105)
 
 plt.tight_layout()
-out_file2 = "../results/v1.0_test/instruments/quadrupole_scan_lines.png"
+out_file2 = "../results/v1.0.0_test/instruments/quadrupole_scan_lines.png"
 plt.savefig(out_file2, dpi=300, bbox_inches='tight')
 print(f"✅ Saved scan line plots: {out_file2}\n")
 

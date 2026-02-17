@@ -21,13 +21,13 @@ pick_results_dir() {
         fi
     fi
 
-    candidate="$VALIDATION_DIR/results/v1.0_test/instruments/ims"
+    candidate="$VALIDATION_DIR/results/v1.0.0_test/instruments/ims"
     if [[ -d "$candidate" ]]; then
         echo "$candidate"
         return 0
     fi
 
-    candidate="$REPO_ROOT/results/v1.0_test/instruments/ims"
+    candidate="$REPO_ROOT/results/v1.0.0_test/instruments/ims"
     if [[ -d "$candidate" ]]; then
         echo "$candidate"
         return 0
@@ -42,8 +42,8 @@ if [[ -z "$RESULTS_DIR" ]]; then
     echo "ERROR: Could not find IMS results directory." >&2
     echo "Tried (in order):" >&2
     echo "  - \$ICARION_VALIDATION_RUN_DIR/results/instruments/ims" >&2
-    echo "  - $VALIDATION_DIR/results/v1.0_test/instruments/ims" >&2
-    echo "  - $REPO_ROOT/results/v1.0_test/instruments/ims" >&2
+    echo "  - $VALIDATION_DIR/results/v1.0.0_test/instruments/ims" >&2
+    echo "  - $REPO_ROOT/results/v1.0.0_test/instruments/ims" >&2
     exit 1
 fi
 

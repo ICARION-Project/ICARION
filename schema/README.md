@@ -1,4 +1,4 @@
-# ICARION Configuration Schema (v1.0)
+# ICARION Configuration Schema (v1.0.0)
 
 JSON Schema definitions for validating ICARION configuration files.
 

@@ -33,7 +33,7 @@ Legacy/baseline output is still supported via `--baseline-output` (where impleme
 - `physics/`: physics validators + analyzers (Python)
 - `instrumentation/`: instrument-specific generators/runners/analyzers
 - `thermalization/`: thermalization generators + runners
-- `performance/`: performance benchmark runners (CPU in v1.0)
+- `performance/`: performance benchmark runners (CPU in v1.0.0)
 
 ## Notes on legacy helpers
 

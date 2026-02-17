@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 #include "cli_parser.h"
 #include <cxxopts.hpp>
 #include <exception>
@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #ifndef ICARION_VERSION
-#define ICARION_VERSION "1.0.4"
+#define ICARION_VERSION "1.0.0"
 #endif
 
 #ifndef GIT_HASH

@@ -8,7 +8,7 @@ Example configurations demonstrating mass spectrometry instruments and simulatio
 ./build/src/icarion_main examples/<folder>/<config>.json
 ```
 
-Results written to `results/`. GPU runtime path is disabled in v1.0; `enable_gpu=true` falls back to CPU.
+Results written to `results/`. GPU runtime path is disabled in v1.0.0; `enable_gpu=true` falls back to CPU.
 
 ## Instrument Examples
 

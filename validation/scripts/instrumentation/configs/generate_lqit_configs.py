@@ -125,7 +125,7 @@ def generate_config(rf_voltage_V, dc_voltage_V, collision_model, description):
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "results/v1.0_test/instruments/lqit",
+            "folder": "results/v1.0.0_test/instruments/lqit",
             "trajectory_file": f"lqit_{collision_model.lower()}_q{q:.3f}_a{a:.3f}.h5",
             "print_progress": True
         },
@@ -316,10 +316,10 @@ Tests Linear Quadrupole Ion Trap (LQIT) stability, secular motion, and resonant 
 ## Analysis
 ```bash
 # Stability analysis
-python3 ../scripts/analyze_lqit_stability.py results/v1.0_test/instruments/lqit/lqit_*_q*.h5
+python3 ../scripts/analyze_lqit_stability.py results/v1.0.0_test/instruments/lqit/lqit_*_q*.h5
 
 # AC excitation analysis
-python3 ../scripts/analyze_lqit_excitation.py results/v1.0_test/instruments/lqit/lqit_*_ac*.h5
+python3 ../scripts/analyze_lqit_excitation.py results/v1.0.0_test/instruments/lqit/lqit_*_ac*.h5
 ```
 
 ## Physics Background

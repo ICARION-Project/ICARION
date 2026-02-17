@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 // SPDX-FileCopyrightText: 2025 ICARION Project Contributors
 //
 // Parity test: AnalyticalFieldModel vs. ElectricFieldForce analytical path.

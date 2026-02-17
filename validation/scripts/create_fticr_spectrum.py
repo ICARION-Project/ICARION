@@ -131,7 +131,7 @@ def frequency_to_mass(frequencies, magnetic_field, charges=1):
 
 def create_fticr_spectrum():
     """Create FTICR cyclotron frequency spectrum plot"""
-    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/fticr')
+    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/fticr')
     
     # Define species data
     species_data = [

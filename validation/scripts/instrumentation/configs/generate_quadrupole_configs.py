@@ -99,7 +99,7 @@ def generate_config(a, q, config_num, total_configs):
             "enable_reactions": False
         },
         "output": {
-            "folder": "validation/results/v1.0_test/instruments/quadrupole_first_region",
+            "folder": "validation/results/v1.0.0_test/instruments/quadrupole_first_region",
             "trajectory_file": f"quad_a{a:.4f}_q{q:.4f}.h5",
             "print_progress": True
         },

@@ -39,10 +39,10 @@ Tests Linear Quadrupole Ion Trap (LQIT) stability, secular motion, and resonant 
 ## Analysis
 ```bash
 # Stability analysis
-python3 ../scripts/analyze_lqit_stability.py results/v1.0_test/instruments/lqit/lqit_*_q*.h5
+python3 ../scripts/analyze_lqit_stability.py results/v1.0.0_test/instruments/lqit/lqit_*_q*.h5
 
 # AC excitation analysis
-python3 ../scripts/analyze_lqit_excitation.py results/v1.0_test/instruments/lqit/lqit_*_ac*.h5
+python3 ../scripts/analyze_lqit_excitation.py results/v1.0.0_test/instruments/lqit/lqit_*_ac*.h5
 ```
 
 ## Physics Background

@@ -86,7 +86,7 @@ for n_ions in EXPANSION_ION_COUNTS:
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "validation/results/v1.0_test/physics/spacecharge",
+            "folder": "validation/results/v1.0.0_test/physics/spacecharge",
             "trajectory_file": f"coulomb_expansion_N{n_ions}_direct.h5",
             "print_progress": True
         },
@@ -174,7 +174,7 @@ for n_ions in GRID_ION_COUNTS:
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "validation/results/v1.0_test/physics/spacecharge",
+            "folder": "validation/results/v1.0.0_test/physics/spacecharge",
             "trajectory_file": f"coulomb_expansion_N{n_ions}_grid.h5",
             "print_progress": True
         },
@@ -261,7 +261,7 @@ config_comparison = {
     },
     "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
     "output": {
-        "folder": "validation/results/v1.0_test/physics/spacecharge",
+        "folder": "validation/results/v1.0.0_test/physics/spacecharge",
         "trajectory_file": f"threshold_comparison_N{n_ions}.h5",
         "print_progress": True
     },
@@ -348,7 +348,7 @@ for enable_sc in [False, True]:
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "validation/results/v1.0_test/physics/spacecharge",
+            "folder": "validation/results/v1.0.0_test/physics/spacecharge",
             "trajectory_file": f"ims_spacecharge_{'on' if enable_sc else 'off'}_N{n_ions}.h5",
             "print_progress": True
         },

@@ -1,9 +1,9 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 /**
  * @file GPUCollisionHelper.cu
- * @brief GPU collision helper implementation (experimental; EHSS geometry mapping stubbed for v1.0)
+ * @brief GPU collision helper implementation (experimental; EHSS geometry mapping stubbed for v1.0.0)
  */
 
 /**

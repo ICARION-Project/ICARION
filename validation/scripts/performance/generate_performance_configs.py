@@ -68,7 +68,7 @@ for n_ions in ION_COUNTS:
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "validation/results/v1.0_test/performance",
+            "folder": "validation/results/v1.0.0_test/performance",
             "trajectory_file": f"scaling_baseline_N{n_ions}.h5",
             "print_progress": True
         },
@@ -148,7 +148,7 @@ for model in COLLISION_MODELS:
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "validation/results/v1.0_test/performance",
+            "folder": "validation/results/v1.0.0_test/performance",
             "trajectory_file": f"collision_overhead_{model}_N{N_IONS_COLLISION}.h5",
             "print_progress": True
         },
@@ -238,7 +238,7 @@ for n_ions in N_DIRECT + N_GRID:
             },
             "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
             "output": {
-                "folder": "validation/results/v1.0_test/performance",
+                "folder": "validation/results/v1.0.0_test/performance",
                 "trajectory_file": f"spacecharge_overhead_{'on' if sc_enabled else 'off'}_N{n_ions}.h5",
                 "print_progress": True
             },
@@ -319,7 +319,7 @@ for n_ions in LONG_ION_COUNTS:
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "validation/results/v1.0_test/performance",
+            "folder": "validation/results/v1.0.0_test/performance",
             "trajectory_file": f"scaling_longrun_N{n_ions}.h5",
             "print_progress": True
         },
@@ -396,7 +396,7 @@ for n_ions in MIXED_ION_COUNTS:
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "validation/results/v1.0_test/performance",
+            "folder": "validation/results/v1.0.0_test/performance",
             "trajectory_file": f"scaling_mixedphysics_N{n_ions}.h5",
             "print_progress": True
         },

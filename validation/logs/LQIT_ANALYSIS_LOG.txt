@@ -1,5 +1,5 @@
 ================================================================================
-ICARION v1.0 - LQIT VALIDATION ANALYSIS LOG
+ICARION v1.0.0 - LQIT VALIDATION ANALYSIS LOG
 ================================================================================
 Generated: December 20, 2025
 Test Suite: Linear Quadrupole Ion Trap (LQIT)

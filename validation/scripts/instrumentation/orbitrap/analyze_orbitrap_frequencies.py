@@ -19,7 +19,7 @@ if str(COMMON_DIR) not in sys.path:
 from hdf5_utils import load_species_ids  # noqa: E402
 
 # Data directory
-DATA_DIR = Path("../results/v1.0_test/instruments/orbitrap")
+DATA_DIR = Path("../results/v1.0.0_test/instruments/orbitrap")
 
 def measure_axial_frequency(h5_file, species_filter=None):
     """Measure axial oscillation frequency from trajectory
@@ -205,7 +205,7 @@ ax2.grid(True, alpha=0.3, which='both')
 plt.tight_layout()
 
 # Save plot
-out_file = "../results/v1.0_test/instruments/orbitrap_frequency_scaling.png"
+out_file = "../results/v1.0.0_test/instruments/orbitrap_frequency_scaling.png"
 plt.savefig(out_file, dpi=300, bbox_inches='tight')
 print(f"✅ Saved frequency scaling plot: {out_file}\n")
 
@@ -236,7 +236,7 @@ for file_key, file_results in all_results.items():
         plot_idx += 1
 
 plt.tight_layout()
-out_file2 = "../results/v1.0_test/instruments/orbitrap_trajectories.png"
+out_file2 = "../results/v1.0.0_test/instruments/orbitrap_trajectories.png"
 plt.savefig(out_file2, dpi=300, bbox_inches='tight')
 print(f"✅ Saved trajectory plots: {out_file2}\n")
 

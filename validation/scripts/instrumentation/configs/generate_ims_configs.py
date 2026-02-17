@@ -145,7 +145,7 @@ def generate_config(EN_Td, pressure_Pa, collision_model):
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "results/v1.0_test/instruments/ims",
+            "folder": "results/v1.0.0_test/instruments/ims",
             "trajectory_file": f"ims_{collision_model.lower()}_{E_Vm:.0f}Vm_{pressure_Pa:.0f}Pa.h5",
             "print_progress": True
         },

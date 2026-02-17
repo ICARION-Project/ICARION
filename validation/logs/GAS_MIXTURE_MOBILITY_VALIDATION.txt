@@ -1,7 +1,7 @@
 ================================================================================
 GAS MIXTURE MOBILITY VALIDATION: Blanc's Law
 ================================================================================
-Start time: 2025-12-21 08:25:34
+Start time: 2026-02-10 13:37:41
 
 Purpose: Validate HSS collision model for gas mixtures
 Theory: Blanc's Law - 1/K_mix = Σ(x_i / K_i)
@@ -138,8 +138,8 @@ VALIDATION SUMMARY
   ✓ Saved: /home/chsch95/ICARION/validation/figures/gas_mixture_mobility_validation.png
 
 ================================================================================
-End time: 2025-12-21 13:25:22
-Duration: 17988.3 seconds
+End time: 2026-02-10 22:52:04
+Duration: 33263.1 seconds
 Log file: /home/chsch95/ICARION/validation/logs/GAS_MIXTURE_MOBILITY_VALIDATION.txt
 Figures:  /home/chsch95/ICARION/validation/figures/gas_mixture_mobility_validation.png
 ================================================================================

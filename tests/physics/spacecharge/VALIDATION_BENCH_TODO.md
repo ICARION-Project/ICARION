@@ -141,7 +141,7 @@ python3 ../validation/analyze_poisson_results.py
 
 ## 📊 Success Criteria
 
-For **v1.0 publication readiness:**
+For **v1.0.0 publication readiness:**
 - ✅ Point charge: <5% error at all test radii
 - ✅ Sphere inside: <10% error
 - ✅ Sphere outside: <10% error
@@ -158,7 +158,7 @@ For **future improvements (v1.1+):**
 
 ## 🔧 Implementation Priority
 
-**Phase 1 (v1.0):** Basic validation bench
+**Phase 1 (v1.0.0):** Basic validation bench
 - [ ] Create `test_poisson_validation_bench.cpp`
 - [ ] Implement 256³ point charge test
 - [ ] Implement 256³ sphere test
@@ -182,5 +182,5 @@ For **future improvements (v1.1+):**
 ---
 
 **Created:** 2025-11-24  
-**Status:** TODO - implement for v1.0 validation  
+**Status:** TODO - implement for v1.0.0 validation  
 **Owner:** Space Charge Team

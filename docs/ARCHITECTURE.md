@@ -33,7 +33,7 @@ ICARION is a modular C++17 framework for ion trajectory simulation in mass spect
 4. **Reliability**: Comprehensive test coverage, validation suite, schema validation, error handling
 5. **Usability**: Intuitive JSON configuration, extensive documentation
 
-## Core Concepts (v1.0)
+## Core Concepts (v1.0.0)
 
 - **SimulationEngine as conductor:** Owns the timestep loop and delegates; physics behavior comes from injected strategies (integrator, collisions, reactions, forces).
 - **Strategy everywhere:** Integrators, collision/reaction handlers, and field providers are interchangeable strategies chosen by factories from the JSON config (RK4/RK45/Boris; HSS/EHSS/Langevin; CPU/GPU variants).
@@ -247,7 +247,7 @@ tests/
 ```
 
 Validation suite (scientific reproducibility) lives in `validation/`:
-- `configs/`, `scripts/`, `results/`, `figures/`, `logs/`, plus reports like `VALIDATION_REPORT_v1.0.md`.
+- `configs/`, `scripts/`, `results/`, `figures/`, `logs/`, plus reports like `VALIDATION_REPORT_v1.0.0.md`.
 
 ### Validation Levels
 
@@ -269,4 +269,4 @@ For detailed implementation specifics, see:
 
 ---
 
-**Last Updated:** December 2025 (v1.0)
+**Last Updated:** December 2025 (v1.0.0)

@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNNER="$VALIDATION_DIR/scripts/run_instrument_tests.sh"
 DEFAULT_CONFIG_ROOT="$VALIDATION_DIR/configs/instruments"
-DEFAULT_OUTPUT_ROOT="$VALIDATION_DIR/results/v1.0_test/instruments"
+DEFAULT_OUTPUT_ROOT="$VALIDATION_DIR/results/v1.0.0_test/instruments"
 DEFAULT_INSTRUMENTS=(ims fticr lqit orbitrap tof quadrupole)
 
 SELECTED_INSTRUMENTS=()
@@ -35,7 +35,7 @@ Options:
   -o, --output-root DIR Use DIR/<instrument> for output overrides
   --run-id ID         Run identifier (default: YYYYmmdd_HHMMSS)
   --run-dir PATH      Output directory for this run (default: validation/runs/<run-id>)
-  --baseline-output   Write into validation/results/v1.0_test/instruments (legacy)
+  --baseline-output   Write into validation/results/v1.0.0_test/instruments (legacy)
   -J, --suite-jobs N    Number of instruments to run concurrently (default: 1)
   --list                Show normalized instrument keys and exit
   -h, --help            Show this help text

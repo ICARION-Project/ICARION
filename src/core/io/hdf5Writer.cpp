@@ -1,11 +1,11 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 /**
  * @file hdf5Writer.cpp
  * @brief Implementation of modern HDF5 writer using FullConfig
  * 
- * **v1.0 Improvements (Nov 2025):**
+ * **v1.0.0 Improvements (Nov 2025):**
  * - Consistent metadata hierarchy: All under /metadata/ (no root attributes)
  * - Smart filtering: Only write species/reactions actually used in simulation
  *   - Reduces file size for large databases
@@ -696,7 +696,7 @@ void HDF5Writer::finalize(
         strftime(timestamp_buf, sizeof(timestamp_buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now_time));
         write_string(completion, "completion_timestamp", timestamp_buf);
         
-        // Note: Root-level attributes removed in v1.0 for consistency
+        // Note: Root-level attributes removed in v1.0.0 for consistency
         // All metadata now under /metadata/ hierarchy
         
         file.close();
@@ -1269,20 +1269,20 @@ void HDF5Writer::write_domain(
         }
     };
     
-    // DC (v1.0: write static value or t=0 evaluation)
+    // DC (v1.0.0: write static value or t=0 evaluation)
     H5::Group dc = fields.createGroup("dc");
     write_scalar(dc, "axial_V", get_t0_value(domain.fields.dc.axial_V));
     write_scalar(dc, "EN_Td", get_t0_value(domain.fields.dc.EN_Td));
     write_scalar(dc, "quad_V", get_t0_value(domain.fields.dc.quad_V));
     write_scalar(dc, "radial_V", get_t0_value(domain.fields.dc.radial_V));
     
-    // RF (v1.0: write static value or t=0 evaluation)
+    // RF (v1.0.0: write static value or t=0 evaluation)
     H5::Group rf = fields.createGroup("rf");
     write_scalar(rf, "voltage_V", get_t0_value(domain.fields.rf.voltage_V));
     write_scalar(rf, "frequency_Hz", get_t0_value(domain.fields.rf.frequency_Hz));
     write_scalar(rf, "phase_rad", domain.fields.rf.phase_rad);
     
-    // AC (v1.0: write static value or t=0 evaluation)
+    // AC (v1.0.0: write static value or t=0 evaluation)
     H5::Group ac = fields.createGroup("ac");
     write_scalar(ac, "voltage_V", get_t0_value(domain.fields.ac.voltage_V));
     write_scalar(ac, "frequency_Hz", get_t0_value(domain.fields.ac.frequency_Hz));

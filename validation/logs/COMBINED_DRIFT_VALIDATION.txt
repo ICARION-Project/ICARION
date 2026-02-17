@@ -1,7 +1,7 @@
 ================================================================================
 COMBINED DRIFT VALIDATION: E-field + Gas Flow
 ================================================================================
-Start time: 2025-12-20 22:14:32
+Start time: 2026-02-10 13:34:18
 
 Purpose: Validate combined drift: v_drift = μ·E + v_gas
 Theory: Linear superposition of mobility and convection
@@ -28,11 +28,11 @@ Theory (H3O+ in He):
 
 📊 Analyzing: combined_E0_100Pa.h5
   Ions: 1000/1000 active
-  Drift velocity (steady):       54.4 ±  359.2 m/s  ← PRIMARY
-  Drift velocity (fit):          50.9 m/s  (diagnostic)
+  Drift velocity (steady):       47.7 ±  360.5 m/s  ← PRIMARY
+  Drift velocity (fit):          49.8 m/s  (diagnostic)
   Expected:                      50.0 m/s
-  Error (steady):   8.9%  ← PRIMARY
-  Error (fit):      1.8%
+  Error (steady):   4.6%  ← PRIMARY
+  Error (fit):      0.4%
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: E0_1000Pa
@@ -55,11 +55,11 @@ Theory (H3O+ in He):
 
 📊 Analyzing: combined_E0_1000Pa.h5
   Ions: 1000/1000 active
-  Drift velocity (steady):       46.5 ±  360.3 m/s  ← PRIMARY
-  Drift velocity (fit):          53.3 m/s  (diagnostic)
+  Drift velocity (steady):       46.5 ±  364.5 m/s  ← PRIMARY
+  Drift velocity (fit):          54.2 m/s  (diagnostic)
   Expected:                      50.0 m/s
-  Error (steady):   7.1%  ← PRIMARY
-  Error (fit):      6.7%
+  Error (steady):   7.0%  ← PRIMARY
+  Error (fit):      8.4%
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: E1000_1000Pa
@@ -82,12 +82,12 @@ Theory (H3O+ in He):
 
 📊 Analyzing: combined_E1000_1000Pa.h5
   Ions: 1000/1000 active
-  Drift velocity (steady):      278.9 ±  374.8 m/s  ← PRIMARY
+  Drift velocity (steady):      278.5 ±  376.5 m/s  ← PRIMARY
   Drift velocity (fit):         284.1 m/s  (diagnostic)
   Expected:                     318.2 m/s
-  Error (steady):   12.3%  ← PRIMARY
+  Error (steady):   12.5%  ← PRIMARY
   Error (fit):      10.7%
-  μ_measured:     2289.48 cm²/(V·s)
+  μ_measured:     2285.28 cm²/(V·s)
   μ_expected:     2681.97 cm²/(V·s)
   μ_ratio:         0.85× theory
 
@@ -97,9 +97,9 @@ Theory (H3O+ in He):
 ================================================================================
 VALIDATION SUMMARY
 ================================================================================
-  E0_100Pa: ✓ PASSED (error = 8.9%)
-  E0_1000Pa: ✓ PASSED (error = 7.1%)
-  E1000_1000Pa: ✓ PASSED (error = 12.3%)
+  E0_100Pa: ✓ PASSED (error = 4.6%)
+  E0_1000Pa: ✓ PASSED (error = 7.0%)
+  E1000_1000Pa: ✓ PASSED (error = 12.5%)
 
 ✓ ALL VALIDATIONS PASSED
 
@@ -108,7 +108,7 @@ Key Findings:
   - Drift velocity follows μ·E once sufficient collisions occur
   - Ready to reintroduce axial gas flow after baseline pass
 
-End time: 2025-12-20 22:16:24
+End time: 2026-02-10 13:37:40
 Log file: /home/chsch95/ICARION/validation/logs/COMBINED_DRIFT_VALIDATION.txt
 Figures:  /home/chsch95/ICARION/validation/figures/physics/combined_drift_validation.png
 ================================================================================

@@ -27,7 +27,7 @@ python3 scripts/create_config.py --template ims --output my_config.json
 - `quadrupole` - CaffeineH⁺, 50 ions, RF/DC fields, mass filter
 - `fticr` - ReserpineH⁺, 50 ions, 7T magnetic field, Boris integrator
 
-All templates v1.0 compliant and tested.
+All templates v1.0.0 compliant and tested.
 
 - Simulation time and timestep
 - Collision model

@@ -126,7 +126,7 @@ def frequency_to_mass(frequencies, k_value=400, charges=1):
 
 def create_orbitrap_spectrum():
     """Create Orbitrap FFT frequency spectrum plot"""
-    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/orbitrap')
+    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/orbitrap')
     
     # Define species data
     species_data = [

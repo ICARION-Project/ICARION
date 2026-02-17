@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 /**
  * @file test_temperature_scaling.cpp
  * @brief Test if equilibrium ion temperature scales correctly with gas temperature

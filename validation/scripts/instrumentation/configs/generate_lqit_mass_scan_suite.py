@@ -147,7 +147,7 @@ def generate_config(scan_cfg):
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "results/v1.0_test/instruments/lqit_scans",
+            "folder": "results/v1.0.0_test/instruments/lqit_scans",
             "trajectory_file": f"lqit_scan_{scan_name}.h5",
             "print_progress": True
         },

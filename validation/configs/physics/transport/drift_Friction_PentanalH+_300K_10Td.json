@@ -15,7 +15,7 @@
   },
   "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
   "output": {
-    "folder": "validation/results/v1.0_test/physics/transport/drift",
+    "folder": "validation/results/v1.0.0_test/physics/transport/drift",
     "trajectory_file": "drift_Friction_PentanalH+_300K_10Td.h5",
     "print_progress": true
   },

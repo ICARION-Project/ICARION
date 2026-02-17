@@ -285,12 +285,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--csv",
-        default="validation/results/v1.0_test/instruments/ims/ims_measurements.csv",
+        default="validation/results/v1.0.0_test/instruments/ims/ims_measurements.csv",
         help="Path for detailed measurement CSV"
     )
     parser.add_argument(
         "--summary-csv",
-        default="validation/results/v1.0_test/instruments/ims/ims_error_summary.csv",
+        default="validation/results/v1.0.0_test/instruments/ims/ims_error_summary.csv",
         help="Path for per-model error summary CSV"
     )
 

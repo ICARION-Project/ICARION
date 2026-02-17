@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://icarion.org/schemas/reactions/v1.0.json",
+  "$id": "https://icarion.org/schemas/reactions/v1.0.0.json",
   "title": "ICARION Reaction Database Schema",
-  "description": "Schema for ICARION reaction database (v1.0). Defines single reactant to single product reactions with concentration-dependent rate constants.",
+  "description": "Schema for ICARION reaction database (v1.0.0). Defines single reactant to single product reactions with concentration-dependent rate constants.",
   "type": "object",
   "required": ["reactions"],
   "additionalProperties": false,

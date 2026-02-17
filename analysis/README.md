@@ -19,7 +19,7 @@ Small, runnable examples for ICARION HDF5 trajectories. Focused on quick visuali
 ```bash
 # Static plot from an LQIT simulation
 python analysis/plot_trajectories.py \
-  --traj validation/results/v1.0_test/instruments/lqit/lqit_vacuum_q0.700_a0.000.h5 \
+  --traj validation/results/v1.0.0_test/instruments/lqit/lqit_vacuum_q0.700_a0.000.h5 \
   --out analysis/output/lqit_trajectory.png \
   --species H3O+ \
   --max-ions 80 \
@@ -27,7 +27,7 @@ python analysis/plot_trajectories.py \
 
 # XY animation as GIF (Pillow writer) with automatic downsampling
 python analysis/animate_trajectories.py \
-  --traj validation/results/v1.0_test/instruments/lqit/lqit_vacuum_q0.700_a0.000.h5 \
+  --traj validation/results/v1.0.0_test/instruments/lqit/lqit_vacuum_q0.700_a0.000.h5 \
   --out analysis/output/lqit_xy.gif \
   --projection xy \
   --max-ions 60 \
@@ -36,7 +36,7 @@ python analysis/animate_trajectories.py \
 
 # Elimination histogram (radial vs axial); auto-detects Orbitrap, otherwise radial/axial
 python analysis/elimination_histograms.py \
-  --traj validation/results/v1.0_test/instruments/orbitrap/orbitrap_ReserpineH+_V3500.00.h5 \
+  --traj validation/results/v1.0.0_test/instruments/orbitrap/orbitrap_ReserpineH+_V3500.00.h5 \
   --out analysis/output/orbitrap_elimination.png \
   --species ReserpineH+ \
   --max-ions 300 \
@@ -46,7 +46,7 @@ python analysis/elimination_histograms.py \
 
 # Mean radial/axial positions (per species)
 python analysis/mean_positions.py \
-  --traj validation/results/v1.0_test/instruments/lqit/lqit_vacuum_q0.700_a0.000.h5 \
+  --traj validation/results/v1.0.0_test/instruments/lqit/lqit_vacuum_q0.700_a0.000.h5 \
   --out analysis/output/lqit_mean_positions.png \
   --species H3O+ \
   --time-stride 5 \
@@ -54,21 +54,21 @@ python analysis/mean_positions.py \
 
 # Thermalization check: temperature curve + MB overlay on last speeds
 python analysis/thermalization_check.py \
-  --traj validation/results/v1.0_test/physics/thermalization/therm_hss_H3Op_300K_20.0Pa.h5 \
+  --traj validation/results/v1.0.0_test/physics/thermalization/therm_hss_H3Op_300K_20.0Pa.h5 \
   --out analysis/output/thermalization_check.png \
   --time-stride 10 \
   --window 10
 
 # Export thermalization data (standalone; no analysis import)
 python tools/export_thermalization_data.py \
-  --traj-dir results/v1.0_test/physics/thermalization/ \
+  --traj-dir results/v1.0.0_test/physics/thermalization/ \
   --out-dir analysis/output/thermalization_export/ \
   --glob "*.h5" \
   --time-stride 10
 
 # IMS mobility / reduced mobility from arrival times
 python analysis/ims_mobility.py \
-  --traj validation/results/v1.0_test/instruments/ims/ims_hss_48Vm_200Pa.h5 \
+  --traj validation/results/v1.0.0_test/instruments/ims/ims_hss_48Vm_200Pa.h5 \
   --out analysis/output/ims_mobility.png \
   --out-csv analysis/output/ims_mobility.csv \
   --species H3O+ \

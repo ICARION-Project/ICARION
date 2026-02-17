@@ -96,7 +96,7 @@ def time_to_mass(flight_times, acceleration_voltage, flight_distance=0.1):
 
 def create_tof_spectrum():
     """Create TOF mass spectrum plot"""
-    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/tof')
+    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/tof')
     
     # Define species data
     species_data = [

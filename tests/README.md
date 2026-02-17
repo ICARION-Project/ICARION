@@ -18,7 +18,7 @@ For scientific validation (long, high-fidelity tests for publications), see `val
 
 ---
 
-Test organization and quick pointers for v1.0.
+Test organization and quick pointers for v1.0.0.
 
 ## Layout
 
@@ -57,7 +57,7 @@ tests/
 - **Unit/SoA:** `test_ion_ensemble.cpp`, `test_simulation_engine_soa.cpp`, `benchmark_openmp_soa.cpp`, `benchmark_soa_performance.cpp`
 - **Utils:** `test_hash.cpp`
 
-## Coverage Snapshot (v1.0)
+## Coverage Snapshot (v1.0.0)
 
 - **Instruments:** IMS, LQIT, Orbitrap, TOF, Quadrupole, FTICR, multi-domain transitions
 - **Integrators:** RK4, RK45 (adaptive), Boris; SimulationEngine CPU/GPU parity and field interpolation

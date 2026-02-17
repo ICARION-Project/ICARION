@@ -190,8 +190,8 @@ build_results_roots() {
   fi
   RESULT_ROOTS+=(
     "$VALIDATION_DIR/results/instruments"
-    "$VALIDATION_DIR/results/v1.0_test/instruments"
-    "$REPO_ROOT/results/v1.0_test/instruments"
+    "$VALIDATION_DIR/results/v1.0.0_test/instruments"
+    "$REPO_ROOT/results/v1.0.0_test/instruments"
   )
   dedupe_array RESULT_ROOTS
 }

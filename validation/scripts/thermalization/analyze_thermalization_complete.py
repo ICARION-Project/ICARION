@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive Thermalization Analysis for ICARION v1.0
+Comprehensive Thermalization Analysis for ICARION v1.0.0
 ======================================================
 Analyzes thermalization test results including:
 - Temperature evolution and final accuracy
@@ -288,7 +288,7 @@ def analyze_single_test(filepath, verbose=True):
         'quality': quality
     }
 
-def analyze_batch(results_dir="results/v1.0_test/physics/thermalization", pattern="*.h5"):
+def analyze_batch(results_dir="results/v1.0.0_test/physics/thermalization", pattern="*.h5"):
     """Analyze all thermalization tests in batch"""
     
     results_path = Path(results_dir)
@@ -311,7 +311,7 @@ def analyze_batch(results_dir="results/v1.0_test/physics/thermalization", patter
         log_lines.append(msg)
     
     log_print(f"\n{'='*80}")
-    log_print(f"ICARION v1.0 - Comprehensive Thermalization Validation")
+    log_print(f"ICARION v1.0.0 - Comprehensive Thermalization Validation")
     log_print(f"{'='*80}")
     log_print(f"Analyzing {len(h5_files)} thermalization tests...")
     log_print(f"Location: {results_dir}")
@@ -408,7 +408,7 @@ def analyze_batch(results_dir="results/v1.0_test/physics/thermalization", patter
             f.write('\n'.join(log_lines))
         print(f"\n📄 Full analysis log saved to: {log_file.relative_to(Path.cwd())}")
 
-def plot_thermalization_curves(results_dir="results/v1.0_test/physics/thermalization", 
+def plot_thermalization_curves(results_dir="results/v1.0.0_test/physics/thermalization", 
                                output_dir="validation/figures"):
     """
     Generate thermalization curve plots for validation report.
@@ -479,7 +479,7 @@ def plot_thermalization_curves(results_dir="results/v1.0_test/physics/thermaliza
         print(f"Saved: {output_file}")
         plt.close()
 
-def plot_velocity_distributions(results_dir="results/v1.0_test/physics/thermalization",
+def plot_velocity_distributions(results_dir="results/v1.0.0_test/physics/thermalization",
                                 output_dir="validation/figures"):
     """
     Generate velocity distribution plots comparing simulation to Maxwell-Boltzmann.
@@ -573,7 +573,7 @@ def plot_error_heatmap():
     """Generate heatmap of final temperature errors across pressure/temperature space"""
     validation_dir = Path(__file__).parent.parent.parent
     # Use the actual results location
-    results_dir = Path("results/v1.0_test/physics/thermalization")
+    results_dir = Path("results/v1.0.0_test/physics/thermalization")
     figures_dir = validation_dir / "figures"
     
     # Collect all test results

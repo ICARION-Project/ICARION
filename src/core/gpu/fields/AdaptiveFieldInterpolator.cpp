@@ -1,7 +1,8 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 //
-// Experimental: Only linear interpolation is implemented/validated in v1.0;
+// Experimental: Only linear interpolation is implemented/validated in v1.0.0;
 // higher-order modes fall back to linear.
 
 #include "AdaptiveFieldInterpolator.h"

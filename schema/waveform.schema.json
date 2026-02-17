@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0/waveform.schema.json",
-  "title": "ICARION Waveform Schema v1.0",
+  "$id": "https://icarion.io/schemas/v1.0.0/waveform.schema.json",
+  "title": "ICARION Waveform Schema v1.0.0",
   "description": "Schema for time-varying field parameters in ICARION simulations",
   
   "definitions": {

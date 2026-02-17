@@ -27,12 +27,12 @@ This guide provides practical instructions for extending ICARION with new featur
 
 ICARION's force system follows a plugin architecture using the **IForce interface**. All forces implement SoA entry points `IForce::compute(...)` (ensemble + ion index + time + context) and `IForce::compute_soa(...)` (snapshot state), and are managed by `ForceRegistry`. AoS hooks have been removed from the hot path; tests wrap single ions into a scratch SoA when needed.  
 
-**New in v1.0 SoA path:**  
+**New in v1.0.0 SoA path:**  
 - `IForce::compute_soa(const ForceState&, t, ctx)` is required; it must use the provided state (no ensemble fetches).  
 - `ForceRegistry::compute_total_force_soa` aggregates via `compute_soa` and uses `ForceState::ensemble_index` for space-charge; AoS conversion happens only if a force declares `requires_aos_state()`.  
 - RK45 calls only the SoA path; no scratch ensembles are built in integration stages.
 
-**Version:** 1.0 uses **const config references** (Single Source of Truth pattern)
+**Version:** 1.0.0 uses **const config references** (Single Source of Truth pattern)
 
 ### Design Principle: Single Source of Truth (SSOT)
 
@@ -215,7 +215,7 @@ registry.add_force(std::make_unique<YourForce>(domain, 123.45));
 // **domain must outlive registry!
 ```
 
-### Best Practices (v1.0)
+### Best Practices (v1.0.0)
 
 **DO:**
 
@@ -557,7 +557,7 @@ domain.geometry.radius_m = 0.5;                     // Wide radius to prevent ra
 - Planned boundary actions beyond the current set:
   - Emitting (continuous ion source at entrance)
   - Periodic (wraparound for bulk simulations)
-- **Current (v1.0)**: `Absorption`, `SpecularReflection`, `DiffuseReflection`, `ThermalReflection`
+- **Current (v1.0.0)**: `Absorption`, `SpecularReflection`, `DiffuseReflection`, `ThermalReflection`
 
 **Related Issues:**
 - See `tests/instruments/test_ims_drift.cpp` for working example
@@ -573,7 +573,7 @@ Instrument-specific electric field calculations live in FieldModels and are cons
 
 Multi-domain geometry handling lives in `IDomainGeometry` strategies (e.g., `CylindricalGeometry`, `OrbitrapGeometry`) used by `DomainManager` and `DomainContext` for transforms and boundary checks. DomainManager now only orchestrates these strategies (no AoS boundary helpers); geometry classes encapsulate containment/intersection logic.
 
-### Space-Charge Architecture (v1.0)
+### Space-Charge Architecture (v1.0.0)
 
 - `ISpaceChargeModel` exposes `update_fields()` + `sample_electric_field()`. ForceRegistry owns an optional instance and adds Coulomb force directly in the SoA loop (no fallback AoS conversions).
 - Models:
@@ -681,14 +681,14 @@ Add to class docstring or separate documentation:
 
 ## GPU Development Guide
 
-**Added:** November 2025 (v1.0)
+**Added:** November 2025 (v1.0.0)
 **Status:** Integration/space-charge/collision paths wired via factories; boundary helper remains experimental.
 
 ### Overview
 
 ICARION's GPU acceleration is designed for **easy extensibility**. This guide shows how to add new GPU-accelerated features.
 
-**Current GPU Features (v1.0):**
+**Current GPU Features (v1.0.0):**
 - RK4/RK45/Boris batch integrators via `GPUIntegrationStrategy` (factory-selected wrapper; intended for single-domain batches with exactly one `ElectricFieldForce` backed by a `GridFieldProvider`; falls back on space charge, magnetic forces, damping unless GPU damping is enabled, unsupported force types, or missing field providers. Non-grid providers or snapshot-based grids result in zero-field GPU integration, so avoid GPU dispatch in those cases.)
 - HSS/EHSS collision helper (active-ion threshold default 5000; geometry upload supported when provided)
 - Reactions via `GPUReactionBackend` (constant / Arrhenius / modified Arrhenius, mixtures). Flattens per-domain tables, launches XORWOW kernel, updates SoA species/mass/charge/CCS/mobility. Device buffers are pooled (RNG, species/domain/flags/reaction tables); CPU stochastic handler is the fallback.
@@ -1340,7 +1340,7 @@ __device__ double kahan_add(double sum, double x, double& c) {
 **CUDA Best Practices:**
 - https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/
 
-**ICARION GPU Reference (v1.0):**
+**ICARION GPU Reference (v1.0.0):**
 - GPU integration available for RK4, RK45, Boris integrators
 - Automatic dispatch based on particle count and force mix (default threshold: 5000 in `GPUIntegrationStrategy`)
 - Implementation details in `src/core/integrator/` and integration strategy classes
@@ -1611,7 +1611,7 @@ if (!std::isfinite(force.x) || !std::isfinite(force.y) || !std::isfinite(force.z
    - Trilinear interpolation for fast evaluation
    - Benefit: Reduces repeated analytical field evaluations
 
-### v1.0 Features
+### v1.0.0 Features
 
 - **Force System SSOT**:
   - IForce interface with ForceRegistry

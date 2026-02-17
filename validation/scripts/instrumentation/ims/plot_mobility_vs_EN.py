@@ -68,6 +68,6 @@ plt.text(0.02, 0.02, textstr, transform=plt.gca().transAxes,
          bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
 plt.tight_layout()
-plt.savefig('results/v1.0_test/instruments/ims/mobility_vs_EN.png', dpi=300)
-print("Plot saved to: results/v1.0_test/instruments/ims/mobility_vs_EN.png")
+plt.savefig('results/v1.0.0_test/instruments/ims/mobility_vs_EN.png', dpi=300)
+print("Plot saved to: results/v1.0.0_test/instruments/ims/mobility_vs_EN.png")
 plt.show()

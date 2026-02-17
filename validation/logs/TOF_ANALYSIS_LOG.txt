@@ -1,6 +1,6 @@
 
 ================================================================================
-ICARION v1.0 - TOF VALIDATION ANALYSIS LOG
+ICARION v1.0.0 - TOF VALIDATION ANALYSIS LOG
 ================================================================================
 Generated: December 4, 2025
 Test Suite: Time-of-Flight Mass Analyzer

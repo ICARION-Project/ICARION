@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-only
 # SPDX-FileCopyrightText: 2025 ICARION Contributors
 
 # Unit test for IonEnsemble (SoA data structure)

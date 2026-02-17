@@ -90,7 +90,7 @@ def analyze_tof_trajectory(h5_path, config_path=None):
             config = embedded_cfg
             config_path = None
         else:
-            config_path = str(h5_path).replace('.h5', '.json').replace('results/v1.0_test/instruments/', 'configs/instruments/')
+            config_path = str(h5_path).replace('.h5', '.json').replace('results/v1.0.0_test/instruments/', 'configs/instruments/')
     if config_path:
         with open(config_path, 'r') as f:
             config = json.load(f)

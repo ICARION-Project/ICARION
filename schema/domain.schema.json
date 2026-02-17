@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0/domain.schema.json",
+  "$id": "https://icarion.io/schemas/v1.0.0/domain.schema.json",
   "title": "ICARION Domain Configuration",
   "description": "Complete configuration for a single instrument domain",
   "type": "object",

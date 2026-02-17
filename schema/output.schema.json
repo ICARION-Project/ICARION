@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0/output.schema.json",
+  "$id": "https://icarion.io/schemas/v1.0.0/output.schema.json",
   "title": "ICARION Output Configuration",
   "description": "Output file and logging configuration",
   "type": "object",

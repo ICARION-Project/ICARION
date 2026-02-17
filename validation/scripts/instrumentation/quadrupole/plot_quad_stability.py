@@ -17,7 +17,7 @@ from pathlib import Path
 
 def main():
     # Load analysis results
-    results_dir = Path('/home/chsch95/ICARION/results/v1.0_test/instruments/quadrupole')
+    results_dir = Path('/home/chsch95/ICARION/results/v1.0.0_test/instruments/quadrupole')
     analysis_file = results_dir / 'stability_analysis.json'
     
     if not analysis_file.exists():

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0/physics.schema.json",
+  "$id": "https://icarion.io/schemas/v1.0.0/physics.schema.json",
   "title": "ICARION Physics Configuration",
   "description": "Global physics options for collision models and thermalization",
   "type": "object",

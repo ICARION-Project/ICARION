@@ -123,7 +123,7 @@ You can store gas-dependent CCS values (generated via `ccs_precompute`):
 
 ---
 
-## Species and Reaction Databases (v1.0)
+## Species and Reaction Databases (v1.0.0)
 
 ICARION supports external databases for species properties and reaction rates.
 
@@ -889,7 +889,7 @@ This section provides a quick reference for all configuration sections. For comp
   "dt_s": 1e-9,
   "integrator": "RK4",           // RK4, RK45, Boris
   "write_interval": 100,
-  "enable_gpu": false,           // Ignored in v1.0 (GPU runtime disabled)
+  "enable_gpu": false,           // Ignored in v1.0.0 (GPU runtime disabled)
   "rng_seed": 42
 }
 ```
@@ -1061,7 +1061,7 @@ for f in examples/*/*.json; do python3 schema/validator.py schema/icarion-config
 
 ## Multi-Gas Configurations
 
-**Status:** Production-ready (v1.0)
+**Status:** Production-ready (v1.0.0)
 
 ICARION supports multi-component gas mixtures for realistic collision and reaction simulations.
 
@@ -1338,7 +1338,7 @@ Use the global `simulation.integrator` as default, but override for specific dom
 
 4. **Check units**: All values in SI units (meters, seconds, Pascal, Kelvin)
 
-5. **Enable GPU** for large simulations (`enable_gpu: true`) — ignored in v1.0 (runtime GPU path is disabled; CPU only)
+5. **Enable GPU** for large simulations (`enable_gpu: true`) — ignored in v1.0.0 (runtime GPU path is disabled; CPU only)
 
 ---
 
@@ -1354,6 +1354,6 @@ Use the global `simulation.integrator` as default, but override for specific dom
 
 ## Version
 
-This guide corresponds to ICARION v1.0 configuration schema.
+This guide corresponds to ICARION v1.0.0 configuration schema.
 
 For schema version history, see the git log for the `schema/` directory.

@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 #include "SimulationEngine.h"
 #include "core/utils/safety/numericalSafetyGuards.h"
 #include "core/utils/safety/numericalSafetyLogger.h"
@@ -239,8 +239,8 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         return;
     }
 
-    // Hard-disable experimental GPU path for v1.0
-    output_manager_->log_progress("GPU: Disabled for v1.0 (experimental path remains built but not used). Running CPU-only.");
+    // Hard-disable experimental GPU path for v1.0.0
+    output_manager_->log_progress("GPU: Disabled for v1.0.0 (experimental path remains built but not used). Running CPU-only.");
     return;
 
     output_manager_->log_progress("GPU: Experimental path (E/B-only). Space-charge, damping, magnetic forces, and multi-domain batches are NOT supported; falling back to CPU in those cases.");

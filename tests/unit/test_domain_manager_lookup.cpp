@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2025 ICARION Contributors
 
 #include <catch2/catch_test_macros.hpp>

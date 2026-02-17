@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0/environment.schema.json",
+  "$id": "https://icarion.io/schemas/v1.0.0/environment.schema.json",
   "title": "ICARION Domain Environment Configuration",
   "description": "Background gas and environmental conditions for domain",
   "type": "object",

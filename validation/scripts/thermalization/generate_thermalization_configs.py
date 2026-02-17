@@ -108,7 +108,7 @@ def generate_config(ion_species, collision_model, temperature_k, pressure_pa):
         },
         "species_database": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": f"/home/chsch95/ICARION/results/v1.0_test/physics/thermalization",
+            "folder": f"/home/chsch95/ICARION/results/v1.0.0_test/physics/thermalization",
             "trajectory_file": f"therm_{collision_model.lower()}_{ion_species.replace('+', 'p').replace(',', '').replace('-', '')}_{temperature_k}K_{pressure_pa}Pa.h5",
             "print_progress": True
         },

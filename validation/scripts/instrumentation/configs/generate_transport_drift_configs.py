@@ -150,7 +150,7 @@ for temp_K in TEMPERATURES_K:
                     },
                     "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
                     "output": {
-                        "folder": "validation/results/v1.0_test/physics/transport/drift",
+                        "folder": "validation/results/v1.0.0_test/physics/transport/drift",
                         "trajectory_file": f"drift_{collision_model}_{species['name']}_{temp_K:.0f}K_{en_td}Td.h5",
                         "print_progress": True
                     },

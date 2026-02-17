@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ICARION Configuration Validator
-Validates JSON configuration files against the ICARION v1.0 schema.
+Validates JSON configuration files against the ICARION v1.0.0 schema.
 """
 
 import json

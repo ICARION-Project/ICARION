@@ -1,9 +1,15 @@
 ================================================================================
-GAS MIXTURE THERMALIZATION VALIDATION (analysis-only)
+GAS MIXTURE THERMALIZATION VALIDATION
 ================================================================================
-Start time: 2025-12-21 18:54:45
+Start time: 2026-02-10 22:52:05
 
-Using existing HDF5 outputs; no simulations executed.
+Purpose: Validate HSS collision model thermalization in gas mixtures
+Method: Cold start (0.1 K) → thermalize to ambient (300 K)
+
+Test Species: H3O+
+Gas Mixture: He/N2 (5 ratios)
+Conditions: P=1000.0 Pa, T=300.0 K, E=0 V/m
+Duration: ~50 collision times each
 
 ────────────────────────────────────────────────────────────────────────────────
 TEST: 100He_0N2
@@ -12,6 +18,9 @@ Composition: He=100%, N2=0%
 Collision frequency: 8.55e+07 Hz
 Collision time:      0.01 µs
 
+▶ Running simulation: config_100He_0N2.json
+  Total time: 0.023 ms (2000 collision times)
+  ✓ Simulation complete
 
 📊 Analyzing: therm_100He_0N2.h5
   Ions active (final): 500/500
@@ -25,6 +34,9 @@ Composition: He=75%, N2=25%
 Collision frequency: 1.11e+08 Hz
 Collision time:      0.01 µs
 
+▶ Running simulation: config_75He_25N2.json
+  Total time: 0.018 ms (2000 collision times)
+  ✓ Simulation complete
 
 📊 Analyzing: therm_75He_25N2.h5
   Ions active (final): 500/500
@@ -38,6 +50,9 @@ Composition: He=50%, N2=50%
 Collision frequency: 1.37e+08 Hz
 Collision time:      0.01 µs
 
+▶ Running simulation: config_50He_50N2.json
+  Total time: 0.015 ms (2000 collision times)
+  ✓ Simulation complete
 
 📊 Analyzing: therm_50He_50N2.h5
   Ions active (final): 500/500
@@ -51,6 +66,9 @@ Composition: He=25%, N2=75%
 Collision frequency: 1.62e+08 Hz
 Collision time:      0.01 µs
 
+▶ Running simulation: config_25He_75N2.json
+  Total time: 0.012 ms (2000 collision times)
+  ✓ Simulation complete
 
 📊 Analyzing: therm_25He_75N2.h5
   Ions active (final): 500/500
@@ -64,6 +82,9 @@ Composition: He=0%, N2=100%
 Collision frequency: 1.88e+08 Hz
 Collision time:      0.01 µs
 
+▶ Running simulation: config_0He_100N2.json
+  Total time: 0.011 ms (2000 collision times)
+  ✓ Simulation complete
 
 📊 Analyzing: therm_0He_100N2.h5
   Ions active (final): 500/500
@@ -86,7 +107,7 @@ VALIDATION SUMMARY
   ✓ Saved: /home/chsch95/ICARION/validation/figures/mixture_thermalization_validation.png
 
 ================================================================================
-End time: 2025-12-21 18:54:50
-Duration: -0.0 seconds
+End time: 2026-02-11 02:46:47
+Duration: 14082.2 seconds
 Log file: /home/chsch95/ICARION/validation/logs/MIXTURE_THERMALIZATION_VALIDATION.txt
 ================================================================================

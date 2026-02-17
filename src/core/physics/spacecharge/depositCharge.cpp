@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 #include "core/physics/spacecharge/depositCharge.h"
 #include "core/log/Logger.h"
 #include "core/utils/safety/numericalSafetyGuards.h"

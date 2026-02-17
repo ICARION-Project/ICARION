@@ -5,7 +5,7 @@ Goal: publish scientifically useful validation evidence (report + plots + logs) 
 ## Recommended policy
 
 Keep in git:
-- Validation report: `validation/VALIDATION_REPORT_v1.0.md`
+- Validation report: `validation/VALIDATION_REPORT_v1.0.0.md`
 - Curated plots (PNG/SVG) referenced by the report
 - Curated summary logs/tables (TXT/CSV/JSON)
 - Reproducibility metadata and configs **used for the run** (small JSON)
@@ -29,9 +29,9 @@ The suite runners fix this by invoking `icarion_main` from the **repo root**.
 Run suites with a stable run id:
 
 ```bash
-./validation/scripts/run_physics_suite.sh --run-id v1.0_physics
-./validation/scripts/run_instrument_suite.sh --run-id v1.0_instruments
-./validation/scripts/performance/run_performance_suite.sh --run-id v1.0_performance
+./validation/scripts/run_physics_suite.sh --run-id v1.0.0_physics
+./validation/scripts/run_instrument_suite.sh --run-id v1.0.0_instruments
+./validation/scripts/performance/run_performance_suite.sh --run-id v1.0.0_performance
 ```
 
 Each run writes a `manifest.json` into the run directory with:
@@ -45,8 +45,8 @@ To publish a run without `.h5`, export it:
 
 ```bash
 ./validation/scripts/export_run_bundle.sh \
-  --run-dir validation/runs/v1.0_physics \
-  --out-dir validation/published/v1.0_physics
+  --run-dir validation/runs/v1.0.0_physics \
+  --out-dir validation/published/v1.0.0.0_physics
 ```
 
 This copies:
@@ -65,7 +65,7 @@ Recommended naming:
 
 ```
 validation/published/
-`-- v1.0/
+`-- v1.0.0/
     |-- physics/
     |-- instruments/
     `-- performance/
@@ -82,13 +82,13 @@ Example export:
 
 ```bash
 ./validation/scripts/export_run_bundle.sh \
-  --run-dir validation/runs/v1.0_physics \
-  --out-dir validation/published/v1.0/physics
+  --run-dir validation/runs/v1.0.0_physics \
+  --out-dir validation/published/v1.0.0.0/physics
 ```
 
-Then update `validation/VALIDATION_REPORT_v1.0.md` to link to:
-- `validation/published/v1.0/physics/figures/...`
-- `validation/published/v1.0/physics/logs/...`
+Then update `validation/VALIDATION_REPORT_v1.0.0.md` to link to:
+- `validation/published/v1.0.0.0/physics/figures/...`
+- `validation/published/v1.0.0.0/physics/logs/...`
 
 This keeps the report stable and avoids linking to transient `validation/runs/...` paths.
 

@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 #include "MagneticFieldForce.h"
 #include "core/utils/mathUtils.h"
 #include "fieldsolver/utils/IFieldProvider.h"
@@ -72,10 +72,10 @@ Vec3 MagneticFieldForce::compute_soa(const ForceState& state, double t,
     
     // Priority: context field provider > constructor field provider > analytical
     if (ctx.field_provider) {
-        // Experimental: magnetic field provider not wired in v1.0
+        // Experimental: magnetic field provider not wired in v1.0.0
         // B_field = ctx.field_provider->get_B(state.pos);
     } else if (use_field_provider_ && field_provider_) {
-        // Experimental: magnetic field provider not wired in v1.0
+        // Experimental: magnetic field provider not wired in v1.0.0
         // B_field = field_provider_->get_B(state.pos);
     } else {
         B_field = compute_analytical_field(state.pos);

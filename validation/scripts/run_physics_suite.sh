@@ -311,7 +311,7 @@ run_spacecharge_configs() {
     out_dir="$out_root/results/physics/spacecharge"
   else
     # Fallback (kept for compatibility): write into the frozen baseline.
-    out_dir="$REPO_ROOT/validation/results/v1.0_test/physics/spacecharge"
+    out_dir="$REPO_ROOT/validation/results/v1.0.0_test/physics/spacecharge"
   fi
   mkdir -p "$out_dir"
 
@@ -331,7 +331,7 @@ run_spacecharge_configs() {
     [[ ! -f "$cfg" ]] && continue
 
     # Write a per-run copy of the config with an overridden output folder so we
-    # do not clobber the committed v1.0_test baseline outputs.
+    # do not clobber the committed v1.0.0_test baseline outputs.
     local cfg_base
     cfg_base=$(basename "$cfg")
     local tmp_cfg="$out_dir/${cfg_base%.json}.run_${RUN_ID}.config.json"

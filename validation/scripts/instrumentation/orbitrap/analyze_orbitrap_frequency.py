@@ -173,7 +173,7 @@ def analyze_trajectory(h5_path, config_path=None, axis_override=None):
         raise ValueError("species_ids dataset does not match number of ions")
 
     if config_path is None:
-        config_path = str(h5_path).replace('.h5', '.json').replace('results/v1.0_test/instruments/', 'configs/instruments/')
+        config_path = str(h5_path).replace('.h5', '.json').replace('results/v1.0.0_test/instruments/', 'configs/instruments/')
 
     with open(config_path, 'r') as f:
         config = json.load(f)

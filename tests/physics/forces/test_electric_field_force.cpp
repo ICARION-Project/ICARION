@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 
@@ -330,7 +330,7 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
         REQUIRE(F_right.z < 0.0);  // Pushes away from right endcap
     }
     
-    SECTION("LQIT with AC field (fixed x-direction for v1.0)") {
+    SECTION("LQIT with AC field (fixed x-direction for v1.0.0)") {
         ICARION::config::DomainConfig domain_ac;
         domain_ac.instrument = ICARION::config::Instrument::LQIT;
         domain_ac.geometry.radius_m = 0.005;

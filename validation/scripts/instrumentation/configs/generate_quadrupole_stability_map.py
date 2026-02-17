@@ -144,7 +144,7 @@ for q in Q_VALUES:
             },
             "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
             "output": {
-                "folder": "validation/results/v1.0_test/instruments/quadrupole_stability",
+                "folder": "validation/results/v1.0.0_test/instruments/quadrupole_stability",
                 "trajectory_file": f"quad_q{q:.3f}_a{a:+.3f}.h5",
                 "print_progress": False
             },

@@ -3,7 +3,7 @@ import h5py
 import numpy as np
 from pathlib import Path
 
-results_dir = Path('results/v1.0_test/instruments/lqit')
+results_dir = Path('results/v1.0.0_test/instruments/lqit')
 h5_files = sorted([f for f in results_dir.glob('lqit_*.h5') if 'mass_scan' not in f.name])
 
 print("="*80)

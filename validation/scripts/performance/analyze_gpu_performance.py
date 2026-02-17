@@ -34,7 +34,7 @@ except ImportError:
 SCRIPT_DIR = Path(__file__).parent
 VALIDATION_ROOT = SCRIPT_DIR.parent.parent
 PROJECT_ROOT = VALIDATION_ROOT.parent
-RESULTS_ROOT = VALIDATION_ROOT / "results" / "v1.0_test" / "performance"
+RESULTS_ROOT = VALIDATION_ROOT / "results" / "v1.0.0_test" / "performance"
 CPU_RESULTS_DIR = RESULTS_ROOT / "logs"
 GPU_RESULTS_DIR = RESULTS_ROOT / "gpu_logs"
 OUTPUT_DIR = RESULTS_ROOT / "gpu_analysis"

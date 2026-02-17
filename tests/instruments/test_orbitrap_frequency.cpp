@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 // Orbitrap frequency validation tests
 // Test that ions oscillate at the correct frequency: f = (1/2π) × sqrt(q × k / m)
 

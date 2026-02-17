@@ -404,7 +404,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         results_dir = Path(sys.argv[1])
     else:
-        results_dir = Path("../results/v1.0_test/instruments/fticr")
+        results_dir = Path("../results/v1.0.0_test/instruments/fticr")
     
     # Magnetic field from configs
     b_field_T = 7.0

@@ -15,7 +15,7 @@
   },
   "species_database_path": "data/species_database_v1.json",
   "output": {
-    "folder": "validation/results/v1.0_test/instruments/fticr",
+    "folder": "validation/results/v1.0.0_test/instruments/fticr",
     "trajectory_file": "fticr_CaffeineH+_B7.0T.h5",
     "print_progress": true
   },

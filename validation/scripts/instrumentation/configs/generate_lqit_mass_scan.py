@@ -116,7 +116,7 @@ config = {
     },
     "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
     "output": {
-        "folder": "results/v1.0_test/instruments/lqit",
+        "folder": "results/v1.0.0_test/instruments/lqit",
         "trajectory_file": "lqit_mass_scan.h5",
         "print_progress": True
     },

@@ -74,8 +74,8 @@ for en, p, col in test_points:
     plt.plot(en, T_e, 'o', color=col, markersize=10, markeredgecolor='black', markeredgewidth=2)
 
 plt.tight_layout()
-plt.savefig('results/v1.0_test/instruments/ims/Teff_vs_EN.png', dpi=300)
-print("Plot saved to: results/v1.0_test/instruments/ims/Teff_vs_EN.png")
+plt.savefig('results/v1.0.0_test/instruments/ims/Teff_vs_EN.png', dpi=300)
+print("Plot saved to: results/v1.0.0_test/instruments/ims/Teff_vs_EN.png")
 
 # Print values at our test points
 print("\n" + "="*60)

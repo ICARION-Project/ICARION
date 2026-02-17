@@ -102,7 +102,7 @@ config = {
     },
     "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
     "output": {
-        "folder": "validation/results/v1.0_test/instruments/fticr",
+        "folder": "validation/results/v1.0.0_test/instruments/fticr",
         "trajectory_file": f"fticr_multi_species_B{B_FIELD_T:.1f}T.h5",
         "print_progress": True
     },

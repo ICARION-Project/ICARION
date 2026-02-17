@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://icarion.org/schemas/species/v1.0.json",
+  "$id": "https://icarion.org/schemas/species/v1.0.0.json",
   "title": "ICARION Species Database Schema",
-  "description": "Schema for ICARION species database (v1.0). Defines ion and neutral species properties with user-friendly units.",
+  "description": "Schema for ICARION species database (v1.0.0). Defines ion and neutral species properties with user-friendly units.",
   "type": "object",
   "required": ["species"],
   "additionalProperties": false,

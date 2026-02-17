@@ -50,7 +50,7 @@ def create_fticr_spectrum():
     """Generate FTICR cyclotron frequency spectrum using validated FFT method."""
     print("Creating FTICR spectrum...")
     
-    base_dir = Path("validation/results/v1.0_test/instruments/fticr")
+    base_dir = Path("validation/results/v1.0.0_test/instruments/fticr")
     figures_dir = Path("validation/figures")
     
     if not base_dir.exists():
@@ -139,7 +139,7 @@ def create_tof_spectrum():
     """Generate TOF mass spectrum using validated velocity-correction method."""
     print("Creating TOF spectrum...")
     
-    base_dir = Path("validation/results/v1.0_test/instruments/tof")
+    base_dir = Path("validation/results/v1.0.0_test/instruments/tof")
     figures_dir = Path("validation/figures")
     
     if not base_dir.exists():
@@ -239,7 +239,7 @@ def create_lqit_plots():
     """Generate LQIT validation plots from actual simulation data."""
     print("Creating LQIT validation plots...")
     
-    lqit_dir = Path("validation/results/v1.0_test/instruments/lqit")
+    lqit_dir = Path("validation/results/v1.0.0_test/instruments/lqit")
     figures_dir = Path("validation/figures")
     
     if not lqit_dir.exists():
@@ -467,7 +467,7 @@ def create_analysis_logs():
     # FTICR Analysis Log
     fticr_log = """
 ================================================================================
-ICARION v1.0 - FTICR VALIDATION ANALYSIS LOG
+ICARION v1.0.0 - FTICR VALIDATION ANALYSIS LOG
 ================================================================================
 Generated: December 4, 2025
 Test Suite: Fourier Transform Ion Cyclotron Resonance (FTICR)

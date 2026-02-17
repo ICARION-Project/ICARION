@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 // Domain lookup micro-benchmark: prefilter vs linear scan for cylindrical domains.
 
 #include <catch2/catch_test_macros.hpp>

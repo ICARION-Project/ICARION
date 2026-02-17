@@ -20,7 +20,7 @@ REPO_ROOT="$(cd "$VALIDATION_DIR/.." && pwd)"
 
 ICARION_BIN_DEFAULT="$REPO_ROOT/build/src/icarion_main"
 CONFIG_DIR_DEFAULT="$VALIDATION_DIR/configs/instruments/quadrupole"
-OUTPUT_DIR_DEFAULT="$VALIDATION_DIR/results/v1.0_test/instruments/quadrupole_first_region"
+OUTPUT_DIR_DEFAULT="$VALIDATION_DIR/results/v1.0.0_test/instruments/quadrupole_first_region"
 
 RUN_DIR="${ICARION_VALIDATION_RUN_DIR:-}"
 if [[ -n "$RUN_DIR" ]]; then

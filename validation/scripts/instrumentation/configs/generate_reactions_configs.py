@@ -101,7 +101,7 @@ for k_s in FIRST_ORDER_RATES_S:
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "validation/results/v1.0_test/physics/reactions",
+            "folder": "validation/results/v1.0.0_test/physics/reactions",
             "trajectory_file": f"first_order_decay_k{k_s:.0e}.h5",
             "print_progress": True
         },
@@ -213,7 +213,7 @@ for k_cm3_s in BIMOLECULAR_RATES_CM3_S:
         },
         "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
         "output": {
-            "folder": "validation/results/v1.0_test/physics/reactions",
+            "folder": "validation/results/v1.0.0_test/physics/reactions",
             "trajectory_file": f"bimolecular_k{k_cm3_s:.0e}.h5",
             "print_progress": True
         },

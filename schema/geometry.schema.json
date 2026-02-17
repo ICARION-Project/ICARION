@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0/geometry.schema.json",
+  "$id": "https://icarion.io/schemas/v1.0.0/geometry.schema.json",
   "title": "ICARION Domain Geometry Configuration",
   "description": "Geometric description of instrument domain in global coordinates",
   "type": "object",

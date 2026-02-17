@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 /**
  * @file test_ims_drift.cpp
  * @brief IMS (Ion Mobility Spectrometry) drift tube physics validation
@@ -45,7 +45,7 @@
  * 
  * 3. **Collision model validation**: Ensure models don't crash, produce finite results
  * 
- * # Known Limitations (v1.0)
+ * # Known Limitations (v1.0.0)
  * 
  * - **Friction/Langevin/HSD+OU tests**: Not included
  *   - Require careful tuning of DampingForce + OU interaction

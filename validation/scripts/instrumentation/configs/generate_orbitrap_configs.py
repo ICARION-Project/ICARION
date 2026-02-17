@@ -110,7 +110,7 @@ config = {
     },
     "species_database_path": "/home/chsch95/ICARION/data/species_database_v1.json",
     "output": {
-        "folder": "validation/results/v1.0_test/instruments/orbitrap",
+        "folder": "validation/results/v1.0.0_test/instruments/orbitrap",
         "trajectory_file": f"orbitrap_multi_species_V{RADIAL_VOLTAGE_V:.2f}.h5",
         "print_progress": True
     },

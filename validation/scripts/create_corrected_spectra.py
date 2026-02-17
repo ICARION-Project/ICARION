@@ -36,7 +36,7 @@ plt.rcParams.update({
 
 def create_corrected_tof_spectrum():
     """Create TOF spectrum using multi-species validation data"""
-    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/tof')
+    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/tof')
     
     # Force use of individual files with correct masses
     files_to_process = [
@@ -251,8 +251,8 @@ def create_corrected_tof_spectrum():
 
 def create_corrected_orbitrap_spectrum():
     """Create Orbitrap spectrum using multi-species validation data"""
-    multi_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/orbitrap/orbitrap_multi_species_V3500.00.h5')
-    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/orbitrap')
+    multi_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/orbitrap/orbitrap_multi_species_V3500.00.h5')
+    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/orbitrap')
     
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
     
@@ -410,7 +410,7 @@ def create_corrected_orbitrap_spectrum():
 
 def create_corrected_fticr_spectrum():
     """Create FTICR spectrum using validated single-species data with correct frequencies"""
-    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/fticr')
+    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/fticr')
     
     # Use individual validated files with correct cyclotron frequencies  
     species_files = [

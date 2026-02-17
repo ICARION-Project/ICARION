@@ -1,9 +1,9 @@
 
 ================================================================================
-ICARION v1.0 - Comprehensive Thermalization Validation
+ICARION v1.0.0 - Comprehensive Thermalization Validation
 ================================================================================
 Analyzing 90 thermalization tests...
-Location: /home/chsch95/ICARION/validation/results/v1.0_test/physics/thermalization
+Location: /home/chsch95/ICARION/validation/results/v1.0.0_test/physics/thermalization
 Analysis Date: 1764665736.3974261
 ================================================================================
 

@@ -15,7 +15,7 @@
   },
   "species_database_path": "data/species_database_v1.json",
   "output": {
-    "folder": "validation/results/v1.0_test/performance/thread_scaling_large",
+    "folder": "validation/results/v1.0.0_test/performance/thread_scaling_large",
     "trajectory_file": "scaling_cpu_cores.h5",
     "print_progress": true
   },

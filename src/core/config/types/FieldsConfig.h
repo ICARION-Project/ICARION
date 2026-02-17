@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 #ifndef ICARION_CONFIG_FIELDS_CONFIG_H
 #define ICARION_CONFIG_FIELDS_CONFIG_H
 
@@ -22,7 +22,7 @@ namespace ICARION::config {
  * Voltages support time-varying waveforms.
  */
 struct DCFieldConfig {
-    // === Direct voltage specification (v1.0: static or waveform) ===
+    // === Direct voltage specification (v1.0.0: static or waveform) ===
     ValueOrWaveform axial_V{0.0};       ///< Axial DC voltage [V]
     ValueOrWaveform quad_V{0.0};        ///< Quadrupole DC voltage [V]
     ValueOrWaveform radial_V{0.0};      ///< Radial DC voltage [V]
@@ -170,7 +170,7 @@ struct MagneticFieldConfig {
  * 
  * Aggregates DC, RF, AC, and magnetic fields.
  * Also includes precomputed field arrays (BEM/FEM results).
- * v1.0: Includes waveform library for named waveforms.
+ * v1.0.0: Includes waveform library for named waveforms.
  */
 struct FieldsConfig {
     DCFieldConfig dc;
@@ -178,7 +178,7 @@ struct FieldsConfig {
     ACFieldConfig ac;
     MagneticFieldConfig magnetic;
     
-    // === Waveform library (v1.0) ===
+    // === Waveform library (v1.0.0) ===
     std::map<std::string, Waveform> waveform_library;  ///< Named waveforms for @references
     
     // === Precomputed field arrays (BEM/FEM) ===

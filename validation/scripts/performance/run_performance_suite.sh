@@ -1,5 +1,5 @@
 #!/bin/bash
-# Unified ICARION performance benchmark runner (CPU-only in v1.0; GPU runtime-disabled)
+# Unified ICARION performance benchmark runner (CPU-only in v1.0.0; GPU runtime-disabled)
 
 set -euo pipefail
 
@@ -10,8 +10,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/build"
 CPU_CONFIG_DIR="$PROJECT_ROOT/validation/configs/performance"
 GPU_CONFIG_DIR="$PROJECT_ROOT/validation/configs/performance/gpu"
-CPU_RESULT_DIR="$PROJECT_ROOT/validation/results/v1.0_test/performance/logs"
-GPU_RESULT_DIR="$PROJECT_ROOT/validation/results/v1.0_test/performance/gpu_logs"
+CPU_RESULT_DIR="$PROJECT_ROOT/validation/results/v1.0.0_test/performance/logs"
+GPU_RESULT_DIR="$PROJECT_ROOT/validation/results/v1.0.0_test/performance/gpu_logs"
 ICARION_BIN="$BUILD_DIR/src/icarion_main"
 CMAKE_CACHE="$BUILD_DIR/CMakeCache.txt"
 
@@ -46,19 +46,19 @@ Usage: $(basename "$0") [options] [category ...]
 
 Options:
   --cpu-only        Run only CPU benchmark categories (default)
-  --gpu-only        (ignored in v1.0) GPU runtime is disabled; GPU categories are skipped
+  --gpu-only        (ignored in v1.0.0) GPU runtime is disabled; GPU categories are skipped
   --run-id ID        Run identifier (default: YYYYmmdd_HHMMSS)
   --run-dir PATH     Output directory for this run (default: validation/runs/<run-id>)
-  --baseline-output  Write into validation/results/v1.0_test/performance (legacy)
+  --baseline-output  Write into validation/results/v1.0.0_test/performance (legacy)
   -h, --help        Show this help and exit
 
 Categories:
   CPU: ${CPU_DEFAULT_CATEGORIES[*]}
-  GPU: ${GPU_DEFAULT_CATEGORIES[*]} (retained for future releases; skipped in v1.0)
+  GPU: ${GPU_DEFAULT_CATEGORIES[*]} (retained for future releases; skipped in v1.0.0)
   Special aliases:
-    all       Run all CPU categories (GPU section skipped in v1.0)
+    all       Run all CPU categories (GPU section skipped in v1.0.0)
     cpu_all   Run all CPU categories
-    gpu_all   (ignored in v1.0) Run GPU categories when backend is re-enabled
+    gpu_all   (ignored in v1.0.0) Run GPU categories when backend is re-enabled
 EOF
 }
 
@@ -75,7 +75,7 @@ dedupe_array() {
   _arr=("${_unique[@]:-}")
 }
 
-MODE="cpu" # all|cpu|gpu (default to CPU-only; GPU runtime-disabled in v1.0)
+MODE="cpu" # all|cpu|gpu (default to CPU-only; GPU runtime-disabled in v1.0.0)
 USER_CATEGORIES=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -221,9 +221,9 @@ fi
 dedupe_array CPU_SELECTED
 dedupe_array GPU_SELECTED
 
-# GPU runtime is disabled in v1.0; honor CPU selections only and skip GPU categories.
+# GPU runtime is disabled in v1.0.0; honor CPU selections only and skip GPU categories.
 if [[ "$MODE" == "gpu" ]] || [[ ${#GPU_SELECTED[@]} -gt 0 ]]; then
-  echo "GPU benchmarks are runtime-disabled for v1.0 (enable_gpu falls back to CPU). Skipping GPU categories." >&2
+  echo "GPU benchmarks are runtime-disabled for v1.0.0 (enable_gpu falls back to CPU). Skipping GPU categories." >&2
   if [[ "$MODE" == "gpu" ]]; then
     exit 0
   fi

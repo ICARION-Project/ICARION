@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
-// MIT License - Copyright (c) 2025 ICARION Project Contributors
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2025 ICARION Project Contributors
 /**
  * @file startupBanner.h
  * @brief Startup banner with basic system information (optional)
@@ -83,7 +83,7 @@ inline void print_startup_banner(
     #endif
     std::cout << "\n\n";
     
-    std::cout << "   License:      MIT\n";
+    std::cout << "   License:      GPL-3.0-only\n";
     std::cout << "   Support:      https://github.com/ICARION-Project/ICARION/issues\n";
     std::cout << "\n";
     

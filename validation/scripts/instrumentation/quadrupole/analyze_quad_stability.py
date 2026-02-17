@@ -42,8 +42,8 @@ def _default_results_dir_candidates():
     """Return ordered list of candidate results directories."""
     return [
         VALIDATION_DIR / "results" / "instruments" / "quadrupole",
-        VALIDATION_DIR / "results" / "v1.0_test" / "instruments" / "quadrupole",
-        REPO_ROOT / "results" / "v1.0_test" / "instruments" / "quadrupole",
+        VALIDATION_DIR / "results" / "v1.0.0_test" / "instruments" / "quadrupole",
+        REPO_ROOT / "results" / "v1.0.0_test" / "instruments" / "quadrupole",
     ]
 
 

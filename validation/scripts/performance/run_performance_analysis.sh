@@ -1,5 +1,5 @@
 #!/bin/bash
-# Unified performance analysis wrapper; GPU benchmarks are runtime-disabled in v1.0.
+# Unified performance analysis wrapper; GPU benchmarks are runtime-disabled in v1.0.0.
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ Options:
   --python PATH   Explicit Python interpreter (defaults to python3 or $PYTHON_BIN)
   -h, --help      Show this help message
 
-Note: GPU benchmarks are runtime-disabled in v1.0; this runner skips GPU analysis.
+Note: GPU benchmarks are runtime-disabled in v1.0.0; this runner skips GPU analysis.
 EOF
 }
 
@@ -43,5 +43,5 @@ while [[ $# -gt 0 ]]; do
   esac
  done
 
-echo "GPU performance benchmarks are runtime-disabled for v1.0; skipping GPU performance analysis."
+echo "GPU performance benchmarks are runtime-disabled for v1.0.0; skipping GPU performance analysis."
 exit 0

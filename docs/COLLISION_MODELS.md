@@ -58,7 +58,7 @@ config::CollisionModel::Friction
 
 **Advantages:**
 - Full stochastic treatment (diffusion included)
-- Validated thermalization behavior (see [VALIDATION_REPORT_v1.0.md](../validation/VALIDATION_REPORT_v1.0.md))
+- Validated thermalization behavior (see [VALIDATION_REPORT_v1.0.0.md](../validation/VALIDATION_REPORT_v1.0.0.md))
 - IMS drift tests use broad tolerances; validation report shows ~10% accuracy once collisions are frequent
 
 **Validation:**

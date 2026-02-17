@@ -15,7 +15,7 @@
     "enable_reactions": false
   },
   "output": {
-    "folder": "validation/results/v1.0_test/instruments/quadrupole",
+    "folder": "validation/results/v1.0.0_test/instruments/quadrupole",
     "trajectory_file": "quad_a-0.0100_q0.7000.h5",
     "print_progress": true
   },

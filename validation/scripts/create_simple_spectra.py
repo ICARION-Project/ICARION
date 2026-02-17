@@ -35,7 +35,7 @@ plt.rcParams.update({
 
 def create_simple_tof_spectrum():
     """Create simplified TOF spectrum based on flight times"""
-    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/tof')
+    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/tof')
     
     # Try multi-species file first, then fall back to individual files
     multi_file = base_path / 'tof_multi_species_V2000.h5'
@@ -225,8 +225,8 @@ def create_simple_tof_spectrum():
 def create_simple_orbitrap_spectrum():
     """Create simplified Orbitrap spectrum based on frequency analysis"""
     # Look for multi-species file first
-    multi_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/orbitrap/orbitrap_multi_species_V3500.00.h5')
-    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/orbitrap')
+    multi_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/orbitrap/orbitrap_multi_species_V3500.00.h5')
+    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/orbitrap')
     
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
     
@@ -498,7 +498,7 @@ def create_simple_orbitrap_spectrum():
 
 def create_simple_fticr_spectrum():
     """Create simplified FTICR cyclotron spectrum"""
-    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0_test/instruments/fticr')
+    base_path = Path('/home/chsch95/ICARION/validation/results/v1.0.0_test/instruments/fticr')
     
     species_data = [
         {'name': 'H₃O⁺', 'file': 'fticr_H3O+_B7.0T.h5', 'mass': 19.02, 'color': '#1f77b4'},

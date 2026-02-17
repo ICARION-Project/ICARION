@@ -1,0 +1,286 @@
+:root {
+  --bg: #0f172a;
+  --panel: #111827;
+  --card: #1f2937;
+  --border: #334155;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.header p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.status {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.card h2, .card h3 {
+  margin: 0 0 12px;
+}
+
+.card p {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.help {
+  color: var(--muted);
+  margin: -6px 0 12px;
+  font-size: 13px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.domain-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.form-grid label {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0b1220;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: 6px;
+  cursor: help;
+}
+
+.hidden {
+  display: none !important;
+}
+
+input, select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0b1220;
+  color: var(--text);
+  outline: none;
+}
+
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0b1220;
+  color: var(--text);
+  outline: none;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+}
+
+input:focus, select:focus {
+  border-color: var(--accent);
+}
+
+.button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.button.secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.button:hover {
+  background: var(--accent-hover);
+}
+
+.button.secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.form-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.ac-hidden .ac-only {
+  display: none;
+}
+
+.rf-hidden .rf-only {
+  display: none;
+}
+
+.dc-hidden .dc-only {
+  display: none;
+}
+
+.orbitrap-hidden .orbitrap-only {
+  display: none;
+}
+
+.geom-default-hidden .geom-default-only {
+  display: none;
+}
+
+.radius-hidden .radius-only {
+  display: none;
+}
+
+.ion-list {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ion-card {
+  background: #0b1220;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.ion-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.ion-card h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.ion-card .form-grid {
+  margin-bottom: 0;
+}
+
+.species-list {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.species-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0b1220;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.species-item.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.wf-hidden {
+  display: none !important;
+}
+
+.geom-viewer {
+  height: 280px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #0b1220;
+  margin: 12px 0;
+}
+
+canvas {
+  width: 100%;
+  background: #0b1220;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+code {
+  background: #0b1220;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}

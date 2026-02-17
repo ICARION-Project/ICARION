@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ICARION Config Editor</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div>
+        <h1>ICARION Config Editor</h1>
+        <p>Modern form-based editor for ICARION JSON configs (no raw JSON required).</p>
+      </div>
+      <div class="header-actions">
+        <label class="button secondary">
+          Load JSON
+          <input type="file" id="fileInput" accept="application/json" hidden />
+        </label>
+        <button id="downloadBtn" class="button">Download JSON</button>
+      </div>
+    </header>
+
+    <section class="status" id="status">Load a config to start editing.</section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Simulation</h2>
+        <p class="help">Time-stepping and numerical integration settings.</p>
+        <div class="form-grid">
+          <label>total_time_s <span class="hint" title="Total simulated time in seconds. Example: 1e-3 for 1 ms.">i</span>
+            <input id="simTotalTime" type="number" step="any" />
+          </label>
+          <label>dt_s <span class="hint" title="Integration time step in seconds. Smaller = more accurate, slower.">i</span>
+            <input id="simDt" type="number" step="any" />
+          </label>
+          <label>integrator <span class="hint" title="Numerical integrator: RK4 (fixed), RK45 (adaptive), Boris (E×B).">i</span>
+            <select id="simIntegrator">
+              <option value="RK4">RK4</option>
+              <option value="RK45">RK45</option>
+              <option value="Boris">Boris</option>
+            </select>
+          </label>
+          <label>write_interval <span class="hint" title="Write output every N time steps (integer).">i</span>
+            <input id="simWrite" type="number" step="1" />
+          </label>
+          <label>rng_seed <span class="hint" title="Random seed for reproducible runs. Leave empty to keep config value.">i</span>
+            <input id="simSeed" type="number" step="1" />
+          </label>
+        </div>
+        <button class="button" id="applySimulation">Apply Simulation</button>
+      </section>
+
+      <section class="card">
+        <h2>Output</h2>
+        <p class="help">Where results are written.</p>
+        <div class="form-grid">
+          <label>folder <span class="hint" title="Output directory for results (relative or absolute path).">i</span>
+            <input id="outFolder" type="text" />
+          </label>
+          <label>trajectory_file <span class="hint" title="HDF5 output file for trajectories (e.g., trajectories.h5).">i</span>
+            <input id="outTrajectory" type="text" />
+          </label>
+          <label>print_progress <span class="hint" title="Print progress updates during the run.">i</span>
+            <select id="outProgress"><option value="true">true</option><option value="false">false</option></select>
+          </label>
+        </div>
+        <button class="button" id="applyOutput">Apply Output</button>
+      </section>
+
+      <section class="card">
+        <h2>Databases</h2>
+        <p class="help">Optional species/reaction databases and ion cloud file.</p>
+        <div class="form-grid">
+          <label>species_database <span class="hint" title="Path to species database JSON (optional).">i</span>
+            <input id="dbSpecies" type="text" placeholder="data/species_database_v1.json" />
+          </label>
+          <label>reaction_database <span class="hint" title="Path to reaction database JSON (optional).">i</span>
+            <input id="dbReaction" type="text" placeholder="data/reactions_database_v1.json" />
+          </label>
+          <label>ion_cloud <span class="hint" title="Optional ion cloud file (HDF5).">i</span>
+            <input id="ionCloud" type="text" placeholder="data/initial_cloud.h5" />
+          </label>
+        </div>
+        <div class="domain-actions">
+          <button class="button secondary" id="openSpeciesDbPath">Open Species DB (path)</button>
+          <button class="button secondary" id="openReactionDbPath">Open Reaction DB (path)</button>
+        </div>
+        <button class="button" id="applyDatabases">Apply Databases</button>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Ion Generation</h2>
+          <p>Define initial ion species (positions, velocities, counts).</p>
+        </div>
+        <div class="domain-actions">
+          <button class="button secondary" id="addIon">Add Ion Species</button>
+          <button class="button secondary" id="removeIon">Remove Selected</button>
+        </div>
+      </div>
+      <div class="ion-list" id="ionList"></div>
+      <button class="button" id="applyIons">Apply Ions</button>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Waveforms</h2>
+          <p>Define reusable time-dependent waveforms and reference them in fields.</p>
+        </div>
+        <div class="domain-actions">
+          <button class="button secondary" id="addWaveform">Add Waveform</button>
+          <button class="button secondary" id="removeWaveform">Remove Selected</button>
+        </div>
+      </div>
+      <div class="form-columns">
+        <div class="column">
+          <h3>Waveform List</h3>
+          <div class="species-list" id="waveformList"></div>
+        </div>
+        <div class="column">
+          <h3>Waveform Editor</h3>
+          <div class="form-grid">
+            <label>id <input id="wfId" type="text" placeholder="my_wave" /></label>
+            <label>type
+              <select id="wfType">
+                <option value="constant">constant</option>
+                <option value="linear">linear</option>
+                <option value="sinusoidal">sinusoidal</option>
+                <option value="arbitrary">arbitrary</option>
+              </select>
+            </label>
+            <label class="wf-const">value <input id="wfValue" type="number" step="any" /></label>
+            <label class="wf-linear">start <input id="wfStart" type="number" step="any" /></label>
+            <label class="wf-linear">end <input id="wfEnd" type="number" step="any" /></label>
+            <label class="wf-linear">start_time_s <input id="wfStartTime" type="number" step="any" /></label>
+            <label class="wf-linear">end_time_s <input id="wfEndTime" type="number" step="any" /></label>
+            <label class="wf-linear">clamp
+              <select id="wfClamp"><option value="true">true</option><option value="false">false</option></select>
+            </label>
+            <label class="wf-sine">offset <input id="wfOffset" type="number" step="any" /></label>
+            <label class="wf-sine">amplitude <input id="wfAmplitude" type="number" step="any" /></label>
+            <label class="wf-sine">frequency_Hz <input id="wfFrequency" type="number" step="any" /></label>
+            <label class="wf-sine">phase_rad <input id="wfPhase" type="number" step="any" /></label>
+            <label class="wf-arb">times (s) <input id="wfTimes" type="text" placeholder="0,0.001,0.002" /></label>
+            <label class="wf-arb">values <input id="wfValues" type="text" placeholder="0,100,50" /></label>
+            <label class="wf-arb">interpolation
+              <select id="wfInterp">
+                <option value="linear">linear</option>
+                <option value="step">step</option>
+                <option value="cubic">cubic</option>
+              </select>
+            </label>
+          </div>
+          <div class="domain-actions">
+            <button class="button" id="saveWaveform">Add / Update</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Preview Plots</h2>
+          <p>Quick visualization of ion cloud distribution and selected waveform.</p>
+        </div>
+        <div class="domain-actions">
+          <label>
+            Ion view
+            <select id="ionPlotOrientation">
+              <option value="xy">X / Y</option>
+              <option value="xz">X / Z</option>
+              <option value="yz">Y / Z</option>
+            </select>
+          </label>
+          <button class="button secondary" id="plotIonCloud">Plot Ion Cloud</button>
+          <button class="button secondary" id="plotWaveform">Plot Waveform</button>
+        </div>
+      </div>
+      <div class="form-columns">
+        <div class="column">
+          <h3>Ion Cloud Scatter</h3>
+          <canvas id="ionPlot" height="220"></canvas>
+        </div>
+        <div class="column">
+          <h3>Waveform (value vs time)</h3>
+          <canvas id="waveformPlot" height="220"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Species Database (Custom Molecules/Ions)</h2>
+          <p>Load an existing species database and add new entries.</p>
+        </div>
+        <div class="domain-actions">
+          <label class="button secondary">
+            Load DB JSON
+            <input type="file" id="speciesDbInput" accept="application/json" hidden />
+          </label>
+          <button class="button secondary" id="downloadSpeciesDb">Download DB</button>
+        </div>
+      </div>
+      <div class="form-columns">
+        <div class="column">
+          <h3>Species List</h3>
+          <div class="species-list" id="speciesList"></div>
+        </div>
+        <div class="column">
+          <h3>Species Editor</h3>
+          <div class="form-grid">
+            <label>id <input id="spId" type="text" placeholder="H3O+" /></label>
+            <label>name <input id="spName" type="text" placeholder="Hydronium" /></label>
+            <label>mass_amu <input id="spMass" type="number" step="any" /></label>
+            <label>charge <input id="spCharge" type="number" step="1" /></label>
+            <label>mobility_cm2Vs <input id="spMobility" type="number" step="any" /></label>
+            <label>CCS_A2 <input id="spCcs" type="number" step="any" /></label>
+            <label>polarizability_A3 <input id="spPolar" type="number" step="any" /></label>
+            <label>geometry_file <input id="spGeomFile" type="text" placeholder="molecules/H3O+.json" /></label>
+          </div>
+          <div class="domain-actions">
+            <label class="button secondary">
+              Load Geometry JSON
+              <input type="file" id="speciesGeomInput" accept="application/json" hidden />
+            </label>
+            <button class="button secondary" id="loadGeomPath">Load geometry_file path</button>
+            <button class="button secondary" id="clearGeom">Clear Viewer</button>
+          </div>
+          <div class="geom-viewer" id="geomViewer"></div>
+          <div class="domain-actions">
+            <button class="button" id="addSpecies">Add / Update</button>
+            <button class="button secondary" id="removeSpecies">Remove</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Reaction Database</h2>
+          <p>Load or edit reaction entries and rate models.</p>
+        </div>
+        <div class="domain-actions">
+          <label class="button secondary">
+            Load Reaction DB
+            <input type="file" id="reactionDbInput" accept="application/json" hidden />
+          </label>
+          <button class="button secondary" id="downloadReactionDb">Download DB</button>
+        </div>
+      </div>
+      <div class="form-columns">
+        <div class="column">
+          <h3>Reaction List</h3>
+          <div class="species-list" id="reactionList"></div>
+        </div>
+        <div class="column">
+          <h3>Reaction Editor</h3>
+          <div class="form-grid">
+            <label>id <input id="rxnId" type="text" placeholder="rxn_001" /></label>
+            <label>reactant <input id="rxnReactant" type="text" placeholder="H3O+" /></label>
+            <label>product <input id="rxnProduct" type="text" placeholder="PentanalH+" /></label>
+            <label>rate_constant <input id="rxnRate" type="number" step="any" /></label>
+            <label>rate_model
+              <select id="rxnModel">
+                <option value="Constant">Constant</option>
+                <option value="Arrhenius">Arrhenius</option>
+                <option value="ModifiedArrhenius">ModifiedArrhenius</option>
+              </select>
+            </label>
+            <label>activation_energy_eV <input id="rxnEa" type="number" step="any" /></label>
+            <label>temperature_exponent <input id="rxnN" type="number" step="any" /></label>
+            <label>reference_temperature_K <input id="rxnTref" type="number" step="any" /></label>
+          </div>
+          <label>order (JSON array) <span class="hint" title='Example: [{"species":"H2O","exponent":1,"concentration_m3":-1}]'>i</span>
+            <textarea id="rxnOrder" rows="4" placeholder='[{"species":"neutral","exponent":1,"concentration_m3":-1}]'></textarea>
+          </label>
+          <div class="domain-actions">
+            <button class="button" id="addReaction">Add / Update</button>
+            <button class="button secondary" id="removeReaction">Remove</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Domains</h2>
+          <p>Edit environment, geometry, and DC/RF/AC for the selected domain.</p>
+        </div>
+        <div class="domain-actions">
+          <select id="domainSelect"></select>
+          <button class="button secondary" id="addDomain">Add Domain</button>
+          <button class="button secondary" id="removeDomain">Remove Domain</button>
+        </div>
+      </div>
+
+      <div class="form-columns" id="domainColumns">
+        <div class="column">
+          <h3>Environment</h3>
+          <p class="help">Gas and thermodynamic settings.</p>
+          <div class="form-grid">
+            <label>pressure_Pa <span class="hint" title="Background gas pressure in Pa (e.g., 0.5 for LQIT, 101325 for 1 atm).">i</span>
+              <input id="envPressure" type="number" step="any" />
+            </label>
+            <label>temperature_K <span class="hint" title="Gas temperature in Kelvin (e.g., 300).">i</span>
+              <input id="envTemperature" type="number" step="any" />
+            </label>
+            <label>gas_species <span class="hint" title="Buffer gas species. Choose from list or enter custom string.">i</span>
+              <select id="envGasSelect">
+                <option value="He">He</option>
+                <option value="N2">N2</option>
+                <option value="O2">O2</option>
+                <option value="Ar">Ar</option>
+                <option value="Air">Air</option>
+                <option value="CO2">CO2</option>
+                <option value="H2">H2</option>
+                <option value="__custom__">Custom…</option>
+              </select>
+            </label>
+            <label id="envGasCustomRow" class="hidden">custom_gas_species <span class="hint" title="Custom gas species string (e.g., CH4, SF6).">i</span>
+              <input id="envGasCustom" type="text" placeholder="e.g., CH4" />
+            </label>
+          </div>
+          <button class="button" id="applyEnv">Apply Environment</button>
+        </div>
+
+        <div class="column">
+          <h3>Geometry</h3>
+          <p class="help">Domain spatial dimensions in meters.</p>
+          <div class="form-grid">
+            <label>origin_m (x) <span class="hint" title="Origin x-coordinate in meters.">i</span>
+              <input id="geomOriginX" type="number" step="any" />
+            </label>
+            <label>origin_m (y) <span class="hint" title="Origin y-coordinate in meters.">i</span>
+              <input id="geomOriginY" type="number" step="any" />
+            </label>
+            <label>origin_m (z) <span class="hint" title="Origin z-coordinate in meters.">i</span>
+              <input id="geomOriginZ" type="number" step="any" />
+            </label>
+            <label>length_m <span class="hint" title="Domain length in meters (axial extent).">i</span>
+              <input id="geomLength" type="number" step="any" />
+            </label>
+            <label class="radius-only">radius_m <span class="hint" title="Domain radius in meters (radial extent).">i</span>
+              <input id="geomRadius" type="number" step="any" />
+            </label>
+            <label class="orbitrap-only">radius_in_m <span class="hint" title="Orbitrap inner radius in meters.">i</span>
+              <input id="geomInnerRadius" type="number" step="any" />
+            </label>
+            <label class="orbitrap-only">radius_out_m <span class="hint" title="Orbitrap outer radius in meters.">i</span>
+              <input id="geomOuterRadius" type="number" step="any" />
+            </label>
+            <label class="orbitrap-only">radius_char_m <span class="hint" title="Orbitrap characteristic radius in meters.">i</span>
+              <input id="geomCharacteristic" type="number" step="any" />
+            </label>
+          </div>
+          <button class="button" id="applyGeometry">Apply Geometry</button>
+        </div>
+
+        <div class="column">
+          <h3>Fields</h3>
+          <p class="help">DC, RF, and AC voltages/frequencies.</p>
+          <div class="form-grid">
+            <label>instrument <span class="hint" title="Instrument type. Some fields are hidden or shown based on this.">i</span>
+              <select id="domainInstrument">
+                <option value="IMS">IMS</option>
+                <option value="LQIT">LQIT</option>
+                <option value="TOF">TOF</option>
+                <option value="FTICR">FTICR</option>
+                <option value="Orbitrap">Orbitrap</option>
+                <option value="Quadrupole">Quadrupole</option>
+                <option value="NoFixedInstrument">NoFixedInstrument</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-grid">
+            <label class="dc-only dc-axial-only">DC axial_V <span class="hint" title="Axial DC voltage in volts (U).">i</span>
+              <input id="dcAxial" type="number" step="any" />
+            </label>
+            <label class="dc-only dc-axial-only">DC axial_V ref <span class="hint" title="Waveform reference (e.g., @ramp).">i</span>
+              <input id="dcAxialRef" type="text" placeholder="@waveform_id" />
+            </label>
+            <label class="dc-only dc-radial-only">DC radial_V <span class="hint" title="Radial DC voltage in volts.">i</span>
+              <input id="dcRadial" type="number" step="any" />
+            </label>
+            <label class="dc-only dc-radial-only">DC radial_V ref <span class="hint" title="Waveform reference (e.g., @ramp).">i</span>
+              <input id="dcRadialRef" type="text" placeholder="@waveform_id" />
+            </label>
+            <label class="dc-only dc-quad-only">DC quad_V <span class="hint" title="Quadrupole DC voltage in volts.">i</span>
+              <input id="dcQuad" type="number" step="any" />
+            </label>
+            <label class="dc-only dc-quad-only">DC quad_V ref <span class="hint" title="Waveform reference (e.g., @ramp).">i</span>
+              <input id="dcQuadRef" type="text" placeholder="@waveform_id" />
+            </label>
+            <label class="rf-only">RF voltage_V <span class="hint" title="RF amplitude in volts (Vpp/2).">i</span>
+              <input id="rfVoltage" type="number" step="any" />
+            </label>
+            <label class="rf-only">RF voltage_V ref <span class="hint" title="Waveform reference (e.g., @rf_amp).">i</span>
+              <input id="rfVoltageRef" type="text" placeholder="@waveform_id" />
+            </label>
+            <label class="rf-only">RF frequency_Hz <span class="hint" title="RF frequency in Hz (e.g., 1e6).">i</span>
+              <input id="rfFrequency" type="number" step="any" />
+            </label>
+            <label class="rf-only">RF frequency_Hz ref <span class="hint" title="Waveform reference (e.g., @chirp).">i</span>
+              <input id="rfFrequencyRef" type="text" placeholder="@waveform_id" />
+            </label>
+            <label class="ac-only">AC voltage_V <span class="hint" title="AC excitation amplitude in volts.">i</span>
+              <input id="acVoltage" type="number" step="any" />
+            </label>
+            <label class="ac-only">AC voltage_V ref <span class="hint" title="Waveform reference (e.g., @mod).">i</span>
+              <input id="acVoltageRef" type="text" placeholder="@waveform_id" />
+            </label>
+            <label class="ac-only">AC frequency_Hz <span class="hint" title="AC excitation frequency in Hz (LQIT only).">i</span>
+              <input id="acFrequency" type="number" step="any" />
+            </label>
+            <label class="ac-only">AC frequency_Hz ref <span class="hint" title="Waveform reference (e.g., @chirp).">i</span>
+              <input id="acFrequencyRef" type="text" placeholder="@waveform_id" />
+            </label>
+          </div>
+          <button class="button" id="applyFields">Apply Fields</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/static/app.js?v=20260213p"></script>
+</body>
+</html>

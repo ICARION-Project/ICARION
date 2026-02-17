@@ -15,12 +15,13 @@
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/H3O+.json",
-      "note": "CCS_HSS values are MOBILITY CCS Ω(1,1) from Mason-Schamp, NOT geometrical hard-sphere! HSS collision rate should use mobility CCS to account for Langevin enhancement."
+      "note": "CCS_HSS values are MOBILITY CCS \u03a9(1,1) from Mason-Schamp, NOT geometrical hard-sphere! HSS collision rate should use mobility CCS to account for Langevin enhancement.",
+      "EHSS_samples_file": "data/molecules/precomputed_ccs/H3O+_ehss_samples.json"
     },
     "AcetonitrileH+": {
       "mass_amu": 42.04,
       "charge": 1,
-      "mobility_cm2Vs":  16.28,
+      "mobility_cm2Vs": 16.28,
       "CCS_A2": 34.5,
       "name": "Acetonitrile protonated",
       "reference_temperature_K": 298.15,
@@ -37,7 +38,8 @@
       "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
-      "geometry_file": "molecules/AcetoneH+.json"
+      "geometry_file": "molecules/AcetoneH+.json",
+      "EHSS_samples_file": "data/molecules/precomputed_ccs/AcetoneH+_ehss_samples.json"
     },
     "ButanoneH+": {
       "mass_amu": 73.09,
@@ -82,7 +84,8 @@
       "reference_pressure_Pa": 101325,
       "EHSS_sample_file": "../tmp/PentanalH+_EHSS_sample.json",
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
-      "geometry_file": "molecules/PentanalH+.json"
+      "geometry_file": "molecules/PentanalH+.json",
+      "EHSS_samples_file": "data/molecules/precomputed_ccs/PentanalH+_ehss_samples.json"
     },
     "26DTBPH+": {
       "mass_amu": 192.0,

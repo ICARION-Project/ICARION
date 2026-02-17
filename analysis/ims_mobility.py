@@ -149,7 +149,13 @@ def _read_geometry(h5, domain_idx: int, traj_group, ion_indices) -> tuple[float,
     return length, radius
 
 
-def _read_field_strength(h5, domain_idx: int, length_m: float, field_V: Optional[float], field_Vm_override: Optional[float]) -> float:
+def _read_field_strength(
+    h5,
+    domain_idx: int,
+    length_m: float,
+    field_V: Optional[float],
+    field_Vm_override: Optional[float],
+) -> float:
     if field_Vm_override is not None:
         return float(field_Vm_override)
     # try to find DC voltage in HDF5
@@ -167,8 +173,27 @@ def _read_field_strength(h5, domain_idx: int, length_m: float, field_V: Optional
             voltage = float(h5[path][()])
             break
     if voltage is None:
+        # Fallback: if EN_Td is stored, compute E from gas density.
+        en_paths = [
+            f"/domains/domain_{domain_idx}/fields/dc/EN_Td",
+            f"/domains/domain_{domain_idx}/fields/DC/EN_Td",
+        ]
+        en_td = None
+        for path in en_paths:
+            if path in h5:
+                en_td = float(h5[path][()])
+                break
+        if en_td is not None:
+            env_path = f"/domains/domain_{domain_idx}/environment"
+            temp = float(h5[f"{env_path}/temperature_K"][()]) if f"{env_path}/temperature_K" in h5 else None
+            pressure = float(h5[f"{env_path}/pressure_Pa"][()]) if f"{env_path}/pressure_Pa" in h5 else None
+            if temp is None or pressure is None:
+                raise KeyError("Missing temperature_K or pressure_Pa for EN_Td conversion.")
+            kB = 1.380649e-23  # J/K
+            n = pressure / (kB * temp)
+            return en_td * 1e-21 * n
         if field_V is None:
-            raise KeyError("No DC voltage found in HDF5; provide --field-V or --field-VM.")
+            raise KeyError("No DC voltage or EN_Td found in HDF5; provide --field-V or --field-VM.")
         voltage = float(field_V)
     return voltage / length_m
 

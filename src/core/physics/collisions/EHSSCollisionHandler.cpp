@@ -101,7 +101,8 @@ bool EHSSCollisionHandler::handle_collision(
                                double T_K,
                                double m_neutral,
                                const Vec3& v_gas,
-                               double sigma_eff) -> bool {
+                               double sigma_eff,
+                               double gas_radius_m) -> bool {
         const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(
             T_K, m_neutral, v_gas, rng
         );
@@ -122,19 +123,20 @@ bool EHSSCollisionHandler::handle_collision(
         Vec3 v_post;
         if (it != geometry_map_.end() && !it->second.first.empty()) {
             const auto& [centers, radii] = it->second;
-            double ion_radius = std::sqrt(ion.CCS_m2 / M_PI);
+            // Use gas radius for contact geometry to match EHSS rate definition
+            const double contact_radius = gas_radius_m;
             if (use_samples && samples) {
                 double Rori[3][3];
                 collision_core::CollisionGeometry::quaternion_to_rotation(
                     samples->orientations_quat[sample_idx], Rori
                 );
                 v_post = collision_core::CollisionKernels::ehss_collision_with_orientation(
-                    ion.vel, v_neutral, ion.mass_kg, m_neutral, ion_radius,
+                    ion.vel, v_neutral, ion.mass_kg, m_neutral, contact_radius,
                     centers, radii, Rori, rng, 256, sigma_eff, true
                 );
             } else {
                 v_post = collision_core::CollisionKernels::ehss_collision(
-                    ion.vel, v_neutral, ion.mass_kg, m_neutral, ion_radius, centers, radii, rng
+                    ion.vel, v_neutral, ion.mass_kg, m_neutral, contact_radius, centers, radii, rng
                 );
             }
         } else {
@@ -212,13 +214,15 @@ bool EHSSCollisionHandler::handle_collision(
             return false;
         }
 
+        const double gas_radius_m = (comp.radius_m > 0.0) ? comp.radius_m : env.gas_radius_m;
         return apply_collision(
             comp.density_m3,
             false,
             env.temperature_K,
             comp.mass_kg,
             env.gas_velocity_m_s,
-            sigma_eff
+            sigma_eff,
+            gas_radius_m
         );
     }
 
@@ -239,7 +243,8 @@ bool EHSSCollisionHandler::handle_collision(
         env.temperature_K,
         env.gas_mass_kg,
         env.gas_velocity_m_s,
-        sigma_eff
+        sigma_eff,
+        env.gas_radius_m
     );
 }
 

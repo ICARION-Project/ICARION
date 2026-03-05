@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# SPDX-FileCopyrightText: 2025 Christoph Schaefer
+# SPDX-FileCopyrightText: 2026 Christoph Schaefer
 
 # HDF5Writer test
 add_executable(test_hdf5_writer

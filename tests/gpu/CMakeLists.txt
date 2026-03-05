@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# SPDX-FileCopyrightText: 2025 Christoph Schaefer
+# SPDX-FileCopyrightText: 2026 Christoph Schaefer
 
 # GPU Boundary Checking Test
 add_executable(test_gpu_boundaries test_gpu_boundaries.cpp)

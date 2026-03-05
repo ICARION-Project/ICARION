@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# SPDX-FileCopyrightText: 2025 Christoph Schaefer
+# SPDX-FileCopyrightText: 2026 Christoph Schaefer
 
 # Fast instrument ctests - basic instantiation and sanity checks
 # Target: <100ms total runtime

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 ICARION
+// Copyright (c) 2026 Christoph Schaefer
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>

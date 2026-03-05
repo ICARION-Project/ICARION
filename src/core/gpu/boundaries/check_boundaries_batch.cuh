@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 Christoph Schaefer
+// Copyright (c) 2026 Christoph Schaefer
 /**
  * @file check_boundaries_batch.cuh
  * @brief GPU batch boundary checking for cylindrical geometry

@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 Christoph Schaefer
+// Copyright (c) 2026 Christoph Schaefer
 // TOF flight time validation tests
 // Simple physics validation: ions with different m/z should have different flight times
 

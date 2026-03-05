@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 Christoph Schaefer
+// Copyright (c) 2026 Christoph Schaefer
 /**
  * @file test_space_charge_integration.cpp
  * @brief Integration tests for complete space charge pipeline (CIC + Poisson + Field)

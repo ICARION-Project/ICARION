@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 ICARION Project Contributors
+// Copyright (c) 2025 Christoph Schaefer
 /**
  * @file GPUSpaceChargeP3M.cu
  * @brief P³M algorithm CUDA kernels for space charge field computation

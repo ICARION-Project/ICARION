@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+# SPDX-FileCopyrightText: 2025 Christoph Schaefer
 
 # HDF5Writer test
 add_executable(test_hdf5_writer

@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 ICARION Project Contributors
+// Copyright (c) 2025 Christoph Schaefer
 /**
  * @file ccs_precompute.cpp
  * @brief CLI to derive gas-specific CCS maps from reference CCS (HSS/EHSS)

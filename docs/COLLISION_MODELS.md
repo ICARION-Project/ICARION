@@ -233,4 +233,4 @@ CCS = (3*q)/(16*N₀*K₀) × √(2π/(μ*kB*T))
 
 **Last Updated:** December 2025  
 **Version:** 1.0.0
-**Maintainer:** ICARION Development Team
+**Maintainer:** Christoph Schaefer

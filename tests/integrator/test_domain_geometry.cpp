@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// SPDX-FileCopyrightText: 2025 Christoph Schaefer
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>

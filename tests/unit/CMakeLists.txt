@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# SPDX-FileCopyrightText: 2025 ICARION Contributors
+# SPDX-FileCopyrightText: 2025 Christoph Schaefer
 
 # Unit test for IonEnsemble (SoA data structure)
 

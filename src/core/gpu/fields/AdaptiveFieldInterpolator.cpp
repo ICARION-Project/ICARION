@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 ICARION Project Contributors
+// Copyright (c) 2025 Christoph Schaefer
 //
 // Experimental: Only linear interpolation is implemented/validated in v1.0.0;
 // higher-order modes fall back to linear.

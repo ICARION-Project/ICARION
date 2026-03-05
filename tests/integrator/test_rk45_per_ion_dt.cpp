@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 ICARION Project Contributors
+// Copyright (c) 2025 Christoph Schaefer
 #include <catch2/catch_test_macros.hpp>
 #include "core/integrator/strategies/RK45Strategy.h"
 #include "core/physics/forces/ForceRegistry.h"

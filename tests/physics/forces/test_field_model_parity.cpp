@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+// SPDX-FileCopyrightText: 2025 Christoph Schaefer
 //
 // Parity test: AnalyticalFieldModel vs. ElectricFieldForce analytical path.
 // Ensures the extracted field model returns identical E-fields to the legacy

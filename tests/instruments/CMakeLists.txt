@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# SPDX-FileCopyrightText: 2025 ICARION Project Contributors
+# SPDX-FileCopyrightText: 2025 Christoph Schaefer
 
 # Fast instrument ctests - basic instantiation and sanity checks
 # Target: <100ms total runtime

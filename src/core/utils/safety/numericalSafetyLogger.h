@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 ICARION Project Contributors
+// Copyright (c) 2025 Christoph Schaefer
 #ifndef ICARION_NUMERICAL_SAFETY_LOGGER_H
 #define ICARION_NUMERICAL_SAFETY_LOGGER_H
 

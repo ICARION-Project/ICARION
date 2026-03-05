@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 ICARION Project Contributors
+// Copyright (c) 2025 Christoph Schaefer
 // Detailed diagnostics for GPU vs CPU collision physics
 #include "core/gpu/core/GPUContext.h"
 #include "core/gpu/collisions/GPUCollisionHelper.h"

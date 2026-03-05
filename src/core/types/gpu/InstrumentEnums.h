@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 ICARION Project Contributors
+// Copyright (c) 2025 Christoph Schaefer
 /**
  * @file InstrumentEnums.h
  * @brief GPU-compatible instrument type enum (SSOT compliant)
@@ -13,7 +13,7 @@
  * This header lives in param/ for CUDA-friendly plain enums; kept in sync via static_assert.
  * 
  * @version 2.0 - SSOT Migration (2025-11-23)
- * @author ICARION Development Team
+ * @author Christoph Schaefer
  */
 
 #pragma once

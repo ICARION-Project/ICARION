@@ -1,6 +1,6 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (c) 2025 ICARION Project Contributors
+// Copyright (c) 2025 Christoph Schaefer
 /**
  * @file startupBanner.h
  * @brief Startup banner with basic system information (optional)
@@ -42,7 +42,7 @@ inline void print_startup_banner(
     std::cout << "\n";
     // Lightweight banner; callers may disable in non-interactive contexts
     std::cout << "ICARION - Ion Collision And Reaction IntegratiON\n";
-    std::cout << "High-Performance Trajectory Simulator\n";
+    std::cout << "Ion Trajectory Simulation Software\n";
     std::cout << "\n";
     
     // Version and build info

@@ -93,6 +93,11 @@ struct IonSpeciesConfig {
     PositionConfig position;          ///< Position sampling (boundaries for this species)
     VelocityConfig velocity;          ///< Velocity sampling
     double birth_time_s = 0.0;        ///< Birth time [s] (0 = born at start)
+    bool use_birth_time_distribution = false;  ///< If true, sample birth time per ion
+    double birth_time_min_s = 0.0;    ///< Truncation lower bound for sampled birth time [s]
+    double birth_time_max_s = 0.0;    ///< Truncation upper bound for sampled birth time [s]
+    double birth_time_mean_s = 0.0;   ///< Mean for Gaussian birth-time sampling [s]
+    double birth_time_std_s = 0.0;    ///< Std for Gaussian birth-time sampling [s]
 };
 
 /**

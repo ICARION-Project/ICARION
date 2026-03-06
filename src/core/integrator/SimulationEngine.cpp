@@ -724,9 +724,28 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
     for (size_t i = 0; i < n_ions; ++i) {
         new_time = std::max(new_time, time_ptr[i]);
     }
-    // Fallback to accumulated max dt if time data not yet populated
+    // If no ion advanced this step (e.g., all ions have delayed birth_time),
+    // advance simulation time to avoid a zero-time stall.
     if (new_time <= current_time_) {
-        new_time = current_time_ + max_dt_used;
+        double next_birth_time = std::numeric_limits<double>::max();
+        const auto* born_flags = ensemble.born_data();
+        for (size_t i = 0; i < n_ions; ++i) {
+            if (born_flags[i]) {
+                continue;
+            }
+            const double bt = ensemble.birth_time(i);
+            if (bt > current_time_ && bt <= config_.simulation.total_time_s) {
+                next_birth_time = std::min(next_birth_time, bt);
+            }
+        }
+
+        if (next_birth_time < std::numeric_limits<double>::max()) {
+            new_time = next_birth_time;
+        } else if (max_dt_used > 0.0) {
+            new_time = current_time_ + max_dt_used;
+        } else {
+            new_time = current_time_ + config_.simulation.dt_s;
+        }
     }
     return new_time;
 }

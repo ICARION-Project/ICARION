@@ -254,6 +254,36 @@ TEST_CASE("SimulationEngine: Ion birth timing", "[simulation][engine]") {
             }
         }
     }
+
+    SECTION("All ions delayed birth must still advance time") {
+        std::vector<IonState> ions(3);
+        for (int i = 0; i < 3; ++i) {
+            ions[i] = create_test_ion();
+            ions[i].birth_time_s = (i + 1) * 1e-6;  // 1, 2, 3 μs (none born at t=0)
+            ions[i].born = false;
+            ions[i].active = false;
+            ions[i].vel = Vec3{0.0, 0.0, 1000.0};
+            ions[i].t = 0.0;
+        }
+
+        auto result = run_engine_aos(engine, ions);
+
+        // Regression guard: simulation must not stall at t=0 when all ions are delayed.
+        for (const auto& ion : result) {
+            REQUIRE(ion.born);
+            REQUIRE(ion.t > 0.0);
+        }
+
+        // At least one ion should have moved in +z after being born.
+        bool any_moved = false;
+        for (const auto& ion : result) {
+            if (ion.pos.z > 0.001) {
+                any_moved = true;
+                break;
+            }
+        }
+        REQUIRE(any_moved);
+    }
 }
 
 TEST_CASE("SimulationEngine: Multiple ions", "[simulation][engine]") {

@@ -51,6 +51,7 @@ tests/
   - **Integration batch dt fallback:** `test_integration_batch_dt.cpp`
   - **SimulationEngine per-ion dt determinism:** `test_simulation_engine_per_ion_dt.cpp`
   - **SimulationEngine RNG/compaction determinism:** `test_engine_rng_compaction.cpp`
+  - **SimulationEngine delayed-birth regression:** covered in `test_simulation_engine.cpp` (`All ions delayed birth must still advance time`) to prevent zero-time stalls when all ions are born in the future
 - **Config:** `test_config_loader.cpp`, `test_field_array_terms_loader.cpp`, `test_field_array_e2e.cpp`, `test_ion_loader.cpp`, `test_species_loader_unit.cpp`, `test_reaction_loader_unit.cpp`, `test_reaction_validation.cpp`, `test_waveform_loader.cpp`, `test_waveform_types.cpp`, `test_database_integration.cpp`
 - **I/O:** `test_hdf5_writer.cpp`, `test_hdf5_writer_v2.cpp`
 - **GPU (misc):** `test_gpu_boundaries.cpp`, `test_gpu_space_charge.cpp`, `test_adaptive_interpolation.cpp`

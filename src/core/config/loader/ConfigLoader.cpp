@@ -193,6 +193,72 @@ IonConfig ConfigLoader::parse_ion_config(const Json::Value& json,
             
             // Parse velocity distribution
             spec.velocity = parse_velocity_config(spec_json["velocity"]);
+
+            // Optional birth-time configuration
+            // Fallback stays at t=0 s when nothing is provided.
+            if (spec_json.isMember("birth_time_s")) {
+                spec.birth_time_s = spec_json["birth_time_s"].asDouble();
+            }
+
+            if (spec_json.isMember("birth_time")) {
+                const Json::Value& birth_json = spec_json["birth_time"];
+
+                if (birth_json.isNumeric()) {
+                    // Convenience: allow scalar shorthand
+                    spec.birth_time_s = birth_json.asDouble();
+                } else if (birth_json.isObject()) {
+                    std::string type = birth_json.get("type", "gaussian").asString();
+
+                    if (type == "fixed") {
+                        if (birth_json.isMember("time_s")) {
+                            spec.birth_time_s = birth_json["time_s"].asDouble();
+                        } else if (birth_json.isMember("value_s")) {
+                            spec.birth_time_s = birth_json["value_s"].asDouble();
+                        } else {
+                            throw std::runtime_error(
+                                "birth_time.type='fixed' requires 'time_s' (or 'value_s')"
+                            );
+                        }
+                    } else if (type == "gaussian" || type == "gaussian_truncated") {
+                        if (!birth_json.isMember("t_min_s") || !birth_json.isMember("t_max_s")) {
+                            throw std::runtime_error(
+                                "birth_time gaussian requires 't_min_s' and 't_max_s'"
+                            );
+                        }
+
+                        spec.use_birth_time_distribution = true;
+                        spec.birth_time_min_s = birth_json["t_min_s"].asDouble();
+                        spec.birth_time_max_s = birth_json["t_max_s"].asDouble();
+
+                        if (spec.birth_time_max_s < spec.birth_time_min_s) {
+                            throw std::runtime_error(
+                                "birth_time requires t_max_s >= t_min_s"
+                            );
+                        }
+
+                        const double window_s = spec.birth_time_max_s - spec.birth_time_min_s;
+                        const double default_mean_s =
+                            0.5 * (spec.birth_time_min_s + spec.birth_time_max_s);
+                        const double default_std_s = (window_s > 0.0) ? (window_s / 6.0) : 0.0;
+
+                        spec.birth_time_mean_s = birth_json.get("mean_s", default_mean_s).asDouble();
+                        spec.birth_time_std_s = birth_json.get("std_s", default_std_s).asDouble();
+
+                        if (spec.birth_time_std_s < 0.0) {
+                            throw std::runtime_error("birth_time.std_s must be >= 0");
+                        }
+                    } else {
+                        throw std::runtime_error(
+                            "Unknown birth_time type: " + type +
+                            " (supported: fixed, gaussian, gaussian_truncated)"
+                        );
+                    }
+                } else {
+                    throw std::runtime_error(
+                        "birth_time must be either a number or an object"
+                    );
+                }
+            }
             
             config.species.push_back(spec);
         }

@@ -75,6 +75,13 @@
           "type": "string",
           "description": "Optional comment for documentation"
         },
+        "birth_time_s": {
+          "type": "number",
+          "description": "Fixed birth time in seconds for all ions of this species (default: 0.0)"
+        },
+        "birth_time": {
+          "$ref": "#/definitions/BirthTimeConfig"
+        },
         "position": {
           "$ref": "#/definitions/PositionConfig"
         },
@@ -82,6 +89,63 @@
           "$ref": "#/definitions/VelocityConfig"
         }
       }
+    },
+    "BirthTimeConfig": {
+      "oneOf": [
+        {
+          "type": "number",
+          "description": "Fixed birth time in seconds (shorthand)"
+        },
+        {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "fixed"
+            },
+            "time_s": {
+              "type": "number",
+              "description": "Fixed birth time in seconds"
+            },
+            "value_s": {
+              "type": "number",
+              "description": "Alias for time_s"
+            }
+          },
+          "anyOf": [
+            { "required": ["time_s"] },
+            { "required": ["value_s"] }
+          ]
+        },
+        {
+          "type": "object",
+          "required": ["type", "t_min_s", "t_max_s"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": ["gaussian", "gaussian_truncated"]
+            },
+            "t_min_s": {
+              "type": "number",
+              "description": "Lower truncation bound in seconds"
+            },
+            "t_max_s": {
+              "type": "number",
+              "description": "Upper truncation bound in seconds"
+            },
+            "mean_s": {
+              "type": "number",
+              "description": "Gaussian mean in seconds (default: midpoint of [t_min_s, t_max_s])"
+            },
+            "std_s": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Gaussian standard deviation in seconds (default: (t_max_s - t_min_s)/6)"
+            }
+          }
+        }
+      ]
     },
     "PositionConfig": {
       "oneOf": [

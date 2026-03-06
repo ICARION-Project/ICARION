@@ -6,9 +6,42 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 #include <json/json.h>
 
 namespace ICARION::config {
+
+namespace {
+
+double sample_birth_time(const IonSpeciesConfig& spec_config, std::mt19937& rng) {
+    if (!spec_config.use_birth_time_distribution) {
+        return spec_config.birth_time_s;
+    }
+
+    const double t_min_s = spec_config.birth_time_min_s;
+    const double t_max_s = spec_config.birth_time_max_s;
+    if (t_max_s <= t_min_s) {
+        return t_min_s;
+    }
+
+    const double mean_s = spec_config.birth_time_mean_s;
+    const double std_s = spec_config.birth_time_std_s;
+    if (std_s <= 0.0) {
+        return std::clamp(mean_s, t_min_s, t_max_s);
+    }
+
+    std::normal_distribution<double> normal(mean_s, std_s);
+    for (int attempt = 0; attempt < 1024; ++attempt) {
+        double sampled = normal(rng);
+        if (sampled >= t_min_s && sampled <= t_max_s) {
+            return sampled;
+        }
+    }
+
+    return std::clamp(mean_s, t_min_s, t_max_s);
+}
+
+} // namespace
 
 IonGenerationResult IonLoader::generate_ions(
     const IonConfig& config,
@@ -152,6 +185,15 @@ std::vector<core::IonState> IonLoader::generate_species(
     std::cout << "  Generating " << spec_config.count << " " << spec_config.species_id << " ions:\n";
     std::cout << "    Position: " << to_string(spec_config.position.type) << "\n";
     std::cout << "    Velocity: " << to_string(spec_config.velocity.type) << "\n";
+    if (spec_config.use_birth_time_distribution) {
+        std::cout << "    Birth time: GaussianTruncated"
+                  << " [" << spec_config.birth_time_min_s
+                  << ", " << spec_config.birth_time_max_s << "] s"
+                  << " (mean=" << spec_config.birth_time_mean_s
+                  << ", std=" << spec_config.birth_time_std_s << ")\n";
+    } else {
+        std::cout << "    Birth time: Fixed t=" << spec_config.birth_time_s << " s\n";
+    }
     
     for (size_t i = 0; i < spec_config.count; ++i) {
         core::IonState ion;
@@ -168,7 +210,7 @@ std::vector<core::IonState> IonLoader::generate_species(
         // Sample velocity
         ion.vel = sample_velocity(spec_config.velocity, species.mass_kg, rng);
         
-        ion.birth_time_s = spec_config.birth_time_s;
+        ion.birth_time_s = sample_birth_time(spec_config, rng);
         
         // SSOT: Birth logic in ONE place
         if (ion.birth_time_s <= 0.0) {

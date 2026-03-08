@@ -227,6 +227,7 @@ IonConfig ConfigLoader::parse_ion_config(const Json::Value& json,
                         }
 
                         spec.use_birth_time_distribution = true;
+                        spec.birth_time_distribution = IonSpeciesConfig::BirthTimeDistribution::GaussianTruncated;
                         spec.birth_time_min_s = birth_json["t_min_s"].asDouble();
                         spec.birth_time_max_s = birth_json["t_max_s"].asDouble();
 
@@ -247,10 +248,30 @@ IonConfig ConfigLoader::parse_ion_config(const Json::Value& json,
                         if (spec.birth_time_std_s < 0.0) {
                             throw std::runtime_error("birth_time.std_s must be >= 0");
                         }
+                    } else if (type == "uniform") {
+                        if (!birth_json.isMember("t_min_s") || !birth_json.isMember("t_max_s")) {
+                            throw std::runtime_error(
+                                "birth_time uniform requires 't_min_s' and 't_max_s'"
+                            );
+                        }
+
+                        spec.use_birth_time_distribution = true;
+                        spec.birth_time_distribution = IonSpeciesConfig::BirthTimeDistribution::Uniform;
+                        spec.birth_time_min_s = birth_json["t_min_s"].asDouble();
+                        spec.birth_time_max_s = birth_json["t_max_s"].asDouble();
+
+                        if (spec.birth_time_max_s < spec.birth_time_min_s) {
+                            throw std::runtime_error(
+                                "birth_time requires t_max_s >= t_min_s"
+                            );
+                        }
+
+                        spec.birth_time_mean_s = 0.5 * (spec.birth_time_min_s + spec.birth_time_max_s);
+                        spec.birth_time_std_s = 0.0;
                     } else {
                         throw std::runtime_error(
                             "Unknown birth_time type: " + type +
-                            " (supported: fixed, gaussian, gaussian_truncated)"
+                            " (supported: fixed, gaussian, gaussian_truncated, uniform)"
                         );
                     }
                 } else {

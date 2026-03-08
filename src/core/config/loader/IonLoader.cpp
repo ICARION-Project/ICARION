@@ -24,6 +24,11 @@ double sample_birth_time(const IonSpeciesConfig& spec_config, std::mt19937& rng)
         return t_min_s;
     }
 
+    if (spec_config.birth_time_distribution == IonSpeciesConfig::BirthTimeDistribution::Uniform) {
+        std::uniform_real_distribution<double> uniform_dist(t_min_s, t_max_s);
+        return uniform_dist(rng);
+    }
+
     const double mean_s = spec_config.birth_time_mean_s;
     const double std_s = spec_config.birth_time_std_s;
     if (std_s <= 0.0) {
@@ -186,11 +191,17 @@ std::vector<core::IonState> IonLoader::generate_species(
     std::cout << "    Position: " << to_string(spec_config.position.type) << "\n";
     std::cout << "    Velocity: " << to_string(spec_config.velocity.type) << "\n";
     if (spec_config.use_birth_time_distribution) {
-        std::cout << "    Birth time: GaussianTruncated"
-                  << " [" << spec_config.birth_time_min_s
-                  << ", " << spec_config.birth_time_max_s << "] s"
-                  << " (mean=" << spec_config.birth_time_mean_s
-                  << ", std=" << spec_config.birth_time_std_s << ")\n";
+        if (spec_config.birth_time_distribution == IonSpeciesConfig::BirthTimeDistribution::Uniform) {
+            std::cout << "    Birth time: Uniform"
+                      << " [" << spec_config.birth_time_min_s
+                      << ", " << spec_config.birth_time_max_s << "] s\n";
+        } else {
+            std::cout << "    Birth time: GaussianTruncated"
+                      << " [" << spec_config.birth_time_min_s
+                      << ", " << spec_config.birth_time_max_s << "] s"
+                      << " (mean=" << spec_config.birth_time_mean_s
+                      << ", std=" << spec_config.birth_time_std_s << ")\n";
+        }
     } else {
         std::cout << "    Birth time: Fixed t=" << spec_config.birth_time_s << " s\n";
     }

@@ -144,6 +144,24 @@
               "description": "Gaussian standard deviation in seconds (default: (t_max_s - t_min_s)/6)"
             }
           }
+        },
+        {
+          "type": "object",
+          "required": ["type", "t_min_s", "t_max_s"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "uniform"
+            },
+            "t_min_s": {
+              "type": "number",
+              "description": "Lower bound in seconds for uniform birth-time sampling"
+            },
+            "t_max_s": {
+              "type": "number",
+              "description": "Upper bound in seconds for uniform birth-time sampling"
+            }
+          }
         }
       ]
     },

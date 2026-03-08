@@ -88,12 +88,19 @@ struct VelocityConfig {
  * - Count and birth time
  */
 struct IonSpeciesConfig {
+    enum class BirthTimeDistribution {
+        None,
+        GaussianTruncated,
+        Uniform
+    };
+
     std::string species_id;           ///< Species ID from database (e.g., "H3O+")
     size_t count = 0;                 ///< Number of ions to generate
     PositionConfig position;          ///< Position sampling (boundaries for this species)
     VelocityConfig velocity;          ///< Velocity sampling
     double birth_time_s = 0.0;        ///< Birth time [s] (0 = born at start)
     bool use_birth_time_distribution = false;  ///< If true, sample birth time per ion
+    BirthTimeDistribution birth_time_distribution = BirthTimeDistribution::None;
     double birth_time_min_s = 0.0;    ///< Truncation lower bound for sampled birth time [s]
     double birth_time_max_s = 0.0;    ///< Truncation upper bound for sampled birth time [s]
     double birth_time_mean_s = 0.0;   ///< Mean for Gaussian birth-time sampling [s]

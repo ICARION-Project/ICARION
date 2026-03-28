@@ -189,6 +189,7 @@ public:
 private:
     // HDF5 output
     std::string hdf5_filename_;
+    bool trajectory_enabled_ = true;            ///< full mode=true, minimal mode=false
     double write_interval_dt_;
     double next_write_time_;
     size_t buffer_max_;

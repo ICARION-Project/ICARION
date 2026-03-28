@@ -68,6 +68,9 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         else if (key == "output.trajectory_file" || key == "output.file") {
             config.output.trajectory_file = value;
         }
+        else if (key == "output.trajectory_mode") {
+            config.output.trajectory_mode = value;
+        }
         else if (key == "output.print_progress") {
             config.output.print_progress = parse_bool(value, key);
         }

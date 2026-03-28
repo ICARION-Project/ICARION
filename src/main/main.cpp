@@ -86,6 +86,8 @@ static void apply_override_to_json(nlohmann::json& j, const std::string& key, co
             j["output"]["folder"] = value;
         } else if (key == "output.trajectory_file" || key == "output.file") {
             j["output"]["trajectory_file"] = value;
+        } else if (key == "output.trajectory_mode") {
+            j["output"]["trajectory_mode"] = value;
         } else if (key == "output.print_progress") {
             j["output"]["print_progress"] = parse_bool_cli(value);
         } else if (key == "output.buffer_byte_cap") {

@@ -667,6 +667,128 @@ void HDF5Writer::update_death_times(
     }
 }
 
+void HDF5Writer::write_minimal_transport_summary(
+    const std::string& filename,
+    const core::IonEnsemble& final_ensemble
+) {
+    const size_t n = final_ensemble.size();
+    if (n == 0) {
+        return;
+    }
+
+    try {
+        H5::H5File file(filename, H5F_ACC_RDWR);
+        H5::Group analysis_group;
+        if (H5Lexists(file.getId(), "/analysis", H5P_DEFAULT) > 0) {
+            analysis_group = file.openGroup("/analysis");
+        } else {
+            analysis_group = file.createGroup("/analysis");
+        }
+
+        if (H5Lexists(analysis_group.getId(), "minimal_transport", H5P_DEFAULT) > 0) {
+            (void)H5Ldelete(analysis_group.getId(), "minimal_transport", H5P_DEFAULT);
+        }
+        H5::Group minimal = analysis_group.createGroup("minimal_transport");
+
+        std::vector<double> pos_x, pos_y, pos_z;
+        std::vector<double> vel_x, vel_y, vel_z;
+        std::vector<int32_t> domain_index;
+        std::vector<uint8_t> active, born;
+        std::vector<double> ion_time_s;
+        std::vector<double> birth_time_s;
+        std::vector<double> death_time_s;
+        std::vector<uint32_t> species_id_indices;
+
+        pos_x.reserve(n);
+        pos_y.reserve(n);
+        pos_z.reserve(n);
+        vel_x.reserve(n);
+        vel_y.reserve(n);
+        vel_z.reserve(n);
+        domain_index.reserve(n);
+        active.reserve(n);
+        born.reserve(n);
+        ion_time_s.reserve(n);
+        birth_time_s.reserve(n);
+        death_time_s.reserve(n);
+        species_id_indices.reserve(n);
+
+        const auto* p_x = final_ensemble.pos_x_data();
+        const auto* p_y = final_ensemble.pos_y_data();
+        const auto* p_z = final_ensemble.pos_z_data();
+        const auto* v_x = final_ensemble.vel_x_data();
+        const auto* v_y = final_ensemble.vel_y_data();
+        const auto* v_z = final_ensemble.vel_z_data();
+        const auto* d_idx = final_ensemble.domain_index_data();
+        const auto* is_active = final_ensemble.active_data();
+        const auto* is_born = final_ensemble.born_data();
+        const auto* ion_t = final_ensemble.time_data();
+        const auto* birth_t = final_ensemble.birth_time_data();
+        const auto* death_t = final_ensemble.death_time_data();
+        const auto* sp_idx = final_ensemble.species_id_indices();
+
+        for (size_t i = 0; i < n; ++i) {
+            pos_x.push_back(p_x[i]);
+            pos_y.push_back(p_y[i]);
+            pos_z.push_back(p_z[i]);
+            vel_x.push_back(v_x[i]);
+            vel_y.push_back(v_y[i]);
+            vel_z.push_back(v_z[i]);
+            domain_index.push_back(d_idx[i]);
+            active.push_back(is_active ? is_active[i] : 0);
+            born.push_back(is_born ? is_born[i] : 1);
+            ion_time_s.push_back(ion_t ? ion_t[i] : 0.0);
+            birth_time_s.push_back(birth_t ? birth_t[i] : 0.0);
+            death_time_s.push_back(death_t ? death_t[i] : -1.0);
+            species_id_indices.push_back(sp_idx[i]);
+        }
+
+        write_array(minimal, "final_pos_x", pos_x);
+        write_array(minimal, "final_pos_y", pos_y);
+        write_array(minimal, "final_pos_z", pos_z);
+        write_array(minimal, "final_vel_x", vel_x);
+        write_array(minimal, "final_vel_y", vel_y);
+        write_array(minimal, "final_vel_z", vel_z);
+        write_array(minimal, "ion_time_s", ion_time_s);
+        write_array(minimal, "birth_time_s", birth_time_s);
+        write_array(minimal, "death_time_s", death_time_s);
+
+        auto write_i32 = [&](const std::string& name, const std::vector<int32_t>& data) {
+            hsize_t dims[1] = {data.size()};
+            H5::DataSpace space(1, dims);
+            H5::DataSet ds = minimal.createDataSet(name, H5::PredType::NATIVE_INT32, space);
+            ds.write(data.data(), H5::PredType::NATIVE_INT32);
+        };
+        auto write_u32 = [&](const std::string& name, const std::vector<uint32_t>& data) {
+            hsize_t dims[1] = {data.size()};
+            H5::DataSpace space(1, dims);
+            H5::DataSet ds = minimal.createDataSet(name, H5::PredType::NATIVE_UINT32, space);
+            ds.write(data.data(), H5::PredType::NATIVE_UINT32);
+        };
+        auto write_u8 = [&](const std::string& name, const std::vector<uint8_t>& data) {
+            hsize_t dims[1] = {data.size()};
+            H5::DataSpace space(1, dims);
+            H5::DataSet ds = minimal.createDataSet(name, H5::PredType::NATIVE_UINT8, space);
+            ds.write(data.data(), H5::PredType::NATIVE_UINT8);
+        };
+
+        write_i32("domain_index", domain_index);
+        write_u32("species_id_indices", species_id_indices);
+        write_u8("active", active);
+        write_u8("born", born);
+
+        if (const auto* species_pool = final_ensemble.species_pool(); species_pool && !species_pool->empty()) {
+            write_string_vector(minimal, "species_pool", *species_pool);
+        }
+
+        write_string(minimal, "description", "Compact per-ion final-state output for output.trajectory_mode=minimal");
+        file.close();
+    } catch (const H5::Exception& e) {
+        log::Logger::hdf5()->error("Failed to write minimal transport summary: {}", e.getCDetailMsg());
+        throw;
+    }
+}
+
 void HDF5Writer::finalize(
     const std::string& filename,
     bool success,
@@ -738,6 +860,7 @@ void HDF5Writer::write_config_metadata(
     write_scalar(cfg_group, "enable_gpu", config.simulation.enable_gpu);
     
     write_string(cfg_group, "output_file", config.output.trajectory_file);
+    write_string(cfg_group, "trajectory_mode", config.output.trajectory_mode);
 
     // Integrator metadata (useful for reproducibility)
     H5::Group integrator_group = cfg_group.createGroup("integrator_params");

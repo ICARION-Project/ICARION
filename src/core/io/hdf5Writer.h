@@ -127,6 +127,17 @@ public:
         const std::string& filename,
         const core::IonEnsemble& final_ensemble
     );
+
+    /**
+     * @brief Write compact final transport output for reduced-output runs.
+     *
+     * Data is written to /analysis/minimal_transport and contains one row per ion.
+     * Intended for workflows that do not need full /trajectory snapshots.
+     */
+    static void write_minimal_transport_summary(
+        const std::string& filename,
+        const core::IonEnsemble& final_ensemble
+    );
     
     /**
      * @brief Write simulation completion metadata

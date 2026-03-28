@@ -17,6 +17,13 @@
       "default": "trajectories.h5",
       "description": "Trajectory output filename (HDF5 format)"
     },
+
+    "trajectory_mode": {
+      "type": "string",
+      "enum": ["full", "minimal"],
+      "default": "full",
+      "description": "Trajectory output mode. full writes /trajectory time-series data; minimal skips trajectory snapshots and writes compact per-ion final-state output under /analysis/minimal_transport"
+    },
     
     "print_progress": {
       "type": "boolean",

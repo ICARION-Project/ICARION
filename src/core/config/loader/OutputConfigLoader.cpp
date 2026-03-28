@@ -17,6 +17,11 @@ OutputConfig OutputConfigLoader::load(const Json::Value& json) {
     if (json.isMember("trajectory_file") && json["trajectory_file"].isString()) {
         config.trajectory_file = json["trajectory_file"].asString();
     }
+
+    // Trajectory mode
+    if (json.isMember("trajectory_mode") && json["trajectory_mode"].isString()) {
+        config.trajectory_mode = json["trajectory_mode"].asString();
+    }
     
     // Print progress
     if (json.isMember("print_progress") && json["print_progress"].isBool()) {

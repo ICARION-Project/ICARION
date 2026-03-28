@@ -923,10 +923,13 @@ See `schema/physics.schema.json` for all options.
 "output": {
   "folder": "./results/my_sim",
   "trajectory_file": "output.h5",
+  "trajectory_mode": "full",      // full|minimal
   "print_progress": true,
   "buffer_byte_cap": 0          // Optional RAM cap for trajectory buffer (bytes, 0 = unlimited)
 }
 ```
+
+`output.trajectory_mode="minimal"` disables `/trajectory` snapshots and writes compact per-ion final-state data to `/analysis/minimal_transport` instead.
 
 **Output Format:** See [HDF5_OUTPUT_STRUCTURE.md](HDF5_OUTPUT_STRUCTURE.md) for file structure.
 

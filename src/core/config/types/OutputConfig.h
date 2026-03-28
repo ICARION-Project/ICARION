@@ -22,6 +22,7 @@ struct OutputConfig {
     std::string trajectory_file = "trajectories.h5";  ///< HDF5 trajectory file
     
     // === Output control ===
+    std::string trajectory_mode = "full";      ///< Trajectory output mode: full|minimal
     bool print_progress = true;                 ///< Print simulation progress
     size_t buffer_byte_cap = 0;                 ///< Optional memory cap for trajectory buffer (bytes, 0=disabled)
     
@@ -41,6 +42,9 @@ struct OutputConfig {
         }
         if (trajectory_file.empty()) {
             result.add_error("Trajectory file name cannot be empty");
+        }
+        if (trajectory_mode != "full" && trajectory_mode != "minimal") {
+            result.add_error("output.trajectory_mode must be one of: full, minimal");
         }
         
         return result;

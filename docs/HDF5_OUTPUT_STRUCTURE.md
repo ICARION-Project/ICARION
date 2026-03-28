@@ -58,6 +58,11 @@ simulation.h5
     │   │   └── ac/                # AC field values (t=0 if waveform)
     └── domain_1/
         └── ...
+└── analysis/                      # Optional diagnostics groups
+    ├── minimal_transport/         # Optional compact final-state output (trajectory_mode=minimal)
+    ├── transmission/              # Optional transmission diagnostics
+    └── deep_collision/            # Optional deep collision diagnostics
+        └── events/                # Optional event stream (sampled/full modes)
 ```
 
 ---
@@ -84,6 +89,7 @@ Configuration parameters extracted from `FullConfig`.
 | `enable_space_charge_gpu` | bool | Space charge GPU requested? | - |
 | `enable_gpu` | bool | GPU acceleration enabled? | - |
 | `output_file` | string | Output file path | - |
+| `trajectory_mode` | string | Trajectory output mode (`full` or `minimal`) | - |
 | `config_json` | string | Embedded resolved config snapshot (validated + CLI overrides) | - |
 | `integrator_params/name` | string | Integrator name | - |
 | `integrator_params/rk45_min_step_s` | double | Absolute min step for RK45 (if set) | s |
@@ -288,6 +294,8 @@ with h5py.File('simulation.h5', 'r') as f:
 
 Time-series data for all ions at each output timestep.
 
+When `output.trajectory_mode = "minimal"`, this group is created but left empty; compact per-ion final-state data is written to `/analysis/minimal_transport` instead.
+
 **Datasets:**
 
 | Name | Type | Shape | Description | Units |
@@ -406,6 +414,33 @@ Contains subgroups for DC, RF, and AC fields with voltage/frequency parameters. 
 
 ---
 
+## Analysis Group (Optional)
+
+### `/analysis/minimal_transport/`
+
+Compact per-ion final-state output written at finalize when
+`output.trajectory_mode = "minimal"`.
+
+**Datasets:**
+
+| Name | Type | Shape | Description | Units |
+|------|------|-------|-------------|-------|
+| `final_pos_x` | double | [N] | Final x position | m |
+| `final_pos_y` | double | [N] | Final y position | m |
+| `final_pos_z` | double | [N] | Final z position | m |
+| `final_vel_x` | double | [N] | Final x velocity | m/s |
+| `final_vel_y` | double | [N] | Final y velocity | m/s |
+| `final_vel_z` | double | [N] | Final z velocity | m/s |
+| `domain_index` | int32 | [N] | Final domain index per ion | - |
+| `species_id_indices` | uint32 | [N] | Final species pool index per ion | - |
+| `species_pool` | string | [S] | Species name pool for `species_id_indices` | - |
+| `active` | uint8 | [N] | Final active flag (1/0) | - |
+| `born` | uint8 | [N] | Born flag (1/0) | - |
+| `ion_time_s` | double | [N] | Final per-ion simulation time | s |
+| `birth_time_s` | double | [N] | Per-ion birth time | s |
+| `death_time_s` | double | [N] | Per-ion death time (`-1` if alive) | s |
+
+---
 ## Python Analysis Examples
 
 ### Load Complete Dataset

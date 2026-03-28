@@ -272,6 +272,7 @@ Can be specified multiple times to override multiple values.
 **Output parameters:**
 - `output.folder` - Output directory path
 - `output.trajectory_file` - Trajectory filename
+- `output.trajectory_mode` - Output mode (`full` or `minimal`)
 - `output.print_progress` - Print progress updates (true/false)
 
 **Database paths:**

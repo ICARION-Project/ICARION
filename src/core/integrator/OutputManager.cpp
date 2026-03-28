@@ -160,6 +160,10 @@ void OutputManager::initialize(
     initialized_ = true;
     next_write_time_ = write_interval_dt_;
     species_pool_ = ensemble.species_pool();
+    trajectory_enabled_ = (config.output.trajectory_mode != "minimal");
+    if (!trajectory_enabled_) {
+        log_progress("Trajectory mode set to minimal: skipping /trajectory snapshots.");
+    }
 }
 
 void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
@@ -172,6 +176,10 @@ void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
     }
     
     last_time_ = t;
+
+    if (!trajectory_enabled_) {
+        return;
+    }
     
     // Check if flush needed BEFORE adding 
     if (should_write_before_add(t)) {
@@ -232,11 +240,17 @@ void OutputManager::log_progress(const std::string& message) {
 }
 
 bool OutputManager::should_write(double t_current) const {
+    if (!trajectory_enabled_) {
+        return false;
+    }
     // Check if write is needed (used by external callers)
     return (times_buffer_.size() >= buffer_max_) || (t_current >= next_write_time_);
 }
 
 bool OutputManager::should_write_before_add(double t_current) const {
+    if (!trajectory_enabled_) {
+        return false;
+    }
     // Check BEFORE adding to buffer (allows buffer to reach buffer_max exactly)
     if ((times_buffer_.size() >= buffer_max_) || (t_current >= next_write_time_)) {
         return true;
@@ -257,6 +271,9 @@ bool OutputManager::should_write_before_add(double t_current) const {
 }
 
 void OutputManager::flush() {
+    if (!trajectory_enabled_) {
+        return;
+    }
     if (times_buffer_.empty()) {
         return;  // Nothing to flush
     }
@@ -314,14 +331,24 @@ void OutputManager::finalize(double t_final, const core::IonEnsemble& final_ense
         return;
     }
 
-    // Ensure last snapshot present
-    if (times_buffer_.empty() || times_buffer_.back() < t_final) {
-        log_step(t_final, final_ensemble);
-    }
+    if (trajectory_enabled_) {
+        // Ensure last snapshot present
+        if (times_buffer_.empty() || times_buffer_.back() < t_final) {
+            log_step(t_final, final_ensemble);
+        }
 
-    // Flush remaining data
-    if (!times_buffer_.empty()) {
-        flush();
+        // Flush remaining data
+        if (!times_buffer_.empty()) {
+            flush();
+        }
+    } else {
+        // In minimal mode, write a compact per-ion final-state summary instead.
+        try {
+            io::HDF5Writer::write_minimal_transport_summary(hdf5_filename_, final_ensemble);
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Failed to write minimal transport summary: "
+                      << e.what() << std::endl;
+        }
     }
 
     // Update death times (uses single conversion inside writer)

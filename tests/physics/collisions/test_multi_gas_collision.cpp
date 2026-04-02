@@ -252,3 +252,109 @@ TEST_CASE("HSS mixture thermalization proxy via collision counts", "[collision][
     const double frac_o2 = mix_o2 / mix_total;
     REQUIRE(frac_o2 == Approx(2.0 / 3.0).margin(0.15));
 }
+
+TEST_CASE("HSS ignores non-participating mixture components", "[collision][multigas][flags]") {
+    config::SpeciesDatabase db;
+    config::SpeciesProperties sp;
+    sp.id = "X+";
+    sp.mass_amu = 28.0;
+    sp.charge = 1;
+    sp.CCS_m2 = 1.0e-18;
+    sp.ccs_hss_m2["N2"] = 1.0e-18;
+    sp.ccs_hss_m2["O2"] = 8.0e-18;
+    db.species[sp.id] = sp;
+
+    physics::HSSCollisionHandler handler(false, &db);
+    PhysicsRng rng(2026);
+
+    IonState ion;
+    ion.species_id = "X+";
+    ion.mass_kg = sp.mass_amu * AMU_TO_KG;
+    ion.ion_charge_C = ELEM_CHARGE_C;
+    ion.CCS_m2 = sp.CCS_m2;
+    ion.vel = Vec3{900.0, 0.0, 0.0};
+
+    config::EnvironmentConfig env;
+    env.pressure_Pa = 600.0;
+    env.temperature_K = 300.0;
+    env.gas_mixture = {
+        {"N2", 0.5, -1.0, -1.0},
+        {"O2", 0.5, -1.0, -1.0}
+    };
+    env.gas_mixture[0].participates_in_collisions = true;
+    env.gas_mixture[1].participates_in_collisions = false;
+    env.compute_derived_properties();
+
+    int collisions = 0;
+    const int trials = 12000;
+    for (int i = 0; i < trials; ++i) {
+        IonState ion_copy = ion;
+        if (run_collision(handler, ion_copy, 1e-7, rng, env)) {
+            collisions++;
+        }
+    }
+
+    const auto by_species = handler.collisions_by_species();
+    const double n2 = static_cast<double>(by_species.count("N2") ? by_species.at("N2") : 0UL);
+    const double o2 = static_cast<double>(by_species.count("O2") ? by_species.at("O2") : 0UL);
+
+    REQUIRE(collisions > 0);
+    REQUIRE(n2 == Approx(static_cast<double>(collisions)));
+    REQUIRE(o2 == Approx(0.0));
+}
+
+TEST_CASE("HSS missing-CCS warning cache is stable under concurrent access", "[collision][hss][threading]") {
+    config::SpeciesDatabase db;
+    config::SpeciesProperties sp;
+    sp.id = "X+";
+    sp.mass_amu = 28.0;
+    sp.charge = 1;
+    sp.CCS_m2 = 1.0e-18;  // fallback sigma path
+    db.species[sp.id] = sp;
+
+    physics::HSSCollisionHandler handler(false, &db);
+
+    config::EnvironmentConfig env;
+    env.pressure_Pa = 1000.0;
+    env.temperature_K = 300.0;
+    env.gas_mixture = {{"N2", 1.0, -1.0, -1.0}};  // no explicit sigma in mixture
+    env.compute_derived_properties();
+
+    const int n_threads = 8;
+    const int calls_per_thread = 2000;
+    std::atomic<int> call_count{0};
+    std::atomic<int> collision_count{0};
+
+    auto worker = [&](uint64_t seed) {
+        PhysicsRng rng(seed);
+        IonState ion;
+        ion.species_id = "X+";
+        ion.mass_kg = 28.0 * AMU_TO_KG;
+        ion.ion_charge_C = ELEM_CHARGE_C;
+        ion.CCS_m2 = 1.0e-18;
+        ion.vel = Vec3{250.0, 0.0, 0.0};
+
+        for (int i = 0; i < calls_per_thread; ++i) {
+            IonState ion_copy = ion;
+            const bool collided = run_collision(handler, ion_copy, 0.0, rng, env);
+            call_count.fetch_add(1, std::memory_order_relaxed);
+            if (collided) {
+                collision_count.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+    };
+
+    std::vector<std::thread> threads;
+    threads.reserve(n_threads);
+    for (int t = 0; t < n_threads; ++t) {
+        threads.emplace_back(worker, static_cast<uint64_t>(12345 + t));
+    }
+    for (auto& th : threads) {
+        th.join();
+    }
+
+    REQUIRE(call_count.load(std::memory_order_relaxed) == n_threads * calls_per_thread);
+    REQUIRE(collision_count.load(std::memory_order_relaxed) == 0);
+    REQUIRE(handler.get_stats().total_collisions == 0);
+    REQUIRE(handler.collisions_by_species().empty());
+}

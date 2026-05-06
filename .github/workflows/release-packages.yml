@@ -156,8 +156,23 @@ jobs:
           New-Item -ItemType Directory -Force release-assets | Out-Null
           $tag = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "manual-${env:GITHUB_RUN_NUMBER}" }
           $version = $tag -replace '^v',''
+          $packageName = "icarion-$version-windows-x64"
+          $packageRoot = "release-assets/$packageName"
+          New-Item -ItemType Directory -Force $packageRoot | Out-Null
+
+          Copy-Item -Path "dist/icarion/bin" -Destination "$packageRoot/bin" -Recurse -Force
+          Copy-Item -Path "dist/icarion/share/icarion/data" -Destination "$packageRoot/data" -Recurse -Force
+          Copy-Item -Path "dist/icarion/share/icarion/examples" -Destination "$packageRoot/examples" -Recurse -Force
+          Copy-Item -Path "dist/icarion/share/icarion/schema" -Destination "$packageRoot/schema" -Recurse -Force
+          Copy-Item -Path "dist/icarion/share/doc/ICARION" -Destination "$packageRoot/docs" -Recurse -Force
+
+          Copy-Item -Path "README.md" -Destination "$packageRoot/README.md" -Force
+          Copy-Item -Path "CHANGELOG.md" -Destination "$packageRoot/CHANGELOG.md" -Force
+          Copy-Item -Path "LICENSE" -Destination "$packageRoot/LICENSE" -Force
+
           $zip = "release-assets/icarion-$version-windows-x64.zip"
-          Compress-Archive -Path dist/icarion/* -DestinationPath $zip -Force
+          Compress-Archive -Path "$packageRoot/*" -DestinationPath $zip -Force
+          Remove-Item -Recurse -Force $packageRoot
           Get-FileHash $zip -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $zip -Leaf)" } |
             Set-Content "$zip.sha256"

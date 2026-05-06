@@ -49,11 +49,25 @@ The Windows release artifact is built on GitHub Actions with MSVC and vcpkg.
 It is distributed as a `.zip` first, because missing runtime DLLs or package
 layout issues are easier to diagnose before adding an installer.
 
+The zip contains a flat distribution layout:
+
+- `bin/`
+- `data/`
+- `examples/`
+- `schema/`
+- `docs/`
+- top-level `README.md`, `CHANGELOG.md`, and `LICENSE`
+
 After extracting the zip, run from a terminal:
 
 ```powershell
 .\bin\icarion.exe .\examples\ims\ims_basic.json
 ```
+
+When downloading from the GitHub Actions **Artifacts** section, GitHub wraps the
+release asset in an additional artifact zip. Extract that outer zip first; the
+inner `icarion-*-windows-x64.zip` is the distributable package. GitHub Release
+assets are uploaded directly without this extra wrapper.
 
 ## Install A Debian Package
 

@@ -8,6 +8,11 @@
 #include <fstream>
 #include <cstdlib>
 #include <hdf5.h>
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <unistd.h>
+#endif
 
 #ifndef ICARION_VERSION
 #define ICARION_VERSION "1.0.0"
@@ -19,6 +24,19 @@
 
 namespace ICARION {
 namespace cli {
+
+namespace {
+std::string current_working_directory() {
+#ifdef _WIN32
+    char* cwd = _getcwd(nullptr, 0);
+#else
+    char* cwd = getcwd(nullptr, 0);
+#endif
+    std::string result = cwd ? std::string(cwd) : ".";
+    free(cwd);
+    return result;
+}
+}
 
 void print_version() {
     std::cout << "ICARION v" << ICARION_VERSION << "\n";
@@ -677,9 +695,7 @@ void validate_schema(const std::string& config_file) {
     std::cout << "Config file: " << config_file << "\n\n";
     
     // Get absolute paths (validator.py needs them for URI resolution)
-    char* cwd = getcwd(nullptr, 0);
-    std::string abs_cwd = cwd ? std::string(cwd) : ".";
-    free(cwd);
+    std::string abs_cwd = current_working_directory();
     
     std::string validator_path = abs_cwd + "/schema/validator.py";
     std::string schema_dir = abs_cwd + "/schema";

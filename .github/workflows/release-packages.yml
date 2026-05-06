@@ -122,9 +122,11 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          cmake --build build-windows --config Release --parallel --verbose 2>&1 |
-            Tee-Object -FilePath build-windows/build.log
+          cmake --build build-windows --config Release --parallel *> build-windows/build.log
           if ($LASTEXITCODE -ne 0) {
+            Write-Host "::group::Windows build log tail"
+            Get-Content build-windows/build.log -Tail 250
+            Write-Host "::endgroup::"
             exit $LASTEXITCODE
           }
           cmake --install build-windows --config Release

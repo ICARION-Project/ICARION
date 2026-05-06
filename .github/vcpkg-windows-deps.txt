@@ -1,0 +1,6 @@
+eigen3:x64-windows
+hdf5[cpp]:x64-windows
+jsoncpp:x64-windows
+nlohmann-json:x64-windows
+openblas:x64-windows
+openssl:x64-windows

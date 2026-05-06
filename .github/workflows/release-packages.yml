@@ -74,26 +74,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore vcpkg binary cache
+      - name: Restore vcpkg dependency cache
+        id: vcpkg-cache
         uses: actions/cache@v4
         with:
-          path: vcpkg-cache
-          key: vcpkg-windows-x64-${{ hashFiles('.github/workflows/release-packages.yml') }}
+          path: |
+            ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
+            ${{ env.VCPKG_INSTALLATION_ROOT }}/packages
+            ${{ env.VCPKG_INSTALLATION_ROOT }}/downloads
+            vcpkg-cache
+            .vcpkg-deps.stamp
+          key: vcpkg-windows-x64-${{ hashFiles('.github/vcpkg-windows-deps.txt') }}
           restore-keys: |
             vcpkg-windows-x64-
 
       - name: Install build dependencies
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install `
-            eigen3:x64-windows `
-            hdf5[cpp]:x64-windows `
-            jsoncpp:x64-windows `
-            nlohmann-json:x64-windows `
-            openblas:x64-windows `
-            openssl:x64-windows
+          Get-Content .github/vcpkg-windows-deps.txt |
+            Where-Object { $_.Trim().Length -gt 0 } |
+            ForEach-Object { & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install $_.Trim() }
+          "ok" | Set-Content .vcpkg-deps.stamp
+
+      - name: Report cached build dependencies
+        if: steps.vcpkg-cache.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Using cached vcpkg dependencies from $env:VCPKG_INSTALLATION_ROOT"
 
       - name: Configure package build
         shell: pwsh

@@ -169,6 +169,8 @@ jobs:
           Copy-Item -Path "README.md" -Destination "$packageRoot/README.md" -Force
           Copy-Item -Path "CHANGELOG.md" -Destination "$packageRoot/CHANGELOG.md" -Force
           Copy-Item -Path "LICENSE" -Destination "$packageRoot/LICENSE" -Force
+          Copy-Item -Path "packaging/windows/ICARION-Launcher.cmd" -Destination "$packageRoot/ICARION-Launcher.cmd" -Force
+          Copy-Item -Path "packaging/windows/ICARION-Launcher.ps1" -Destination "$packageRoot/ICARION-Launcher.ps1" -Force
 
           $zip = "release-assets/icarion-$version-windows-x64.zip"
           Compress-Archive -Path "$packageRoot/*" -DestinationPath $zip -Force

@@ -57,6 +57,16 @@ The zip contains a flat distribution layout:
 - `schema/`
 - `docs/`
 - top-level `README.md`, `CHANGELOG.md`, and `LICENSE`
+- `ICARION-Launcher.cmd` and `ICARION-Launcher.ps1`
+
+For the simplest Windows use, double-click:
+
+```text
+ICARION-Launcher.cmd
+```
+
+The launcher opens a file picker for a JSON config, starts `bin\icarion.exe`,
+and streams the run log in a small window.
 
 After extracting the zip, run from a terminal:
 

@@ -6,6 +6,22 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $IcarionExe = Join-Path $Root "bin\icarion.exe"
 $DefaultConfigDir = Join-Path $Root "examples"
+$RunLogDir = Join-Path $Root "launcher-logs"
+
+function Show-Message {
+    param(
+        [string]$Message,
+        [string]$Title = "ICARION Launcher",
+        [System.Windows.Forms.MessageBoxIcon]$Icon = [System.Windows.Forms.MessageBoxIcon]::Information
+    )
+    [System.Windows.Forms.MessageBox]::Show(
+        $form,
+        $Message,
+        $Title,
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        $Icon
+    ) | Out-Null
+}
 
 function Append-Log {
     param([string]$Text)
@@ -15,6 +31,26 @@ function Append-Log {
     $logBox.AppendText($Text + [Environment]::NewLine)
     $logBox.SelectionStart = $logBox.Text.Length
     $logBox.ScrollToCaret()
+}
+
+function Resolve-ConfigPath {
+    param([string]$PathText)
+
+    $candidate = $PathText.Trim().Trim('"')
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+        throw "Please select a JSON config file."
+    }
+    if (-not (Test-Path -LiteralPath $candidate)) {
+        throw "This path does not exist:`n$candidate"
+    }
+    $item = Get-Item -LiteralPath $candidate
+    if ($item.PSIsContainer) {
+        throw "You selected a folder, not a config file.`n`nOpen the folder and select a .json config, for example examples\ims\ims_basic.json."
+    }
+    if ($item.Extension -ne ".json") {
+        throw "ICARION configs must be .json files.`n`nSelected:`n$candidate"
+    }
+    return $item.FullName
 }
 
 $form = New-Object System.Windows.Forms.Form
@@ -30,14 +66,20 @@ $configLabel.AutoSize = $true
 
 $configBox = New-Object System.Windows.Forms.TextBox
 $configBox.Location = New-Object System.Drawing.Point(90, 14)
-$configBox.Size = New-Object System.Drawing.Size(610, 24)
+$configBox.Size = New-Object System.Drawing.Size(520, 24)
 $configBox.Anchor = "Top,Left,Right"
 
 $browseButton = New-Object System.Windows.Forms.Button
 $browseButton.Text = "Browse..."
-$browseButton.Location = New-Object System.Drawing.Point(710, 12)
+$browseButton.Location = New-Object System.Drawing.Point(620, 12)
 $browseButton.Size = New-Object System.Drawing.Size(80, 28)
 $browseButton.Anchor = "Top,Right"
+
+$examplesButton = New-Object System.Windows.Forms.Button
+$examplesButton.Text = "Examples..."
+$examplesButton.Location = New-Object System.Drawing.Point(706, 12)
+$examplesButton.Size = New-Object System.Drawing.Size(86, 28)
+$examplesButton.Anchor = "Top,Right"
 
 $runButton = New-Object System.Windows.Forms.Button
 $runButton.Text = "Run"
@@ -72,6 +114,7 @@ $form.Controls.AddRange(@(
     $configLabel,
     $configBox,
     $browseButton,
+    $examplesButton,
     $runButton,
     $stopButton,
     $statusLabel,
@@ -83,7 +126,23 @@ $script:process = $null
 $browseButton.Add_Click({
     $dialog = New-Object System.Windows.Forms.OpenFileDialog
     $dialog.Title = "Select ICARION config"
-    $dialog.Filter = "JSON config (*.json)|*.json|All files (*.*)|*.*"
+    $dialog.Filter = "JSON config (*.json)|*.json"
+    $dialog.CheckFileExists = $true
+    $dialog.CheckPathExists = $true
+    if (Test-Path $DefaultConfigDir) {
+        $dialog.InitialDirectory = $DefaultConfigDir
+    }
+    if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
+        $configBox.Text = $dialog.FileName
+    }
+})
+
+$examplesButton.Add_Click({
+    $dialog = New-Object System.Windows.Forms.OpenFileDialog
+    $dialog.Title = "Select an ICARION example config"
+    $dialog.Filter = "JSON config (*.json)|*.json"
+    $dialog.CheckFileExists = $true
+    $dialog.CheckPathExists = $true
     if (Test-Path $DefaultConfigDir) {
         $dialog.InitialDirectory = $DefaultConfigDir
     }
@@ -94,32 +153,33 @@ $browseButton.Add_Click({
 
 $runButton.Add_Click({
     if (-not (Test-Path $IcarionExe)) {
-        [System.Windows.Forms.MessageBox]::Show(
-            $form,
-            "Cannot find bin\icarion.exe next to this launcher.",
-            "ICARION Launcher",
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Error
-        ) | Out-Null
+        Show-Message `
+            -Message "Cannot find bin\icarion.exe next to this launcher." `
+            -Title "ICARION Launcher" `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
         return
     }
 
-    $configPath = $configBox.Text.Trim()
-    if (-not (Test-Path $configPath)) {
-        [System.Windows.Forms.MessageBox]::Show(
-            $form,
-            "Please select a valid JSON config file.",
-            "ICARION Launcher",
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Warning
-        ) | Out-Null
+    try {
+        $configPath = Resolve-ConfigPath $configBox.Text
+    } catch {
+        Show-Message `
+            -Message $_.Exception.Message `
+            -Title "Invalid config selection" `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Warning)
         return
     }
+
+    New-Item -ItemType Directory -Force $RunLogDir | Out-Null
+    $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $runLogPath = Join-Path $RunLogDir "icarion-run-$runStamp.log"
 
     $logBox.Clear()
     Append-Log "ICARION: $IcarionExe"
     Append-Log "Config:  $configPath"
+    Append-Log "Log:     $runLogPath"
     Append-Log ""
+    "ICARION: $IcarionExe`r`nConfig:  $configPath`r`n" | Set-Content -LiteralPath $runLogPath
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = $IcarionExe
@@ -138,6 +198,7 @@ $runButton.Add_Click({
         param($sender, $eventArgs)
         if ($eventArgs.Data -ne $null) {
             $line = $eventArgs.Data
+            Add-Content -LiteralPath $runLogPath -Value $line
             $form.BeginInvoke([Action]{ Append-Log $line }) | Out-Null
         }
     }
@@ -145,6 +206,7 @@ $runButton.Add_Click({
         param($sender, $eventArgs)
         if ($eventArgs.Data -ne $null) {
             $line = $eventArgs.Data
+            Add-Content -LiteralPath $runLogPath -Value $line
             $form.BeginInvoke([Action]{ Append-Log $line }) | Out-Null
         }
     }
@@ -154,10 +216,17 @@ $runButton.Add_Click({
         $form.BeginInvoke([Action]{
             $runButton.Enabled = $true
             $browseButton.Enabled = $true
+            $examplesButton.Enabled = $true
             $stopButton.Enabled = $false
             $statusLabel.Text = "Finished with exit code $code"
             Append-Log ""
             Append-Log "Finished with exit code $code"
+            if ($code -ne 0) {
+                Show-Message `
+                    -Message "ICARION stopped with exit code $code.`n`nThe log was saved here:`n$runLogPath" `
+                    -Title "Run failed" `
+                    -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
+            }
         }) | Out-Null
     }
 
@@ -168,6 +237,7 @@ $runButton.Add_Click({
     try {
         $runButton.Enabled = $false
         $browseButton.Enabled = $false
+        $examplesButton.Enabled = $false
         $stopButton.Enabled = $true
         $statusLabel.Text = "Running..."
 
@@ -177,9 +247,14 @@ $runButton.Add_Click({
     } catch {
         $runButton.Enabled = $true
         $browseButton.Enabled = $true
+        $examplesButton.Enabled = $true
         $stopButton.Enabled = $false
         $statusLabel.Text = "Failed to start"
         Append-Log $_.Exception.Message
+        Show-Message `
+            -Message $_.Exception.Message `
+            -Title "Failed to start ICARION" `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
     }
 })
 

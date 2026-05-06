@@ -1,4 +1,5 @@
 if (MSVC)
+    add_compile_definitions(_USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS)
     add_compile_options(/W4)
 else()
     add_compile_options(-Wall -Wextra)

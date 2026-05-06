@@ -88,6 +88,16 @@ std::string system_kernel_name() {
     return "unknown";
 #endif
 }
+
+std::string compiler_version_string() {
+#if defined(__GNUC__)
+    return __VERSION__;
+#elif defined(_MSC_VER)
+    return "MSVC " + std::to_string(_MSC_VER);
+#else
+    return "unknown";
+#endif
+}
 }
 
 // Forward helpers
@@ -1026,7 +1036,7 @@ void HDF5Writer::write_reproducibility_metadata(
         write_string(repro, "build_type", "Debug");
     #endif
     
-    write_string(repro, "compiler_cxx", __VERSION__);
+    write_string(repro, "compiler_cxx", compiler_version_string());
     write_string(repro, "build_info", build_info);
     
     #ifdef ICARION_ENABLE_CUDA

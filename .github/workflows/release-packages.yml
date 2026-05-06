@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   linux-packages:
     name: Linux packages
@@ -73,6 +76,8 @@ jobs:
       - name: Install build dependencies
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install `
             eigen3:x64-windows `
             hdf5[cpp]:x64-windows `
@@ -84,6 +89,8 @@ jobs:
       - name: Configure package build
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           cmake -B build-windows -S . -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_INSTALL_PREFIX="$PWD/dist/icarion" `
@@ -94,12 +101,16 @@ jobs:
       - name: Build install tree
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           cmake --build build-windows --config Release --parallel
           cmake --install build-windows --config Release
 
       - name: Bundle runtime DLLs
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           $bin = Join-Path $PWD "dist/icarion/bin"
           Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin" -Filter "*.dll" |
             Copy-Item -Destination $bin -Force
@@ -107,6 +118,8 @@ jobs:
       - name: Create Windows zip
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           New-Item -ItemType Directory -Force release-assets | Out-Null
           $tag = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "manual-${env:GITHUB_RUN_NUMBER}" }
           $version = $tag -replace '^v',''

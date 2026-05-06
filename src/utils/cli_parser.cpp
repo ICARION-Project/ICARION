@@ -8,7 +8,6 @@
 #include <fstream>
 #include <cstdlib>
 #include <hdf5.h>
-#include <unistd.h>
 
 #ifndef ICARION_VERSION
 #define ICARION_VERSION "1.0.0"

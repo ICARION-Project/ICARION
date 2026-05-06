@@ -112,8 +112,20 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          cmake --build build-windows --config Release --parallel
+          cmake --build build-windows --config Release --parallel --verbose 2>&1 |
+            Tee-Object -FilePath build-windows/build.log
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
           cmake --install build-windows --config Release
+
+      - name: Upload Windows build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-log
+          path: build-windows/build.log
+          if-no-files-found: ignore
 
       - name: Bundle runtime DLLs
         shell: pwsh

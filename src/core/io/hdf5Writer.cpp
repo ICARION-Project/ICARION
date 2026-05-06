@@ -35,10 +35,60 @@
 #include <cuda_runtime.h>
 #endif
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
 #include <sys/utsname.h>
 #include <unistd.h>
+#endif
 
 namespace ICARION::io {
+
+namespace {
+std::string system_hostname() {
+#ifdef _WIN32
+    char hostname[MAX_COMPUTERNAME_LENGTH + 1] = {};
+    DWORD size = sizeof(hostname);
+    if (GetComputerNameA(hostname, &size)) {
+        return hostname;
+    }
+    return "unknown";
+#else
+    char hostname[256] = {};
+    if (gethostname(hostname, sizeof(hostname)) == 0) {
+        return hostname;
+    }
+    return "unknown";
+#endif
+}
+
+std::string system_os_name() {
+#ifdef _WIN32
+    return "Windows";
+#else
+    struct utsname sys_info;
+    if (uname(&sys_info) == 0) {
+        return std::string(sys_info.sysname) + " " + sys_info.release;
+    }
+    return "unknown";
+#endif
+}
+
+std::string system_kernel_name() {
+#ifdef _WIN32
+    return "Windows";
+#else
+    struct utsname sys_info;
+    if (uname(&sys_info) == 0) {
+        return sys_info.version;
+    }
+    return "unknown";
+#endif
+}
+}
 
 // Forward helpers
 static void write_string_vector(H5::Group& group, const std::string& name, const std::vector<std::string>& data);
@@ -1100,21 +1150,20 @@ void HDF5Writer::write_system_metadata(H5::H5File& file) {
     H5::Group sys = file.openGroup("/metadata").createGroup("system");
     
     // === Hostname ===
-    char hostname[256];
-    gethostname(hostname, sizeof(hostname));
-    write_string(sys, "hostname", hostname);
+    write_string(sys, "hostname", system_hostname());
     
     // === Username ===
     char* username = getenv("USER");
+    if (!username) {
+        username = getenv("USERNAME");
+    }
     if (username) {
         write_string(sys, "username", username);
     }
     
     // === OS ===
-    struct utsname sys_info;
-    uname(&sys_info);
-    write_string(sys, "os", std::string(sys_info.sysname) + " " + sys_info.release);
-    write_string(sys, "kernel", sys_info.version);
+    write_string(sys, "os", system_os_name());
+    write_string(sys, "kernel", system_kernel_name());
     
     // === CPU ===
     std::ifstream cpuinfo("/proc/cpuinfo");

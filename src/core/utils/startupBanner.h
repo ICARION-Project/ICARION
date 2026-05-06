@@ -16,12 +16,51 @@
 #include <iomanip>
 #include <chrono>
 #include <ctime>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
 #include <sys/utsname.h>
 #include <unistd.h>
+#endif
 #include <fstream>
+#include <thread>
 
 namespace ICARION {
 namespace utils {
+
+namespace detail {
+inline std::string system_hostname() {
+#ifdef _WIN32
+    char hostname[MAX_COMPUTERNAME_LENGTH + 1] = {};
+    DWORD size = sizeof(hostname);
+    if (GetComputerNameA(hostname, &size)) {
+        return hostname;
+    }
+    return "unknown";
+#else
+    char hostname[256] = {};
+    if (gethostname(hostname, sizeof(hostname)) == 0) {
+        return hostname;
+    }
+    return "unknown";
+#endif
+}
+
+inline std::string system_os_name() {
+#ifdef _WIN32
+    return "Windows";
+#else
+    struct utsname sys_info;
+    if (uname(&sys_info) == 0) {
+        return std::string(sys_info.sysname) + " " + sys_info.release;
+    }
+    return "unknown";
+#endif
+}
+}
 
 /**
  * @brief Print professional startup banner with system info
@@ -104,14 +143,10 @@ inline void print_startup_banner(
     std::cout << " System Information\n\n";
     
     // Hostname
-    char hostname[256];
-    gethostname(hostname, sizeof(hostname));
-    std::cout << "   Hostname:     " << hostname << "\n";
+    std::cout << "   Hostname:     " << detail::system_hostname() << "\n";
     
     // OS
-    struct utsname sys_info;
-    uname(&sys_info);
-    std::cout << "   OS:           " << sys_info.sysname << " " << sys_info.release;
+    std::cout << "   OS:           " << detail::system_os_name();
     
     // Try to get distro info
     std::ifstream os_release("/etc/os-release");
@@ -146,6 +181,11 @@ inline void print_startup_banner(
             std::cout << "   CPU:          " << cpu_model << " (" << cpu_cores << " cores)\n";
         }
     }
+#ifdef _WIN32
+    else {
+        std::cout << "   CPU:          " << std::thread::hardware_concurrency() << " logical cores\n";
+    }
+#endif
     
     // Memory
     std::ifstream meminfo("/proc/meminfo");

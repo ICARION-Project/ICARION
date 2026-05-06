@@ -31,6 +31,10 @@ option(USE_GPU_ACCEL
        "Enable CUDA GPU acceleration" 
        OFF)
 
+option(ICARION_BUILD_TESTS
+    "Build unit, integration, and regression tests"
+    ON)
+
 # Propagate core-only flag to compiler
 if(ICARION_BUILD_CORE_ONLY)
     add_compile_definitions(ICARION_BUILD_CORE_ONLY)
@@ -71,6 +75,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CompilerSettings.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Targets.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CUDAConfig.cmake)
+include(GNUInstallDirs)
 
 # ─────────────────────────────────────────────────────────────────────
 # Global Include Paths
@@ -82,14 +87,22 @@ include_directories(${PROJECT_SOURCE_DIR}/src)
 # Testing (must be at top level for CTest to work)
 # ─────────────────────────────────────────────────────────────────────
 
-enable_testing()
+if(ICARION_BUILD_TESTS)
+    enable_testing()
+endif()
 
 # ─────────────────────────────────────────────────────────────────────
 # Build Subdirectories
 # ─────────────────────────────────────────────────────────────────────
 
 add_subdirectory(src)
-add_subdirectory(tests)
+if(ICARION_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+
+# Install/package configuration is intentionally kept after all targets have
+# been declared so CPack sees the complete install tree.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Packaging.cmake)
 
 # ─────────────────────────────────────────────────────────────────────
 # Build Summary

@@ -168,4 +168,26 @@ add_executable(ehss_samples_precompute
 )
 target_link_libraries(ehss_samples_precompute PRIVATE icarion_core)
 
+# ---------------------------------------------------------------------
+# Installable runtime package
+# ---------------------------------------------------------------------
+
+install(TARGETS
+        icarion_main
+        ccs_precompute
+        ehss_samples_precompute
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        COMPONENT runtime)
+
+if(WIN32)
+    set(ICARION_COMMAND_ALIAS "icarion.exe")
+else()
+    set(ICARION_COMMAND_ALIAS "icarion")
+endif()
+
+install(PROGRAMS "$<TARGET_FILE:icarion_main>"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        RENAME "${ICARION_COMMAND_ALIAS}"
+        COMPONENT runtime)
+
 message(STATUS "ICARION Core configuration completed.")

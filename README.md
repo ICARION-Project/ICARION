@@ -140,6 +140,23 @@ cmake --build build -j"$(nproc)"
 ./build/src/icarion_main examples/ims/ims_basic.json
 ```
 
+### Build an installable package
+
+```bash
+cmake -B build-package -S . \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DUSE_GPU_ACCEL=OFF \
+  -DICARION_BUILD_TESTS=OFF
+cmake --build build-package -j"$(nproc)"
+cmake --build build-package --target package
+```
+
+This creates a `.deb` package on Linux plus a `.tar.gz` install archive. See
+[docs/PACKAGING.md](docs/PACKAGING.md) for install paths and package usage.
+Pushing a tag like `v1.0.1-beta.1` also triggers the GitHub Actions release
+packaging workflow, including a Windows `.zip` artifact.
+
 ### GPU build (optional, dev/experimental)
 
 ```bash

@@ -49,6 +49,28 @@ function Append-Log {
     $logBox.ScrollToCaret()
 }
 
+function Read-LogText {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return ""
+    }
+
+    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try {
+        $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8, $true)
+        try {
+            $text = $reader.ReadToEnd()
+        } finally {
+            $reader.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
+    $escape = [regex]::Escape([string][char]27)
+    return [regex]::Replace($text, "$escape\[[0-9;?]*[ -/]*[@-~]", "")
+}
+
 function Resolve-ConfigPath {
     param([string]$PathText)
 
@@ -122,7 +144,7 @@ $contentPanel.BackColor = $ColorBackground
 
 $configPanel = New-Object System.Windows.Forms.Panel
 $configPanel.Dock = [System.Windows.Forms.DockStyle]::Top
-$configPanel.Height = 88
+$configPanel.Height = 126
 $configPanel.BackColor = [System.Drawing.Color]::White
 $configPanel.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
 
@@ -143,32 +165,32 @@ $configLabel.AutoSize = $true
 
 $configBox = New-Object System.Windows.Forms.TextBox
 $configBox.Location = New-Object System.Drawing.Point(16, 40)
-$configBox.Size = New-Object System.Drawing.Size(500, 24)
-$configBox.Anchor = "Top,Left,Right"
+$configBox.Size = New-Object System.Drawing.Size(820, 24)
+$configBox.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $configBox.Font = $FontUi
 $configBox.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 
 $browseButton = New-FlatButton "Browse..." ([System.Drawing.Color]::FromArgb(229, 234, 240)) $ColorText
-$browseButton.Location = New-Object System.Drawing.Point(526, 38)
+$browseButton.Location = New-Object System.Drawing.Point(16, 78)
 $browseButton.Size = New-Object System.Drawing.Size(86, 30)
-$browseButton.Anchor = "Top,Right"
+$browseButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 
 $examplesButton = New-FlatButton "Examples..." ([System.Drawing.Color]::FromArgb(229, 234, 240)) $ColorText
-$examplesButton.Location = New-Object System.Drawing.Point(620, 38)
+$examplesButton.Location = New-Object System.Drawing.Point(110, 78)
 $examplesButton.Size = New-Object System.Drawing.Size(96, 30)
-$examplesButton.Anchor = "Top,Right"
+$examplesButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 
 $runButton = New-FlatButton "Run" $ColorPrimary
-$runButton.Location = New-Object System.Drawing.Point(724, 38)
+$runButton.Location = New-Object System.Drawing.Point(214, 78)
 $runButton.Size = New-Object System.Drawing.Size(68, 30)
-$runButton.Anchor = "Top,Right"
+$runButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 
 $stopButton = New-FlatButton "Stop" $ColorStop
 $stopButton.Text = "Stop"
 $stopButton.Enabled = $false
-$stopButton.Location = New-Object System.Drawing.Point(800, 38)
+$stopButton.Location = New-Object System.Drawing.Point(290, 78)
 $stopButton.Size = New-Object System.Drawing.Size(60, 30)
-$stopButton.Anchor = "Top,Right"
+$stopButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 
 $configPanel.Controls.AddRange(@(
     $configLabel,
@@ -217,14 +239,63 @@ $logPanel.Padding = New-Object System.Windows.Forms.Padding(12)
 $logPanel.BackColor = $ColorConsole
 $logPanel.Controls.Add($logBox)
 
-$contentPanel.Controls.Add($logPanel)
 $contentPanel.Controls.Add($configPanel)
+$contentPanel.Controls.Add($logPanel)
+$configPanel.BringToFront()
 
 $form.Controls.Add($contentPanel)
 $form.Controls.Add($statusPanel)
 $form.Controls.Add($headerPanel)
 
 $script:process = $null
+$script:runLogPath = $null
+
+$logTimer = New-Object System.Windows.Forms.Timer
+$logTimer.Interval = 500
+$logTimer.Add_Tick({
+    try {
+        if ($script:runLogPath -and (Test-Path -LiteralPath $script:runLogPath)) {
+            $content = Read-LogText $script:runLogPath
+            if ($null -ne $content -and $content -ne $logBox.Text) {
+                $logBox.Text = $content
+                $logBox.SelectionStart = $logBox.Text.Length
+                $logBox.ScrollToCaret()
+            }
+        }
+
+        if ($script:process -and $script:process.HasExited) {
+            $code = $script:process.ExitCode
+            $logTimer.Stop()
+            $runButton.Enabled = $true
+            $browseButton.Enabled = $true
+            $examplesButton.Enabled = $true
+            $stopButton.Enabled = $false
+            $statusLabel.Text = "Finished with exit code $code"
+            Append-Log ""
+            Append-Log "Finished with exit code $code"
+            if ($code -ne 0) {
+                Show-Message `
+                    -Message "ICARION stopped with exit code $code.`n`nThe log was saved here:`n$script:runLogPath" `
+                    -Title "Run failed" `
+                    -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
+            }
+            $script:process.Dispose()
+            $script:process = $null
+        }
+    } catch {
+        $logTimer.Stop()
+        $runButton.Enabled = $true
+        $browseButton.Enabled = $true
+        $examplesButton.Enabled = $true
+        $stopButton.Enabled = $false
+        $statusLabel.Text = "Launcher error"
+        Append-Log $_.Exception.Message
+        Show-Message `
+            -Message $_.Exception.Message `
+            -Title "Launcher error" `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
+    }
+})
 
 $browseButton.Add_Click({
     $dialog = New-Object System.Windows.Forms.OpenFileDialog
@@ -276,66 +347,32 @@ $runButton.Add_Click({
     New-Item -ItemType Directory -Force $RunLogDir | Out-Null
     $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $runLogPath = Join-Path $RunLogDir "icarion-run-$runStamp.log"
+    $runCmdPath = Join-Path $RunLogDir "icarion-run-$runStamp.cmd"
+    $script:runLogPath = $runLogPath
 
     $logBox.Clear()
     Append-Log "ICARION: $IcarionExe"
     Append-Log "Config:  $configPath"
     Append-Log "Log:     $runLogPath"
     Append-Log ""
-    "ICARION: $IcarionExe`r`nConfig:  $configPath`r`n" | Set-Content -LiteralPath $runLogPath
+    $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+    [System.IO.File]::WriteAllText($runLogPath, "ICARION: $IcarionExe`r`nConfig:  $configPath`r`n", $utf8NoBom)
+    @(
+        "@echo off",
+        "cd /d `"$Root`"",
+        "`"$IcarionExe`" `"$configPath`" >> `"$runLogPath`" 2>&1",
+        "exit /b %ERRORLEVEL%"
+    ) | Set-Content -LiteralPath $runCmdPath -Encoding ASCII
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = $IcarionExe
-    $startInfo.Arguments = '"' + $configPath + '"'
+    $startInfo.FileName = if ($env:ComSpec) { $env:ComSpec } else { "cmd.exe" }
+    $startInfo.Arguments = '/d /c "' + $runCmdPath + '"'
     $startInfo.WorkingDirectory = $Root
     $startInfo.UseShellExecute = $false
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
     $startInfo.CreateNoWindow = $true
 
     $script:process = New-Object System.Diagnostics.Process
     $script:process.StartInfo = $startInfo
-    $script:process.EnableRaisingEvents = $true
-
-    $outputHandler = [System.Diagnostics.DataReceivedEventHandler]{
-        param($sender, $eventArgs)
-        if ($eventArgs.Data -ne $null) {
-            $line = $eventArgs.Data
-            Add-Content -LiteralPath $runLogPath -Value $line
-            $form.BeginInvoke([Action]{ Append-Log $line }) | Out-Null
-        }
-    }
-    $errorHandler = [System.Diagnostics.DataReceivedEventHandler]{
-        param($sender, $eventArgs)
-        if ($eventArgs.Data -ne $null) {
-            $line = $eventArgs.Data
-            Add-Content -LiteralPath $runLogPath -Value $line
-            $form.BeginInvoke([Action]{ Append-Log $line }) | Out-Null
-        }
-    }
-    $exitHandler = [System.EventHandler]{
-        param($sender, $eventArgs)
-        $code = $sender.ExitCode
-        $form.BeginInvoke([Action]{
-            $runButton.Enabled = $true
-            $browseButton.Enabled = $true
-            $examplesButton.Enabled = $true
-            $stopButton.Enabled = $false
-            $statusLabel.Text = "Finished with exit code $code"
-            Append-Log ""
-            Append-Log "Finished with exit code $code"
-            if ($code -ne 0) {
-                Show-Message `
-                    -Message "ICARION stopped with exit code $code.`n`nThe log was saved here:`n$runLogPath" `
-                    -Title "Run failed" `
-                    -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
-            }
-        }) | Out-Null
-    }
-
-    $script:process.add_OutputDataReceived($outputHandler)
-    $script:process.add_ErrorDataReceived($errorHandler)
-    $script:process.add_Exited($exitHandler)
 
     try {
         $runButton.Enabled = $false
@@ -345,9 +382,9 @@ $runButton.Add_Click({
         $statusLabel.Text = "Running..."
 
         [void]$script:process.Start()
-        $script:process.BeginOutputReadLine()
-        $script:process.BeginErrorReadLine()
+        $logTimer.Start()
     } catch {
+        $logTimer.Stop()
         $runButton.Enabled = $true
         $browseButton.Enabled = $true
         $examplesButton.Enabled = $true

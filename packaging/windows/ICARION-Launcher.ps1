@@ -2,11 +2,27 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $ErrorActionPreference = "Stop"
+[System.Windows.Forms.Application]::EnableVisualStyles()
+[System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $IcarionExe = Join-Path $Root "bin\icarion.exe"
 $DefaultConfigDir = Join-Path $Root "examples"
 $RunLogDir = Join-Path $Root "launcher-logs"
+
+$ColorBackground = [System.Drawing.Color]::FromArgb(246, 248, 250)
+$ColorHeader = [System.Drawing.Color]::FromArgb(32, 43, 54)
+$ColorText = [System.Drawing.Color]::FromArgb(25, 32, 39)
+$ColorSubtle = [System.Drawing.Color]::FromArgb(96, 105, 114)
+$ColorBorder = [System.Drawing.Color]::FromArgb(210, 216, 222)
+$ColorPrimary = [System.Drawing.Color]::FromArgb(33, 116, 184)
+$ColorStop = [System.Drawing.Color]::FromArgb(178, 62, 62)
+$ColorConsole = [System.Drawing.Color]::FromArgb(18, 24, 31)
+$ColorConsoleText = [System.Drawing.Color]::FromArgb(226, 232, 240)
+$FontUi = New-Object System.Drawing.Font("Segoe UI", 9)
+$FontTitle = New-Object System.Drawing.Font("Segoe UI Semibold", 16)
+$FontSmall = New-Object System.Drawing.Font("Segoe UI", 8.5)
+$FontMono = New-Object System.Drawing.Font("Consolas", 9)
 
 function Show-Message {
     param(
@@ -53,73 +69,160 @@ function Resolve-ConfigPath {
     return $item.FullName
 }
 
+function New-FlatButton {
+    param(
+        [string]$Text,
+        [System.Drawing.Color]$BackColor,
+        [System.Drawing.Color]$ForeColor = [System.Drawing.Color]::White
+    )
+    $button = New-Object System.Windows.Forms.Button
+    $button.Text = $Text
+    $button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $button.FlatAppearance.BorderSize = 0
+    $button.BackColor = $BackColor
+    $button.ForeColor = $ForeColor
+    $button.Font = $FontUi
+    $button.Cursor = [System.Windows.Forms.Cursors]::Hand
+    return $button
+}
+
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "ICARION Launcher"
 $form.StartPosition = "CenterScreen"
 $form.Size = New-Object System.Drawing.Size(900, 620)
-$form.MinimumSize = New-Object System.Drawing.Size(720, 460)
+$form.MinimumSize = New-Object System.Drawing.Size(900, 500)
+$form.BackColor = $ColorBackground
+$form.Font = $FontUi
+
+$headerPanel = New-Object System.Windows.Forms.Panel
+$headerPanel.Dock = [System.Windows.Forms.DockStyle]::Top
+$headerPanel.Height = 86
+$headerPanel.BackColor = $ColorHeader
+
+$titleLabel = New-Object System.Windows.Forms.Label
+$titleLabel.Text = "ICARION"
+$titleLabel.ForeColor = [System.Drawing.Color]::White
+$titleLabel.Font = $FontTitle
+$titleLabel.Location = New-Object System.Drawing.Point(20, 16)
+$titleLabel.AutoSize = $true
+
+$subtitleLabel = New-Object System.Windows.Forms.Label
+$subtitleLabel.Text = "Load a JSON config and run an ion simulation"
+$subtitleLabel.ForeColor = [System.Drawing.Color]::FromArgb(207, 216, 225)
+$subtitleLabel.Font = $FontUi
+$subtitleLabel.Location = New-Object System.Drawing.Point(22, 50)
+$subtitleLabel.AutoSize = $true
+
+$headerPanel.Controls.AddRange(@($titleLabel, $subtitleLabel))
+
+$contentPanel = New-Object System.Windows.Forms.Panel
+$contentPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
+$contentPanel.Padding = New-Object System.Windows.Forms.Padding(18, 18, 18, 14)
+$contentPanel.BackColor = $ColorBackground
+
+$configPanel = New-Object System.Windows.Forms.Panel
+$configPanel.Dock = [System.Windows.Forms.DockStyle]::Top
+$configPanel.Height = 88
+$configPanel.BackColor = [System.Drawing.Color]::White
+$configPanel.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
+
+$configPanel.add_Paint({
+    param($sender, $eventArgs)
+    $rect = New-Object System.Drawing.Rectangle(0, 0, ($sender.Width - 1), ($sender.Height - 1))
+    $pen = New-Object System.Drawing.Pen($ColorBorder)
+    $eventArgs.Graphics.DrawRectangle($pen, $rect)
+    $pen.Dispose()
+})
 
 $configLabel = New-Object System.Windows.Forms.Label
 $configLabel.Text = "Config file"
-$configLabel.Location = New-Object System.Drawing.Point(12, 18)
+$configLabel.ForeColor = $ColorText
+$configLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 9)
+$configLabel.Location = New-Object System.Drawing.Point(16, 12)
 $configLabel.AutoSize = $true
 
 $configBox = New-Object System.Windows.Forms.TextBox
-$configBox.Location = New-Object System.Drawing.Point(90, 14)
-$configBox.Size = New-Object System.Drawing.Size(520, 24)
+$configBox.Location = New-Object System.Drawing.Point(16, 40)
+$configBox.Size = New-Object System.Drawing.Size(500, 24)
 $configBox.Anchor = "Top,Left,Right"
+$configBox.Font = $FontUi
+$configBox.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 
-$browseButton = New-Object System.Windows.Forms.Button
-$browseButton.Text = "Browse..."
-$browseButton.Location = New-Object System.Drawing.Point(620, 12)
-$browseButton.Size = New-Object System.Drawing.Size(80, 28)
+$browseButton = New-FlatButton "Browse..." ([System.Drawing.Color]::FromArgb(229, 234, 240)) $ColorText
+$browseButton.Location = New-Object System.Drawing.Point(526, 38)
+$browseButton.Size = New-Object System.Drawing.Size(86, 30)
 $browseButton.Anchor = "Top,Right"
 
-$examplesButton = New-Object System.Windows.Forms.Button
-$examplesButton.Text = "Examples..."
-$examplesButton.Location = New-Object System.Drawing.Point(706, 12)
-$examplesButton.Size = New-Object System.Drawing.Size(86, 28)
+$examplesButton = New-FlatButton "Examples..." ([System.Drawing.Color]::FromArgb(229, 234, 240)) $ColorText
+$examplesButton.Location = New-Object System.Drawing.Point(620, 38)
+$examplesButton.Size = New-Object System.Drawing.Size(96, 30)
 $examplesButton.Anchor = "Top,Right"
 
-$runButton = New-Object System.Windows.Forms.Button
-$runButton.Text = "Run"
-$runButton.Location = New-Object System.Drawing.Point(798, 12)
-$runButton.Size = New-Object System.Drawing.Size(74, 28)
+$runButton = New-FlatButton "Run" $ColorPrimary
+$runButton.Location = New-Object System.Drawing.Point(724, 38)
+$runButton.Size = New-Object System.Drawing.Size(68, 30)
 $runButton.Anchor = "Top,Right"
 
-$stopButton = New-Object System.Windows.Forms.Button
+$stopButton = New-FlatButton "Stop" $ColorStop
 $stopButton.Text = "Stop"
 $stopButton.Enabled = $false
-$stopButton.Location = New-Object System.Drawing.Point(798, 46)
-$stopButton.Size = New-Object System.Drawing.Size(74, 28)
+$stopButton.Location = New-Object System.Drawing.Point(800, 38)
+$stopButton.Size = New-Object System.Drawing.Size(60, 30)
 $stopButton.Anchor = "Top,Right"
 
-$statusLabel = New-Object System.Windows.Forms.Label
-$statusLabel.Text = "Ready"
-$statusLabel.Location = New-Object System.Drawing.Point(12, 52)
-$statusLabel.Size = New-Object System.Drawing.Size(760, 22)
-$statusLabel.Anchor = "Top,Left,Right"
-
-$logBox = New-Object System.Windows.Forms.TextBox
-$logBox.Location = New-Object System.Drawing.Point(12, 86)
-$logBox.Size = New-Object System.Drawing.Size(860, 480)
-$logBox.Anchor = "Top,Bottom,Left,Right"
-$logBox.Multiline = $true
-$logBox.ScrollBars = "Both"
-$logBox.WordWrap = $false
-$logBox.ReadOnly = $true
-$logBox.Font = New-Object System.Drawing.Font("Consolas", 9)
-
-$form.Controls.AddRange(@(
+$configPanel.Controls.AddRange(@(
     $configLabel,
     $configBox,
     $browseButton,
     $examplesButton,
     $runButton,
-    $stopButton,
-    $statusLabel,
-    $logBox
+    $stopButton
 ))
+
+$statusPanel = New-Object System.Windows.Forms.Panel
+$statusPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
+$statusPanel.Height = 32
+$statusPanel.BackColor = [System.Drawing.Color]::White
+
+$statusPanel.add_Paint({
+    param($sender, $eventArgs)
+    $pen = New-Object System.Drawing.Pen($ColorBorder)
+    $eventArgs.Graphics.DrawLine($pen, 0, 0, $sender.Width, 0)
+    $pen.Dispose()
+})
+
+$statusLabel = New-Object System.Windows.Forms.Label
+$statusLabel.Text = "Ready"
+$statusLabel.ForeColor = $ColorSubtle
+$statusLabel.Font = $FontSmall
+$statusLabel.Dock = [System.Windows.Forms.DockStyle]::Fill
+$statusLabel.Padding = New-Object System.Windows.Forms.Padding(12, 8, 12, 0)
+$statusPanel.Controls.Add($statusLabel)
+
+$logBox = New-Object System.Windows.Forms.TextBox
+$logBox.Dock = [System.Windows.Forms.DockStyle]::Fill
+$logBox.Margin = New-Object System.Windows.Forms.Padding(0, 14, 0, 10)
+$logBox.Multiline = $true
+$logBox.ScrollBars = "Both"
+$logBox.WordWrap = $false
+$logBox.ReadOnly = $true
+$logBox.Font = $FontMono
+$logBox.BorderStyle = [System.Windows.Forms.BorderStyle]::None
+$logBox.BackColor = $ColorConsole
+$logBox.ForeColor = $ColorConsoleText
+
+$logPanel = New-Object System.Windows.Forms.Panel
+$logPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
+$logPanel.Padding = New-Object System.Windows.Forms.Padding(12)
+$logPanel.BackColor = $ColorConsole
+$logPanel.Controls.Add($logBox)
+
+$contentPanel.Controls.Add($logPanel)
+$contentPanel.Controls.Add($configPanel)
+
+$form.Controls.Add($contentPanel)
+$form.Controls.Add($statusPanel)
+$form.Controls.Add($headerPanel)
 
 $script:process = $null
 

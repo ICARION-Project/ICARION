@@ -34,6 +34,13 @@ install(FILES
         DESTINATION "${CMAKE_INSTALL_DOCDIR}"
         COMPONENT docs)
 
+if(UNIX AND NOT APPLE)
+    install(PROGRAMS "${CMAKE_SOURCE_DIR}/packaging/linux/ICARION-Launcher.sh"
+            DESTINATION "${CMAKE_INSTALL_BINDIR}"
+            RENAME "icarion-launcher"
+            COMPONENT runtime)
+endif()
+
 set(CPACK_PACKAGE_NAME "icarion")
 set(CPACK_PACKAGE_VENDOR "ICARION Project")
 set(CPACK_PACKAGE_CONTACT "ICARION Project")

@@ -50,6 +50,22 @@ jobs:
       - name: Build packages
         run: cmake --build build-package -j"$(nproc)" --target package
 
+      - name: Add Linux tarball launcher
+        run: |
+          set -euo pipefail
+          for tarball in build-package/icarion-*-Linux.tar.gz; do
+            [ -e "$tarball" ] || continue
+            workdir="$(mktemp -d)"
+            tar -xzf "$tarball" -C "$workdir"
+            package_root="$(find "$workdir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+            cp packaging/linux/ICARION-Launcher.sh "$package_root/ICARION-Launcher.sh"
+            chmod +x "$package_root/ICARION-Launcher.sh"
+            chmod +x "$package_root"/bin/icarion "$package_root"/bin/icarion_main "$package_root"/bin/ccs_precompute "$package_root"/bin/ehss_samples_precompute
+            tar -C "$workdir" -czf "$tarball" "$(basename "$package_root")"
+            sha256sum "$tarball" > "$tarball.sha256"
+            rm -rf "$workdir"
+          done
+
       - name: Collect release assets
         run: |
           mkdir -p release-assets

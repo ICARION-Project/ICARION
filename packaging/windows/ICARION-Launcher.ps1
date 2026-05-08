@@ -9,6 +9,11 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $IcarionExe = Join-Path $Root "bin\icarion.exe"
 $DefaultConfigDir = Join-Path $Root "examples"
 $RunLogDir = Join-Path $Root "launcher-logs"
+if (Test-Path (Join-Path $Root "analysis")) {
+    $AnalysisDir = Join-Path $Root "analysis"
+} else {
+    $AnalysisDir = Join-Path $Root "share\icarion\analysis"
+}
 
 $ColorBackground = [System.Drawing.Color]::FromArgb(246, 248, 250)
 $ColorHeader = [System.Drawing.Color]::FromArgb(32, 43, 54)
@@ -91,6 +96,42 @@ function Resolve-ConfigPath {
     return $item.FullName
 }
 
+function Select-TrajectoryFile {
+    $dialog = New-Object System.Windows.Forms.OpenFileDialog
+    $dialog.Title = "Select ICARION trajectory file"
+    $dialog.Filter = "HDF5 trajectory (*.h5;*.hdf5)|*.h5;*.hdf5|All files (*.*)|*.*"
+    $dialog.CheckFileExists = $true
+    $dialog.CheckPathExists = $true
+    $dialog.InitialDirectory = $Root
+    if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
+        return $dialog.FileName
+    }
+    return $null
+}
+
+function Get-PythonCommand {
+    if (Get-Command py.exe -ErrorAction SilentlyContinue) {
+        return "py -3"
+    }
+    if (Get-Command python.exe -ErrorAction SilentlyContinue) {
+        return "python"
+    }
+    if (Get-Command python3.exe -ErrorAction SilentlyContinue) {
+        return "python3"
+    }
+    return $null
+}
+
+function Set-RunControlsEnabled {
+    param([bool]$Enabled)
+    $runButton.Enabled = $Enabled
+    $browseButton.Enabled = $Enabled
+    $examplesButton.Enabled = $Enabled
+    $analysisMobilityButton.Enabled = $Enabled
+    $analysisArrivalButton.Enabled = $Enabled
+    $stopButton.Enabled = -not $Enabled
+}
+
 function New-FlatButton {
     param(
         [string]$Text,
@@ -144,7 +185,7 @@ $contentPanel.BackColor = $ColorBackground
 
 $configPanel = New-Object System.Windows.Forms.Panel
 $configPanel.Dock = [System.Windows.Forms.DockStyle]::Top
-$configPanel.Height = 126
+$configPanel.Height = 164
 $configPanel.BackColor = [System.Drawing.Color]::White
 $configPanel.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
 
@@ -192,13 +233,33 @@ $stopButton.Location = New-Object System.Drawing.Point(290, 78)
 $stopButton.Size = New-Object System.Drawing.Size(60, 30)
 $stopButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 
+$analysisMobilityButton = New-FlatButton "IMS mobility..." ([System.Drawing.Color]::FromArgb(61, 133, 108))
+$analysisMobilityButton.Location = New-Object System.Drawing.Point(366, 78)
+$analysisMobilityButton.Size = New-Object System.Drawing.Size(116, 30)
+$analysisMobilityButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
+
+$analysisArrivalButton = New-FlatButton "Arrival times..." ([System.Drawing.Color]::FromArgb(92, 105, 130))
+$analysisArrivalButton.Location = New-Object System.Drawing.Point(490, 78)
+$analysisArrivalButton.Size = New-Object System.Drawing.Size(118, 30)
+$analysisArrivalButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
+
+$analysisHintLabel = New-Object System.Windows.Forms.Label
+$analysisHintLabel.Text = "Analysis uses Python packages from requirements-analysis.txt"
+$analysisHintLabel.ForeColor = $ColorSubtle
+$analysisHintLabel.Font = $FontSmall
+$analysisHintLabel.Location = New-Object System.Drawing.Point(16, 120)
+$analysisHintLabel.AutoSize = $true
+
 $configPanel.Controls.AddRange(@(
     $configLabel,
     $configBox,
     $browseButton,
     $examplesButton,
     $runButton,
-    $stopButton
+    $stopButton,
+    $analysisMobilityButton,
+    $analysisArrivalButton,
+    $analysisHintLabel
 ))
 
 $statusPanel = New-Object System.Windows.Forms.Panel
@@ -269,6 +330,8 @@ $logTimer.Add_Tick({
             $runButton.Enabled = $true
             $browseButton.Enabled = $true
             $examplesButton.Enabled = $true
+            $analysisMobilityButton.Enabled = $true
+            $analysisArrivalButton.Enabled = $true
             $stopButton.Enabled = $false
             $statusLabel.Text = "Finished with exit code $code"
             Append-Log ""
@@ -287,6 +350,8 @@ $logTimer.Add_Tick({
         $runButton.Enabled = $true
         $browseButton.Enabled = $true
         $examplesButton.Enabled = $true
+        $analysisMobilityButton.Enabled = $true
+        $analysisArrivalButton.Enabled = $true
         $stopButton.Enabled = $false
         $statusLabel.Text = "Launcher error"
         Append-Log $_.Exception.Message
@@ -375,20 +440,14 @@ $runButton.Add_Click({
     $script:process.StartInfo = $startInfo
 
     try {
-        $runButton.Enabled = $false
-        $browseButton.Enabled = $false
-        $examplesButton.Enabled = $false
-        $stopButton.Enabled = $true
+        Set-RunControlsEnabled $false
         $statusLabel.Text = "Running..."
 
         [void]$script:process.Start()
         $logTimer.Start()
     } catch {
         $logTimer.Stop()
-        $runButton.Enabled = $true
-        $browseButton.Enabled = $true
-        $examplesButton.Enabled = $true
-        $stopButton.Enabled = $false
+        Set-RunControlsEnabled $true
         $statusLabel.Text = "Failed to start"
         Append-Log $_.Exception.Message
         Show-Message `
@@ -396,6 +455,103 @@ $runButton.Add_Click({
             -Title "Failed to start ICARION" `
             -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
     }
+})
+
+function Start-Analysis {
+    param(
+        [string]$Name,
+        [string]$ScriptName,
+        [string[]]$ExtraArgs = @()
+    )
+
+    if (-not (Test-Path $AnalysisDir)) {
+        Show-Message `
+            -Message "Cannot find packaged analysis scripts.`nExpected:`n$AnalysisDir" `
+            -Title "Analysis unavailable" `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
+        return
+    }
+    $pythonCommand = Get-PythonCommand
+    if (-not $pythonCommand) {
+        Show-Message `
+            -Message "Python was not found. Install Python 3 and the packages from requirements-analysis.txt." `
+            -Title "Analysis unavailable" `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
+        return
+    }
+
+    $trajPath = Select-TrajectoryFile
+    if (-not $trajPath) {
+        return
+    }
+
+    New-Item -ItemType Directory -Force $RunLogDir | Out-Null
+    $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $analysisOutDir = Join-Path $Root "analysis-output"
+    New-Item -ItemType Directory -Force $analysisOutDir | Out-Null
+    $safeName = $Name.ToLowerInvariant().Replace(" ", "-")
+    $runLogPath = Join-Path $RunLogDir "$safeName-$runStamp.log"
+    $runCmdPath = Join-Path $RunLogDir "$safeName-$runStamp.cmd"
+    $plotPath = Join-Path $analysisOutDir "$safeName-$runStamp.png"
+    $csvPath = Join-Path $analysisOutDir "$safeName-$runStamp.csv"
+    $scriptPath = Join-Path $AnalysisDir $ScriptName
+    $script:runLogPath = $runLogPath
+
+    $logBox.Clear()
+    Append-Log "Analysis: $Name"
+    Append-Log "Trajectory: $trajPath"
+    Append-Log "Plot: $plotPath"
+    Append-Log "CSV:  $csvPath"
+    Append-Log "Log:  $runLogPath"
+    Append-Log ""
+    $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+    [System.IO.File]::WriteAllText($runLogPath, "Analysis: $Name`r`nTrajectory: $trajPath`r`nPlot: $plotPath`r`nCSV: $csvPath`r`n", $utf8NoBom)
+
+    $extra = ""
+    foreach ($arg in $ExtraArgs) {
+        $extra += " $arg"
+    }
+    @(
+        "@echo off",
+        "cd /d `"$Root`"",
+        "set `"PYTHONPATH=$Root;$AnalysisDir;%PYTHONPATH%`"",
+        "$pythonCommand `"$scriptPath`" --traj `"$trajPath`" --out `"$plotPath`" --out-csv `"$csvPath`"$extra >> `"$runLogPath`" 2>&1",
+        "exit /b %ERRORLEVEL%"
+    ) | Set-Content -LiteralPath $runCmdPath -Encoding ASCII
+
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = if ($env:ComSpec) { $env:ComSpec } else { "cmd.exe" }
+    $startInfo.Arguments = '/d /c "' + $runCmdPath + '"'
+    $startInfo.WorkingDirectory = $Root
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+
+    $script:process = New-Object System.Diagnostics.Process
+    $script:process.StartInfo = $startInfo
+
+    try {
+        Set-RunControlsEnabled $false
+        $statusLabel.Text = "Analyzing..."
+        [void]$script:process.Start()
+        $logTimer.Start()
+    } catch {
+        $logTimer.Stop()
+        Set-RunControlsEnabled $true
+        $statusLabel.Text = "Failed to start analysis"
+        Append-Log $_.Exception.Message
+        Show-Message `
+            -Message $_.Exception.Message `
+            -Title "Failed to start analysis" `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
+    }
+}
+
+$analysisMobilityButton.Add_Click({
+    Start-Analysis "IMS mobility" "ims_mobility.py"
+})
+
+$analysisArrivalButton.Add_Click({
+    Start-Analysis "Arrival times" "arrival_time_distribution.py"
 })
 
 $stopButton.Add_Click({

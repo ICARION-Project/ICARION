@@ -36,10 +36,8 @@ if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from analysis.common import (
-    load_positions_subset,
-    load_species_ids,
-    open_trajectory,
-    select_ion_indices,
+    normalize_species_filter,
+    read_trajectory_selection,
     species_color_map,
 )
 
@@ -109,27 +107,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if not args.traj.exists():
-        raise FileNotFoundError(f"Trajectory file not found: {args.traj}")
+    species_filter = normalize_species_filter(args.species)
+    selection = read_trajectory_selection(
+        traj_path=args.traj,
+        species_filter=species_filter,
+        max_ions=args.max_ions,
+        max_per_species=args.max_per_species,
+        rng_seed=args.rng_seed,
+        time_stride=args.time_stride,
+        max_frames=args.max_frames,
+    )
 
-    with open_trajectory(args.traj) as h5:
-        traj = h5["trajectory"]
-        species_ids = load_species_ids(traj)
-        ion_indices = select_ion_indices(
-            species_ids,
-            species_filter=set(args.species) if args.species else None,
-            max_ions=args.max_ions,
-            max_per_species=args.max_per_species,
-            rng_seed=args.rng_seed,
-        )
-        if len(ion_indices) == 0:
-            raise RuntimeError("No ions selected; broaden species filter or caps.")
-
-        time, positions = load_positions_subset(
-            traj, ion_indices=ion_indices, time_stride=args.time_stride, max_frames=args.max_frames
-        )
-
-    ion_species = np.array(species_ids)[ion_indices]
+    positions = selection.positions
+    ion_species = selection.species_ids_selected
     color_map = species_color_map(ion_species)
     ion_colors = np.array([color_map[sp] for sp in ion_species])
 

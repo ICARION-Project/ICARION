@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,7 +19,16 @@ if __package__ is None or __package__ == "":
 
     sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from analysis.common import open_trajectory, select_ion_indices
+from analysis.common import (
+    DomainBounds,
+    ensure_nonempty_selection,
+    event_time_bin_edges,
+    normalize_species_filter,
+    open_trajectory,
+    read_domain_bounds,
+    select_ions_from_trajectory,
+    species_for_indices,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,29 +76,29 @@ def main() -> int:
     traj_path = args.traj
     if not traj_path.exists():
         raise FileNotFoundError(f"Trajectory file not found: {traj_path}")
+    species_filter = normalize_species_filter(args.species)
 
     with open_trajectory(traj_path) as h5:
         traj = h5["trajectory"]
-        species_ids = _load_species_ids_last(traj)
-        ion_indices = select_ion_indices(
-            species_ids,
-            species_filter=set(args.species) if args.species else None,
+        species_ids, ion_indices = select_ions_from_trajectory(
+            traj,
+            species_filter=species_filter,
             max_ions=args.max_ions,
             max_per_species=args.max_per_species,
             rng_seed=args.rng_seed,
+            species_frame_index=-1,
         )
-        if len(ion_indices) == 0:
-            raise RuntimeError("No ions selected; broaden filters or caps.")
+        ensure_nonempty_selection(ion_indices, reason="broaden filters or caps")
 
         death_times = _read_death_times(h5, ion_indices)
         last_positions = traj["positions"][-1, ion_indices, :]  # Shape: (n, 3)
         total_time = float(traj["time"][-1]) if "time" in traj else float(np.nan)
 
-        geom = _read_geometry(h5, args.domain_index, last_positions)
+        geom = read_domain_bounds(h5, args.domain_index, last_positions)
         orbitrap_mode = _orbitrap_mode(args.orbitrap, geom)
 
         reasons = classify_ions(last_positions, death_times, geom, args.tol_frac, orbitrap_mode)
-        selected_species = np.array(species_ids)[ion_indices]
+        selected_species = species_for_indices(species_ids, ion_indices)
         plot_histograms(
             reasons,
             death_times,
@@ -129,70 +138,7 @@ def _read_death_times(h5, ion_indices) -> np.ndarray:
     return np.asarray(dt, dtype=float)
 
 
-def _decode_species(val) -> str:
-    if isinstance(val, (bytes, bytearray)):
-        return val.decode("utf-8")
-    return str(val)
-
-
-def _load_species_ids_last(traj_group) -> np.ndarray:
-    """
-    Load species IDs for each ion using the last available frame when species
-    are time-dependent (e.g., reactions). Falls back to 1D datasets unchanged.
-    """
-    species_ds = traj_group["species_ids"]
-    row = species_ds[-1] if species_ds.ndim >= 2 else species_ds[()]
-    return np.array([_decode_species(v) for v in row])
-
-
-class Geometry:
-    def __init__(
-        self,
-        r_in: Optional[float],
-        r_out: Optional[float],
-        z_min: Optional[float],
-        z_max: Optional[float],
-    ):
-        self.r_in = r_in
-        self.r_out = r_out
-        self.z_min = z_min
-        self.z_max = z_max
-
-
-def _read_geometry(h5, domain_idx: int, positions_last: np.ndarray) -> Geometry:
-    dom_name = f"domain_{domain_idx}"
-    geom_group = h5.get(f"domains/{dom_name}/geometry")
-
-    def _scalar(name: str) -> Optional[float]:
-        if geom_group is None or name not in geom_group:
-            return None
-        arr = np.array(geom_group[name])
-        if arr.size == 0:
-            return None
-        return float(arr.flat[0])
-
-    origin_z = 0.0
-    if geom_group is not None and "origin_m" in geom_group:
-        arr = np.array(geom_group["origin_m"]).astype(float)
-        if arr.size >= 3:
-            origin_z = float(arr[2])
-
-    length = _scalar("length_m")
-    r_out = _scalar("radius_out_m") or _scalar("radius_m")
-    r_in = _scalar("radius_in_m")
-
-    if length is not None:
-        z_min = origin_z
-        z_max = origin_z + length
-    else:
-        # Fallback: infer rough bounds from last positions.
-        z_min = float(positions_last[:, 2].min())
-        z_max = float(positions_last[:, 2].max())
-
-    return Geometry(r_in=r_in, r_out=r_out, z_min=z_min, z_max=z_max)
-
-
-def _orbitrap_mode(flag: str, geom: Geometry) -> bool:
+def _orbitrap_mode(flag: str, geom: DomainBounds) -> bool:
     if flag == "yes":
         return True
     if flag == "no":
@@ -203,7 +149,7 @@ def _orbitrap_mode(flag: str, geom: Geometry) -> bool:
 def classify_ions(
     positions_last: np.ndarray,
     death_times: np.ndarray,
-    geom: Geometry,
+    geom: DomainBounds,
     tol_frac: float,
     orbitrap_mode: bool,
 ) -> np.ndarray:
@@ -217,7 +163,7 @@ def classify_ions(
     reasons = np.full(r.shape, fill_value="alive", dtype=object)
 
     for i in range(len(r)):
-        if death_times[i] < 0:
+        if death_times[i] <= 0.0:
             reasons[i] = "alive"
             continue
 
@@ -270,17 +216,12 @@ def plot_histograms(
 
     # Time histogram (only death_time >= 0).
     ax_hist = axes[1]
-    mask_alive = death_times < 0
+    mask_alive = death_times <= 0.0
     t_elim = death_times[~mask_alive]
     reasons_elim = reasons[~mask_alive]
 
     if len(t_elim) > 0:
-        t_min = t_elim[t_elim > 0].min() if np.any(t_elim > 0) else 1e-12
-        t_max = t_elim.max()
-        if log_bins and t_max > 0:
-            edges = np.geomspace(t_min, t_max, num=bins + 1)
-        else:
-            edges = np.linspace(0, t_max, num=bins + 1)
+        edges = event_time_bin_edges(t_elim, bins=bins, log_bins=log_bins)
 
         categories = ["inner", "outer"] if orbitrap_mode else ["radial"]
         categories += ["axial_low", "axial_high", "other"]
@@ -346,7 +287,7 @@ def plot_per_species(
         idx = species == sp
         sp_reasons = reasons[idx]
         sp_dt = death_times[idx]
-        mask_alive = sp_dt < 0
+        mask_alive = sp_dt <= 0.0
         sp_elim = sp_dt[~mask_alive]
         sp_reasons_elim = sp_reasons[~mask_alive]
 
@@ -362,12 +303,7 @@ def plot_per_species(
         # Time histogram per category
         ax_hist = axes[row, 1]
         if len(sp_elim) > 0:
-            t_min = sp_elim[sp_elim > 0].min() if np.any(sp_elim > 0) else 1e-12
-            t_max = sp_elim.max()
-            if log_bins and t_max > 0:
-                edges = np.geomspace(t_min, t_max, num=bins + 1)
-            else:
-                edges = np.linspace(0, t_max, num=bins + 1)
+            edges = event_time_bin_edges(sp_elim, bins=bins, log_bins=log_bins)
 
             bottoms = np.zeros_like(edges[:-1])
             for cat in categories:

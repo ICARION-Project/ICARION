@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Dict
 
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -23,9 +21,19 @@ if __package__ is None or __package__ == "":
 
     sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from analysis.common import load_species_ids, open_trajectory, select_ion_indices
-
-K_B = 1.380649e-23  # Boltzmann constant [J/K]
+from analysis.common import (
+    ensure_nonempty_selection,
+    maxwell_speed_pdf,
+    normalize_species_filter,
+    open_trajectory,
+    read_domain_environment,
+    read_species_mass_map,
+    select_ions_from_trajectory,
+    species_masses_for_selection,
+    species_for_indices,
+    temperature_from_velocities,
+    temperature_series_from_velocities,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -59,28 +67,29 @@ def main() -> int:
     args = parse_args()
     if not args.traj.exists():
         raise FileNotFoundError(f"Trajectory file not found: {args.traj}")
+    species_filter = normalize_species_filter(args.species)
 
     with open_trajectory(args.traj) as h5:
         traj = h5["trajectory"]
-        species_ids = load_species_ids(traj)
-        ion_indices = select_ion_indices(
-            species_ids,
-            species_filter=set(args.species) if args.species else None,
+        species_ids, ion_indices = select_ions_from_trajectory(
+            traj,
+            species_filter=species_filter,
             max_ions=args.max_ions,
             max_per_species=args.max_per_species,
             rng_seed=args.rng_seed,
         )
-        if len(ion_indices) == 0:
-            raise RuntimeError("No ions selected; broaden species filter or caps.")
+        ensure_nonempty_selection(ion_indices)
 
-        species_selected = np.array(species_ids)[ion_indices]
-        mass_map = _read_species_masses(h5)
-        masses = np.array([mass_map.get(sp, np.nan) for sp in species_selected])
-        if np.any(np.isnan(masses)):
-            missing = [sp for sp, m in zip(species_selected, masses) if np.isnan(m)]
-            raise KeyError(f"Missing mass for species: {sorted(set(missing))}")
+        species_selected = species_for_indices(species_ids, ion_indices)
+        mass_map = read_species_mass_map(h5)
+        masses = species_masses_for_selection(species_selected, mass_map)
 
-        target_temp = _read_domain_temperature(h5, args.domain_index)
+        target_temp, _pressure = read_domain_environment(
+            h5,
+            args.domain_index,
+            require_pressure=False,
+            allow_missing=True,
+        )
 
         time_ds = traj["time"]
         vel_ds = traj["velocities"]  # shape: (T, N, 3)
@@ -89,7 +98,7 @@ def main() -> int:
         stride = max(1, args.time_stride)
         time = time_ds[::stride]
         velocities = vel_ds[::stride, ion_indices, :]
-        temp_series = _temperature_series(velocities, masses)
+        temp_series = temperature_series_from_velocities(velocities, masses)
         t_therm = estimate_thermalization_time(
             time=time,
             temp_series=temp_series,
@@ -102,7 +111,7 @@ def main() -> int:
         window = max(1, min(args.window, vel_ds.shape[0]))
         vel_tail = vel_ds[-window:, ion_indices, :]
         speeds_tail = np.linalg.norm(vel_tail, axis=-1).reshape(-1)
-        T_tail = _temperature_from_speeds(vel_tail, masses)
+        T_tail = temperature_from_velocities(vel_tail, masses)
 
     # MB distribution uses a single mass (best effort)
     unique_masses = np.unique(masses)
@@ -113,8 +122,8 @@ def main() -> int:
     bins = args.bins
     counts, edges = np.histogram(speeds_tail, bins=bins, density=True)
     centers = 0.5 * (edges[:-1] + edges[1:])
-    mb_tail = _maxwell_speed_pdf(centers, T_tail, mb_mass)
-    mb_target = _maxwell_speed_pdf(centers, target_temp, mb_mass) if target_temp is not None else None
+    mb_tail = maxwell_speed_pdf(centers, T_tail, mb_mass)
+    mb_target = maxwell_speed_pdf(centers, target_temp, mb_mass) if target_temp is not None else None
 
     _plot(
         time=time,
@@ -134,38 +143,6 @@ def main() -> int:
     return 0
 
 
-def _read_species_masses(h5) -> Dict[str, float]:
-    names_path = "/metadata/species/names"
-    masses_path = "/metadata/species/mass_kg"
-    if names_path not in h5 or masses_path not in h5:
-        raise KeyError("Missing /metadata/species datasets (names, mass_kg).")
-    names_raw = h5[names_path][:]
-    masses = np.array(h5[masses_path][:], dtype=float)
-    names = [n.decode("utf-8") if isinstance(n, (bytes, bytearray)) else str(n) for n in names_raw]
-    return dict(zip(names, masses))
-
-
-def _read_domain_temperature(h5, domain_idx: int) -> float | None:
-    path = f"/domains/domain_{domain_idx}/environment/temperature_K"
-    if path in h5:
-        return float(h5[path][()])
-    return None
-
-
-def _temperature_series(velocities: np.ndarray, masses: np.ndarray) -> np.ndarray:
-    # velocities: (T, N, 3); masses: (N,)
-    v2 = np.sum(velocities**2, axis=-1)  # (T, N)
-    energy = v2 * masses  # broadcast masses per ion
-    mean_energy = energy.mean(axis=1)  # <m v^2>
-    return mean_energy / (3 * K_B)
-
-
-def _temperature_from_speeds(velocities: np.ndarray, masses: np.ndarray) -> float:
-    v2 = np.sum(velocities**2, axis=-1)  # (T, N)
-    energy = v2 * masses  # broadcast
-    return float(np.mean(energy) / (3 * K_B))
-
-
 def estimate_thermalization_time(
     time: np.ndarray,
     temp_series: np.ndarray,
@@ -182,11 +159,6 @@ def estimate_thermalization_time(
         if np.all(within[i : i + w]):
             return float(time[i])
     return None
-
-
-def _maxwell_speed_pdf(v: np.ndarray, T: float, mass: float) -> np.ndarray:
-    coeff = np.sqrt(2 / np.pi) * (mass / (K_B * T)) ** 1.5
-    return coeff * v**2 * np.exp(-mass * v**2 / (2 * K_B * T))
 
 
 def _plot(

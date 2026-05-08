@@ -15,19 +15,29 @@ if [[ -f "$SCRIPT_DIR/bin/icarion" ]]; then
     EXAMPLES_DIR="$SCRIPT_DIR/share/icarion/examples"
   fi
   LOG_DIR="$SCRIPT_DIR/launcher-logs"
+  if [[ -d "$SCRIPT_DIR/analysis" ]]; then
+    ANALYSIS_DIR="$SCRIPT_DIR/analysis"
+  else
+    ANALYSIS_DIR="$SCRIPT_DIR/share/icarion/analysis"
+  fi
 else
   ROOT="$SCRIPT_DIR"
   ICARION_EXE="$(command -v icarion || true)"
   EXAMPLES_DIR="/usr/share/icarion/examples"
   LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/icarion/launcher-logs"
+  ANALYSIS_DIR="/usr/share/icarion/analysis"
 fi
 
 has_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
 
+has_gui_dialog() {
+  has_cmd zenity && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]
+}
+
 show_error() {
-  if has_cmd zenity; then
+  if has_gui_dialog; then
     zenity --error --title="ICARION Launcher" --width=520 --text="$1"
   else
     printf 'ICARION Launcher error: %s\n' "$1" >&2
@@ -35,7 +45,7 @@ show_error() {
 }
 
 show_info() {
-  if has_cmd zenity; then
+  if has_gui_dialog; then
     zenity --info --title="ICARION Launcher" --width=520 --text="$1"
   else
     printf '%s\n' "$1"
@@ -71,6 +81,44 @@ pick_config_terminal() {
   printf '%s\n' "$config_path"
 }
 
+pick_trajectory_gui() {
+  local start_dir="$ROOT"
+  zenity \
+    --file-selection \
+    --title="Select ICARION trajectory HDF5 file" \
+    --filename="$start_dir/" \
+    --file-filter="HDF5 trajectories | *.h5 *.hdf5" \
+    --file-filter="All files | *"
+}
+
+pick_trajectory_terminal() {
+  printf 'Trajectory HDF5 file: ' >&2
+  read -r traj_path
+  printf '%s\n' "$traj_path"
+}
+
+pick_action_gui() {
+  zenity \
+    --list \
+    --title="ICARION Launcher" \
+    --width=420 \
+    --height=260 \
+    --column="Action" \
+    "Run simulation" \
+    "Analyze IMS mobility" \
+    "Plot arrival times"
+}
+
+pick_action_terminal() {
+  printf '1) Run simulation\n2) Analyze IMS mobility\n3) Plot arrival times\nSelect action [1]: ' >&2
+  read -r action
+  case "$action" in
+    2) printf 'Analyze IMS mobility\n' ;;
+    3) printf 'Plot arrival times\n' ;;
+    *) printf 'Run simulation\n' ;;
+  esac
+}
+
 find_terminal() {
   local candidate
   for candidate in gnome-terminal konsole xfce4-terminal mate-terminal lxterminal xterm; do
@@ -104,43 +152,123 @@ if [[ -z "$ICARION_EXE" || ! -x "$ICARION_EXE" ]]; then
   exit 1
 fi
 
-if has_cmd zenity; then
-  CONFIG_PATH="$(pick_config_gui)"
+if has_gui_dialog; then
+  ACTION="$(pick_action_gui)"
   status=$?
-  if [[ $status -ne 0 || -z "$CONFIG_PATH" ]]; then
+  if [[ $status -ne 0 || -z "$ACTION" ]]; then
     exit 0
   fi
 else
-  CONFIG_PATH="$(pick_config_terminal)"
+  ACTION="$(pick_action_terminal)"
 fi
 
-if [[ ! -f "$CONFIG_PATH" ]]; then
-  show_error "This is not a file:
-$CONFIG_PATH"
-  exit 1
+if has_gui_dialog; then
+  if [[ "$ACTION" == "Run simulation" ]]; then
+    CONFIG_PATH="$(pick_config_gui)"
+    status=$?
+    if [[ $status -ne 0 || -z "$CONFIG_PATH" ]]; then
+      exit 0
+    fi
+  else
+    TRAJ_PATH="$(pick_trajectory_gui)"
+    status=$?
+    if [[ $status -ne 0 || -z "$TRAJ_PATH" ]]; then
+      exit 0
+    fi
+  fi
+else
+  if [[ "$ACTION" == "Run simulation" ]]; then
+    CONFIG_PATH="$(pick_config_terminal)"
+  else
+    TRAJ_PATH="$(pick_trajectory_terminal)"
+  fi
 fi
 
-if [[ "${CONFIG_PATH##*.}" != "json" ]]; then
-  show_error "ICARION configs must be .json files:
+if [[ "$ACTION" == "Run simulation" ]]; then
+  if [[ ! -f "$CONFIG_PATH" ]]; then
+    show_error "This is not a file:
 $CONFIG_PATH"
-  exit 1
+    exit 1
+  fi
+
+  if [[ "${CONFIG_PATH##*.}" != "json" ]]; then
+    show_error "ICARION configs must be .json files:
+$CONFIG_PATH"
+    exit 1
+  fi
+else
+  if [[ ! -f "$TRAJ_PATH" ]]; then
+    show_error "This is not a file:
+$TRAJ_PATH"
+    exit 1
+  fi
+  case "$TRAJ_PATH" in
+    *.h5|*.hdf5) ;;
+    *)
+      show_error "ICARION analysis expects a .h5 or .hdf5 trajectory file:
+$TRAJ_PATH"
+      exit 1
+      ;;
+  esac
+  if [[ ! -d "$ANALYSIS_DIR" ]]; then
+    show_error "Cannot find packaged analysis scripts:
+$ANALYSIS_DIR"
+    exit 1
+  fi
+  if ! has_cmd python3; then
+    show_error "Python 3 was not found. Install Python 3 and packages from requirements-analysis.txt."
+    exit 1
+  fi
 fi
 
 mkdir -p "$LOG_DIR"
 RUN_STAMP="$(date '+%Y%m%d-%H%M%S')"
-LOG_PATH="$LOG_DIR/icarion-run-$RUN_STAMP.log"
+if [[ "$ACTION" == "Run simulation" ]]; then
+  LOG_PATH="$LOG_DIR/icarion-run-$RUN_STAMP.log"
 
-{
-  printf 'ICARION: %s\n' "$ICARION_EXE"
-  printf 'Config:  %s\n' "$CONFIG_PATH"
-  printf 'Log:     %s\n\n' "$LOG_PATH"
-} > "$LOG_PATH"
+  {
+    printf 'ICARION: %s\n' "$ICARION_EXE"
+    printf 'Config:  %s\n' "$CONFIG_PATH"
+    printf 'Log:     %s\n\n' "$LOG_PATH"
+  } > "$LOG_PATH"
 
-RUN_COMMAND=$(printf 'cd %q; printf "ICARION: %%s\\nConfig:  %%s\\nLog:     %%s\\n\\n" %q %q %q; %q %q 2>&1 | tee -a %q; code=${PIPESTATUS[0]}; printf "\\nFinished with exit code %%s\\n" "$code" | tee -a %q; printf "\\nPress Enter to close..."; read -r _; exit "$code"' \
-  "$ROOT" "$ICARION_EXE" "$CONFIG_PATH" "$LOG_PATH" "$ICARION_EXE" "$CONFIG_PATH" "$LOG_PATH" "$LOG_PATH")
+  RUN_COMMAND=$(printf 'cd %q; printf "ICARION: %%s\\nConfig:  %%s\\nLog:     %%s\\n\\n" %q %q %q; %q %q 2>&1 | tee -a %q; code=${PIPESTATUS[0]}; printf "\\nFinished with exit code %%s\\n" "$code" | tee -a %q; printf "\\nPress Enter to close..."; read -r _; exit "$code"' \
+    "$ROOT" "$ICARION_EXE" "$CONFIG_PATH" "$LOG_PATH" "$ICARION_EXE" "$CONFIG_PATH" "$LOG_PATH" "$LOG_PATH")
+else
+  OUT_DIR="$ROOT/analysis-output"
+  mkdir -p "$OUT_DIR"
+  case "$ACTION" in
+    "Analyze IMS mobility")
+      ANALYSIS_NAME="ims-mobility"
+      SCRIPT_PATH="$ANALYSIS_DIR/ims_mobility.py"
+      ;;
+    "Plot arrival times")
+      ANALYSIS_NAME="arrival-times"
+      SCRIPT_PATH="$ANALYSIS_DIR/arrival_time_distribution.py"
+      ;;
+    *)
+      show_error "Unknown action: $ACTION"
+      exit 1
+      ;;
+  esac
+  LOG_PATH="$LOG_DIR/$ANALYSIS_NAME-$RUN_STAMP.log"
+  PLOT_PATH="$OUT_DIR/$ANALYSIS_NAME-$RUN_STAMP.png"
+  CSV_PATH="$OUT_DIR/$ANALYSIS_NAME-$RUN_STAMP.csv"
+
+  {
+    printf 'Analysis: %s\n' "$ACTION"
+    printf 'Trajectory: %s\n' "$TRAJ_PATH"
+    printf 'Plot: %s\n' "$PLOT_PATH"
+    printf 'CSV: %s\n' "$CSV_PATH"
+    printf 'Log: %s\n\n' "$LOG_PATH"
+  } > "$LOG_PATH"
+
+  RUN_COMMAND=$(printf 'cd %q; export PYTHONPATH=%q:%q:${PYTHONPATH:-}; printf "Analysis: %%s\\nTrajectory: %%s\\nPlot: %%s\\nCSV: %%s\\nLog: %%s\\n\\n" %q %q %q %q %q; python3 %q --traj %q --out %q --out-csv %q 2>&1 | tee -a %q; code=${PIPESTATUS[0]}; printf "\\nFinished with exit code %%s\\n" "$code" | tee -a %q; printf "\\nPress Enter to close..."; read -r _; exit "$code"' \
+    "$ROOT" "$ROOT" "$ANALYSIS_DIR" "$ACTION" "$TRAJ_PATH" "$PLOT_PATH" "$CSV_PATH" "$LOG_PATH" "$SCRIPT_PATH" "$TRAJ_PATH" "$PLOT_PATH" "$CSV_PATH" "$LOG_PATH" "$LOG_PATH")
+fi
 
 if [[ -t 0 && -t 1 ]]; then
-  show_info "Running ICARION in this terminal.
+  show_info "Running selected ICARION action in this terminal.
 
 Log:
 $LOG_PATH"

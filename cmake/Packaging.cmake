@@ -23,6 +23,16 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/schema"
         COMPONENT runtime
         PATTERN "__pycache__" EXCLUDE)
 
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/analysis"
+        DESTINATION "${ICARION_INSTALL_DATADIR}"
+        COMPONENT runtime
+        PATTERN "__pycache__" EXCLUDE
+        PATTERN "output" EXCLUDE)
+
+install(FILES "${CMAKE_SOURCE_DIR}/requirements-analysis.txt"
+        DESTINATION "${ICARION_INSTALL_DATADIR}"
+        COMPONENT runtime)
+
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/docs"
         DESTINATION "${CMAKE_INSTALL_DOCDIR}"
         COMPONENT docs)

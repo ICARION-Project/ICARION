@@ -105,7 +105,6 @@ jobs:
             vcpkg-windows-x64-
 
       - name: Install build dependencies
-        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"

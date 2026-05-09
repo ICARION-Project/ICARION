@@ -43,6 +43,9 @@ The same workflow can also be started manually from the GitHub Actions tab. A
 manual run uploads the packages as workflow artifacts, but does not create a
 GitHub Release.
 
+For end-user launcher instructions, see
+[`LAUNCHER_GUIDE.md`](LAUNCHER_GUIDE.md).
+
 ## Windows Zip
 
 The Windows release artifact is built on GitHub Actions with MSVC and vcpkg.
@@ -70,7 +73,8 @@ ICARION-Launcher.cmd
 The launcher opens a file picker for a JSON config, starts `bin\icarion.exe`,
 and streams the run log in a small window. It can also run a small set of
 common analysis scripts for an existing trajectory file and writes the output to
-`analysis-output/`.
+`analysis-output/`. See [`LAUNCHER_GUIDE.md`](LAUNCHER_GUIDE.md) for a
+step-by-step user guide.
 
 After extracting the zip, run from a terminal:
 
@@ -144,6 +148,9 @@ Minimal launcher after installation:
 ```bash
 icarion-launcher
 ```
+
+See [`LAUNCHER_GUIDE.md`](LAUNCHER_GUIDE.md) for step-by-step launcher and
+basic analysis usage.
 
 ## Minimal Launcher Analysis
 

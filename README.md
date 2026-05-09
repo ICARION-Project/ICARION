@@ -22,6 +22,7 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 
 - [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md) — configuration fields, schema, and validation.
 - [docs/CLI_USAGE.md](docs/CLI_USAGE.md) — command-line flags and batch usage.
+- [docs/LAUNCHER_GUIDE.md](docs/LAUNCHER_GUIDE.md) — minimal Windows/Linux launcher usage and basic analysis.
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common build/run issues (incl. WSL).
 - [docs/HDF5_OUTPUT_STRUCTURE.md](docs/HDF5_OUTPUT_STRUCTURE.md) — output file layout.
 - [docs/COLLISION_MODELS.md](docs/COLLISION_MODELS.md) — collision physics background and model guidance.
@@ -154,6 +155,8 @@ cmake --build build-package --target package
 
 This creates a `.deb` package on Linux plus a `.tar.gz` install archive. See
 [docs/PACKAGING.md](docs/PACKAGING.md) for install paths and package usage.
+See [docs/LAUNCHER_GUIDE.md](docs/LAUNCHER_GUIDE.md) for the minimal
+Windows/Linux launchers and basic analysis buttons.
 Pushing a tag like `v1.0.1-beta.1` also triggers the GitHub Actions release
 packaging workflow, including a Windows `.zip` artifact.
 

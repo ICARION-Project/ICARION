@@ -88,6 +88,18 @@ icarion-launcher
 ```
 
 The installed examples and analysis scripts are under `/usr/share/icarion`.
+Simulation results, analysis output, and launcher logs are written under:
+
+```text
+~/ICARION-runs/
+```
+
+Set `ICARION_RUN_DIR` before starting the launcher to use a different writable
+directory:
+
+```bash
+ICARION_RUN_DIR="$HOME/my-icarion-runs" icarion-launcher
+```
 
 ## Running A Simulation
 
@@ -111,8 +123,9 @@ Debian package:
 /usr/share/icarion/examples/ims/ims_basic.json
 ```
 
-The launcher runs ICARION from the package root so relative paths inside the
-example configs continue to work. Logs are written to:
+The portable Windows and Linux launchers run ICARION from the package root. The
+installed Debian launcher runs ICARION from `~/ICARION-runs` so example configs
+can create `results/` without writing into `/usr`. Logs are written to:
 
 ```text
 launcher-logs/

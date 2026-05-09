@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ -f "$SCRIPT_DIR/bin/icarion" ]]; then
   ROOT="$SCRIPT_DIR"
+  WORK_DIR="$ROOT"
   ICARION_EXE="$SCRIPT_DIR/bin/icarion"
   if [[ ! -x "$ICARION_EXE" ]]; then
     chmod +x "$ICARION_EXE" 2>/dev/null || true
@@ -21,10 +22,11 @@ if [[ -f "$SCRIPT_DIR/bin/icarion" ]]; then
     ANALYSIS_DIR="$SCRIPT_DIR/share/icarion/analysis"
   fi
 else
-  ROOT="$SCRIPT_DIR"
+  ROOT="/usr/share/icarion"
+  WORK_DIR="${ICARION_RUN_DIR:-$HOME/ICARION-runs}"
   ICARION_EXE="$(command -v icarion || true)"
   EXAMPLES_DIR="/usr/share/icarion/examples"
-  LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/icarion/launcher-logs"
+  LOG_DIR="$WORK_DIR/launcher-logs"
   ANALYSIS_DIR="/usr/share/icarion/analysis"
 fi
 
@@ -82,7 +84,8 @@ pick_config_terminal() {
 }
 
 pick_trajectory_gui() {
-  local start_dir="$ROOT"
+  local start_dir="$WORK_DIR"
+  [[ -d "$start_dir" ]] || start_dir="$HOME"
   zenity \
     --file-selection \
     --title="Select ICARION trajectory HDF5 file" \
@@ -229,7 +232,7 @@ $ANALYSIS_DIR"
   fi
 fi
 
-mkdir -p "$LOG_DIR"
+mkdir -p "$WORK_DIR" "$LOG_DIR"
 RUN_STAMP="$(date '+%Y%m%d-%H%M%S')"
 if [[ "$ACTION" == "Run simulation" ]]; then
   LOG_PATH="$LOG_DIR/icarion-run-$RUN_STAMP.log"
@@ -237,13 +240,14 @@ if [[ "$ACTION" == "Run simulation" ]]; then
   {
     printf 'ICARION: %s\n' "$ICARION_EXE"
     printf 'Config:  %s\n' "$CONFIG_PATH"
+    printf 'Workdir: %s\n' "$WORK_DIR"
     printf 'Log:     %s\n\n' "$LOG_PATH"
   } > "$LOG_PATH"
 
-  RUN_COMMAND=$(printf 'cd %q; printf "ICARION: %%s\\nConfig:  %%s\\nLog:     %%s\\n\\n" %q %q %q; %q %q 2>&1 | tee -a %q; code=${PIPESTATUS[0]}; printf "\\nFinished with exit code %%s\\n" "$code" | tee -a %q; printf "\\nPress Enter to close..."; read -r _; exit "$code"' \
-    "$ROOT" "$ICARION_EXE" "$CONFIG_PATH" "$LOG_PATH" "$ICARION_EXE" "$CONFIG_PATH" "$LOG_PATH" "$LOG_PATH")
+  RUN_COMMAND=$(printf 'mkdir -p %q; cd %q; printf "ICARION: %%s\\nConfig:  %%s\\nWorkdir: %%s\\nLog:     %%s\\n\\n" %q %q %q %q; %q %q 2>&1 | tee -a %q; code=${PIPESTATUS[0]}; printf "\\nFinished with exit code %%s\\n" "$code" | tee -a %q; printf "\\nPress Enter to close..."; read -r _; exit "$code"' \
+    "$WORK_DIR" "$WORK_DIR" "$ICARION_EXE" "$CONFIG_PATH" "$WORK_DIR" "$LOG_PATH" "$ICARION_EXE" "$CONFIG_PATH" "$LOG_PATH" "$LOG_PATH")
 else
-  OUT_DIR="$ROOT/analysis-output"
+  OUT_DIR="$WORK_DIR/analysis-output"
   mkdir -p "$OUT_DIR"
   case "$ACTION" in
     "Analyze IMS mobility")
@@ -321,8 +325,8 @@ else
     printf 'Log: %s\n\n' "$LOG_PATH"
   } > "$LOG_PATH"
 
-  RUN_COMMAND=$(printf 'cd %q; export PYTHONPATH=%q:%q:${PYTHONPATH:-}; printf "Analysis: %%s\\nTrajectory: %%s\\nPlot: %%s\\nCSV: %%s\\nLog: %%s\\n\\n" %q %q %q %q %q; python3 %q --traj %q --out %q %s %s %s 2>&1 | tee -a %q; code=${PIPESTATUS[0]}; printf "\\nFinished with exit code %%s\\n" "$code" | tee -a %q; printf "\\nPress Enter to close..."; read -r _; exit "$code"' \
-    "$ROOT" "$ROOT" "$ANALYSIS_DIR" "$ACTION" "$TRAJ_PATH" "$PLOT_PATH" "$CSV_PATH" "$LOG_PATH" "$SCRIPT_PATH" "$TRAJ_PATH" "$PLOT_PATH" "$CSV_ARGS" "$PLOT_ARGS" "$EXTRA_ARGS" "$LOG_PATH" "$LOG_PATH")
+  RUN_COMMAND=$(printf 'mkdir -p %q; cd %q; export PYTHONPATH=%q:%q:${PYTHONPATH:-}; printf "Analysis: %%s\\nTrajectory: %%s\\nPlot: %%s\\nCSV: %%s\\nLog: %%s\\n\\n" %q %q %q %q %q; python3 %q --traj %q --out %q %s %s %s 2>&1 | tee -a %q; code=${PIPESTATUS[0]}; printf "\\nFinished with exit code %%s\\n" "$code" | tee -a %q; printf "\\nPress Enter to close..."; read -r _; exit "$code"' \
+    "$WORK_DIR" "$WORK_DIR" "$ROOT" "$ANALYSIS_DIR" "$ACTION" "$TRAJ_PATH" "$PLOT_PATH" "$CSV_PATH" "$LOG_PATH" "$SCRIPT_PATH" "$TRAJ_PATH" "$PLOT_PATH" "$CSV_ARGS" "$PLOT_ARGS" "$EXTRA_ARGS" "$LOG_PATH" "$LOG_PATH")
 fi
 
 if [[ -t 0 && -t 1 ]]; then

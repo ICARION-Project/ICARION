@@ -149,6 +149,9 @@ Minimal launcher after installation:
 icarion-launcher
 ```
 
+The installed launcher writes simulation output, analysis output, and logs under
+`~/ICARION-runs` by default. Set `ICARION_RUN_DIR` to override this location.
+
 See [`LAUNCHER_GUIDE.md`](LAUNCHER_GUIDE.md) for step-by-step launcher and
 basic analysis usage.
 

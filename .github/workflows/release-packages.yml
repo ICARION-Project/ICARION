@@ -27,7 +27,6 @@ jobs:
         run: |
           mkdir -p release-assets
           cp docs/LAUNCHER_GUIDE.md release-assets/ICARION-Launcher-Guide.md
-          cp docs/PACKAGING.md release-assets/ICARION-Packaging-Guide.md
           ls -lh release-assets
 
       - name: Upload workflow artifacts

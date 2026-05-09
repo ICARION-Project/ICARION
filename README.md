@@ -6,9 +6,20 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 <p align="center">
   <img src="https://img.shields.io/badge/C%2B%2B-17-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/License-GPL--3.0--only-blue?style=flat-square" />
+  <a href="https://github.com/ICARION-Project/ICARION/releases/latest">
+    <img src="https://img.shields.io/github/v/release/ICARION-Project/ICARION?style=flat-square" alt="Latest Release" />
+  </a>
 </p>
 
 ---
+
+# Download
+
+Latest release packages are available here:
+
+[Download latest release](https://github.com/ICARION-Project/ICARION/releases/latest)
+
+Start with `ICARION-Launcher-Guide.md` if you use the Windows or Linux launcher.
 
 # Release & API
 

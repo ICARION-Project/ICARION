@@ -96,6 +96,18 @@ function Resolve-ConfigPath {
     return $item.FullName
 }
 
+function Get-PackageRelativePath {
+    param([string]$PathText)
+
+    $fullPath = [System.IO.Path]::GetFullPath($PathText)
+    $rootPath = [System.IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+    $prefix = $rootPath + [System.IO.Path]::DirectorySeparatorChar
+    if ($fullPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $fullPath.Substring($prefix.Length)
+    }
+    return $fullPath
+}
+
 function Select-TrajectoryFile {
     $dialog = New-Object System.Windows.Forms.OpenFileDialog
     $dialog.Title = "Select ICARION trajectory file"
@@ -107,6 +119,77 @@ function Select-TrajectoryFile {
         return $dialog.FileName
     }
     return $null
+}
+
+function Show-ImagePreview {
+    param(
+        [string]$ImagePath,
+        [string]$Title = "ICARION Analysis"
+    )
+    if (-not (Test-Path -LiteralPath $ImagePath)) {
+        return
+    }
+
+    $preview = New-Object System.Windows.Forms.Form
+    $preview.Text = $Title
+    $preview.StartPosition = "CenterParent"
+    $preview.Size = New-Object System.Drawing.Size(1000, 720)
+    $preview.MinimumSize = New-Object System.Drawing.Size(720, 480)
+    $preview.BackColor = $ColorBackground
+    $preview.KeyPreview = $true
+
+    $buttonPanel = New-Object System.Windows.Forms.Panel
+    $buttonPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
+    $buttonPanel.Height = 44
+    $buttonPanel.Padding = New-Object System.Windows.Forms.Padding(8)
+    $buttonPanel.BackColor = [System.Drawing.Color]::White
+
+    $closePreviewButton = New-FlatButton "Close" $ColorPrimary
+    $closePreviewButton.Dock = [System.Windows.Forms.DockStyle]::Right
+    $closePreviewButton.Width = 86
+    $closePreviewButton.Add_Click({
+        param($sender, $eventArgs)
+        $sender.FindForm().Close()
+    })
+
+    $openImageButton = New-FlatButton "Open" ([System.Drawing.Color]::FromArgb(229, 234, 240)) $ColorText
+    $openImageButton.Dock = [System.Windows.Forms.DockStyle]::Right
+    $openImageButton.Width = 86
+    $openImageButton.Add_Click({ Invoke-Item -LiteralPath $ImagePath })
+
+    $openFolderButton = New-FlatButton "Folder" ([System.Drawing.Color]::FromArgb(229, 234, 240)) $ColorText
+    $openFolderButton.Dock = [System.Windows.Forms.DockStyle]::Right
+    $openFolderButton.Width = 86
+    $openFolderButton.Add_Click({ Invoke-Item -LiteralPath (Split-Path -Parent $ImagePath) })
+
+    $buttonPanel.Controls.Add($closePreviewButton)
+    $buttonPanel.Controls.Add($openImageButton)
+    $buttonPanel.Controls.Add($openFolderButton)
+
+    $picture = New-Object System.Windows.Forms.PictureBox
+    $picture.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $picture.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
+    $picture.BackColor = [System.Drawing.Color]::White
+    $picture.Load($ImagePath)
+
+    $pathLabel = New-Object System.Windows.Forms.TextBox
+    $pathLabel.Dock = [System.Windows.Forms.DockStyle]::Bottom
+    $pathLabel.Height = 28
+    $pathLabel.ReadOnly = $true
+    $pathLabel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+    $pathLabel.Text = $ImagePath
+
+    $preview.Controls.Add($picture)
+    $preview.Controls.Add($pathLabel)
+    $preview.Controls.Add($buttonPanel)
+    $preview.AcceptButton = $closePreviewButton
+    $preview.Add_KeyDown({
+        param($sender, $eventArgs)
+        if ($eventArgs.KeyCode -eq [System.Windows.Forms.Keys]::Escape) {
+            $sender.Close()
+        }
+    })
+    [void]$preview.Show($form)
 }
 
 function Get-PythonCommand {
@@ -129,6 +212,10 @@ function Set-RunControlsEnabled {
     $examplesButton.Enabled = $Enabled
     $analysisMobilityButton.Enabled = $Enabled
     $analysisArrivalButton.Enabled = $Enabled
+    $analysisTrajectoryButton.Enabled = $Enabled
+    $analysisMeanButton.Enabled = $Enabled
+    $analysisEliminationButton.Enabled = $Enabled
+    $analysisAnimateButton.Enabled = $Enabled
     $stopButton.Enabled = -not $Enabled
 }
 
@@ -185,7 +272,7 @@ $contentPanel.BackColor = $ColorBackground
 
 $configPanel = New-Object System.Windows.Forms.Panel
 $configPanel.Dock = [System.Windows.Forms.DockStyle]::Top
-$configPanel.Height = 164
+$configPanel.Height = 202
 $configPanel.BackColor = [System.Drawing.Color]::White
 $configPanel.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
 
@@ -234,20 +321,40 @@ $stopButton.Size = New-Object System.Drawing.Size(60, 30)
 $stopButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 
 $analysisMobilityButton = New-FlatButton "IMS mobility..." ([System.Drawing.Color]::FromArgb(61, 133, 108))
-$analysisMobilityButton.Location = New-Object System.Drawing.Point(366, 78)
+$analysisMobilityButton.Location = New-Object System.Drawing.Point(16, 116)
 $analysisMobilityButton.Size = New-Object System.Drawing.Size(116, 30)
 $analysisMobilityButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 
 $analysisArrivalButton = New-FlatButton "Arrival times..." ([System.Drawing.Color]::FromArgb(92, 105, 130))
-$analysisArrivalButton.Location = New-Object System.Drawing.Point(490, 78)
+$analysisArrivalButton.Location = New-Object System.Drawing.Point(140, 116)
 $analysisArrivalButton.Size = New-Object System.Drawing.Size(118, 30)
 $analysisArrivalButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
+
+$analysisTrajectoryButton = New-FlatButton "Trajectories..." ([System.Drawing.Color]::FromArgb(92, 105, 130))
+$analysisTrajectoryButton.Location = New-Object System.Drawing.Point(266, 116)
+$analysisTrajectoryButton.Size = New-Object System.Drawing.Size(112, 30)
+$analysisTrajectoryButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
+
+$analysisMeanButton = New-FlatButton "Mean positions..." ([System.Drawing.Color]::FromArgb(92, 105, 130))
+$analysisMeanButton.Location = New-Object System.Drawing.Point(386, 116)
+$analysisMeanButton.Size = New-Object System.Drawing.Size(124, 30)
+$analysisMeanButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
+
+$analysisEliminationButton = New-FlatButton "Eliminations..." ([System.Drawing.Color]::FromArgb(92, 105, 130))
+$analysisEliminationButton.Location = New-Object System.Drawing.Point(518, 116)
+$analysisEliminationButton.Size = New-Object System.Drawing.Size(116, 30)
+$analysisEliminationButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
+
+$analysisAnimateButton = New-FlatButton "Animate..." ([System.Drawing.Color]::FromArgb(92, 105, 130))
+$analysisAnimateButton.Location = New-Object System.Drawing.Point(642, 116)
+$analysisAnimateButton.Size = New-Object System.Drawing.Size(96, 30)
+$analysisAnimateButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 
 $analysisHintLabel = New-Object System.Windows.Forms.Label
 $analysisHintLabel.Text = "Analysis uses Python packages from requirements-analysis.txt"
 $analysisHintLabel.ForeColor = $ColorSubtle
 $analysisHintLabel.Font = $FontSmall
-$analysisHintLabel.Location = New-Object System.Drawing.Point(16, 120)
+$analysisHintLabel.Location = New-Object System.Drawing.Point(16, 158)
 $analysisHintLabel.AutoSize = $true
 
 $configPanel.Controls.AddRange(@(
@@ -259,6 +366,10 @@ $configPanel.Controls.AddRange(@(
     $stopButton,
     $analysisMobilityButton,
     $analysisArrivalButton,
+    $analysisTrajectoryButton,
+    $analysisMeanButton,
+    $analysisEliminationButton,
+    $analysisAnimateButton,
     $analysisHintLabel
 ))
 
@@ -310,6 +421,9 @@ $form.Controls.Add($headerPanel)
 
 $script:process = $null
 $script:runLogPath = $null
+$script:currentPlotPath = $null
+$script:currentCsvPath = $null
+$script:currentRunName = $null
 
 $logTimer = New-Object System.Windows.Forms.Timer
 $logTimer.Interval = 500
@@ -327,15 +441,17 @@ $logTimer.Add_Tick({
         if ($script:process -and $script:process.HasExited) {
             $code = $script:process.ExitCode
             $logTimer.Stop()
-            $runButton.Enabled = $true
-            $browseButton.Enabled = $true
-            $examplesButton.Enabled = $true
-            $analysisMobilityButton.Enabled = $true
-            $analysisArrivalButton.Enabled = $true
-            $stopButton.Enabled = $false
+            Set-RunControlsEnabled $true
             $statusLabel.Text = "Finished with exit code $code"
             Append-Log ""
             Append-Log "Finished with exit code $code"
+            if ($code -eq 0 -and $script:currentPlotPath -and (Test-Path -LiteralPath $script:currentPlotPath)) {
+                Show-Message `
+                    -Message "Analysis finished successfully.`n`nPlot:`n$script:currentPlotPath`n`nCSV:`n$script:currentCsvPath" `
+                    -Title "Analysis finished" `
+                    -Icon ([System.Windows.Forms.MessageBoxIcon]::Information)
+                Show-ImagePreview $script:currentPlotPath $script:currentRunName
+            }
             if ($code -ne 0) {
                 Show-Message `
                     -Message "ICARION stopped with exit code $code.`n`nThe log was saved here:`n$script:runLogPath" `
@@ -347,12 +463,7 @@ $logTimer.Add_Tick({
         }
     } catch {
         $logTimer.Stop()
-        $runButton.Enabled = $true
-        $browseButton.Enabled = $true
-        $examplesButton.Enabled = $true
-        $analysisMobilityButton.Enabled = $true
-        $analysisArrivalButton.Enabled = $true
-        $stopButton.Enabled = $false
+        Set-RunControlsEnabled $true
         $statusLabel.Text = "Launcher error"
         Append-Log $_.Exception.Message
         Show-Message `
@@ -413,25 +524,49 @@ $runButton.Add_Click({
     $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $runLogPath = Join-Path $RunLogDir "icarion-run-$runStamp.log"
     $runCmdPath = Join-Path $RunLogDir "icarion-run-$runStamp.cmd"
+    $configArg = Get-PackageRelativePath $configPath
     $script:runLogPath = $runLogPath
+    $script:currentPlotPath = $null
+    $script:currentCsvPath = $null
+    $script:currentRunName = $null
 
     $logBox.Clear()
     Append-Log "ICARION: $IcarionExe"
     Append-Log "Config:  $configPath"
+    Append-Log "Argument: $configArg"
+    Append-Log "Working directory: $Root"
+    Append-Log "Wrapper: $runCmdPath"
     Append-Log "Log:     $runLogPath"
     Append-Log ""
     $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
-    [System.IO.File]::WriteAllText($runLogPath, "ICARION: $IcarionExe`r`nConfig:  $configPath`r`n", $utf8NoBom)
+    [System.IO.File]::WriteAllText(
+        $runLogPath,
+        "ICARION: $IcarionExe`r`nConfig:  $configPath`r`nArgument: $configArg`r`nWorking directory: $Root`r`nWrapper: $runCmdPath`r`n",
+        $utf8NoBom
+    )
+    $engineLogPath = Join-Path $RunLogDir "icarion-engine-$runStamp.log"
     @(
         "@echo off",
+        "setlocal",
+        "echo [launcher] wrapper started>> `"$runLogPath`"",
         "cd /d `"$Root`"",
-        "`"$IcarionExe`" `"$configPath`" >> `"$runLogPath`" 2>&1",
-        "exit /b %ERRORLEVEL%"
+        "echo [launcher] cwd=%CD%>> `"$runLogPath`"",
+        "echo [launcher] exe=`"$IcarionExe`">> `"$runLogPath`"",
+        "echo [launcher] arg=`"$configArg`">> `"$runLogPath`"",
+        "echo [launcher] engine_log=`"$engineLogPath`">> `"$runLogPath`"",
+        "echo [launcher] command=`"$IcarionExe`" --log-level DEBUG --log-file `"$engineLogPath`" `"$configArg`">> `"$runLogPath`"",
+        "`"$IcarionExe`" --log-level DEBUG --log-file `"$engineLogPath`" `"$configArg`" >> `"$runLogPath`" 2>&1",
+        "set `"ICARION_EXIT=%ERRORLEVEL%`"",
+        "echo [launcher] exit_code=%ICARION_EXIT%>> `"$runLogPath`"",
+        "exit /b %ICARION_EXIT%"
     ) | Set-Content -LiteralPath $runCmdPath -Encoding ASCII
+    Append-Log "Generated wrapper:"
+    Get-Content -LiteralPath $runCmdPath | ForEach-Object { Append-Log ("  " + $_) }
+    Append-Log ""
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = if ($env:ComSpec) { $env:ComSpec } else { "cmd.exe" }
-    $startInfo.Arguments = '/d /c "' + $runCmdPath + '"'
+    $startInfo.Arguments = '/d /s /c call "' + $runCmdPath + '"'
     $startInfo.WorkingDirectory = $Root
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
@@ -461,7 +596,10 @@ function Start-Analysis {
     param(
         [string]$Name,
         [string]$ScriptName,
-        [string[]]$ExtraArgs = @()
+        [string[]]$ExtraArgs = @(),
+        [string]$CsvOption = "--out-csv",
+        [bool]$PreferPerSpeciesPlot = $false,
+        [string]$OutputExtension = ".png"
     )
 
     if (-not (Test-Path $AnalysisDir)) {
@@ -492,15 +630,26 @@ function Start-Analysis {
     $safeName = $Name.ToLowerInvariant().Replace(" ", "-")
     $runLogPath = Join-Path $RunLogDir "$safeName-$runStamp.log"
     $runCmdPath = Join-Path $RunLogDir "$safeName-$runStamp.cmd"
-    $plotPath = Join-Path $analysisOutDir "$safeName-$runStamp.png"
-    $csvPath = Join-Path $analysisOutDir "$safeName-$runStamp.csv"
+    $plotPath = Join-Path $analysisOutDir "$safeName-$runStamp$OutputExtension"
+    $previewPath = $plotPath
+    $perSpeciesPath = Join-Path $analysisOutDir "$safeName-$runStamp-per-species.png"
+    if ($PreferPerSpeciesPlot) {
+        $previewPath = $perSpeciesPath
+    }
+    $csvPath = if ($CsvOption) { Join-Path $analysisOutDir "$safeName-$runStamp.csv" } else { "" }
     $scriptPath = Join-Path $AnalysisDir $ScriptName
     $script:runLogPath = $runLogPath
+    $script:currentPlotPath = $previewPath
+    $script:currentCsvPath = $csvPath
+    $script:currentRunName = $Name
 
     $logBox.Clear()
     Append-Log "Analysis: $Name"
     Append-Log "Trajectory: $trajPath"
     Append-Log "Plot: $plotPath"
+    if ($PreferPerSpeciesPlot) {
+        Append-Log "Per-species plot: $perSpeciesPath"
+    }
     Append-Log "CSV:  $csvPath"
     Append-Log "Log:  $runLogPath"
     Append-Log ""
@@ -511,17 +660,41 @@ function Start-Analysis {
     foreach ($arg in $ExtraArgs) {
         $extra += " $arg"
     }
+    $csvArgs = ""
+    if ($CsvOption) {
+        $csvArgs = " $CsvOption `"$csvPath`""
+    }
+    $plotArgs = ""
+    if ($PreferPerSpeciesPlot) {
+        $plotArgs = " --out-per-species `"$perSpeciesPath`""
+    }
     @(
         "@echo off",
+        "setlocal",
+        "echo [analysis-launcher] wrapper started>> `"$runLogPath`"",
         "cd /d `"$Root`"",
+        "echo [analysis-launcher] cwd=%CD%>> `"$runLogPath`"",
         "set `"PYTHONPATH=$Root;$AnalysisDir;%PYTHONPATH%`"",
-        "$pythonCommand `"$scriptPath`" --traj `"$trajPath`" --out `"$plotPath`" --out-csv `"$csvPath`"$extra >> `"$runLogPath`" 2>&1",
-        "exit /b %ERRORLEVEL%"
+        "echo [analysis-launcher] python=$pythonCommand>> `"$runLogPath`"",
+        "echo [analysis-launcher] script=`"$scriptPath`">> `"$runLogPath`"",
+        "echo [analysis-launcher] trajectory=`"$trajPath`">> `"$runLogPath`"",
+        "echo [analysis-launcher] plot=`"$plotPath`">> `"$runLogPath`"",
+        "echo [analysis-launcher] preview=`"$previewPath`">> `"$runLogPath`"",
+        "echo [analysis-launcher] csv=`"$csvPath`">> `"$runLogPath`"",
+        "echo [analysis-launcher] PYTHONPATH=%PYTHONPATH%>> `"$runLogPath`"",
+        "echo [analysis-launcher] command=$pythonCommand `"$scriptPath`" --traj `"$trajPath`" --out `"$plotPath`"$csvArgs$plotArgs$extra>> `"$runLogPath`"",
+        "$pythonCommand `"$scriptPath`" --traj `"$trajPath`" --out `"$plotPath`"$csvArgs$plotArgs$extra >> `"$runLogPath`" 2>&1",
+        "set `"ANALYSIS_EXIT=%ERRORLEVEL%`"",
+        "echo [analysis-launcher] exit_code=%ANALYSIS_EXIT%>> `"$runLogPath`"",
+        "exit /b %ANALYSIS_EXIT%"
     ) | Set-Content -LiteralPath $runCmdPath -Encoding ASCII
+    Append-Log "Generated wrapper:"
+    Get-Content -LiteralPath $runCmdPath | ForEach-Object { Append-Log ("  " + $_) }
+    Append-Log ""
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = if ($env:ComSpec) { $env:ComSpec } else { "cmd.exe" }
-    $startInfo.Arguments = '/d /c "' + $runCmdPath + '"'
+    $startInfo.Arguments = '/d /s /c call "' + $runCmdPath + '"'
     $startInfo.WorkingDirectory = $Root
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
@@ -551,7 +724,43 @@ $analysisMobilityButton.Add_Click({
 })
 
 $analysisArrivalButton.Add_Click({
-    Start-Analysis "Arrival times" "arrival_time_distribution.py"
+    Start-Analysis `
+        -Name "Arrival times" `
+        -ScriptName "arrival_time_distribution.py" `
+        -PreferPerSpeciesPlot $true
+})
+
+$analysisTrajectoryButton.Add_Click({
+    Start-Analysis `
+        -Name "Trajectories" `
+        -ScriptName "plot_trajectories.py" `
+        -ExtraArgs @("--time-stride", "5", "--max-ions", "120", "--max-per-species", "40") `
+        -CsvOption ""
+})
+
+$analysisMeanButton.Add_Click({
+    Start-Analysis `
+        -Name "Mean positions" `
+        -ScriptName "mean_positions.py" `
+        -ExtraArgs @("--time-stride", "5", "--max-ions", "400", "--max-per-species", "200") `
+        -CsvOption "--csv"
+})
+
+$analysisEliminationButton.Add_Click({
+    Start-Analysis `
+        -Name "Eliminations" `
+        -ScriptName "elimination_histograms.py" `
+        -ExtraArgs @("--max-ions", "500", "--max-per-species", "200") `
+        -CsvOption ""
+})
+
+$analysisAnimateButton.Add_Click({
+    Start-Analysis `
+        -Name "Animation" `
+        -ScriptName "animate_trajectories.py" `
+        -ExtraArgs @("--projection", "xy", "--style", "trail", "--theme", "dark", "--max-ions", "80", "--max-per-species", "25", "--time-stride", "4", "--frame-step", "2", "--max-frames", "300", "--writer", "pillow", "--fps", "15", "--dpi", "120") `
+        -CsvOption "" `
+        -OutputExtension ".gif"
 })
 
 $stopButton.Add_Click({

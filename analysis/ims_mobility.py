@@ -192,8 +192,11 @@ def main() -> int:
         field_source=field.source,
     )
     _write_csv(arrivals, mobility, K0, species_valid, args.out_csv, length_for_mobility, field)
+    summary_csv = args.out_csv.with_name(f"{args.out_csv.stem}_summary{args.out_csv.suffix}")
+    _write_summary_csv(arrivals, mobility, K0, species_valid, summary_csv)
     print(f"Wrote {args.out}")
     print(f"Wrote {args.out_csv}")
+    print(f"Wrote {summary_csv}")
     return 0
 def _read_field_strength(
     h5,
@@ -357,30 +360,46 @@ def _plot(
 ):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+    species = np.asarray(species)
+    unique_species = [str(sp) for sp in np.unique(species)]
+    color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", ["#4c78a8", "#f58518", "#54a24b"])
 
     # Arrival histogram
     ax_arr = axes[0]
     edges = histogram_bin_edges(arrivals, bins)
-    ax_arr.hist(arrivals, bins=edges, color="#4c78a8", alpha=0.8)
-    ax_arr.axvline(np.median(arrivals), color="#e45756", linestyle="--", label=f"Median t={np.median(arrivals):.3e}s")
+    for idx, sp in enumerate(unique_species):
+        mask = species == sp
+        color = color_cycle[idx % len(color_cycle)]
+        ax_arr.hist(
+            arrivals[mask],
+            bins=edges,
+            color=color,
+            alpha=0.45,
+            label=f"{sp} (N={int(np.sum(mask))}, median t={np.median(arrivals[mask]):.3e}s)",
+        )
+        ax_arr.axvline(np.median(arrivals[mask]), color=color, linestyle="--", linewidth=1)
     ax_arr.set_xlabel("Arrival time [s]")
     ax_arr.set_ylabel("Count")
-    ax_arr.set_title("Arrival-time distribution")
+    ax_arr.set_title("Arrival-time distribution per species")
     ax_arr.legend()
     ax_arr.grid(True, alpha=0.2)
 
     # Mobility scatter
     ax_mob = axes[1]
-    ax_mob.scatter(arrivals, mobility, alpha=0.7, s=12, label="K per ion")
-    ax_mob.axhline(
-        np.median(mobility),
-        color="#e45756",
-        linestyle="--",
-        label=f"Median K={np.median(mobility):.3e} m²/Vs",
-    )
+    for idx, sp in enumerate(unique_species):
+        mask = species == sp
+        color = color_cycle[idx % len(color_cycle)]
+        ax_mob.scatter(arrivals[mask], mobility[mask], alpha=0.7, s=12, color=color, label=f"{sp} K per ion")
+        ax_mob.axhline(
+            np.median(mobility[mask]),
+            color=color,
+            linestyle="--",
+            linewidth=1,
+            label=f"{sp} median K={np.median(mobility[mask]):.3e}",
+        )
     ax_mob.set_xlabel("Arrival time [s]")
     ax_mob.set_ylabel("Mobility K [m²/(V·s)]")
-    ax_mob.set_title(f"K, K0 stats (N={len(arrivals)})")
+    ax_mob.set_title(f"K per species (N={len(arrivals)})")
     ax_mob.grid(True, alpha=0.2)
     ax_mob.legend()
 
@@ -391,12 +410,19 @@ def _plot(
     else:
         leff_med = np.nan
         leff_mean = np.nan
-    fig.suptitle(
-        f"IMS mobility: E={field_Vm:.3e} V/m ({field_source}), L={length:.3e} m, T={temp:.1f} K, p={pressure:.1f} Pa\n"
-        f"K median={np.median(mobility):.3e} m²/Vs, K0 median={np.median(K0_cm2):.3e} cm²/Vs | "
-        f"length_mode={length_mode}, L_eff_med={leff_med:.3e} m, L_eff_mean={leff_mean:.3e} m, z_arr={arrival_plane_z:.3e} m"
+    fig.suptitle("Arrival time distribution and inferred mobility", fontsize=13, fontweight="bold")
+    fig.text(
+        0.5,
+        0.01,
+        (
+            f"E={field_Vm:.3e} V/m, T={temp:.1f} K, p={pressure:.1f} Pa, "
+            f"length_mode={length_mode}, L_eff_med={leff_med:.3e} m"
+        ),
+        ha="center",
+        fontsize=8,
+        color="#555555",
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.tight_layout(rect=[0, 0.04, 1, 0.94])
     fig.savefig(out_path, dpi=200)
 
 
@@ -428,6 +454,39 @@ def _write_csv(arrivals, mobility, K0, species, out_path: Path, drift_lengths_m:
                 f"{k:.6e}",
                 f"{k0:.6e}",
                 f"{k0 * 1e4:.6e}",
+            ])
+
+
+def _write_summary_csv(arrivals, mobility, K0, species, out_path: Path):
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    species = np.asarray(species)
+    with open(out_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "species",
+            "n_ions",
+            "arrival_median_s",
+            "arrival_mean_s",
+            "K_median_m2_Vs",
+            "K_mean_m2_Vs",
+            "K0_median_m2_Vs",
+            "K0_mean_m2_Vs",
+            "K0_median_cm2_Vs",
+            "K0_mean_cm2_Vs",
+        ])
+        for sp in np.unique(species):
+            mask = species == sp
+            writer.writerow([
+                sp,
+                int(np.sum(mask)),
+                f"{np.median(arrivals[mask]):.6e}",
+                f"{np.mean(arrivals[mask]):.6e}",
+                f"{np.median(mobility[mask]):.6e}",
+                f"{np.mean(mobility[mask]):.6e}",
+                f"{np.median(K0[mask]):.6e}",
+                f"{np.mean(K0[mask]):.6e}",
+                f"{np.median(K0[mask]) * 1e4:.6e}",
+                f"{np.mean(K0[mask]) * 1e4:.6e}",
             ])
 
 

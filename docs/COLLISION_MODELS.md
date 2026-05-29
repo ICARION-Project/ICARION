@@ -110,6 +110,9 @@ config::CollisionModel::EHSS
 - Provide `EHSS_samples_file` in the species database to sample orientation-dependent
   projection areas per collision. The sampled orientation is reused in the EHSS
   kernel (force-hit path) to keep rate and scattering consistent.
+- `data/species_database_v1.json` now includes this for `26DTBPH+`
+  (`data/molecules/precomputed_ccs/26DTBPH+_ehss_samples.json`) so IMS runs can
+  compare precomputed ("offline") vs geometry-only ("online") sampling from the bundled data.
 
 **When to use:**
 - Studying structure-dependent effects

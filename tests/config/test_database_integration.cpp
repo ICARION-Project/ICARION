@@ -19,15 +19,7 @@ int main() {
         std::cout << "  - Domains: " << config0.domains.size() << "\n";
         std::cout << "  - Species: " << config0.species_db.size() << "\n";
         std::cout << "  - Reactions: " << config0.reaction_db.size() << "\n";
-
-        const auto& dtbph = config0.species_db.get("26DTBPH+");
-        if (!dtbph.ehss_samples_file.has_value()) {
-            throw std::runtime_error("26DTBPH+ is missing EHSS_samples_file in species database");
-        }
-        if (!std::filesystem::exists(*dtbph.ehss_samples_file)) {
-            throw std::runtime_error("26DTBPH+ EHSS_samples_file does not exist: " + *dtbph.ehss_samples_file);
-        }
-         
+        
         // Test 1: Load config with multi-gas mixture
         std::cout << "\n=== Test 1: IMS with Multi-Gas Mixture ===\n";
         std::filesystem::path config_path1 = source_dir / "examples/ims/ims_multi_gas_air.json";

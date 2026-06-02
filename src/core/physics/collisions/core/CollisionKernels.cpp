@@ -306,8 +306,11 @@ CollisionKernels::CollisionResult CollisionKernels::detect_atom_collision(
     double ion_radius
 ) {
     const int nat = static_cast<int>(rotated_atoms.size());
-    
-    // Check collision with each atom
+
+    // Select the earliest entry contact along the sampled trajectory.
+    CollisionResult best{false, Vec3{0, 0, 0}};
+    double best_s_hit = 0.0;
+
     for (int j = 0; j < nat; ++j) {
         const Vec3& ra = rotated_atoms[j];
         double Rsum = atom_radii[j] + ion_radius;
@@ -341,13 +344,15 @@ CollisionKernels::CollisionResult CollisionKernels::detect_atom_collision(
                     n_contact = n_contact * -1.0;
                 }
             }
-            
-            return CollisionResult{true, n_contact};
+
+            if (!best.hit || s_hit < best_s_hit) {
+                best = CollisionResult{true, n_contact};
+                best_s_hit = s_hit;
+            }
         }
     }
-    
-    // No collision
-    return CollisionResult{false, Vec3{0, 0, 0}};
+
+    return best;
 }
 
 Vec3 CollisionKernels::compute_reflected_velocity(

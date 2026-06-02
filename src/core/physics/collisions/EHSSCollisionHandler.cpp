@@ -102,10 +102,14 @@ bool EHSSCollisionHandler::handle_collision(
                                double m_neutral,
                                const Vec3& v_gas,
                                double sigma_eff,
-                               double gas_radius_m) -> bool {
-        const Vec3 v_neutral = collision_core::VelocitySampling::sample_neutral_velocity(
-            T_K, m_neutral, v_gas, rng
-        );
+                               double gas_radius_m,
+                               const Vec3* v_neutral_hint = nullptr) -> bool {
+        // Use a pre-sampled neutral velocity if provided (mixture path passes the
+        // same velocity that was used for the rate calculation, which is the
+        // physically correct neutral that participates in the collision).
+        const Vec3 v_neutral = v_neutral_hint
+            ? *v_neutral_hint
+            : collision_core::VelocitySampling::sample_neutral_velocity(T_K, m_neutral, v_gas, rng);
         const Vec3 v_rel = ion.vel - v_neutral;
         const double v_rel_mag = norm(v_rel);
         if (v_rel_mag < MIN_RELATIVE_VELOCITY) {
@@ -150,16 +154,23 @@ bool EHSSCollisionHandler::handle_collision(
     };
 
     if (!env.gas_mixture.empty()) {
-        // Compute rates per component and select gas
-        Vec3 v_rel_bulk = ion.vel - env.gas_velocity_m_s;
-        double v_rel_mag = norm(v_rel_bulk);
-        if (v_rel_mag < MIN_RELATIVE_VELOCITY) {
-            return false;
-        }
+        // Compute rates per component using thermally-sampled neutral velocities.
+        // BUG-FIX (v1.0.1): the previous code used the bulk relative velocity
+        // (|v_ion - v_drift|) which is ~0 for cold ions and severely underestimates
+        // the collision rate.  The correct approach samples each neutral independently
+        // from the Maxwell-Boltzmann distribution so that thermal motion of the gas
+        // is accounted for even when the ion is nearly stationary.
         std::vector<double> k_values;
+        std::vector<Vec3> sampled_neutrals;
         k_values.reserve(env.gas_mixture.size());
+        sampled_neutrals.reserve(env.gas_mixture.size());
         double k_total = 0.0;
         for (const auto& comp : env.gas_mixture) {
+            const Vec3 v_neutral_i = collision_core::VelocitySampling::sample_neutral_velocity(
+                env.temperature_K, comp.mass_kg, env.gas_velocity_m_s, rng
+            );
+            sampled_neutrals.push_back(v_neutral_i);
+
             double sigma_i = 0.0;
             if (use_samples && samples) {
                 sigma_i = samples->areas_by_gas_m2.at(comp.species)[sample_idx];
@@ -170,12 +181,13 @@ bool EHSSCollisionHandler::handle_collision(
                     comp.species
                 );
             }
-            double n_i = comp.density_m3;
-            if (sigma_i <= 0.0 || n_i <= 0.0) {
+            const double n_i = comp.density_m3;
+            const double v_rel_i = norm(ion.vel - v_neutral_i);
+            if (sigma_i <= 0.0 || n_i <= 0.0 || v_rel_i < MIN_RELATIVE_VELOCITY) {
                 k_values.push_back(0.0);
                 continue;
             }
-            double k_i = n_i * sigma_i * v_rel_mag;
+            const double k_i = n_i * sigma_i * v_rel_i;
             k_values.push_back(k_i);
             k_total += k_i;
         }
@@ -222,7 +234,8 @@ bool EHSSCollisionHandler::handle_collision(
             comp.mass_kg,
             env.gas_velocity_m_s,
             sigma_eff,
-            gas_radius_m
+            gas_radius_m,
+            &sampled_neutrals[idx]  // reuse the velocity used for rate calculation
         );
     }
 

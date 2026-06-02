@@ -164,8 +164,15 @@ bool EHSSCollisionHandler::handle_collision(
         std::vector<Vec3> sampled_neutrals;
         k_values.reserve(env.gas_mixture.size());
         sampled_neutrals.reserve(env.gas_mixture.size());
+
         double k_total = 0.0;
         for (const auto& comp : env.gas_mixture) {
+            if (!comp.participates_in_collisions) {
+                k_values.push_back(0.0);
+                sampled_neutrals.push_back(Vec3{0.0, 0.0, 0.0});
+                continue;
+            }
+
             const Vec3 v_neutral_i = collision_core::VelocitySampling::sample_neutral_velocity(
                 env.temperature_K, comp.mass_kg, env.gas_velocity_m_s, rng
             );
@@ -191,9 +198,11 @@ bool EHSSCollisionHandler::handle_collision(
             k_values.push_back(k_i);
             k_total += k_i;
         }
+
         if (k_total <= 0.0) {
             return false;
         }
+
         double P_total = 1.0;
         if (k_total * dt <= 50.0) {
             P_total = 1.0 - std::exp(-k_total * dt);
@@ -201,16 +210,20 @@ bool EHSSCollisionHandler::handle_collision(
         if (rng.uniform01() >= P_total) {
             return false;
         }
-        double r = rng.uniform01() * k_total;
+
+        const double r = rng.uniform01() * k_total;
         size_t idx = 0;
         double cum = 0.0;
         for (; idx < k_values.size(); ++idx) {
             cum += k_values[idx];
-            if (r < cum) break;
+            if (r < cum) {
+                break;
+            }
         }
         if (idx >= env.gas_mixture.size()) {
             idx = env.gas_mixture.size() - 1;
         }
+
         const auto& comp = env.gas_mixture[idx];
         double sigma_eff = 0.0;
         if (use_samples && samples) {
@@ -327,7 +340,6 @@ double EHSSCollisionHandler::compute_effective_ccs(
                             ion.species_id, gas_id, derived_ccs * 1e20, *species.ccs_reference_gas,
                             ion.species_id, *species.ccs_reference_gas, species.CCS_m2 * 1e20
                         );
-                        warned_missing_sigma_.insert(key);
                     }
                     return derived_ccs;  // ⚠️ Derived CCS (HSS approximation)
                 }
@@ -339,12 +351,12 @@ double EHSSCollisionHandler::compute_effective_ccs(
     if (ion.CCS_m2 > 0.0) {
         std::string key = ion.species_id + ":" + gas_id;
         if (!warned_missing_sigma_.count(key)) {
+            warned_missing_sigma_.insert(key);
             ICARION::log::Logger::get("collision")->warn(
                 "[EHSS] Using reference CCS ({:.2f} Å²) for gas {} - may be inaccurate! "
                 "Run: ccs_precompute --species {} --ref-gas <gas> --ref-ccs-A2 <ccs>",
                 ion.CCS_m2 * 1e20, gas_id, ion.species_id
             );
-            warned_missing_sigma_.insert(key);
         }
         return ion.CCS_m2;  // ❌ Reference CCS (likely wrong gas!)
     }

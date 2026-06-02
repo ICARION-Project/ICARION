@@ -59,6 +59,9 @@ bool HSSCollisionHandler::handle_collision(
         
         for (size_t i = 0; i < env.gas_mixture.size(); ++i) {
             const auto& comp = env.gas_mixture[i];
+            if (!comp.participates_in_collisions) {
+                continue;
+            }
             double n_i = comp.density_m3;
             if (n_i <= 0.0) continue;
             

@@ -53,16 +53,6 @@ bool EHSSCollisionHandler::handle_collision(
     PhysicsRng& rng,
     const config::EnvironmentConfig& env
 ) {
-    auto mark_once = [&](std::unordered_set<std::string>& set, const std::string& key) {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        return set.insert(key).second;
-    };
-
-    auto record_collision = [&]() {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        stats_.total_collisions++;
-    };
-
     IonState ion;
     ion.vel = view.kin.vel();
     ion.mass_kg = view.kin.get_mass();
@@ -159,7 +149,7 @@ bool EHSSCollisionHandler::handle_collision(
 
         ion.vel = v_post;
         view.kin.set_vel(ion.vel);
-        record_collision();
+        stats_.total_collisions++;
         return true;
     };
 
@@ -343,12 +333,7 @@ double EHSSCollisionHandler::compute_effective_ccs(
                 if (derived_ccs > 0.0) {
                     // Log once per species:gas combination
                     std::string key = ion.species_id + ":" + gas_id;
-                    bool should_log = false;
-                    {
-                        std::lock_guard<std::mutex> lock(state_mutex_);
-                        should_log = warned_missing_sigma_.insert(key).second;
-                    }
-                    if (should_log) {
+                    if (!warned_missing_sigma_.count(key)) {
                         ICARION::log::Logger::get("collision")->info(
                             "[EHSS] Derived CCS for {}:{} = {:.2f} Å² (from {} reference). "
                             "For better accuracy: ccs_precompute --species {} --ref-gas {} --ref-ccs-A2 {:.2f}",
@@ -365,12 +350,8 @@ double EHSSCollisionHandler::compute_effective_ccs(
     // 4. Last resort: use reference CCS (WARNING: may be wrong gas!)
     if (ion.CCS_m2 > 0.0) {
         std::string key = ion.species_id + ":" + gas_id;
-        bool should_log = false;
-        {
-            std::lock_guard<std::mutex> lock(state_mutex_);
-            should_log = warned_missing_sigma_.insert(key).second;
-        }
-        if (should_log) {
+        if (!warned_missing_sigma_.count(key)) {
+            warned_missing_sigma_.insert(key);
             ICARION::log::Logger::get("collision")->warn(
                 "[EHSS] Using reference CCS ({:.2f} Å²) for gas {} - may be inaccurate! "
                 "Run: ccs_precompute --species {} --ref-gas <gas> --ref-ccs-A2 <ccs>",
@@ -384,16 +365,6 @@ double EHSSCollisionHandler::compute_effective_ccs(
     throw std::runtime_error(
         "[EHSS] No CCS data for species '" + ion.species_id + "' and gas '" + gas_id + "'"
     );
-}
-
-CollisionStats EHSSCollisionHandler::get_stats() const {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    return stats_;
-}
-
-void EHSSCollisionHandler::reset_stats() {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    stats_ = {};
 }
 
 double EHSSCollisionHandler::derive_ccs_for_target_gas(

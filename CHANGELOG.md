@@ -18,6 +18,15 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
   handler which was not affected by this bug.  The sampled velocity is reused for the
   actual scattering step so that rate selection and momentum transfer are fully consistent.
 
+- **EHSS first-hit atom selection** (`CollisionKernels::detect_atom_collision`): when
+  multiple atoms of a polyatomic molecule overlap along the collision trajectory, the
+  previous code returned the first atom found in array order rather than the
+  geometrically earliest contact (smallest entry parameter `s_hit`).  For large molecules
+  with strongly overlapping van-der-Waals spheres (e.g. 26DTBPH+) this systematically
+  biased the contact normal, leading to an incorrect momentum-transfer cosine distribution
+  and therefore wrong energy transfer per collision.  The fix iterates over all atoms,
+  tracks the candidate with the smallest `s_hit`, and returns it after the full loop.
+
 ## [1.0.0] - 2025-12-04
 
 - Initial v1.0.0 release tag.

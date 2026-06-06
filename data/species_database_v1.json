@@ -96,7 +96,8 @@
       "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325,
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
-      "geometry_file": "molecules/26DTBPH+.json"
+      "geometry_file": "molecules/26DTBPH+.json",
+      "EHSS_samples_file": "molecules/precomputed_ccs/26DTBPH+_ehss_samples.json"
     },
     "26DTBP": {
       "mass_amu": 191.0,

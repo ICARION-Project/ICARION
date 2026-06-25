@@ -219,6 +219,9 @@ If reactions are enabled and the reaction database matches the used species, the
 | `rate_constant_m3s` | Stored rate constant value. |
 | `type` | Internal reaction type code. |
 
+`rate_constant_m3s` is the stored dataset name; interpret the physical units
+according to the reaction order described in [Reactions](reactions.md).
+
 The actual species state over time is stored through `trajectory/species_id_indices` in full mode or final `species_id_indices` in minimal mode.
 
 ---

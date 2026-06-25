@@ -35,8 +35,8 @@ A typical CPU build requires:
 On Ubuntu or WSL, the basic dependencies can be installed with:
 
 ```bash
-apt update
-apt install -y \
+sudo apt update
+sudo apt install -y \
   build-essential cmake git pkg-config \
   libeigen3-dev libjsoncpp-dev nlohmann-json3-dev libhdf5-dev \
   libssl-dev libopenblas-dev libspdlog-dev libcxxopts-dev

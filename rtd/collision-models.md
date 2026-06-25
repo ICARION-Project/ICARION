@@ -455,9 +455,9 @@ but `sigma_eff` can come from geometry-derived or precomputed EHSS information. 
 Once an EHSS event has been accepted:
 
 1. The relative velocity defines the collision axis.
-2. A molecular orientation of the ions is selected or sampled.
+2. A molecular orientation of the ion geometry is selected or sampled.
 3. An impact parameter is sampled in the plane perpendicular to the relative velocity.
-4. The algorithm checks whether the incoming hard sphere (i.e., gas atom or molecule) intersects the molecular hard-sphere (ion) geometry, i.e., it checks whether one of the explicitly resolved atoms of each ion is hit by the neutral.
+4. The algorithm checks whether the incoming gas hard sphere intersects the molecular hard-sphere representation of the ion.
 5. If a contact is found, the contact normal defines the scattering direction. If multiple contacts are found, the first local contact normal in the sampled ray-sphere test is used, as it represents the first contact with an atom of the ion.
 6. The relative velocity is reflected specularly in the center-of-mass frame.
 7. The ion velocity is transformed back to the laboratory frame.

@@ -109,6 +109,10 @@ The resulting species change can be analyzed from the HDF5 output files. See als
 
 ### Simulation config excerpt
 
+The following is an excerpt and not a complete runnable configuration. A full
+simulation file also needs at least an `output` section and one `domains` entry;
+see [Configuration files](configuration.md).
+
 ```json
 {
   "species_database": "species_reaction_demo.json",

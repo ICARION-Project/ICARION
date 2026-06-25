@@ -104,7 +104,7 @@ Supported waveform families include:
 - `pulsed`
 - `arbitrary`
 
-Named waveforms can be declared globally or domainl-ocally. Domain-local
+Named waveforms can be declared globally or inside individual domains. Domain-local
 waveforms are useful when two domains use the same waveform name for different
 physical meanings.
 

@@ -52,5 +52,5 @@ ICARION uses an explicit random number generator seed for reproducibility. To ov
 A simulation typically writes an HDF5 trajectory file and a resolved configuration snapshot. For `examples/ims/ims_basic.json`, the default output is `results/ims/ims_trajectories.h5` plus `results/ims/ims_trajectories.config.json`.
 
 Simulation files are written as HDF5 files; see [Output files](output-files.md)
-and [Validation](validation.md) for details. If the run fails or produces
+and [Analysis workflow](analysis.md) for details. If the run fails or produces
 unexpected output, use [Troubleshooting](troubleshooting.md).

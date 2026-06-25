@@ -1,6 +1,6 @@
 # Species database
 
-The species database maps species IDs such as `H3O+` or `PentanalH+` to physical properties used by ICARION. Config files then refer to these species by ID. Species databases are references from the main simulation configuration, see [configuration](configuration.md).
+The species database maps species IDs such as `H3O+` or `PentanalH+` to physical properties used by ICARION. Config files then refer to these species by ID. Species databases are referenced from the main simulation configuration; see [Configuration files](configuration.md).
 
 A species database is normally referenced at the top level of a simulation config:
 

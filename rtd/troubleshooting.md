@@ -45,7 +45,7 @@ Check the configured database paths:
 "reaction_database": "data/reaction_database.json"
 ```
 
-The species IDs used by `ions[].species_id`, collision data, and reactions must
+The species IDs used by `ions.species[].id`, collision data, and reactions must
 match the database entries. If reactions are enabled, product species must also
 exist in the species database.
 

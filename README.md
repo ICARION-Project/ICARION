@@ -1,4 +1,4 @@
-ICARION v1.0.0 — Ion Collision And Reaction IntegratiON  
+ICARION v1.0.1 — Ion Collision And Reaction IntegratiON  
 Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 
 ---
@@ -23,11 +23,11 @@ Start with `ICARION-Launcher-Guide.md` if you use the Windows or Linux launcher.
 
 # Release & API
 
-- **Versioning:** v1.0.0 (semantic versioning). See `CHANGELOG.md`.
-- **Stable surface:** JSON configuration schema is considered stable for v1.0.0.
+- **Versioning:** v1.0.1 (semantic versioning). See `CHANGELOG.md`.
+- **Stable surface:** JSON configuration schema is considered stable for v1.0.1.
 - **Internal API:** C++ headers/classes are internal and may evolve between minor releases.
 - **License:** GPL-3.0-only (see `LICENSE`); third-party dependencies listed in `CMakeLists.txt` and `cmake/`.
-- **Experimental components (off-path for v1.0.0 results):** GPU EHSS geometry upload, GPU space-charge P³M, and adaptive field interpolation are present but incomplete; the primary runtime GPU path in `SimulationEngine` is disabled for v1.0.0 (helpers remain buildable for dev/testing).
+- **Experimental components (off-path for v1.0.1 results):** GPU EHSS geometry upload, GPU space-charge P³M, and adaptive field interpolation are present but incomplete; the primary runtime GPU path in `SimulationEngine` is disabled for v1.0.1 (helpers remain buildable for dev/testing).
 
 # Documentation
 
@@ -41,17 +41,17 @@ Start with `ICARION-Launcher-Guide.md` if you use the Windows or Linux launcher.
 - [docs/GPU_ARCHITECTURE.md](docs/GPU_ARCHITECTURE.md) — GPU code structure and data flow.
 - [docs/JSON_LOGGING.md](docs/JSON_LOGGING.md) — structured logging format and examples.
 - [validation/README.md](validation/README.md) — validation suite and ready-to-run configs.
-- [validation/VALIDATION_REPORT_v1.0.0.md](validation/VALIDATION_REPORT_v1.0.0.md) — detailed physics validation results for v1.0.0.
+- [validation/VALIDATION_REPORT_v1.0.0.md](validation/VALIDATION_REPORT_v1.0.0.md) — detailed physics validation baseline.
 
 # What & Who
 
 - **What is ICARION?** Modular ion trajectory simulator (C++17) for mass spectrometry, ion mobility devices and ion optics with collision and reaction support.
-- **What can it do in v1.0.0?** IMS, RF quadrupole, Orbitrap, TOF, LQIT, FT-ICR; EHSS/HSS stochastic collision models Friction/Langevin/HardSphere deterministic collision models; Arrhenius reactions; RK4/RK45/Boris integrators; HDF5 with reproducibility metadata and config snapshot.
+- **What can it do in v1.0.1?** IMS, RF quadrupole, Orbitrap, TOF, LQIT, FT-ICR; EHSS/HSS stochastic collision models Friction/Langevin/HardSphere deterministic collision models; Arrhenius reactions; RK4/RK45/Boris integrators; HDF5 with reproducibility metadata and config snapshot.
 - **What can it not do yet?** No full-field solver, no optimizer loop, limited GPU coverage (see below), magnetic field map providers not wired (analytical/uniform B only).
 - **Who is it for?** Researchers/engineers needing reproducible ion mobility / MS simulations with configurable physics and domains or scientists researching on ion transport regimes/phenomena.
 - **Expectation management:** ICARION prioritizes physical correctness and modularity. Performance optimization and GPU offloading are active development areas.
 - **Integrator note:** RK45 keeps per-ion adaptive state; OpenMP determinism is covered by tests. Batch paths (CPU/GPU) require uniform `dt` across active ions.
-- **GPU status:** GPU codepaths are compiled but the primary runtime GPU path is disabled for v1.0.0; helpers remain experimental for developers.
+- **GPU status:** GPU codepaths are compiled but the primary runtime GPU path is disabled for v1.0.1; helpers remain experimental for developers.
 - **Output memory guard:** Set `output.buffer_byte_cap` (bytes) to cap in-memory trajectory buffering and fail fast before OOM; `0` disables the cap.
 
 # Keywords & Acronyms
@@ -105,7 +105,7 @@ Run produces `results/ims/ims_trajectories.h5` (plus a config snapshot `ims_traj
 - fixed-step RK4, adaptive RK45, Boris pusher
 - Deterministic + stochastic collision loop
 - OpenMP support (multi-core CPU)
-- GPU support (compiled; primary runtime GPU path disabled in v1.0.0; helpers remain experimental)
+- GPU support (compiled; primary runtime GPU path disabled in v1.0.1; helpers remain experimental)
 
 ## Input System
 
@@ -178,11 +178,11 @@ cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DUSE_GPU_ACCEL=ON
 cmake --build build -j"$(nproc)"
 ```
 
-CUDA toolkit and drivers must be installed; runtime falls back to CPU for v1.0.0.
+CUDA toolkit and drivers must be installed; runtime falls back to CPU for v1.0.1.
 
 ### Tested on (current developer setup)
 
-- Ubuntu 24.04 LTS on WSL2 — CPU build; CUDA 12.0 toolkit build tested with `-DUSE_GPU_ACCEL=ON` (runtime still CPU in v1.0.0)
+- Ubuntu 24.04 LTS on WSL2 — CPU build; CUDA 12.0 toolkit build tested with `-DUSE_GPU_ACCEL=ON` (runtime still CPU in v1.0.1)
 - Notes: broader platform coverage to follow as we add validation runs.
 
 **From a fresh clone:**
@@ -436,7 +436,7 @@ is printed by default.
 
 # Validation & Physics Benchmarks
 
-ICARION v1.0.0 provides built-in validation configurations:
+ICARION v1.0.1 provides built-in validation configurations:
 
 - IMS mobility vs Mason–Schamp
 - Quadrupole a–q stability points
@@ -444,7 +444,7 @@ ICARION v1.0.0 provides built-in validation configurations:
 - TOF energy-time scaling
 - LQIT secular frequency checks
 
-Full physics results are documented in `validation/VALIDATION_REPORT_v1.0.0.md` (see `validation/README.md` for how to run the suite).
+Full physics validation baseline results are documented in `validation/VALIDATION_REPORT_v1.0.0.md` (see `validation/README.md` for how to run the suite).
 
 Fast regression tests (CTests) live under `tests/` and are recommended after a build.
 See `tests/README.md` for the complete list and tags. Run from `build/`:
@@ -463,7 +463,7 @@ ICARION/
 ├── CMakeLists.txt              # Root CMake configuration
 ├── LICENSE                     # GNU GPL v3.0
 ├── README.md                   # This file
-├── RELEASE_NOTES_v1.0.0.md       # v1.0.0 release notes
+├── RELEASE_NOTES_v1.0.0.md       # historical v1.0.0 release notes
 ├── build/                      # CMake build artifacts (generated)
 ├── analysis/                   # Analysis scripts/outputs
 ├── cmake/                      # CMake modules and configuration

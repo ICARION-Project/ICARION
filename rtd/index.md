@@ -35,5 +35,14 @@ ICARION v1.0.1 focuses on the validated CPU execution path. GPU-related helper c
 
 For reproducibility checks, see [Validation](validation.md).
 
+## Citation
+
+A peer-reviewed journal article describing ICARION is planned. Until the article
+is available, please cite the corresponding ICARION software release and
+repository.
+
+Once the journal article has been published, please cite the article in addition
+to the software release when using ICARION in scientific work.
+
 !!! note
     This documentation is an initial user-facing manual. It is intended to complement the shorter repository README and the more detailed technical Markdown files already present in the repository.

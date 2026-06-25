@@ -6,6 +6,9 @@ Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 <p align="center">
   <img src="https://img.shields.io/badge/C%2B%2B-17-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/License-GPL--3.0--only-blue?style=flat-square" />
+  <a href="https://icarion.readthedocs.io/en/latest/?badge=latest">
+    <img src="https://readthedocs.org/projects/icarion/badge/?version=latest" alt="Documentation Status" />
+  </a>
   <a href="https://github.com/ICARION-Project/ICARION/releases/latest">
     <img src="https://img.shields.io/github/v/release/ICARION-Project/ICARION?style=flat-square" alt="Latest Release" />
   </a>
@@ -30,6 +33,16 @@ Start with `ICARION-Launcher-Guide.md` if you use the Windows or Linux launcher.
 - **Experimental components (off-path for v1.0.1 results):** GPU EHSS geometry upload, GPU space-charge P³M, and adaptive field interpolation are present but incomplete; the primary runtime GPU path in `SimulationEngine` is disabled for v1.0.1 (helpers remain buildable for dev/testing).
 
 # Documentation
+
+The user documentation is available at:
+
+<https://icarion.readthedocs.io/en/latest/>
+
+It includes installation instructions, first simulations, configuration files,
+species and reaction databases, collision models, HDF5 output, analysis
+workflows, and validation.
+
+Additional repository documentation:
 
 - [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md) — configuration fields, schema, and validation.
 - [docs/CLI_USAGE.md](docs/CLI_USAGE.md) — command-line flags and batch usage.
@@ -569,5 +582,9 @@ GNU GPL v3.0, see LICENSE file.
 
 # Citation
 
-A peer-reviewed article will follow.
-Until then, please cite the GitHub repository.
+A peer-reviewed journal article describing ICARION is planned. Until the article
+is available, please cite the corresponding ICARION software release and
+repository.
+
+Once the journal article has been published, please cite the article in addition
+to the software release when using ICARION in scientific work.

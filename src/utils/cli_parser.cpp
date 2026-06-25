@@ -15,7 +15,7 @@
 #endif
 
 #ifndef ICARION_VERSION
-#define ICARION_VERSION "1.0.0"
+#define ICARION_VERSION "1.0.1"
 #endif
 
 #ifndef GIT_HASH

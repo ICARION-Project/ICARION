@@ -239,8 +239,8 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         return;
     }
 
-    // Hard-disable experimental GPU path for v1.0.0
-    output_manager_->log_progress("GPU: Disabled for v1.0.0 (experimental path remains built but not used). Running CPU-only.");
+    // Hard-disable experimental GPU path for v1.0.1
+    output_manager_->log_progress("GPU: Disabled for v1.0.1 (experimental path remains built but not used). Running CPU-only.");
     return;
 
     output_manager_->log_progress("GPU: Experimental path (E/B-only). Space-charge, damping, magnetic forces, and multi-domain batches are NOT supported; falling back to CPU in those cases.");

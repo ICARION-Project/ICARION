@@ -4,6 +4,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 
+#include <atomic>
+#include <thread>
+
 #include "core/physics/collisions/HSSCollisionHandler.h"
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/config/types/SpeciesConfig.h"

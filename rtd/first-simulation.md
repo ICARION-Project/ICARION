@@ -47,7 +47,17 @@ ICARION uses an explicit random number generator seed for reproducibility. To ov
 ./build/src/icarion_main --seed 42 examples/ims/ims_basic.json
 ```
 
-## 4. Inspect the output
+## 4. Run with a fixed number of OpenMP threads
+
+If ICARION was built with OpenMP support, you can specify the number of parallel OpenMP CPU threads from the command line: 
+
+```bash
+./build/src/icarion_main examples/ims/ims_basic.json --threads 4
+```
+
+Current benchmarks suggest that 4 to 8 parallel threads are often a good starting range, although the optimal value depends on ion count, collision model, write interval, and available hardware.
+
+## 5. Inspect the output
 
 A simulation typically writes an HDF5 trajectory file and a resolved configuration snapshot. For `examples/ims/ims_basic.json`, the default output is `results/ims/ims_trajectories.h5` plus `results/ims/ims_trajectories.config.json`.
 

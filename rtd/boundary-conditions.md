@@ -9,7 +9,7 @@ are configured per domain under `domains[].boundary`.
 }
 ```
 
-If no boundary block is given, ICARION defaults to absorption.
+If no boundary block is given, ICARION defaults to `Absorption`.
 
 ## Supported types
 
@@ -18,9 +18,9 @@ If no boundary block is given, ICARION defaults to absorption.
 | `Absorption` | `absorption` | Removes the ion from the simulation. |
 | `SpecularReflection` | `specular` | Mirrors the velocity at the boundary normal. |
 | `DiffuseReflection` | `diffuse` | Emits into a randomized direction with partial thermalization. |
-| `ThermalReflection` | `thermal` | Re-emits from a Maxwell-Boltzmann distribution at wall temperature. |
+| `ThermalReflection` | `thermal` | Re-emits ions sampled from a Maxwell-Boltzmann distribution at wall temperature. |
 
-Use the canonical names in new configurations. The lowercase aliases are
+Use the canonical names specified by `Type` in new configurations. The lowercase aliases are
 accepted for convenience.
 
 ## Reflection parameters
@@ -36,7 +36,7 @@ Diffuse and thermal reflections use:
 ```
 
 - `accommodation_coeff` is constrained to `0.0 ... 1.0`.
-- `0.0` behaves more elastically.
+- `0.0` behaves elastically.
 - `1.0` means full thermal accommodation.
 - `temperature_K` is the wall temperature.
 - If `temperature_K` is omitted, the domain environment temperature is used.
@@ -50,8 +50,8 @@ Absorbed ions are no longer active. Their removal is visible in trajectory and
 ion status output, including elimination timing when that dataset is
 written. Reflection keeps the ion alive, but changes its velocity at the wall.
 
-For detector domains, absorption is usually the clearest model. For wall 
-collision studies, reflection can be useful, but it changes residence 
+For detector domains, absorption is usually the clearest boundary type. For wall 
+collision studies or control simulations, reflection can be useful, but it changes residence 
 times and energy distributions. Treat those results as part of the
 physical model, not as a numerical detail.
 
@@ -64,4 +64,4 @@ physical model, not as a numerical detail.
   explicitly.
 
 When debugging unexpected losses, first run with `--validate-config`, inspect
-the initial ion cloud, and reduce `simulation.dt_s`.
+the initial ion cloud (compared to the domain geometry), and reduce `simulation.dt_s`.

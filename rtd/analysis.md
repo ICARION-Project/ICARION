@@ -165,7 +165,7 @@ Choose the transmission definition that matches the simulated instrument and bou
 
 ---
 
-## Arrival-time estimate from trajectories
+## Arrival time estimate from trajectories
 
 For IMS simulations, an approximate arrival time is the first stored time at which an ion reaches the end of the drift region.
 
@@ -284,7 +284,7 @@ Before interpreting physics, check:
 - The HDF5 file contains the expected number of ions.
 - The stored `config_json` matches the config you intended to run.
 - The git hash and dirty flag are known.
-- Ions did not immediately hit boundaries because of a geometry or initial-position mistake.
+- Ions did not immediately hit boundaries because of a geometry or initial position mistake.
 - The arrival time estimate is not limited by a `write_interval` that is too large.
 - Reactions did not stay disabled accidentally.
 - Species IDs match the species database.

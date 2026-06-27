@@ -8,8 +8,9 @@ For most users, the easiest starting point is the latest release package from th
 
 <https://github.com/ICARION-Project/ICARION/releases/latest>
 
-Download the package for your operating system and follow the release notes. The
-package layouts and launcher entry points are summarized in
+Download the package for your operating system and follow the release notes and the 
+`ICARION-Launcher-Guide.md`. The package layouts and launcher 
+entry points are summarized in
 [Release packages and launcher](release-packages.md).
 
 ## Build from source

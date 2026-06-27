@@ -1,6 +1,6 @@
 # Output files
 
-ICARION writes simulation results as HDF5 files. The output is meant to be inspectable without rerunning the simulation: it stores trajectory arrays, initial ion metadata, domain settings, selected configuration values, reproducibility metadata, and optional compact analysis output.
+ICARION writes simulation results as HDF5 files. The output is inspectable without rerunning the simulation: it stores trajectory arrays, initial ion metadata, domain settings, selected configuration values, reproducibility metadata, and optional compact analysis output.
 
 For the first example run:
 
@@ -43,7 +43,7 @@ The output path is controlled by the `output` section:
 | `print_progress` | Print runtime progress to the console. |
 | `buffer_byte_cap` | Optional trajectory buffer memory cap in bytes; `0` means unlimited. |
 
-You can override output paths from the CLI:
+You can override output paths from the CLI (see also the [CLI Reference](cli-reference.md)):
 
 ```bash
 ./build/src/icarion_main \
@@ -146,7 +146,7 @@ The ions group stores per-ion metadata captured at initialization and updated at
 | `initial_pos_x`, `initial_pos_y`, `initial_pos_z` | `[N]` | Initial position components in m. |
 | `initial_vel_x`, `initial_vel_y`, `initial_vel_z` | `[N]` | Initial velocity components in m/s. |
 | `birth_time_s` | `[N]` | Ion birth time. |
-| `death_time_s` | `[N]` | Ion loss/death time; often `-1` for ions still active at the end. |
+| `death_time_s` | `[N]` | Ion loss/death time; `-1` for ions still active at the end. |
 | `charge_C` | `[N]` | Ion charge in Coulomb. |
 
 Use this group to check whether the generated ion cloud matches your intended species, positions, velocities, and birth times.
@@ -184,7 +184,7 @@ Common domain datasets:
 | `domain_<i>/environment/temperature_K` | Gas temperature. |
 | `domain_<i>/environment/gas_species` | Gas species label. |
 | `domain_<i>/environment/gas_velocity_ms` | Bulk gas flow velocity. |
-| `domain_<i>/fields/dc/`, `rf/`, `ac/` | Static or time-zero field settings. |
+| `domain_<i>/fields/dc/`, `rf/`, `ac/` | Static or `t=0` field settings. |
 
 This group is useful when comparing two HDF5 files and checking whether the intended geometry, gas, and field settings were actually used.
 
@@ -228,7 +228,7 @@ The actual species state over time is stored through `trajectory/species_id_indi
 
 ## `trajectory_mode = "minimal"`
 
-Minimal mode is useful when you do not need full time-series trajectories. It keeps the HDF5 metadata but writes compact final-state data under:
+Minimal mode is useful when you do not need full time series trajectories. It keeps the HDF5 metadata but writes compact final-state data under:
 
 ```text
 /analysis/minimal_transport/
@@ -249,7 +249,7 @@ Important datasets:
 | `active` | `[N]` | Whether the ion is active at the end. |
 | `born` | `[N]` | Whether the ion had been born/activated. |
 
-Minimal mode is not a drop-in replacement for arrival-time or diffusion analysis because intermediate trajectory frames are omitted.
+Minimal mode is not a drop-in replacement for arrival time or diffusion analysis because intermediate trajectory frames are omitted.
 
 ---
 

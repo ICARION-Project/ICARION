@@ -2,11 +2,11 @@
 
 **ICARION** (*Ion Collision And Reaction IntegratiON*) is a modular framework for particle-based ion trajectory simulations in electric fields and neutral gas environments.
 
-ICARION is designed for reproducible simulations of ion transport, stochastic ion-neutral collisions, ion-molecule reactions, and coupled multi-domain ion mobility–mass spectrometry (IMS-MS) instruments.
+ICARION is designed for reproducible simulations of ion transport in electric fields under the influence of (stochastic) ion-neutral collisions, ion-molecule reactions, and with a focus on ion mobility and mass spectrometry instruments.
 
 ## What ICARION is for
 
-ICARION can be used to model ion motion in instrument regions such as drift cells, RF quadrupoles, time-of-flight sections, linear ion traps, Orbitraps, and FT-ICR. Its main purpose is to combine deterministic electric or magnetic fields with collisional transport and optional chemistry in one reproducible simulation workflow.
+ICARION can be used to model ion motion in instrument regions such as drift cells, RF quadrupoles, time-of-flight sections, linear ion traps, Orbitraps, and FT-ICR, including multi-domain couplings of these. Its main purpose is to combine transport in deterministic electric or magnetic fields with collisional effects and optional effects of chemistry in one reproducible simulation workflow.
 
 ## Core ideas
 
@@ -38,8 +38,8 @@ For reproducibility checks, see [Validation](validation.md).
 ## Citation
 
 A peer-reviewed journal article describing ICARION is planned. Until the article
-is available, please cite the corresponding ICARION software release and
-repository.
+is available, please cite the corresponding ICARION software release on Zenodo (https://zenodo.org/records/20599037) 
+or the GitHub (https://github.com/ICARION-Project/ICARION) repository.
 
 Once the journal article has been published, please cite the article in addition
 to the software release when using ICARION in scientific work.

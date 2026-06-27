@@ -31,4 +31,4 @@ The output manager writes trajectory data and metadata to HDF5 [outputs](output-
 
 ## Developer notes
 
-For implementation-level details, refer to the architecture documentation and source files in the repository.
+For implementation details, refer to the architecture documentation and source files in the repository.

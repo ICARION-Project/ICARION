@@ -68,7 +68,7 @@ Product species must exist in the species database.
 | `examples/waveforms/linear_voltage_ramp.json` | Linear voltage ramp. |
 | `examples/waveforms/frequency_chirp.json` | Time-dependent RF frequency. |
 | `examples/waveforms/amplitude_modulation.json` | Sinusoidal amplitude modulation. |
-| `examples/waveforms/arbitrary_waveform.json` | Table-driven arbitrary waveform. |
+| `examples/waveforms/arbitrary_waveform.json` | Table-defined arbitrary waveform. |
 | `examples/waveforms/exponential_pressure_control.json` | Exponential control waveform. |
 | `examples/waveforms/reusable_waveforms.json` | Named waveform references. |
 
@@ -83,7 +83,7 @@ Supporting data/examples:
   field arrays.
 - `examples/ion_clouds/default_cloud.json`: reusable ion cloud input.
 
-Field arrays are external inputs. Archive them with the configuration and output
+Field arrays are external inputs. We suggest to archive them with the configuration and output
 when a run must be reproducible.
 
 ## Parameter studies

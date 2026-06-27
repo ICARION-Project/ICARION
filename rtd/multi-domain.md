@@ -37,4 +37,70 @@ A simple coupled IMS-quadrupole setup may use:
 1. an IMS domain with helium gas and a uniform axial electric field,
 2. followed by a quadrupole mass filter domain with RF/DC fields and much lower pressure.
 
-This allows one simulation to describe both ion mobility separation and mass filtering.
+This allows one simulation to describe both ion mobility separation at collisional conditions and mass filtering.
+
+The following excerpt shows the domain part of such a setup. It is not a full
+runnable configuration; a complete file also needs `simulation`, `physics`,
+`output`, `ions`, and database paths.
+
+```json
+{
+  "domains": [
+    {
+      "name": "ims_drift",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.06,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 500.0,
+        "gas_species": "He",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 10.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    },
+    {
+      "name": "rf_quadrupole",
+      "instrument": "Quadrupole",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.06],
+        "length_m": 0.05,
+        "radius_m": 0.005
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 0.001,
+        "gas_species": "N2"
+      },
+      "fields": {
+        "RF": {
+          "voltage_V": 100.0,
+          "frequency_Hz": 2000000.0,
+          "phase_rad": 0.0
+        },
+        "DC": {
+          "quad_V": 0.0,
+          "axial_V": 500.0
+        }
+      },
+      "boundary": {
+        "type": "Absorption"
+      }
+    }
+  ]
+}
+```
+
+The second domain starts where the first one ends (`origin_m.z = 0.06` in this
+example). Keep adjacent domains geometrically consistent, otherwise ions may be
+lost at boundaries or spend time in unintended regions.

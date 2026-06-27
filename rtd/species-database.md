@@ -29,7 +29,7 @@ The smallest useful species database contains a `species` object. Each key is th
       "CCS_A2": 24.9,
       "reference_temperature_K": 298.15,
       "reference_pressure_Pa": 101325.0,
-      "ccs_method": "trajectory"
+      "ccs_method": "MobCal-MPI 2.0"
     },
     "PentanalH+": {
       "name": "Pentanal protonated",
@@ -64,7 +64,7 @@ The smallest useful species database contains a `species` object. Each key is th
 |---|---:|---|
 | `mobility_cm2Vs` | cm²/(V s) | Reduced mobility used by deterministic mobility/friction-style models. |
 | `CCS_A2` | Å² | Collision cross section used by collision models when no gas-specific value is given. |
-| `CCS_HSS` | Å² by gas | Gas-specific CCS map for hard-sphere/HSS transport. |
+| `CCS_HSS` | Å² by gas | Gas-specific CCS map for HSS collision model. |
 | `CCS_EHSS` | Å² by gas | Gas-specific effective CCS map for EHSS if precomputed. |
 | `geometry_file` | path | Molecular geometry file used by EHSS workflows. |
 | `EHSS_samples_file` | path | Precomputed EHSS orientation/sample file. |
@@ -85,7 +85,7 @@ The different CCS values are used by the different available [collision models](
 
 ## Units and conversions
 
-Species databases use user-friendly units. ICARION converts them internally:
+Species databases use user-friendly units. ICARION converts them internally to SI units:
 
 | Input field | Input unit | Internal unit |
 |---|---:|---:|
@@ -179,7 +179,7 @@ and in reactions as:
 Common mistakes:
 
 - using `PentanalH` instead of `PentanalH+`,
-- using the human-readable `name` instead of the species ID,
+- using the human-readable `name` (`Pentanal protonated`) instead of the species ID,
 - changing species IDs in the database but not in reaction files,
 - using neutral species in reactions without adding them to the database.
 
@@ -210,4 +210,4 @@ Then in the simulation config:
 }
 ```
 
-For publication data, archive the exact species database together with the config and output file for reproducibility and transparency.
+For publication data, we suggest to archive the exact species database together with the config and output file for reproducibility and transparency.

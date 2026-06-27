@@ -33,7 +33,7 @@ For example, a standalone time-of-flight simulation may often use `NoCollisions`
 
 ---
 
-## Continuum vs. discrete-collision descriptions
+## Continuum vs. discrete collision descriptions
 
 ICARION contains two broad classes of gas interaction models.
 
@@ -86,7 +86,9 @@ Use `NoCollisions` when the simulated region is intended to be operated in vacuu
 
 Use `Friction` when the reduced mobility is known and you mainly need the correct mean drift behavior or arrival time. This is often a good first model for IMS drift sanity checks.
 
-Use `Friction` plus an OU thermalization term when deterministic damping should be balanced by thermal velocity fluctuations. The OU term prevents all random motion from simply damping away.
+Use `Friction` plus an OU thermalization term when a continuum damping model
+should also maintain a finite thermal velocity spread. The OU term adds
+stochastic thermal kicks consistent with the target gas temperature.
 
 Use `HSS` when individual collision timing, stochastic scattering, diffusion, or pressure-dependent transport matters.
 
@@ -179,7 +181,7 @@ A common relation is:
 gamma = q / (K m)
 ```
 
-where `q` is the ion charge, `m` is the ion mass, `K` is the mobility under the local gas conditions, and `gamma` is the damping coefficient.
+where `q` is the ion charge, `m` is the ion mass, `K` is the mobility under the local gas conditions, and `gamma` is the damping coefficient incorporated into Newton's equation of motion.
 
 The reduced mobility is usually specified in the species database:
 
@@ -226,7 +228,7 @@ Conceptually:
 ```text
 friction removes kinetic energy
 OU kicks add thermal fluctuations
-balance -> Maxwell-Boltzmann-like equilibrium
+balance -> approaches Maxwell-Boltzmann equilibrium
 ```
 
 This is useful for deterministic damping models such as Friction when thermal spreading should be represented without explicit binary collisions.
@@ -345,7 +347,7 @@ Use EHSS when:
 
 ### Important limitations
 
-EHSS is still a hard-sphere model. It does not automatically include long-range ion-induced dipole interactions, charge-transfer physics, inelasticity, or reactive chemistry. Reactions are handled separately; see [Reactions](reactions.md).
+EHSS is still a hard-sphere model. It does not automatically include long-range ion-neutral interactions, inelasticity, or reactive chemistry. Reactions are handled separately; see [Reactions](reactions.md).
 
 EHSS is also more sensitive to input quality. Poor geometries, inconsistent radii, inconsistent CCS values, or missing gas-specific data can produce misleading results. For production work, compare EHSS results against HSS and/or Friction baselines and run the relevant checks in [Validation](validation.md).
 

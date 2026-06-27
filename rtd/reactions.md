@@ -197,9 +197,9 @@ The ion then reacts stochastically with that effective first-order rate.
 
 ---
 
-## Buffer-gas fallback concentration
+## Buffer gas fallback concentration
 
-For pseudo-first-order reactions using the configured buffer gas density, an order term can use the neutral/buffer-gas fallback convention:
+For pseudo-first-order reactions using the configured buffer gas density, an order term can use the neutral/buffer gas fallback convention:
 
 ```json
 {
@@ -217,7 +217,7 @@ For pseudo-first-order reactions using the configured buffer gas density, an ord
 }
 ```
 
-In that case ICARION uses the gas density implied by the domain environment. This is useful for generic buffer-gas processes, but explicit concentrations are usually clearer.
+In that case ICARION uses the gas density implied by the domain environment. This is useful for generic buffer gas processes, but explicit concentrations are usually clearer and more relevant.
 
 ---
 
@@ -301,7 +301,9 @@ Multiple reactions can share the same reactant:
 }
 ```
 
-The total reaction probability is determined from the sum of effective channel rates. If a reaction occurs, the channel is selected according to the relative rates.
+The total reaction probability is determined from the sum of effective channel
+rates. If a reaction occurs, ICARION randomly selects one channel with weights
+proportional to the effective rates, i.e. `P(channel i) = k_eff,i / k_total`.
 
 For the example above, channel A should occur about twice as often as channel B, ignoring statistical noise.
 
@@ -315,8 +317,8 @@ Before running a large reaction simulation:
 - Check that `physics.enable_reactions` is `true`.
 - Check that `reaction_database` points to the intended file.
 - Check that every `reactant` and `product` exists in the species database.
-- Check rate-constant units: `s^-1` for first-order, `m^3/s` for one concentration term, `m^6/s` for two concentration factors.
-- Start with a simple one-channel reaction and compare to `exp(-k_eff t)`.
+- Check rate constant units: `s^-1` for first-order, `m^3/s` for one concentration term, `m^6/s` for two concentration factors.
+- Start with a simple one channel reaction and compare to `exp(-k_eff t)`.
 - Use a fixed `rng_seed` for reproducible debugging.
 
 ---
@@ -327,6 +329,6 @@ Before running a large reaction simulation:
 |---|---|
 | No species conversion | `enable_reactions` is false or reaction database not loaded. |
 | Dry-run fails | Reactant/product missing from species database. |
-| Reaction too fast | `rate_constant` entered in cm³/s instead of m³/s, or concentration too high. |
+| Reaction too fast | `rate_constant` entered in wrong units, or concentration too high. |
 | Reaction too slow | Missing concentration term or wrong order. |
 | Product has wrong transport behavior | Product species lacks CCS/mobility values. |

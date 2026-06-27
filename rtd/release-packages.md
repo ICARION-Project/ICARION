@@ -1,6 +1,6 @@
 # Release packages and launcher
 
-For new users, the release packages are the preferred starting point. They avoid
+For new users, the release packages are the suggested starting point. They avoid
 local CMake setup and include examples, schemas, documentation, launchers, and
 basic analysis scripts.
 

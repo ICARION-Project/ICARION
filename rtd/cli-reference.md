@@ -27,7 +27,7 @@ The checks cover different layers:
 
 - `--dry-run` loads the configuration and exits before the simulation loop.
 - `--validate-config` prints runtime validation warnings and errors.
-- `--validate-schema` checks the JSON file against the schema files.
+- `--validate-schema` checks the JSON file against the schema files (to check if all fields are valid).
 
 For first time debugging, use both schema and runtime validation. Note 
 that a valid schema file can still be physically questionable, for example 
@@ -60,7 +60,7 @@ Useful flags:
 - `--buffer-byte-cap BYTES`: cap the in-memory trajectory buffer; `0` disables
   the cap.
 
-For long runs, prefer an explicit output directory and a descriptive filename.
+For anything other than short test runs, prefer an explicit output directory and a descriptive filename.
 See [Output files](output-files.md) for the HDF5 layout.
 
 ## Logging

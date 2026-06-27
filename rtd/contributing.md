@@ -31,6 +31,7 @@ When adding a new physical model, include:
 
 - a clear description of the assumptions,
 - configuration fields and defaults,
+- update allows configuration schema, if applicable,
 - unit conventions,
 - at least one small test case,
 - and one validation or sanity-check example when possible.

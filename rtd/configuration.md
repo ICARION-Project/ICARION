@@ -42,11 +42,12 @@ This section defines the numerical time axis and integrator.
 
 | Parameter | Typical value | Unit | Meaning |
 |---|---:|---:|---|
-| `total_time_s` | `1e-4` to `1e-2` | s | Physical simulation time. Must be long enough for ions to cross the domain or reach the relevant trapping time. |
+| `total_time_s` | `1e-4` to `1` | s | Physical simulation time. Must be long enough for ions to cross the domain or reach the relevant trapping time. |
 | `dt_s` | `1e-10` to `1e-7` | s | Base integration step. Choose smaller values for fast RF fields, high collision rates, and high kinetic energy. |
 | `integrator` | `"RK4"`, `"RK45"`, `"Boris"` | - | Numerical integrator. Use `Boris` mainly for magnetic-field problems; `RK4`/`RK45` for most electrostatic/RF examples. |
 | `write_interval` | `10` to `1000` | steps | Store every n-th integration step. Increase this to reduce HDF5 size. |
 | `rng_seed` | integer | - | Global random seed for reproducible stochastic collisions and reactions. |
+| `enable_openmp` | `true` | - | Enable OpenMP parallel execution. |
 | `enable_gpu` | `false` | - | Request GPU execution where supported. CPU is the validated default for v1.0.x. |
 
 Example:
@@ -59,6 +60,7 @@ Example:
     "integrator": "RK4",
     "write_interval": 100,
     "rng_seed": 42,
+    "enable_openmp":true,
     "enable_gpu": false
   }
 }
@@ -79,7 +81,7 @@ This section selects the active collision, reaction, and space charge models. Fo
 | Parameter | Example | Meaning |
 |---|---|---|
 | `collision_model` | `"NoCollisions"`, `"Friction"`, `"HSS"`, `"EHSS"` | Selects ion-neutral collision handling. |
-| `enable_reactions` | `true` / `false` | Enables stochastic species conversion from the reaction database. |
+| `enable_reactions` | `true` / `false` | Enables stochastic species conversion from the reaction database based on configured reaction kinetics. |
 | `enable_space_charge` | `true` / `false` | Enables ion-ion space charge effects if configured. |
 
 Example without reactions:
@@ -137,17 +139,25 @@ See [Output files](output-files.md) and [Analysis workflow](analysis.md) for wha
 
 ## Domains
 
-`domains` is an array of instrument regions. A simple IMS simulation may contain one domain; an IMS-quadrupole simulation contains at least two. See [Multi-domain simulations](multi-domain.md) for more details.
+`domains` is an array of instrument regions. A simple IMS simulation may contain one domain; a multi-dommanin (e.g., IMS-quadrupole) simulation contains at least two. See [Multi-domain simulations](multi-domain.md) for more details.
 
 Each domain should define:
 
 | Group | Typical fields | Meaning |
 |---|---|---|
 | identity | `name`, `instrument` | Human-readable name and instrument/domain type. |
-| geometry | `origin_m`, `length_m`, `radius_m` | Spatial extent and acceptance boundaries. |
+| geometry | `origin_m`, `length_m`, `radius_m` | Spatial extent and geometry boundaries. When ions reach these boundaries, the boundary actions specified by `boundary` will be enforced. |
 | environment | `pressure_Pa`, `temperature_K`, `gas_species` | Neutral gas conditions used by collisions, reactions, and transport. |
-| fields | instrument-dependent | DC, RF, AC, magnetic fields, imported field arrays, or analytic fields. |
-| boundary | `type`, optional reflection parameters | What happens when ions reach a domain wall. |
+| fields | instrument-dependent | DC, RF, AC, and/or magnetic fields for analytic fields; or imported field arrays. |
+| boundary | `type` | Specifies what happens when ions reach a domain wall. These including absorption or different reflection descriptions, see [Boundary conditions](boundary-conditions.md). |
+
+Available `instrument` types include: 
+* ion mobility spectrometers: `IMS`
+* linear (quadrupole) ion traps: `LQIT`
+* Orbitraps: `ORBITRAP` 
+* RF-Quadrupole (either as ion guide or mass filter, depending on specified voltages): `QUADRUPOLE`
+* time-of-flight regions: `TOF`
+* FT-ICR: `FT-ICR`, or `FTICR`
 
 Minimal IMS domain skeleton:
 
@@ -179,7 +189,7 @@ For a first IMS run:
 - Use one domain with `instrument = "IMS"`.
 - Use He if you want to compare to the provided species database and validation examples.
 - Start at moderate pressure, e.g. `200 Pa`, for stochastic HSS/EHSS runs.
-- Use a geometry long enough that the ion cloud leaves the starting region during `total_time_s`.
+- Use a with appropriate length that the ion cloud leaves the starting region during `total_time_s`.
 
 For RF devices:
 
@@ -188,9 +198,9 @@ For RF devices:
 
 For coupled simulations with multiple instrument domains, see [Multi-domain simulations](multi-domain.md).
 
-Field keys, waveform references, field arrays, and magnetic-field options are
-covered in [Fields and waveforms](fields-waveforms.md). Boundary behavior is
-covered in [Boundary conditions](boundary-conditions.md).
+Field keys, waveform references, field array implementation, and magnetic field options are
+covered in [Fields and waveforms](fields-waveforms.md), with all required voltage parameters for each instrument summarized. 
+Boundary behavior is covered in [Boundary conditions](boundary-conditions.md).
 
 ---
 

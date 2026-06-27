@@ -79,7 +79,7 @@ Depending on the selected suite and hardware, the full validation suite can take
 | HDF5 output structure | yes | yes, through generated outputs |
 | RNG/reproducibility | yes | yes, for repeated validation runs |
 | IMS drift / mobility | selected regression tests | instrument validation and analysis scripts |
-| Quadrupole / LQIT / Orbitrap / TOF | selected tests | instrument suite |
+| Quadrupole / linear ion trap / Orbitrap / TOF | selected tests | instrument suite |
 | Thermalization / collision models | selected tests | physics suite |
 | Reactions | selected tests | reaction validation scripts |
 | Space charge | selected tests | physics/space-charge suite |
@@ -130,7 +130,7 @@ cd validation
 ./scripts/run_instrument_suite.sh
 ```
 
-This covers instrument-type validations such as IMS, LQIT, Orbitrap, quadrupole, TOF, and FT-ICR test cases where available.
+This covers instrument-type validations such as IMS, linear ion traps, Orbitrap, RF quadrupoles (ion guide or mass analyzers), TOF, and FT-ICR test cases where available.
 
 ### Physics
 
@@ -139,7 +139,7 @@ cd validation
 ./scripts/run_physics_suite.sh
 ```
 
-The physics runner covers components such as thermalization, transport, reactions, and space charge.
+The physics runner covers physical behavior such as collisional thermalization, transport, reactions, and space charge.
 
 Run only a focused subset if supported by the runner:
 
@@ -212,7 +212,7 @@ cd build
 ctest --output-on-failure
 ```
 
-For physics-affecting changes:
+For changes affecting physics:
 
 ```bash
 cd validation
@@ -220,7 +220,7 @@ cd validation
 ./scripts/run_instrument_suite.sh --run-id branch_name_instruments
 ```
 
-For performance-sensitive changes:
+For changes sensitive to performance:
 
 ```bash
 cd validation

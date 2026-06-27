@@ -38,8 +38,9 @@ For reproducibility checks, see [Validation](validation.md).
 ## Citation
 
 A peer-reviewed journal article describing ICARION is planned. Until the article
-is available, please cite the corresponding ICARION software release on Zenodo (https://zenodo.org/records/20599037) 
-or the GitHub (https://github.com/ICARION-Project/ICARION) repository.
+is available, please cite the corresponding ICARION
+[software release](https://doi.org/10.5281/zenodo.20599037) and
+[GitHub repository](https://github.com/ICARION-Project/ICARION).
 
 Once the journal article has been published, please cite the article in addition
 to the software release when using ICARION in scientific work.

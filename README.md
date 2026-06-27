@@ -583,8 +583,9 @@ GNU GPL v3.0, see LICENSE file.
 # Citation
 
 A peer-reviewed journal article describing ICARION is planned. Until the article
-is available, please cite the corresponding ICARION software release and
-repository.
+is available, please cite the corresponding ICARION
+[software release](https://doi.org/10.5281/zenodo.20599037) and
+[GitHub repository](https://github.com/ICARION-Project/ICARION).
 
 Once the journal article has been published, please cite the article in addition
 to the software release when using ICARION in scientific work.

@@ -359,7 +359,7 @@ EHSS is also more sensitive to input quality. Poor geometries, inconsistent radi
 `InteractionPotentialModel` uses precomputed HDF5 lookup data instead of
 resolving the ion-neutral potential at runtime. The precompute tool integrates
 classical scattering trajectories for sampled molecular orientations and
-relative-speed bins, then stores momentum-transfer cross sections and sampled
+relative speed bins, then stores momentum-transfer cross sections and sampled
 momentum kicks. The runtime loads this table through `ipm_samples_file`.
 
 Example species entry:
@@ -387,6 +387,80 @@ Example physics section:
 }
 ```
 
+The main precompute settings are:
+
+| Setting | Values | Meaning |
+|---|---|---|
+| `--potential` | `lj1264`, `exp6` | Pair interaction used during offline trajectory integration. |
+| `--mixing-rule` | `lb`, `mmff`, `pair` | How ion-atom and gas-atom van der Waals parameters are combined. |
+| `--polarization` | `partial`, `total`, `pairwise`, `none` | How ion-induced dipole attraction is represented. |
+| `--param-model` | `sigma_epsilon`, `mmff_reij` | Element parameter source; `mmff_reij` is used with the Exp-6/MMFF path. |
+| `--store-full-cdf` | flag | Stores sampled momentum-kick CDFs instead of only summary statistics. |
+
+### Interaction potential terms
+
+For a gas probe position \(r\) and ion atom positions \(R_i\), the offline
+trajectory integrator evaluates a sum of pair, polarization, and optional
+quadrupole terms. Forces are computed as \(\mathbf{F} = -\nabla V\) from the
+same potential.
+
+For `--potential lj1264`, the (12,6) Lennard-Jones potential is used:
+
+$$
+V_{\mathrm{LJ}}(r) =
+\sum_i \left[
+\frac{C_{12,i}}{\lvert r - R_i \rvert^{12}}
+-
+\frac{C_{6,i}}{\lvert r - R_i \rvert^6}
+\right]
+$$
+
+where \(C_{12,i} = 4\epsilon_i\sigma_i^{12}\) and
+\(C_{6,i} = 4\epsilon_i\sigma_i^6\) after the selected mixing rule has been
+applied to the Lennard-Jones parameters.
+
+For `--potential exp6`, the modified Buckingham potential is used:
+
+$$
+V_{\mathrm{Exp6}}(r) =
+\sum_i \epsilon_i
+\left[
+A\exp(-\beta\rho_i) - B\rho_i^{-6}
+\right],
+\qquad
+\rho_i = \frac{\lvert r - R_i \rvert}{\sigma_i}
+$$
+
+with \(A = 1.84 \times 10^5\), \(B = 2.25\), and \(\beta = 12\) in the current
+precompute tool. The `mmff_reij` parameter path supplies MMFF-style \(R^*_{ij}\)
+and \(e_{ij}\) values for this Exp-6 form.
+
+Polarization can be disabled, represented by atom-centered partial charges, or
+by an explicit field-squared model. This term is added to the chosen interaction
+potential (Lennard-Jones or modified Buckingham):
+
+$$
+V_{\mathrm{pol,atom}}(r) =
+\sum_i -\frac{C_{4,i}}{\lvert r - R_i \rvert^4}
+$$
+
+$$
+V_{\mathrm{pol,total}}(r) =
+-\frac{1}{2}\alpha\lvert E(r) \rvert^2
+$$
+
+The damped atom-centered form replaces \(\lvert r - R_i \rvert^2\) by
+\(\lvert r - R_i \rvert^2 + a_{\mathrm{damp}}^2\) at short range. The `pairwise`
+mode reconstructs the electric field from explicit ion charges at the gas position; for anisotropic
+`N2`, the scalar polarizability can be replaced by parallel/perpendicular tensor
+components relative to the sampled gas axis.
+
+For diatomic `N2`, the pair interaction is evaluated at the two gas sites along
+the sampled molecular axis, while polarization and optional quadrupole terms are
+evaluated at the molecular probe position. The optional quadrupole term is
+represented by the Coulomb interaction between ion partial charges and the
+predefined off-center/center gas charges.
+
 Use `InteractionPotentialModel` when long-range ion-neutral interactions are a
 central part of the study and an offline sample table has been generated for the
 same species and gas. It is not a drop-in replacement for EHSS: EHSS is a
@@ -397,6 +471,34 @@ The runtime expects HDF5 files with format attribute `ipm_offline_samples`.
 Required datasets include `logv_bins`, `orientations_quat`, `sigma_mt_m2`, and
 `b_max_m`; high-fidelity files may also include full momentum-kick CDF datasets.
 See [CLI reference](cli-reference.md#precompute-tools) for the producer tool.
+
+At runtime, ICARION does not integrate the potential again. It samples an
+orientation and relative speed bin, reads the corresponding
+`sigma_mt_m2(orientation, logv)` entry for the event rate, and then samples the
+momentum transfer from the same table. With `--store-full-cdf`, the runtime
+draws from the stored `cdf_*`/`dp_samples` distribution. Without the full CDF,
+it draws from the compact `dp_stats` approximation. This means the offline file
+should contain enough orientations, velocity bins, and trials for the intended
+accuracy; runtime stochastic sampling cannot recover detail that was not
+resolved during precomputation.
+
+For a fixed orientation and relative speed bin there is still not a single
+unique momentum transfer. Different impact parameters and azimuthal approach
+directions produce different scattering angles and different momentum kicks. The
+precompute tool samples an impact-parameter disk up to `b_max_m`, integrates the
+classical trajectory for each accepted sample, and computes
+
+$$
+\sigma_{\mathrm{mt}} =
+\int_A \left[1 - \cos\theta(b,\phi)\right]\,dA
+$$
+
+by Monte Carlo integration. The same `(1 - cos(theta))` weights define the
+stored runtime distribution over `dp_samples`, so the collision rate and the
+sampled momentum kick are derived from the same offline ensemble. In compact
+files, this per-cell distribution is reduced to `dp_stats`; in full-CDF files,
+`cdf_offsets`, `cdf_counts`, `cdf_values`, and `dp_samples` preserve the sampled
+distribution for each `(orientation, logv)` cell.
 
 ---
 
@@ -425,7 +527,7 @@ P(n >= 1) = 1 - exp(-lambda)
 A uniform random number `u` in `[0, 1)` is drawn. If `u < P(n >= 1)`, a collision event is applied. Otherwise, the ion continues without a collision during that step.
 
 !!! note
-    In the current event handler, at most one stochastic HSS/EHSS collision is applied per ion and integration step. The probability `1 - exp(-lambda)` is the exact Poisson probability for one or more events, but multiple events within the same step are not individually resolved. For event-resolved simulations, choose the time step such that `lambda << 1` for the relevant pressure, cross section, and relative velocity range.
+    In the current event handler, at most one stochastic HSS/EHSS/IPM collision is applied per ion and integration step. The probability `1 - exp(-lambda)` is the exact Poisson probability for one or more events, but multiple events within the same step are not individually resolved. `collision_subcycles_per_step` can reduce this error by splitting the collision update into smaller pieces, but it remains an approximation. For the most accurate event-resolved simulations, choose the base time step such that `lambda << 1` and unresolved multiple-collision events are unlikely.
 
 ### Neutral velocity sampling
 

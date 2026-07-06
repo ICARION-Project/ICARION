@@ -81,7 +81,7 @@ This section selects the active collision, reaction, and space charge models. Fo
 | Parameter | Example | Meaning |
 |---|---|---|
 | `collision_model` | `"NoCollisions"`, `"Friction"`, `"HSS"`, `"EHSS"`, `"InteractionPotentialModel"` | Selects ion-neutral collision handling. |
-| `collision_subcycles_per_step` | `1` | Splits each stochastic collision update into smaller substeps; useful when event probabilities become large. |
+| `collision_subcycles_per_step` | `1` | Splits each stochastic collision update into smaller substeps; useful when event probabilities become large, but still an approximation. For the most event-resolved calculations, choose `dt_s` so that at most one collision per ion and base time step is expected. |
 | `enable_reactions` | `true` / `false` | Enables stochastic species conversion from the reaction database based on configured reaction kinetics. |
 | `enable_space_charge` | `true` / `false` | Enables ion-ion space charge effects if configured. |
 | `ipm_orientation_mode` | `"random"` or `"fixed"` | Orientation sampling for `InteractionPotentialModel`; omitted configs default to `"random"`. |

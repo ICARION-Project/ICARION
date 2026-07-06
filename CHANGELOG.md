@@ -19,6 +19,9 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
 - **IPM example samples and validation**: bundled small IPM example tables for
   H3O+ and PentanalH+ in He, plus an IPM validation runner that generates fresh
   samples and checks runtime wiring, finite observables, and sample coverage.
+- **TIMS axial ramp model**: `instrument: "TIMS"` now selects an analytical TIMS
+  axial field program with `axial_field_initial_*` / `axial_field_final_*`
+  profiles, axial gas-flow parsing, an IMS example, and elution validation.
 
 ### Changed
 

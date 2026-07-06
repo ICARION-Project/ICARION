@@ -1,8 +1,8 @@
 # ICARION v1.1.0 Release Notes
 
-Status: draft. This file currently covers the audited reactions and collision
-updates only; later runtime, output, fieldsolver, validation, and documentation
-blocks should extend it before the final v1.1.0 release.
+Status: draft. This file currently covers the audited reactions, collision, and
+TIMS updates only; later runtime, output, fieldsolver, validation, and
+documentation blocks should extend it before the final v1.1.0 release.
 
 ## Highlights
 
@@ -21,6 +21,8 @@ blocks should extend it before the final v1.1.0 release.
   simulation timestep. This is useful for high collision-rate regimes, but for
   highest accuracy the physical timestep should still keep unresolved multiple
   events rare.
+- TIMS is available as a distinct instrument type with an analytical axial ramp
+  field model, axial gas-flow parsing, and a basic TIMS elution example.
 
 ## Validation
 
@@ -31,10 +33,14 @@ blocks should extend it before the final v1.1.0 release.
   `ipm_offline_samples` HDF5 format, checks positive momentum-transfer cross
   sections, runs an IMS-style simulation, and confirms finite trajectory and
   momentum diagnostics.
+- TIMS elution validation checks mobility-sorted release order, peak separation,
+  and approximate agreement with the analytical ramp-fraction estimate.
 
 ## Data And Examples
 
 - `examples/ims/ims_ipm_basic.json` runs against the global species database.
+- `examples/ims/ims_tims_basic.json` demonstrates the TIMS axial ramp field with
+  axial gas flow and RF confinement.
 - Small bundled IPM example tables are available under
   `data/molecules/precomputed_ipm/` for H3O+ and PentanalH+ in He.
 - Larger IPM tables should be regenerated per release or study using

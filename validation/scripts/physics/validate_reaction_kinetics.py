@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Reaction kinetics validation harness.
 
-Runs the five agreed scenarios for reaction physics validation:
-1. Reversible equilibrium (H3O+ <-> PentanalH+)
-2. First-order unimolecular decay
-3. Competing bimolecular channels (He vs Pentanal)
-4. Sequential chain (H3O+ -> PentanalH+ -> CaffeineH+)
-5. Temperature-dependent Arrhenius sweep
+Runs the agreed scenarios for reaction physics validation:
+1. Explicit reversible equilibrium (H3O+ <-> PentanalH+)
+2. Thermochemistry-derived dynamic reverse equilibrium
+3. First-order unimolecular decay
+4. Competing bimolecular channels (He vs Pentanal)
+5. Sequential chain (H3O+ -> PentanalH+ -> CaffeineH+)
+6. Temperature-dependent Arrhenius sweep
 
 Each scenario points to a dedicated config in validation/configs/physics/reactions.
 The script only orchestrates executions and logs analytic expectations; post-run
@@ -67,12 +68,23 @@ class Scenario:
 SCENARIOS: Dict[str, Scenario] = {
     "equilibrium": Scenario(
         key="equilibrium",
-        description="Reversible first-order pair expected to settle at a 75/25 split.",
+        description="Explicit reversible first-order pair expected to settle at a 75/25 split.",
         runs=[
             ScenarioRun(
                 label="equilibrium",
                 config_path=CONFIG_DIR / "reversible_equilibrium_h3o_pentanal.json",
                 metadata={"k_forward": 1800.0, "k_reverse": 600.0, "n0": 1000.0},
+            )
+        ],
+    ),
+    "equilibrium_dynamic": Scenario(
+        key="equilibrium_dynamic",
+        description="Equilibrium-tagged forward channel with runtime-generated dynamic reverse rate.",
+        runs=[
+            ScenarioRun(
+                label="equilibrium_dynamic",
+                config_path=CONFIG_DIR / "reversible_equilibrium_dynamic_h3o_pentanal.json",
+                metadata={"k_forward": 1800.0, "k_reverse": 600.0, "n0": 1000.0, "keq": 3.0},
             )
         ],
     ),
@@ -176,7 +188,10 @@ def prepare_config_for_run(config_path: Path, output_folder: Path, snapshot_path
 
 
 def run_simulation(config_path: Path, icarion_bin: Path, dry_run: bool, logf) -> bool:
-    rel_path = config_path.relative_to(PROJECT_ROOT)
+    try:
+        rel_path = config_path.relative_to(PROJECT_ROOT)
+    except ValueError:
+        rel_path = config_path
     cmd = [str(icarion_bin), str(config_path)]
     if dry_run:
         log(f"  [dry-run] {' '.join(cmd)}", logf)
@@ -280,7 +295,7 @@ def arrhenius_notes(scenario: Scenario) -> List[str]:
 
 
 def scenario_notes(scenario: Scenario) -> Iterable[str]:
-    if scenario.key == "equilibrium":
+    if scenario.key in ("equilibrium", "equilibrium_dynamic"):
         return equilibrium_notes(scenario.runs[0])
     if scenario.key == "first_order":
         return first_order_notes(scenario.runs[0])

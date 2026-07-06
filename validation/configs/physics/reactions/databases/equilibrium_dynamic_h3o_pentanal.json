@@ -1,0 +1,13 @@
+{
+  "reactions": [
+    {
+      "id": "rxn_eq_dynamic_forward_h3o_to_pentanal",
+      "reactant": "H3O+",
+      "product": "PentanalH+",
+      "rate_constant": 1800.0,
+      "equilibrium": true,
+      "delta_r_H_J_mol": 0.0,
+      "delta_r_S_J_molK": 9.134371
+    }
+  ]
+}

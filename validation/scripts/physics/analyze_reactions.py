@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import os
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -135,6 +136,33 @@ def analyze_equilibrium(base: Path) -> ScenarioReport:
     if product == 0:
         warnings.append("No PentanalH+ detected; increase total_time_s or number of frames for meaningful data.")
     return ScenarioReport("Equilibrium", obs, warnings)
+
+
+def analyze_equilibrium_dynamic(base: Path) -> ScenarioReport:
+    file_path = base / "equilibrium_dynamic" / "reversible_equilibrium_dynamic.h5"
+    times, frames = load_species_counts(file_path)
+    final = frames[-1]
+    total = sum(frames[0].values())
+    k_forward = 1800.0
+    k_reverse_expected = 600.0
+    expected_fraction = k_forward / (k_forward + k_reverse_expected)
+    product = final.get("PentanalH+", 0)
+    fraction = product / total if total else 0.0
+    err_pct = 100.0 * (fraction - expected_fraction) / expected_fraction
+    duration = times[-1] - times[0] if len(times) > 1 else 0.0
+    obs = [
+        f"File: {file_path}",
+        f"Duration: {duration*1e6:.2f} us with {len(frames)} recorded frames",
+        f"Final counts: {count_summary(final, ['H3O+', 'PentanalH+'])}",
+        "Thermo metadata sets K_eq=3.0 at 300 K, so dynamic reverse should match kr=600 s^-1.",
+        f"Expected PentanalH+ fraction {expected_fraction:.3f}, observed {fraction:.3f} ({err_pct:+.2f} %)"
+    ]
+    warnings = []
+    if duration < 1e-4:
+        warnings.append("Runtime is too short to approach equilibrium; reactions rarely fire.")
+    if product == 0:
+        warnings.append("No PentanalH+ detected; dynamic reverse equilibrium cannot be assessed.")
+    return ScenarioReport("Dynamic equilibrium", obs, warnings)
 
 
 def analyze_first_order(base: Path) -> ScenarioReport:
@@ -296,15 +324,20 @@ def build_arrhenius_plot(base: Path) -> Tuple[Path, List[Tuple[float, float, flo
     return runs[0][1].parent, data
 
 
-def analyze_all(results_dir: Path) -> List[ScenarioReport]:
+ANALYZERS = {
+    "equilibrium": analyze_equilibrium,
+    "equilibrium_dynamic": analyze_equilibrium_dynamic,
+    "first_order": analyze_first_order,
+    "competing": analyze_competing,
+    "sequential": analyze_sequential,
+    "arrhenius": analyze_arrhenius,
+}
+
+
+def analyze_all(results_dir: Path, scenarios: Iterable[str] | None = None) -> List[ScenarioReport]:
     base = Path(results_dir)
-    reports = [
-        analyze_equilibrium(base),
-        analyze_first_order(base),
-        analyze_competing(base),
-        analyze_sequential(base),
-        analyze_arrhenius(base),
-    ]
+    keys = list(scenarios) if scenarios else list(ANALYZERS)
+    reports = [ANALYZERS[key](base) for key in keys]
     return reports
 
 
@@ -315,12 +348,25 @@ def main():
     parser.add_argument(
         "results_dir",
         nargs="?",
-        default="validation/results/physics/reactions",
+        default=os.environ.get(
+            "ICARION_VALIDATION_RUN_DIR",
+            "validation",
+        ),
         help="Directory containing the scenario subfolders",
+    )
+    parser.add_argument(
+        "--scenarios",
+        nargs="+",
+        choices=sorted(ANALYZERS),
+        help="Optional subset of scenarios to analyze",
     )
     args = parser.parse_args()
 
-    reports = analyze_all(Path(args.results_dir))
+    results_dir = Path(args.results_dir)
+    if results_dir.name != "reactions":
+        results_dir = results_dir / "results" / "physics" / "reactions"
+
+    reports = analyze_all(results_dir, args.scenarios)
     print("=" * 80)
     print("Reaction validation analysis")
     print("=" * 80)
@@ -345,7 +391,6 @@ def main():
         print("\nSummary: All scenarios completed without analyzer warnings. Recorded durations and species statistics look consistent with expectations.")
 
     # Optional plots for visual validation
-    results_dir = Path(args.results_dir)
     # First-order decay: log plot of reactant fraction
     file_path, decay_data = build_first_order_plot(results_dir)
     if decay_data:

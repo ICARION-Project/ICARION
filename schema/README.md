@@ -68,6 +68,41 @@ All voltage/frequency parameters support static values or time-varying waveforms
 
 See `docs/CONFIG_GUIDE.md` and `examples/waveforms/` for details.
 
+## LQIT Dipolar AC Excitation
+
+`fields.schema.json` supports independent x/y LQIT dipolar AC excitation:
+
+```json
+"fields": {
+  "AC": {
+    "voltage_V": 10.0,
+    "frequency_Hz": 200000.0,
+    "phase_rad": 0.0
+  },
+  "dipolar_excitation": {
+    "x": {
+      "enabled": true,
+      "amplitude_V": 10.0,
+      "frequency_Hz": 200000.0,
+      "phase_rad": 0.0
+    },
+    "y": {
+      "enabled": true,
+      "amplitude_V": 2.5,
+      "frequency_Hz": 200000.0,
+      "phase_rad": 1.57079632679,
+      "ramp": 1.0
+    }
+  }
+}
+```
+
+The legacy `fields.AC.voltage_V/frequency_Hz` form remains valid and drives the
+local x axis. When `dipolar_excitation` is present, the x/y axis definitions are
+the source of truth. Validation rejects mixed top-level and nested dipolar
+definitions, and rejects axes that specify both `amplitude_V` and the legacy
+alias `voltage_V`.
+
 ## Key Features
 
 - **Type safety**: Numeric types (`number`, `integer`), enums, physical units in descriptions

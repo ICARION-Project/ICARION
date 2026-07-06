@@ -11,6 +11,10 @@
 namespace {
     constexpr double MIN_VOLTAGE_THRESHOLD = 1e-12;
 
+    inline bool has_value_or_waveform(const ICARION::config::ValueOrWaveform& val) {
+        return val.constant_value.has_value() || val.waveform_ref.has_value() || val.waveform.has_value();
+    }
+
     inline bool orbitrap_field_debug_enabled() {
         static const bool enabled = [] {
             if (auto* env = std::getenv("ICARION_DEBUG_ORBITRAP_FIELD")) {
@@ -32,6 +36,28 @@ namespace {
             return val.constant_value.value();
         }
         return val.evaluate(t, lib);
+    }
+
+    inline double eval_value_or_zero(const ICARION::config::ValueOrWaveform& val,
+                                     double t,
+                                     const std::map<std::string, ICARION::config::Waveform>& lib) {
+        return has_value_or_waveform(val) ? eval_value(val, t, lib) : 0.0;
+    }
+
+    inline double eval_dipolar_axis_voltage(const ICARION::config::ACDipolarAxisConfig& axis,
+                                            double t,
+                                            const std::map<std::string, ICARION::config::Waveform>& lib) {
+        if (!axis.enabled) {
+            return 0.0;
+        }
+        const double amplitude = eval_value_or_zero(axis.amplitude_V, t, lib);
+        if (std::fabs(amplitude) <= MIN_VOLTAGE_THRESHOLD) {
+            return 0.0;
+        }
+        const double frequency = eval_value_or_zero(axis.frequency_Hz, t, lib);
+        const double ramp = eval_value(axis.ramp, t, lib);
+        const double omega = 2.0 * M_PI * frequency;
+        return amplitude * ramp * std::cos(omega * t + axis.phase_rad);
     }
 }
 
@@ -63,20 +89,12 @@ Vec3 AnalyticalFieldModel::compute_lqit_field(const Vec3& pos, double t) const {
     const Vec3 pos_local = domain_->rotation_global_to_local * (pos - geom.origin_m);
     const Vec3& p = pos_local;  // shorthand
 
-    const double rf_voltage = (rf.voltage_V.constant_value.has_value() || rf.voltage_V.waveform_ref.has_value() || rf.voltage_V.waveform.has_value())
-                             ? eval_value(rf.voltage_V, t, lib) : 0.0;
-    const double rf_freq = (rf.frequency_Hz.constant_value.has_value() || rf.frequency_Hz.waveform_ref.has_value() || rf.frequency_Hz.waveform.has_value())
-                          ? eval_value(rf.frequency_Hz, t, lib) : 0.0;
-    const double ac_voltage = (ac.voltage_V.constant_value.has_value() || ac.voltage_V.waveform_ref.has_value() || ac.voltage_V.waveform.has_value())
-                             ? eval_value(ac.voltage_V, t, lib) : 0.0;
-    const double ac_freq = (ac.frequency_Hz.constant_value.has_value() || ac.frequency_Hz.waveform_ref.has_value() || ac.frequency_Hz.waveform.has_value())
-                          ? eval_value(ac.frequency_Hz, t, lib) : 0.0;
-    const double dc_quad = (dc.quad_V.constant_value.has_value() || dc.quad_V.waveform_ref.has_value() || dc.quad_V.waveform.has_value())
-                          ? eval_value(dc.quad_V, t, lib) : 0.0;
-    const double dc_axial = (dc.axial_V.constant_value.has_value() || dc.axial_V.waveform_ref.has_value() || dc.axial_V.waveform.has_value())
-                           ? eval_value(dc.axial_V, t, lib) : 0.0;
+    const double rf_voltage = eval_value_or_zero(rf.voltage_V, t, lib);
+    const double dc_axial = eval_value_or_zero(dc.axial_V, t, lib);
 
     if (std::fabs(rf_voltage) > MIN_VOLTAGE_THRESHOLD) {
+        const double rf_freq = eval_value_or_zero(rf.frequency_Hz, t, lib);
+        const double dc_quad = eval_value_or_zero(dc.quad_V, t, lib);
         const double r0_sq = geom.radius_m * geom.radius_m;
         const double omega = 2.0 * M_PI * rf_freq;
         const double U_eff = dc_quad + rf_voltage * std::cos(omega * t);
@@ -84,10 +102,23 @@ Vec3 AnalyticalFieldModel::compute_lqit_field(const Vec3& pos, double t) const {
         E_total.y = 2.0 * p.y * U_eff / r0_sq;
     }
 
-    if (std::fabs(ac_voltage) > MIN_VOLTAGE_THRESHOLD) {
-        const double omega_ac = 2.0 * M_PI * ac_freq;
-        const double mag = -ac_voltage / geom.radius_m * std::cos(omega_ac * t);
-        E_total.x += mag;
+    if (ac.dipolar_excitation_defined) {
+        const double drive_x = eval_dipolar_axis_voltage(ac.dipolar_x, t, lib);
+        const double drive_y = eval_dipolar_axis_voltage(ac.dipolar_y, t, lib);
+        if (std::fabs(drive_x) > MIN_VOLTAGE_THRESHOLD) {
+            E_total.x += -drive_x / geom.radius_m;
+        }
+        if (std::fabs(drive_y) > MIN_VOLTAGE_THRESHOLD) {
+            E_total.y += -drive_y / geom.radius_m;
+        }
+    } else {
+        const double ac_voltage = eval_value_or_zero(ac.voltage_V, t, lib);
+        if (std::fabs(ac_voltage) > MIN_VOLTAGE_THRESHOLD) {
+            const double ac_freq = eval_value_or_zero(ac.frequency_Hz, t, lib);
+            const double omega_ac = 2.0 * M_PI * ac_freq;
+            const double mag = -ac_voltage / geom.radius_m * std::cos(omega_ac * t + ac.phase_rad);
+            E_total.x += mag;
+        }
     }
 
     if (std::fabs(dc_axial) > MIN_VOLTAGE_THRESHOLD) {

@@ -90,16 +90,74 @@ struct RFFieldConfig {
 };
 
 /**
+ * @brief One radial dipolar AC excitation axis.
+ *
+ * The instantaneous drive is amplitude_V(t) * ramp(t) *
+ * cos(2*pi*frequency_Hz(t)*t + phase_rad).
+ */
+struct ACDipolarAxisConfig {
+    bool enabled = false;
+    ValueOrWaveform amplitude_V{0.0};   ///< AC amplitude [V] (static or waveform)
+    ValueOrWaveform frequency_Hz{0.0};  ///< AC frequency [Hz] (static or waveform)
+    double phase_rad = 0.0;             ///< Initial phase [rad]
+    ValueOrWaveform ramp{1.0};          ///< Dimensionless amplitude multiplier
+
+    double angular_frequency_rad_s = 0.0;  ///< Derived only for static frequency
+
+    void compute_derived() {
+        if (frequency_Hz.constant_value.has_value()) {
+            angular_frequency_rad_s = 2.0 * M_PI * frequency_Hz.constant_value.value();
+        }
+    }
+
+    ValidationResult validate(const std::string& axis_name) const {
+        ValidationResult result;
+
+        if (!amplitude_V.is_valid()) {
+            result.add_error("AC dipolar axis '" + axis_name + "' amplitude_V must be a valid ValueOrWaveform");
+        }
+        if (!frequency_Hz.is_valid()) {
+            result.add_error("AC dipolar axis '" + axis_name + "' frequency_Hz must be a valid ValueOrWaveform");
+        }
+        if (!ramp.is_valid()) {
+            result.add_error("AC dipolar axis '" + axis_name + "' ramp must be a valid ValueOrWaveform");
+        }
+        if (amplitude_V.constant_value.has_value() && amplitude_V.constant_value.value() < 0.0) {
+            result.add_error("AC dipolar axis '" + axis_name + "' amplitude_V cannot be negative");
+        }
+        if (frequency_Hz.constant_value.has_value() && frequency_Hz.constant_value.value() < 0.0) {
+            result.add_error("AC dipolar axis '" + axis_name + "' frequency_Hz cannot be negative");
+        }
+        if (enabled &&
+            amplitude_V.constant_value.has_value() &&
+            frequency_Hz.constant_value.has_value() &&
+            amplitude_V.constant_value.value() > 0.0 &&
+            frequency_Hz.constant_value.value() == 0.0) {
+            result.add_error("AC dipolar axis '" + axis_name + "' has nonzero amplitude but zero frequency");
+        }
+
+        return result;
+    }
+};
+
+/**
  * @brief AC excitation field configuration (primarily for LQIT)
- * 
- * Voltage and frequency support time-varying waveforms.
+ *
+ * Legacy voltage/frequency fields drive the local x-axis. The optional
+ * dipolar axes allow independent x/y amplitudes, frequencies, phases, and ramps.
  */
 struct ACFieldConfig {
     ValueOrWaveform voltage_V{0.0};     ///< AC amplitude [V] (static or waveform)
     ValueOrWaveform frequency_Hz{0.0};  ///< AC frequency [Hz] (static or waveform)
+    double phase_rad = 0.0;             ///< Legacy single-axis phase [rad]
     
     // Derived (only valid for static frequency)
     double angular_frequency_rad_s = 0.0;  ///< ω = 2π·f [rad/s] (static only)
+
+    // === LQIT two-axis dipolar excitation ===
+    bool dipolar_excitation_defined = false;
+    ACDipolarAxisConfig dipolar_x;
+    ACDipolarAxisConfig dipolar_y;
     
     // === LQIT phase locking to RF ===
     bool lqit_lock_enable = false;
@@ -113,6 +171,8 @@ struct ACFieldConfig {
         if (frequency_Hz.constant_value.has_value()) {
             angular_frequency_rad_s = 2.0 * M_PI * frequency_Hz.constant_value.value();
         }
+        dipolar_x.compute_derived();
+        dipolar_y.compute_derived();
     }
     
     /**
@@ -127,6 +187,15 @@ struct ACFieldConfig {
         }
         if (frequency_Hz.constant_value.has_value() && frequency_Hz.constant_value.value() < 0.0) {
             result.add_error("AC frequency cannot be negative");
+        }
+        if (voltage_V.constant_value.has_value() && frequency_Hz.constant_value.has_value()) {
+            if (voltage_V.constant_value.value() > 0.0 && frequency_Hz.constant_value.value() == 0.0) {
+                result.add_error("AC voltage specified but frequency is zero");
+            }
+        }
+        if (dipolar_excitation_defined) {
+            result.merge(dipolar_x.validate("x"));
+            result.merge(dipolar_y.validate("y"));
         }
         
         return result;

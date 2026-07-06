@@ -20,6 +20,56 @@ namespace {
         file.close();
         return path;
     }
+
+    std::string make_lqit_config_with_fields(const std::string& fields_json) {
+        return R"({
+            "simulation": {
+                "dt_s": 1e-9,
+                "total_time_s": 1e-6,
+                "integrator": "RK4",
+                "write_interval": 100
+            },
+            "physics": {
+                "collision_model": "NoCollisions"
+            },
+            "output": {
+                "folder": "./output",
+                "trajectory_file": "test.h5"
+            },
+            "ions": {
+                "species": [
+                    {
+                        "id": "H3O+",
+                        "count": 1,
+                        "position": {
+                            "type": "point",
+                            "center": [0.0, 0.0, 0.001]
+                        },
+                        "velocity": {
+                            "type": "thermal",
+                            "temperature_K": 300.0
+                        }
+                    }
+                ]
+            },
+            "domains": [
+                {
+                    "name": "lqit",
+                    "instrument": "LQIT",
+                    "geometry": {
+                        "length_m": 0.1,
+                        "radius_m": 0.005
+                    },
+                    "environment": {
+                        "pressure_Pa": 2.0,
+                        "temperature_K": 300.0,
+                        "gas_species": "N2"
+                    },
+                    "fields": )" + fields_json + R"(
+                }
+            ]
+        })";
+    }
 }
 
 // ============================================================================
@@ -92,6 +142,106 @@ TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
     REQUIRE(cfg.config_file_path[0] == '/');  // Absolute path starts with /
     REQUIRE(cfg.config_file_path.find(".json") != std::string::npos);
     REQUIRE(std::filesystem::exists(cfg.config_file_path));
+}
+
+TEST_CASE("ConfigLoader loads LQIT two-axis dipolar AC excitation", "[config][loader][lqit][ac]") {
+    std::string config = make_lqit_config_with_fields(R"({
+        "RF": {
+            "voltage_V": 100.0,
+            "frequency_Hz": 1e6
+        },
+        "AC": {
+            "voltage_V": 10.0,
+            "frequency_Hz": 2e5
+        },
+        "dipolar_excitation": {
+            "x": {
+                "enabled": true,
+                "amplitude_V": 10.0,
+                "frequency_Hz": 2e5,
+                "phase_rad": 0.0
+            },
+            "y": {
+                "enabled": true,
+                "amplitude_V": 2.5,
+                "frequency_Hz": 2e5,
+                "phase_rad": 1.57079632679,
+                "ramp": {
+                    "type": "linear",
+                    "start": 0.0,
+                    "end": 1.0,
+                    "start_time_s": 0.0,
+                    "end_time_s": 1e-6
+                }
+            }
+        }
+    })");
+
+    std::string path = create_temp_config(config, "_dipolar_ac");
+    FullConfig cfg = ConfigLoader::load(path);
+
+    const auto& ac = cfg.domains[0].fields.ac;
+    REQUIRE(ac.voltage_V.constant_value.value() == Approx(10.0));
+    REQUIRE(ac.frequency_Hz.constant_value.value() == Approx(2e5));
+    REQUIRE(ac.dipolar_excitation_defined);
+    REQUIRE(ac.dipolar_x.enabled);
+    REQUIRE(ac.dipolar_y.enabled);
+    REQUIRE(ac.dipolar_x.amplitude_V.constant_value.value() == Approx(10.0));
+    REQUIRE(ac.dipolar_y.amplitude_V.constant_value.value() == Approx(2.5));
+    REQUIRE(ac.dipolar_y.phase_rad == Approx(1.57079632679));
+    REQUIRE(ac.dipolar_y.ramp.evaluate(0.5e-6, cfg.domains[0].fields.waveform_library) == Approx(0.5));
+}
+
+TEST_CASE("ConfigLoader rejects duplicate LQIT dipolar AC sources", "[config][loader][lqit][ac][ssot]") {
+    std::string config = make_lqit_config_with_fields(R"({
+        "RF": {
+            "voltage_V": 100.0,
+            "frequency_Hz": 1e6
+        },
+        "AC": {
+            "voltage_V": 10.0,
+            "frequency_Hz": 2e5,
+            "x": {
+                "enabled": true,
+                "amplitude_V": 10.0,
+                "frequency_Hz": 2e5
+            }
+        },
+        "dipolar_excitation": {
+            "x": {
+                "enabled": true,
+                "amplitude_V": 10.0,
+                "frequency_Hz": 2e5
+            }
+        }
+    })");
+
+    std::string path = create_temp_config(config, "_dipolar_ac_duplicate_sources");
+    REQUIRE_THROWS_AS(ConfigLoader::load(path), std::runtime_error);
+}
+
+TEST_CASE("ConfigLoader rejects duplicate LQIT dipolar axis amplitude aliases", "[config][loader][lqit][ac][ssot]") {
+    std::string config = make_lqit_config_with_fields(R"({
+        "RF": {
+            "voltage_V": 100.0,
+            "frequency_Hz": 1e6
+        },
+        "AC": {
+            "voltage_V": 10.0,
+            "frequency_Hz": 2e5
+        },
+        "dipolar_excitation": {
+            "x": {
+                "enabled": true,
+                "amplitude_V": 10.0,
+                "voltage_V": 10.0,
+                "frequency_Hz": 2e5
+            }
+        }
+    })");
+
+    std::string path = create_temp_config(config, "_dipolar_ac_duplicate_axis_amplitude");
+    REQUIRE_THROWS_AS(ConfigLoader::load(path), std::runtime_error);
 }
 
 TEST_CASE("ConfigLoader does not load global reactions when reactions are disabled", "[config][loader][reactions]") {

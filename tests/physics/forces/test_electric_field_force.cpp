@@ -368,6 +368,40 @@ TEST_CASE("ElectricFieldForce - LQIT (Linear Quadrupole Ion Trap)", "[forces][el
         REQUIRE(std::fabs(F0.y) < 1e-20);
         REQUIRE(std::fabs(F0.z) < 1e-20);
     }
+
+    SECTION("LQIT with two-axis dipolar AC quadrature field") {
+        ICARION::config::DomainConfig domain_ac;
+        domain_ac.instrument = ICARION::config::Instrument::LQIT;
+        domain_ac.geometry.radius_m = 0.005;
+        domain_ac.geometry.length_m = 0.1;
+        domain_ac.fields.rf.voltage_V.constant_value = 0.0;
+        domain_ac.fields.rf.frequency_Hz.constant_value = 0.0;
+        domain_ac.fields.dc.quad_V.constant_value = 0.0;
+        domain_ac.fields.dc.axial_V.constant_value = 0.0;
+        domain_ac.fields.ac.dipolar_excitation_defined = true;
+        domain_ac.fields.ac.dipolar_x.enabled = true;
+        domain_ac.fields.ac.dipolar_x.amplitude_V.constant_value = 100.0;
+        domain_ac.fields.ac.dipolar_x.frequency_Hz.constant_value = 5e5;
+        domain_ac.fields.ac.dipolar_x.phase_rad = 0.0;
+        domain_ac.fields.ac.dipolar_y.enabled = true;
+        domain_ac.fields.ac.dipolar_y.amplitude_V.constant_value = 25.0;
+        domain_ac.fields.ac.dipolar_y.frequency_Hz.constant_value = 5e5;
+        domain_ac.fields.ac.dipolar_y.phase_rad = M_PI / 2.0;
+        domain_ac.finalize();
+
+        ElectricFieldForce force_ac(domain_ac);
+        IonState ion = make_test_ion(0.0, 0.0, 0.05);
+        ForceContext ctx;
+
+        Vec3 F0 = compute_force(force_ac, ion, ctx, 0.0);
+        REQUIRE(F0.x == Approx(ELEM_CHARGE_C * (-100.0 / domain_ac.geometry.radius_m)));
+        REQUIRE(std::fabs(F0.y) <= 1e-18);
+
+        const double T = 1.0 / domain_ac.fields.ac.dipolar_x.frequency_Hz.constant_value.value();
+        Vec3 F_quarter = compute_force(force_ac, ion, ctx, T / 4.0);
+        REQUIRE(std::fabs(F_quarter.x) <= 1e-18);
+        REQUIRE(F_quarter.y == Approx(ELEM_CHARGE_C * (25.0 / domain_ac.geometry.radius_m)));
+    }
 }
 
 // ============================================================================

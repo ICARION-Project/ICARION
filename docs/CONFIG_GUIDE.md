@@ -1304,6 +1304,46 @@ Use the global `simulation.integrator` as default, but override for specific dom
 
 - Collisions/reactions use the gas environment cached at the start of the macro-timestep (and after explicit domain switches). Mid-step boundary crossings are applied only after integration, so stochastic rates during that step still use the pre-step environment. Keep `timestep` small across sharp pressure/temperature jumps or accept this approximation.
 
+### LQIT Dipolar AC Excitation
+
+Legacy LQIT configs can keep using `fields.AC.voltage_V` and
+`fields.AC.frequency_Hz`; that remains a single local x-axis dipolar drive.
+
+For independent radial x/y excitation, use the top-level
+`fields.dipolar_excitation` block next to `AC`, `RF`, and `DC`:
+
+```json
+"fields": {
+  "AC": {
+    "voltage_V": 10.0,
+    "frequency_Hz": 200000.0,
+    "phase_rad": 0.0
+  },
+  "dipolar_excitation": {
+    "x": {
+      "enabled": true,
+      "amplitude_V": 10.0,
+      "frequency_Hz": 200000.0,
+      "phase_rad": 0.0
+    },
+    "y": {
+      "enabled": true,
+      "amplitude_V": 2.5,
+      "frequency_Hz": 200000.0,
+      "phase_rad": 1.57079632679,
+      "ramp": 1.0
+    }
+  }
+}
+```
+
+`amplitude_V`, `frequency_Hz`, and `ramp` use the same value-or-waveform syntax
+as other field quantities. `fields.AC.dipolar_excitation` and
+`fields.AC.x`/`fields.AC.y` are accepted as compatibility shorthands, but the
+top-level `fields.dipolar_excitation` block is the preferred SSOT. The loader
+rejects mixed top-level/nested definitions and rejects axes that specify both
+`amplitude_V` and its legacy alias `voltage_V`.
+
 ---
 
 ## Troubleshooting

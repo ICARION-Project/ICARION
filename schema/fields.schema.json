@@ -4,6 +4,91 @@
   "title": "ICARION Domain Fields Configuration",
   "description": "Electric and magnetic field configuration for domain (v1.0.0 with waveform support)",
   "type": "object",
+
+  "$defs": {
+    "acDipolarAxis": {
+      "type": "object",
+      "description": "One radial dipolar AC excitation axis for LQIT. The runtime drive is amplitude_V(t) * ramp(t) * cos(2*pi*frequency_Hz(t)*t + phase_rad).",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable this dipolar axis. If omitted, an explicitly configured axis is enabled."
+        },
+        "amplitude_V": {
+          "$ref": "waveform.schema.json#/definitions/ValueOrWaveform",
+          "default": 0.0,
+          "description": "Dipolar AC amplitude [V]. Can be a number, inline waveform, or @waveform_ref."
+        },
+        "voltage_V": {
+          "$ref": "waveform.schema.json#/definitions/ValueOrWaveform",
+          "default": 0.0,
+          "description": "Backward-compatible alias for amplitude_V [V]. Prefer amplitude_V in new configs."
+        },
+        "frequency_Hz": {
+          "$ref": "waveform.schema.json#/definitions/ValueOrWaveform",
+          "default": 0.0,
+          "description": "Dipolar AC frequency [Hz]. Can be static or time-varying."
+        },
+        "phase_rad": {
+          "$ref": "common-types.schema.json#/$defs/phase",
+          "default": 0.0,
+          "description": "Initial phase offset [rad]. Use 1.57079632679 for +90 degree quadrature."
+        },
+        "ramp": {
+          "$ref": "waveform.schema.json#/definitions/ValueOrWaveform",
+          "default": 1.0,
+          "description": "Dimensionless multiplier applied to amplitude_V. Use a scalar for amplitude ratios or a waveform for an envelope."
+        }
+      },
+      "anyOf": [
+        {"required": ["amplitude_V"]},
+        {"required": ["voltage_V"]},
+        {"required": ["enabled"]}
+      ],
+      "not": {
+        "required": ["amplitude_V", "voltage_V"]
+      },
+      "additionalProperties": false
+    },
+
+    "acDipolarExcitation": {
+      "type": "object",
+      "description": "Independent x/y dipolar AC excitation for LQIT radial drives.",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/acDipolarAxis",
+          "description": "Dipolar excitation along local x."
+        },
+        "y": {
+          "$ref": "#/$defs/acDipolarAxis",
+          "description": "Dipolar excitation along local y."
+        }
+      },
+      "anyOf": [
+        {"required": ["x"]},
+        {"required": ["y"]}
+      ],
+      "additionalProperties": false
+    }
+  },
+
+  "allOf": [
+    {
+      "not": {
+        "required": ["AC", "dipolar_excitation"],
+        "properties": {
+          "AC": {
+            "anyOf": [
+              {"required": ["dipolar_excitation"]},
+              {"required": ["x"]},
+              {"required": ["y"]}
+            ]
+          }
+        }
+      }
+    }
+  ],
   
   "properties": {
     "field_array_terms": {
@@ -169,6 +254,18 @@
     "AC": {
       "type": "object",
       "description": "AC excitation field parameters",
+      "allOf": [
+        {
+          "not": {
+            "required": ["dipolar_excitation", "x"]
+          }
+        },
+        {
+          "not": {
+            "required": ["dipolar_excitation", "y"]
+          }
+        }
+      ],
       "properties": {
         "voltage_V": {
           "oneOf": [
@@ -195,6 +292,23 @@
           ],
           "default": 0.0,
           "description": "AC excitation frequency in Hz. Can be static or time-varying (v1.0.0)"
+        },
+        "phase_rad": {
+          "$ref": "common-types.schema.json#/$defs/phase",
+          "default": 0.0,
+          "description": "Legacy single-axis AC phase offset [rad]. Applies to x-only AC.voltage_V/frequency_Hz when dipolar_excitation is not configured."
+        },
+        "dipolar_excitation": {
+          "$ref": "#/$defs/acDipolarExcitation",
+          "description": "Optional nested x/y dipolar excitation. Equivalent to fields.dipolar_excitation."
+        },
+        "x": {
+          "$ref": "#/$defs/acDipolarAxis",
+          "description": "Optional shorthand for AC.dipolar_excitation.x."
+        },
+        "y": {
+          "$ref": "#/$defs/acDipolarAxis",
+          "description": "Optional shorthand for AC.dipolar_excitation.y."
         },
         "enable_voltage_sweep": {
           "type": "boolean",
@@ -233,6 +347,11 @@
         }
       },
       "additionalProperties": false
+    },
+
+    "dipolar_excitation": {
+      "$ref": "#/$defs/acDipolarExcitation",
+      "description": "Optional top-level fields block for independent x/y LQIT dipolar AC excitation. When present, it supersedes the legacy x-only AC.voltage_V/frequency_Hz drive in the LQIT analytical field."
     },
     
     "B": {

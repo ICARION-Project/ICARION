@@ -8,6 +8,29 @@
 #include <stdexcept>
 #include <iostream>
 
+namespace {
+
+void require_single_source(bool has_first,
+                           const char* first_name,
+                           bool has_second,
+                           const char* second_name,
+                           const char* context) {
+    if (has_first && has_second) {
+        throw std::runtime_error(
+            std::string(context) + " must have a single source of truth: use either " +
+            first_name + " or " + second_name + ", not both");
+    }
+}
+
+bool has_ac_dipolar_definition(const Json::Value& ac_json) {
+    if (!ac_json.isObject()) {
+        return false;
+    }
+    return ac_json.isMember("dipolar_excitation") || ac_json.isMember("x") || ac_json.isMember("y");
+}
+
+}  // namespace
+
 namespace ICARION::config {
 
 DomainConfig DomainConfigLoader::load(
@@ -205,8 +228,20 @@ FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json, const std:
     }
     
     // AC fields (pass both local and global libraries)
+    const bool has_top_level_dipolar = json.isMember("dipolar_excitation");
+    const bool has_nested_ac_dipolar =
+        json.isMember("AC") && has_ac_dipolar_definition(json["AC"]);
+    require_single_source(has_top_level_dipolar,
+                          "fields.dipolar_excitation",
+                          has_nested_ac_dipolar,
+                          "fields.AC.dipolar_excitation/x/y",
+                          "LQIT AC dipolar excitation");
+
     if (json.isMember("AC")) {
         fields.ac = load_ac_fields(json["AC"], fields.waveform_library, global_waveforms);
+    }
+    if (has_top_level_dipolar) {
+        load_ac_dipolar_excitation(fields.ac, json["dipolar_excitation"], fields.waveform_library, global_waveforms);
     }
     
     // Magnetic fields
@@ -380,6 +415,24 @@ ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json, const 
             throw std::runtime_error(std::string("Failed to load AC frequency_Hz: ") + e.what());
         }
     }
+
+    if (json.isMember("phase_rad") && json["phase_rad"].isNumeric()) {
+        ac.phase_rad = json["phase_rad"].asDouble();
+    }
+
+    const bool has_nested_dipolar = json.isMember("dipolar_excitation");
+    const bool has_shorthand_dipolar = json.isMember("x") || json.isMember("y");
+    require_single_source(has_nested_dipolar,
+                          "AC.dipolar_excitation",
+                          has_shorthand_dipolar,
+                          "AC.x/AC.y shorthand",
+                          "AC dipolar excitation");
+
+    if (has_nested_dipolar) {
+        load_ac_dipolar_excitation(ac, json["dipolar_excitation"], local_library, global_library);
+    } else if (has_shorthand_dipolar) {
+        load_ac_dipolar_excitation(ac, json, local_library, global_library);
+    }
     
     // LQIT phase lock
     if (json.isMember("lqit_lock_enable") && json["lqit_lock_enable"].isBool()) {
@@ -396,6 +449,91 @@ ACFieldConfig DomainConfigLoader::load_ac_fields(const Json::Value& json, const 
     }
     
     return ac;
+}
+
+ACDipolarAxisConfig DomainConfigLoader::load_ac_dipolar_axis(
+    const Json::Value& json,
+    const std::map<std::string, Waveform>& local_library,
+    const std::map<std::string, Waveform>& global_library,
+    const std::string& axis_name
+) {
+    if (!json.isObject()) {
+        throw std::runtime_error("AC dipolar axis '" + axis_name + "' must be an object");
+    }
+
+    ACDipolarAxisConfig axis;
+    if (json.isMember("enabled")) {
+        if (!json["enabled"].isBool()) {
+            throw std::runtime_error("AC dipolar axis '" + axis_name + "' enabled must be boolean");
+        }
+        axis.enabled = json["enabled"].asBool();
+    } else {
+        axis.enabled = true;
+    }
+
+    const bool has_amplitude = json.isMember("amplitude_V");
+    const bool has_voltage_alias = json.isMember("voltage_V");
+    const std::string axis_context = "AC dipolar axis '" + axis_name + "'";
+    require_single_source(has_amplitude,
+                          "amplitude_V",
+                          has_voltage_alias,
+                          "voltage_V alias",
+                          axis_context.c_str());
+
+    const char* amplitude_key = nullptr;
+    if (has_amplitude) {
+        amplitude_key = "amplitude_V";
+    } else if (has_voltage_alias) {
+        amplitude_key = "voltage_V";
+    }
+    if (amplitude_key) {
+        try {
+            axis.amplitude_V = WaveformLoader::load_value_or_waveform(json[amplitude_key], local_library, global_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error("Failed to load AC dipolar axis '" + axis_name + "' amplitude_V: " + std::string(e.what()));
+        }
+    }
+
+    if (json.isMember("frequency_Hz")) {
+        try {
+            axis.frequency_Hz = WaveformLoader::load_value_or_waveform(json["frequency_Hz"], local_library, global_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error("Failed to load AC dipolar axis '" + axis_name + "' frequency_Hz: " + std::string(e.what()));
+        }
+    }
+
+    if (json.isMember("phase_rad") && json["phase_rad"].isNumeric()) {
+        axis.phase_rad = json["phase_rad"].asDouble();
+    }
+
+    if (json.isMember("ramp")) {
+        try {
+            axis.ramp = WaveformLoader::load_value_or_waveform(json["ramp"], local_library, global_library);
+        } catch (const std::exception& e) {
+            throw std::runtime_error("Failed to load AC dipolar axis '" + axis_name + "' ramp: " + std::string(e.what()));
+        }
+    }
+
+    return axis;
+}
+
+void DomainConfigLoader::load_ac_dipolar_excitation(
+    ACFieldConfig& ac,
+    const Json::Value& json,
+    const std::map<std::string, Waveform>& local_library,
+    const std::map<std::string, Waveform>& global_library
+) {
+    if (!json.isObject()) {
+        throw std::runtime_error("dipolar_excitation must be an object");
+    }
+
+    ac.dipolar_excitation_defined = true;
+    if (json.isMember("x")) {
+        ac.dipolar_x = load_ac_dipolar_axis(json["x"], local_library, global_library, "x");
+    }
+    if (json.isMember("y")) {
+        ac.dipolar_y = load_ac_dipolar_axis(json["y"], local_library, global_library, "y");
+    }
 }
 
 MagneticFieldConfig DomainConfigLoader::load_magnetic_fields(const Json::Value& json) {

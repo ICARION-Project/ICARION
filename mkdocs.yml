@@ -1,0 +1,55 @@
+site_name: ICARION
+site_description: Ion Collision And Reaction IntegratiON
+site_author: Christoph Schaefer
+
+repo_url: https://github.com/ICARION-Project/ICARION
+repo_name: ICARION-Project/ICARION
+
+docs_dir: rtd
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.details
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: installation.md
+      - Release packages and launcher: release-packages.md
+      - First simulation: first-simulation.md
+      - CLI reference: cli-reference.md
+  - User guide:
+      - Configuration: configuration.md
+      - Species database: species-database.md
+      - Fields and waveforms: fields-waveforms.md
+      - Boundary conditions: boundary-conditions.md
+      - Output files: output-files.md
+      - Analysis workflow: analysis.md
+      - Examples: examples.md
+      - Troubleshooting: troubleshooting.md
+  - Physics:
+      - Collision models: collision-models.md
+      - Reactions: reactions.md
+      - Multi-domain simulations: multi-domain.md
+  - Validation: validation.md
+  - Development:
+      - Architecture: architecture.md
+      - Contributing: contributing.md

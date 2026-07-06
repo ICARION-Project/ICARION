@@ -1,0 +1,213 @@
+# Species database
+
+The species database maps species IDs such as `H3O+` or `PentanalH+` to physical properties used by ICARION. Config files then refer to these species by ID. Species databases are referenced from the main simulation configuration; see [Configuration files](configuration.md).
+
+A species database is normally referenced at the top level of a simulation config:
+
+```json
+{
+  "species_database": "data/species_database_v1.json"
+}
+```
+
+Using a database avoids repeating mass, charge, mobility, and collision cross section parameters in every simulation file.
+
+---
+
+## Minimal species database
+
+The smallest useful species database contains a `species` object. Each key is the species ID used in configs, ion initialization, and reactions.
+
+```json
+{
+  "species": {
+    "H3O+": {
+      "name": "Hydronium ion",
+      "mass_amu": 19.02,
+      "charge": 1,
+      "mobility_cm2Vs": 24.1,
+      "CCS_A2": 24.9,
+      "reference_temperature_K": 298.15,
+      "reference_pressure_Pa": 101325.0,
+      "ccs_method": "MobCal-MPI 2.0"
+    },
+    "PentanalH+": {
+      "name": "Pentanal protonated",
+      "mass_amu": 87.0,
+      "charge": 1,
+      "mobility_cm2Vs": 10.25,
+      "CCS_A2": 53.7
+    },
+    "He": {
+      "name": "Helium",
+      "mass_amu": 4.0026,
+      "charge": 0
+    }
+  }
+}
+```
+
+---
+
+## Required and optional fields
+
+### Required for every species
+
+| Field | Unit | Meaning |
+|---|---:|---|
+| `mass_amu` | amu | Molecular or atomic mass. Converted internally to kg. |
+| `charge` | elementary charge units | Integer charge state. `1` means singly charged cation; `0` means neutral. |
+
+### Common ion fields
+
+| Field | Unit | Meaning |
+|---|---:|---|
+| `mobility_cm2Vs` | cm²/(V s) | Reduced mobility used by deterministic mobility/friction-style models. |
+| `CCS_A2` | Å² | Collision cross section used by collision models when no gas-specific value is given. |
+| `CCS_HSS` | Å² by gas | Gas-specific CCS map for HSS collision model. |
+| `CCS_EHSS` | Å² by gas | Gas-specific effective CCS map for EHSS if precomputed. |
+| `geometry_file` | path | Molecular geometry file used by EHSS workflows. |
+| `EHSS_samples_file` | path | Precomputed EHSS orientation/sample file. |
+
+The different CCS values are used by the different available [collision models](collision-models.md).
+
+### Metadata fields
+
+| Field | Meaning |
+|---|---|
+| `name` | Human-readable species name. |
+| `reference_temperature_K` | Temperature associated with mobility/CCS values. |
+| `reference_pressure_Pa` | Pressure associated with mobility values. |
+| `ccs_method` | Method used to obtain the CCS, e.g. literature, MobCal, IMoS. |
+| `note` | Free text for important caveats. |
+
+---
+
+## Units and conversions
+
+Species databases use user-friendly units. ICARION converts them internally to SI units:
+
+| Input field | Input unit | Internal unit |
+|---|---:|---:|
+| `mass_amu` | amu | kg |
+| `charge` | elementary charge | C |
+| `mobility_cm2Vs` | cm²/(V s) | m²/(V s) |
+| `CCS_A2`, `CCS_HSS`, `CCS_EHSS` | Å² | m² |
+| `polarizability_A3` | Å³ | m³ |
+
+!!! warning
+    Be careful with CCS units. Å² values in the species database are multiplied by `1e-20` internally. Do not enter m² values into `CCS_A2`.
+
+---
+
+## Gas-specific CCS values
+
+For HSS/EHSS simulations, gas-specific CCS maps can be used:
+
+```json
+{
+  "species": {
+    "H3O+": {
+      "mass_amu": 19.02,
+      "charge": 1,
+      "CCS_reference_gas": "He",
+      "CCS_HSS": {
+        "He": 24.9,
+        "N2": 104.02
+      },
+      "CCS_EHSS": {
+        "He": 25.4
+      }
+    }
+  }
+}
+```
+
+The gas key should match the domain gas species, for example:
+
+```json
+{
+  "environment": {
+    "gas_species": "He"
+  }
+}
+```
+
+If no gas-specific value is available, ICARION may fall back to more general CCS fields depending on the collision model and available geometry/sample data.
+
+---
+
+## Species IDs and naming
+
+The species ID is the JSON key, not the `name` field.
+
+For example, this database entry:
+
+```json
+{
+  "species": {
+    "PentanalH+": {
+      "name": "Pentanal protonated",
+      "mass_amu": 87.0,
+      "charge": 1
+    }
+  }
+}
+```
+
+must be referenced as:
+
+```json
+{
+  "ions": {
+    "species": [
+      { "id": "PentanalH+", "count": 1000 }
+    ]
+  }
+}
+```
+
+and in reactions as:
+
+```json
+{
+  "reactant": "H3O+",
+  "product": "PentanalH+"
+}
+```
+
+Common mistakes:
+
+- using `PentanalH` instead of `PentanalH+`,
+- using the human-readable `name` (`Pentanal protonated`) instead of the species ID,
+- changing species IDs in the database but not in reaction files,
+- using neutral species in reactions without adding them to the database.
+
+Reaction reactants and products must refer to the species defined here; see [Reactions](reactions.md).
+
+---
+
+## When to create a custom species database
+
+Create a custom database if you:
+
+- simulate species not included in `data/species_database_v1.json`,
+- want to use updated literature CCS or mobility values,
+- want to compare HSS and EHSS values for the same species,
+- need a publication-specific database snapshot.
+
+A good practice is to copy the default database into your project folder and reference that file explicitly:
+
+```bash
+cp data/species_database_v1.json my_runs/species_my_project.json
+```
+
+Then in the simulation config:
+
+```json
+{
+  "species_database": "my_runs/species_my_project.json"
+}
+```
+
+For publication data, we suggest to archive the exact species database together with the config and output file for reproducibility and transparency.

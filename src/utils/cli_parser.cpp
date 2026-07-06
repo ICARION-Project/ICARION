@@ -15,7 +15,7 @@
 #endif
 
 #ifndef ICARION_VERSION
-#define ICARION_VERSION "1.0.1"
+#define ICARION_VERSION "unknown"
 #endif
 
 #ifndef GIT_HASH
@@ -349,7 +349,7 @@ void print_build_info() {
 
 void print_hdf5_schema() {
     std::cout << R"(
-ICARION HDF5 Output Schema v1.0.0 (FullConfig-based)
+ICARION HDF5 Output Schema (FullConfig-based)
 ===================================================
 
 Hierarchical Structure:

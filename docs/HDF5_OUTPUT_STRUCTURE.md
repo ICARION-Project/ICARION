@@ -59,10 +59,7 @@ simulation.h5
     └── domain_1/
         └── ...
 └── analysis/                      # Optional diagnostics groups
-    ├── minimal_transport/         # Optional compact final-state output (trajectory_mode=minimal)
-    ├── transmission/              # Optional transmission diagnostics
-    └── deep_collision/            # Optional deep collision diagnostics
-        └── events/                # Optional event stream (sampled/full modes)
+    └── minimal_transport/         # Optional compact final-state output (trajectory_mode=minimal)
 ```
 
 ---

@@ -194,6 +194,25 @@ CCS = (3*q)/(16*N₀*K₀) × √(2π/(μ*kB*T))
 - Detailed scattering physics
 - Requires geometry or CCS_EHSS map (DFT/ab initio recommended)
 
+### High-Pressure Stochastic Runs
+
+At high pressure or large `dt_s`, one macro-step can contain more than one physical collision. ICARION provides two approximation knobs:
+
+- `physics.collision_subcycles_per_step`: splits the collision update into equal micro-steps and recomputes rates in each micro-step.
+- `physics.collision_multi_event_mode`: enables a practical multi-collision approximation and uses at least `collision_max_events_per_step` micro subcycles.
+
+These options reduce bias from large steps, but they are still approximations. The most accurate setup is to choose `dt_s` such that less than one collision per ion per step is likely.
+
+### InteractionPotentialModel Offline Tables
+
+`InteractionPotentialModel` uses precomputed offline sample files referenced from the species database via `ipm_samples_file`. The runtime interpolates the table for the current relative speed and samples from stored momentum-transfer possibilities. For one relative speed and orientation, multiple momentum-transfer outcomes remain possible because the impact parameter is still sampled; the table stores that distribution rather than a single deterministic transfer.
+
+Supported runtime controls include:
+
+- `physics.ipm_orientation_mode`: `random` samples a new stored orientation per collision; `fixed` uses `ipm_fixed_orientation_index`.
+- `physics.ipm_vrel_log_prefix`: optional relative-speed histogram CSV output.
+- `physics.ipm_momentum_log_prefix`: optional momentum-transfer diagnostic CSV output.
+
 ### Research / Model Development
 **Use with caution:** `HSD`, `Langevin`
 - Validate against known systems first

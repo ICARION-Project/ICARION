@@ -81,6 +81,24 @@ static void apply_override_to_json(nlohmann::json& j, const std::string& key, co
             j["physics"]["enable_space_charge_gpu"] = parse_bool_cli(value);
         } else if (key == "physics.enable_ou_thermalization") {
             j["physics"]["enable_ou_thermalization"] = parse_bool_cli(value);
+        } else if (key == "physics.collision_multi_event_mode") {
+            j["physics"]["collision_multi_event_mode"] = parse_bool_cli(value);
+        } else if (key == "physics.collision_max_events_per_step") {
+            j["physics"]["collision_max_events_per_step"] = std::stoi(value);
+        } else if (key == "physics.collision_time_centered") {
+            j["physics"]["collision_time_centered"] = parse_bool_cli(value);
+        } else if (key == "physics.collision_time_randomized") {
+            j["physics"]["collision_time_randomized"] = parse_bool_cli(value);
+        } else if (key == "physics.collision_subcycles_per_step") {
+            j["physics"]["collision_subcycles_per_step"] = std::stoi(value);
+        } else if (key == "physics.ipm_orientation_mode") {
+            j["physics"]["ipm_orientation_mode"] = value;
+        } else if (key == "physics.ipm_fixed_orientation_index") {
+            j["physics"]["ipm_fixed_orientation_index"] = std::stoi(value);
+        } else if (key == "physics.ipm_vrel_log_prefix") {
+            j["physics"]["ipm_vrel_log_prefix"] = value;
+        } else if (key == "physics.ipm_momentum_log_prefix") {
+            j["physics"]["ipm_momentum_log_prefix"] = value;
         }
         else if (key == "output.folder") {
             j["output"]["folder"] = value;

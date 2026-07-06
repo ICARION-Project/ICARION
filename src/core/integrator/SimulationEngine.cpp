@@ -28,6 +28,10 @@
 #include <omp.h>
 #endif
 
+#ifndef ICARION_VERSION
+#define ICARION_VERSION "unknown"
+#endif
+
 namespace ICARION {
 namespace integrator {
 
@@ -239,8 +243,9 @@ void SimulationEngine::initialize_gpu(bool enable_gpu) {
         return;
     }
 
-    // Hard-disable experimental GPU path for v1.0.1
-    output_manager_->log_progress("GPU: Disabled for v1.0.1 (experimental path remains built but not used). Running CPU-only.");
+    output_manager_->log_progress(
+        std::string("GPU: Disabled for v") + ICARION_VERSION +
+        " (experimental path remains built but not used). Running CPU-only.");
     return;
 
     output_manager_->log_progress("GPU: Experimental path (E/B-only). Space-charge, damping, magnetic forces, and multi-domain batches are NOT supported; falling back to CPU in those cases.");

@@ -23,6 +23,24 @@ set_tests_properties(ConfigLoader PROPERTIES
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+add_executable(test_config_override
+    test_config_override.cpp
+)
+
+target_link_libraries(test_config_override
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_config_override
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+add_test(NAME ConfigOverride COMMAND test_config_override)
+
 # Species and Reaction loader smoke tests
 add_executable(test_species_loader_smoke
     test_species_loader.cpp

@@ -118,6 +118,8 @@ You can store gas-dependent CCS values (generated via `ccs_precompute`):
 
 - HSS: uses σ per gas from `CCS_HSS[gas]`, else mixture override `cross_section_m2`, else `ion.CCS_m2`.
 - EHSS: uses `CCS_EHSS[gas]` if present, else orientation samples (if provided), else geometry, else (without geometry) throws.
+- EHSS offline runs can also reference a precomputed single-gas sample table with `EHSS_offline_samples_file`.
+- InteractionPotentialModel runs reference offline tables with the canonical `ipm_samples_file` key.
 - Tool: `./ccs_precompute --input species.json --output out.json --species H3O+ --ref-gas He --ref-ccs-A2 110.0 [--model HSS|EHSS] [--override] [--n-orientations 300]`.
 - Orientation samples tool: `./ehss_samples_precompute --input species.json --output h3o_samples.json --species H3O+ [--n-orientations 300] [--n-samples 8000]`.
 
@@ -385,6 +387,8 @@ When `enable_reactions` is enabled, ICARION will:
 
 5. **Select channels** if multiple reactions compete (probability-weighted)
 6. **Update species** by replacing reactant particle with product particle
+
+Equilibrium-linked reactions can mark a forward channel with `equilibrium=true` and SI thermochemistry metadata (`delta_r_H_J_mol`, `delta_r_S_J_molK`). The loader then creates a dynamic reverse channel unless one is already explicit; see `rtd/reactions.md` for the full schema and assumptions.
 
 See [Reaction Database Schema](#reaction-database-schema) for details on configuring reactions.
 
@@ -904,14 +908,20 @@ See `schema/simulation.schema.json` for all options.
 
 ```json
 "physics": {
-  "collision_model": "HSS",      // NoCollisions, HSD, HSS, EHSS, Langevin, Friction
+  "collision_model": "HSS",      // NoCollisions, HSD, HSS, EHSS, Langevin, Friction, InteractionPotentialModel
   "enable_reactions": false,
   "enable_space_charge": false,
-  "enable_space_charge_gpu": false  // Prefer GPU P³M (requires CUDA build; falls back automatically)
+  "enable_space_charge_gpu": false, // Prefer GPU P³M (requires CUDA build; falls back automatically)
+  "collision_subcycles_per_step": 1,
+  "ipm_orientation_mode": "random"
 }
 ```
 
 **Collision Models:** See [COLLISION_MODELS.md](COLLISION_MODELS.md) for detailed physics and use cases.
+
+**High-pressure stochastic collisions:** `collision_subcycles_per_step > 1` splits each collision application into equal micro-steps and recomputes collision probabilities in each sub-step. `collision_multi_event_mode=true` is a practical approximation for regimes where more than one collision per macro-step is likely; it enforces at least `collision_max_events_per_step` micro-subcycles. For the most accurate calculations, choose `dt_s` small enough that less than one collision per ion per step is expected.
+
+**InteractionPotentialModel controls:** `ipm_orientation_mode` accepts `random` or `fixed`; fixed mode uses `ipm_fixed_orientation_index`. Optional `ipm_vrel_log_prefix` and `ipm_momentum_log_prefix` enable CSV diagnostics. Species should reference offline sample files with the canonical `ipm_samples_file` key.
 
 **Space charge:** Set `enable_space_charge` to true to activate Coulomb coupling. Optional `enable_space_charge_gpu` requests the GPU P³M solver (only when ICARION is built with CUDA); otherwise the factory automatically falls back to grid/direct CPU implementations.
 

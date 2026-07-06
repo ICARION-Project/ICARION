@@ -263,17 +263,25 @@ Can be specified multiple times to override multiple values.
 - `simulation.enable_openmp` - Enable OpenMP parallelization (true/false; requires OpenMP build)
 
 **Physics parameters:**
-- `physics.collision_model` - Collision model (NoCollisions, HardSphere/HSD, Langevin, Friction, HSS, EHSS)
+- `physics.collision_model` - Collision model (NoCollisions, HardSphere/HSD, Langevin, Friction, HSS, EHSS, InteractionPotentialModel)
 - `physics.enable_reactions` - Enable chemical reactions (true/false)
 - `physics.enable_space_charge` - Enable space charge effects (true/false)
 - `physics.enable_space_charge_gpu` - Prefer GPU-based P³M space charge (if built with CUDA; falls back to CPU if unavailable)
 - `physics.enable_ou_thermalization` - Enable Ornstein-Uhlenbeck thermalization for deterministic collision models (requires custom wiring of `gamma_for_ou`; incompatible with HSS/EHSS)
+- `physics.collision_subcycles_per_step` - Split stochastic collision updates into this many micro-steps
+- `physics.collision_multi_event_mode` - Enable approximate multi-collision micro-subcycling (true/false)
+- `physics.collision_max_events_per_step` - Minimum subcycle count used by multi-event mode
+- `physics.ipm_orientation_mode` - InteractionPotential orientation sampling (`random` or `fixed`)
+- `physics.ipm_fixed_orientation_index` - Fixed IPM orientation index when mode is `fixed`
+- `physics.ipm_vrel_log_prefix` - Optional InteractionPotential relative-speed CSV log prefix
+- `physics.ipm_momentum_log_prefix` - Optional InteractionPotential momentum CSV log prefix
 
 **Output parameters:**
 - `output.folder` - Output directory path
 - `output.trajectory_file` - Trajectory filename
 - `output.trajectory_mode` - Output mode (`full` or `minimal`)
 - `output.print_progress` - Print progress updates (true/false)
+- `output.buffer_byte_cap` - Optional trajectory buffer memory cap in bytes (`0` disables)
 
 **Database paths:**
 - `species_database` (or `database.species`) - Path to species database

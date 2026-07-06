@@ -60,6 +60,35 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         else if (key == "physics.enable_ou_thermalization") {
             config.physics.enable_ou_thermalization = parse_bool(value, key);
         }
+        else if (key == "physics.collision_multi_event_mode") {
+            config.physics.collision_multi_event_mode = parse_bool(value, key);
+        }
+        else if (key == "physics.collision_max_events_per_step") {
+            config.physics.collision_max_events_per_step = parse_int(value, key);
+        }
+        else if (key == "physics.collision_time_centered") {
+            config.physics.collision_time_centered = parse_bool(value, key);
+        }
+        else if (key == "physics.collision_time_randomized") {
+            config.physics.collision_time_randomized = parse_bool(value, key);
+        }
+        else if (key == "physics.collision_subcycles_per_step") {
+            config.physics.collision_subcycles_per_step = parse_int(value, key);
+        }
+        else if (key == "physics.ipm_orientation_mode") {
+            config.physics.ipm_orientation_mode_type = EnumMapper::parse_ipm_orientation_mode(value);
+            config.physics.ipm_orientation_mode =
+                EnumMapper::ipm_orientation_mode_to_string(config.physics.ipm_orientation_mode_type);
+        }
+        else if (key == "physics.ipm_fixed_orientation_index") {
+            config.physics.ipm_fixed_orientation_index = parse_int(value, key);
+        }
+        else if (key == "physics.ipm_vrel_log_prefix") {
+            config.physics.ipm_vrel_log_prefix = value;
+        }
+        else if (key == "physics.ipm_momentum_log_prefix") {
+            config.physics.ipm_momentum_log_prefix = value;
+        }
         
         // === Output section ===
         else if (key == "output.folder") {

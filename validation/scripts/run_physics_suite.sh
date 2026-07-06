@@ -30,6 +30,7 @@ AVAILABLE_TARGETS=(
   mixture_thermalization
   spacecharge
   reactions
+  tims
 )
 
 declare -A TARGET_LABELS=(
@@ -40,6 +41,7 @@ declare -A TARGET_LABELS=(
   [mixture_thermalization]="Gas mixture thermalization"
   [spacecharge]="Space charge expansion / IMS space charge"
   [reactions]="Reaction kinetics scenarios"
+  [tims]="TIMS mobility-sorted elution"
 )
 
 print_usage() {
@@ -65,6 +67,7 @@ Targets (default: all):
   mixture_thermalization     ${TARGET_LABELS[mixture_thermalization]}
   spacecharge                ${TARGET_LABELS[spacecharge]}
   reactions                  ${TARGET_LABELS[reactions]}
+  tims                       ${TARGET_LABELS[tims]}
 EOF
 }
 
@@ -95,6 +98,9 @@ normalize_target() {
     reactions|reaction|kinetics)
       printf '%s\n' "reactions"
       ;;
+    tims|tims-elution|tims_elution)
+      printf '%s\n' "tims"
+      ;;
     *)
       return 1
       ;;
@@ -124,6 +130,7 @@ Available targets:
   mixture_thermalization ${TARGET_LABELS[mixture_thermalization]}
   spacecharge            ${TARGET_LABELS[spacecharge]}
   reactions              ${TARGET_LABELS[reactions]}
+  tims                   ${TARGET_LABELS[tims]}
 EOF
 }
 
@@ -410,6 +417,9 @@ build_command() {
         printf '%q ' --output-root "$ICARION_VALIDATION_RUN_DIR/results/physics/reactions"
         printf '%q ' --log-dir "$ICARION_VALIDATION_RUN_DIR/logs"
       fi
+      ;;
+    tims)
+      printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_tims_elution.py"
       ;;
     *)
       return 1

@@ -30,6 +30,18 @@ These are **NOT CTests** - they are long-running (up to 30 minutes), high-accura
   - `validation/figures/physics/combined_drift_validation.png`
   - `validation/logs/COMBINED_DRIFT_VALIDATION.txt`
 
+### TIMS Elution (`validate_tims_elution.py`)
+- **Runtime**: ~15-20 seconds
+- **Physics**: Mobility-sorted TIMS elution under axial gas flow and a ramped axial field
+- **Tests**:
+  - Three-species elution order by reduced mobility
+  - Peak separation in elution time
+  - Approximate agreement with the analytical ramp-fraction estimate
+- **Ensemble**: 60 ions per species, 3 species
+- **Output**:
+  - `validation/figures/physics/tims_elution_validation.png`
+  - `validation/logs/TIMS_ELUTION_VALIDATION.txt`
+
 ### Adaptive SC Parity (`validate_space_charge_adaptive_parity.py`)
 - **Runtime**: ~1 minute
 - **Physics**: Stage-synchronous adaptive RK45 space charge vs. fixed-step RK4 (Direct SC)
@@ -55,6 +67,7 @@ From repository root:
 ```bash
 # Single validation
 python validation/scripts/physics/validate_gas_flow_transport.py
+python validation/scripts/physics/validate_tims_elution.py
 
 # All physics validations (when more are added)
 # python validation/scripts/physics/run_all_physics_validations.py

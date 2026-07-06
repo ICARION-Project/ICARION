@@ -72,6 +72,7 @@ The main cost is runtime: explicit collision models are more expensive than cont
 | `Friction` + OU | Mobility damping plus thermal kicks | Mean drift with thermal velocity distribution | Still not event-resolved |
 | `HSS` | Stochastic hard-sphere collisions | Explicit gas collisions, diffusion | Simplified spherical scattering |
 | `EHSS` | Geometry-/orientation-aware hard-sphere scattering | Structure-sensitive stochastic scattering | More expensive; needs geometry, samples, or EHSS CCS data |
+| `InteractionPotentialModel` | Offline interaction-potential collision lookup | Long-range ion-neutral scattering studies | Requires precomputed HDF5 sample tables |
 | `HSD` | Deterministic hard-sphere damping | Development/research comparisons | Experimental; no proper stochastic diffusion |
 | `Langevin` | Polarization-based damping | Research on long-range ion-neutral effects | Experimental; validate before use |
 
@@ -353,9 +354,55 @@ EHSS is also more sensitive to input quality. Poor geometries, inconsistent radi
 
 ---
 
-## Collision event sampling in HSS and EHSS
+## `InteractionPotentialModel`: offline interaction-potential collisions
 
-HSS and EHSS are collision models based on Monte Carlo event sampling. Instead of applying a continuous damping force at every step, ICARION checks, for each ion and time step, whether a discrete ion-neutral collision event occurs. This event decision is based on the collision rate
+`InteractionPotentialModel` uses precomputed HDF5 lookup data instead of
+resolving the ion-neutral potential at runtime. The precompute tool integrates
+classical scattering trajectories for sampled molecular orientations and
+relative-speed bins, then stores momentum-transfer cross sections and sampled
+momentum kicks. The runtime loads this table through `ipm_samples_file`.
+
+Example species entry:
+
+```json
+{
+  "species": {
+    "H3O+": {
+      "mass_amu": 19.0,
+      "charge": 1,
+      "ipm_samples_file": "molecules/precomputed_ipm/H3O+_He_ipm.h5"
+    }
+  }
+}
+```
+
+Example physics section:
+
+```json
+{
+  "physics": {
+    "collision_model": "InteractionPotentialModel",
+    "ipm_orientation_mode": "random"
+  }
+}
+```
+
+Use `InteractionPotentialModel` when long-range ion-neutral interactions are a
+central part of the study and an offline sample table has been generated for the
+same species and gas. It is not a drop-in replacement for EHSS: EHSS is a
+hard-sphere geometry model, while IPM uses an interaction potential and samples
+momentum kicks from the precomputed table.
+
+The runtime expects HDF5 files with format attribute `ipm_offline_samples`.
+Required datasets include `logv_bins`, `orientations_quat`, `sigma_mt_m2`, and
+`b_max_m`; high-fidelity files may also include full momentum-kick CDF datasets.
+See [CLI reference](cli-reference.md#precompute-tools) for the producer tool.
+
+---
+
+## Collision event sampling in HSS, EHSS, and IPM
+
+HSS, EHSS, and `InteractionPotentialModel` are collision models based on Monte Carlo event sampling. Instead of applying a continuous damping force at every step, ICARION checks, for each ion and time step, whether a discrete ion-neutral collision event occurs. This event decision is based on the collision rate
 
 ```text
 k = N * sigma_eff * |v_ion - v_neutral|
@@ -520,10 +567,14 @@ For the EHSS model, the preferred data hierarchy is:
 
 ```text
 gas-specific CCS_EHSS[gas]
-    -> precomputed EHSS orientation samples
+    -> precomputed EHSS offline collision samples
+        -> precomputed EHSS orientation samples
         -> molecular geometry
             -> derived or generic CCS fallback with warning/error if data are insufficient
 ```
+
+For `InteractionPotentialModel`, the runtime requires `ipm_samples_file`; it
+does not derive an interaction-potential table from geometry during the run.
 
 This is why the [species database](species-database.md) is not just a list of masses and charges. It is part of the physical model definition.
 

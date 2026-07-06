@@ -135,6 +135,58 @@ icarion --check-deps
 Use `--dump-build-info` when reporting a problem. It shows the version, git hash,
 compiler/build mode, GPU status, OpenMP status, and dependency information.
 
+## Precompute tools
+
+Some collision models use offline files generated before the simulation run. In
+a local build tree these tools are available under `build/src/`.
+
+### `ehss_offline_precompute`
+
+`ehss_offline_precompute` produces single-gas EHSS collision sample files for
+`EHSS_offline_samples_file`. The tool samples molecular orientations, estimates
+orientation-dependent effective cross sections, records first-contact
+scattering samples as `mu = cos(theta)`, and writes JSON or HDF5 output.
+
+```bash
+cmake --build build --target ehss_offline_precompute
+build/src/ehss_offline_precompute \
+  --input species.json \
+  --output h3o_ehss_he.h5 \
+  --species H3O+ \
+  --gas He \
+  --format hdf5
+```
+
+Logical output fields are `format = ehss_offline_samples`, `version`,
+`species_id`, `gas`, `units = sigma_eff_m2,mu`, `orientations_quat`,
+`sigma_eff_m2`, and `mu_samples`. At runtime ICARION uses these sampled cross
+sections and scattering angles; it does not repeat the geometry first-contact
+search on this offline path.
+
+### `interaction_potential_precompute`
+
+`interaction_potential_precompute` produces HDF5 lookup data for
+`ipm_samples_file` and the `InteractionPotentialModel` collision handler. The
+tool integrates classical ion-neutral scattering trajectories for sampled
+orientations and relative-speed bins, then writes momentum-transfer cross
+sections and momentum-kick sampling data.
+
+```bash
+cmake --build build --target interaction_potential_precompute
+build/src/interaction_potential_precompute \
+  --input species.json \
+  --species H3O+ \
+  --output h3o_ipm_he.h5 \
+  --gas He \
+  --potential lj1264
+```
+
+The runtime format attribute is `ipm_offline_samples`. Required datasets are
+`logv_bins`, `orientations_quat`, `sigma_mt_m2`, and `b_max_m`. Files may also
+store full CDF datasets (`cdf_offsets`, `cdf_counts`, `cdf_values`,
+`dp_samples`) for higher-fidelity momentum-kick sampling; otherwise the runtime
+uses `dp_stats`.
+
 ## Exit codes
 
 ICARION returns `0` for success and `1` for invalid arguments, validation

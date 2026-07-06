@@ -278,6 +278,36 @@ For validation of these rate constant implementations, see [validation](validati
 
 ---
 
+## Equilibrium-linked reverse reactions
+
+Forward reactions can optionally carry thermochemistry metadata so ICARION can
+generate the corresponding dynamic reverse channel:
+
+```json
+{
+  "id": "cluster_forward",
+  "reactant": "H3O+",
+  "product": "H3O+_cluster",
+  "rate_constant": 1200.0,
+  "rate_model": "Constant",
+  "equilibrium": true,
+  "delta_r_H_J_mol": -42000.0,
+  "delta_r_S_J_molK": -95.0
+}
+```
+
+When `equilibrium` is true and both `delta_r_H_J_mol` and
+`delta_r_S_J_molK` are present, the loader adds a reverse reaction with ID
+`<forward_id>__reverse` unless an explicit reverse channel already exists. At
+runtime the reverse effective rate is evaluated from the linked forward rate and
+the temperature-dependent equilibrium constant.
+
+The SI fields above are the preferred form. Legacy `delta_r_H_kcalmol` and
+`delta_r_S_cal_molK` keys are still accepted and converted by the loader, but
+new reaction databases should use SI units.
+
+---
+
 ## Competing channels
 
 Multiple reactions can share the same reactant:

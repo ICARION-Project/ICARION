@@ -80,9 +80,14 @@ This section selects the active collision, reaction, and space charge models. Fo
 
 | Parameter | Example | Meaning |
 |---|---|---|
-| `collision_model` | `"NoCollisions"`, `"Friction"`, `"HSS"`, `"EHSS"` | Selects ion-neutral collision handling. |
+| `collision_model` | `"NoCollisions"`, `"Friction"`, `"HSS"`, `"EHSS"`, `"InteractionPotentialModel"` | Selects ion-neutral collision handling. |
+| `collision_subcycles_per_step` | `1` | Splits each stochastic collision update into smaller substeps; useful when event probabilities become large. |
 | `enable_reactions` | `true` / `false` | Enables stochastic species conversion from the reaction database based on configured reaction kinetics. |
 | `enable_space_charge` | `true` / `false` | Enables ion-ion space charge effects if configured. |
+| `ipm_orientation_mode` | `"random"` or `"fixed"` | Orientation sampling for `InteractionPotentialModel`; omitted configs default to `"random"`. |
+| `ipm_fixed_orientation_index` | `0` | Orientation index used when `ipm_orientation_mode` is `"fixed"`. |
+| `ipm_vrel_log_prefix` | `"debug/ipm_vrel"` | Optional relative-velocity diagnostic CSV prefix for `InteractionPotentialModel`. |
+| `ipm_momentum_log_prefix` | `"debug/ipm_dp"` | Optional momentum-kick diagnostic CSV prefix for `InteractionPotentialModel`. |
 
 Example without reactions:
 

@@ -1,0 +1,62 @@
+{
+  "simulation": {
+    "total_time_s": 5e-6,
+    "dt_s": 2e-9,
+    "write_interval": 20,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 123
+  },
+  "physics": {
+    "collision_model": "InteractionPotentialModel",
+    "enable_space_charge": false,
+    "enable_reactions": false,
+    "ipm_orientation_mode": "random"
+  },
+  "output": {
+    "folder": "results/ims_ipm_basic",
+    "trajectory_file": "trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 120,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0005],
+          "std": [0.0004, 0.0004, 0.0002]
+        },
+        "velocity": {
+          "type": "fixed",
+          "value": [0.0, 0.0, 1800.0]
+        }
+      }
+    ]
+  },
+  "species_database": "species_database_ipm_basic.json",
+  "domains": [
+    {
+      "name": "drift_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, 0.0],
+        "length_m": 0.05,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 80.0,
+        "gas_species": "He",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 45.0
+        }
+      }
+    }
+  ]
+}

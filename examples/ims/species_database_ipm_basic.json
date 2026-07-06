@@ -1,0 +1,10 @@
+{
+  "species": {
+    "H3O+": {
+      "name": "Hydronium",
+      "mass_amu": 19.018,
+      "charge": 1,
+      "ipm_samples_file": "../../results/precomputed_ipm/H3O+_ipm_samples_He.h5"
+    }
+  }
+}

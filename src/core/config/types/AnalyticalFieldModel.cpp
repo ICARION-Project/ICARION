@@ -69,6 +69,7 @@ Vec3 AnalyticalFieldModel::E(const Vec3& global_pos, double t) const {
     switch (domain_->instrument) {
         case Inst::LQIT:         return compute_lqit_field(global_pos, t);
         case Inst::IMS:          return compute_ims_field(global_pos, t);
+        case Inst::TIMS:         return compute_ims_field(global_pos, t);
         case Inst::TOF:          return compute_tof_field(global_pos);
         case Inst::FTICR:        return compute_fticr_field(global_pos);
         case Inst::Orbitrap:     return compute_orbitrap_field(global_pos, t);

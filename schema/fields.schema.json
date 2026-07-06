@@ -353,6 +353,71 @@
       "$ref": "#/$defs/acDipolarExcitation",
       "description": "Optional top-level fields block for independent x/y LQIT dipolar AC excitation. When present, it supersedes the legacy x-only AC.voltage_V/frequency_Hz drive in the LQIT analytical field."
     },
+
+    "TIMS": {
+      "type": "object",
+      "description": "TIMS axial field program. The model evaluates E_z(z,t)=(1-f(t))*E_initial(z)+f(t)*E_final(z).",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "axial_field_initial_uniform_V_m": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Uniform initial axial field before the ramp [V/m]."
+        },
+        "axial_field_final_uniform_V_m": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Uniform final axial field after the ramp [V/m]."
+        },
+        "z_positions_m": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "description": "Local z positions for tabulated TIMS profiles [m]."
+        },
+        "axial_field_initial_profile_V_m": {
+          "type": "array",
+          "items": {"type": "number"},
+          "description": "Initial axial field profile sampled at z_positions_m [V/m]."
+        },
+        "axial_field_final_profile_V_m": {
+          "type": "array",
+          "items": {"type": "number"},
+          "description": "Final axial field profile sampled at z_positions_m [V/m]."
+        },
+        "ramp_start_s": {
+          "$ref": "common-types.schema.json#/$defs/time_non_negative",
+          "default": 0.0
+        },
+        "ramp_end_s": {
+          "$ref": "common-types.schema.json#/$defs/time_non_negative",
+          "default": 0.0
+        },
+        "ramp_mode": {
+          "type": "string",
+          "enum": ["linear", "exponential"],
+          "default": "linear"
+        },
+        "ramp_tau_s": {
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "default": 0.001
+        },
+        "ramp_fraction": {
+          "$ref": "waveform.schema.json#/definitions/ValueOrWaveform",
+          "description": "Optional direct f(t) override, clamped to [0,1]."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "tims": {
+      "$ref": "#/properties/TIMS",
+      "description": "Alias for TIMS."
+    },
     
     "B": {
       "type": "object",

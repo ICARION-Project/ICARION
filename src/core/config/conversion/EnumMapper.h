@@ -34,8 +34,8 @@ public:
         static const std::unordered_map<std::string, Instrument> map = {
             {"lqit", Instrument::LQIT},
             {"ims", Instrument::IMS},
-            {"tims", Instrument::IMS},
-            {"tims_tunnel", Instrument::IMS},
+            {"tims", Instrument::TIMS},
+            {"tims_tunnel", Instrument::TIMS},
             {"sifdt-ms", Instrument::IMS},
             {"sifdt_ms", Instrument::IMS},
             {"sifdt", Instrument::IMS},
@@ -137,6 +137,7 @@ public:
             case Instrument::Orbitrap: return "Orbitrap";
             case Instrument::FTICR: return "FT-ICR";
             case Instrument::NoFixedInstrument: return "Custom";
+            case Instrument::TIMS: return "TIMS";
             case Instrument::UnknownInstrument: return "Unknown";
             default: return "Unknown";
         }

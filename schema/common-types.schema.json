@@ -109,6 +109,8 @@
       "enum": [
         "LQIT",
         "IMS",
+        "TIMS",
+        "TIMS_TUNNEL",
         "SIFDT-MS",
         "SIFDT_MS",
         "Orbitrap",

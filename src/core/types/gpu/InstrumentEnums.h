@@ -36,7 +36,8 @@ enum InstrumentGPU : int {
     TOF = 4,               ///< Time-of-Flight
     FT_ICR = 5,            ///< Fourier Transform Ion Cyclotron Resonance
     NoFixedInstrument = 6, ///< Generic/custom instrument
-    UnknownInstrument = 7  ///< Unrecognized instrument type
+    TIMS = 7,              ///< Trapped Ion Mobility Spectrometry
+    UnknownInstrument = 8  ///< Unrecognized instrument type
 };
 
 // ============================================================================
@@ -61,5 +62,7 @@ static_assert(static_cast<int>(InstrumentType::FTICR) == static_cast<int>(Instru
     "SSOT violation: InstrumentGPU::FT_ICR must match InstrumentType::FTICR");
 static_assert(static_cast<int>(InstrumentType::NoFixedInstrument) == static_cast<int>(InstrumentGPU::NoFixedInstrument), 
     "SSOT violation: InstrumentGPU::NoFixedInstrument must match InstrumentType::NoFixedInstrument");
+static_assert(static_cast<int>(InstrumentType::TIMS) == static_cast<int>(InstrumentGPU::TIMS),
+    "SSOT violation: InstrumentGPU::TIMS must match InstrumentType::TIMS");
 static_assert(static_cast<int>(InstrumentType::UnknownInstrument) == static_cast<int>(InstrumentGPU::UnknownInstrument), 
     "SSOT violation: InstrumentGPU::UnknownInstrument must match InstrumentType::UnknownInstrument");

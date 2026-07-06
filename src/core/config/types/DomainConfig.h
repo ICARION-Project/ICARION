@@ -124,13 +124,15 @@ struct DomainConfig {
                 break;
                 
             case Instrument::IMS:
+            case Instrument::TIMS:
                 // Check if EN_Td and axial_V are both zero (only for static values)
                 if (fields.dc.EN_Td.constant_value.has_value() && 
                     fields.dc.axial_V.constant_value.has_value() &&
                     fields.dc.EN_Td.constant_value.value() == 0.0 && 
-                    fields.dc.axial_V.constant_value.value() == 0.0) {
-                    result.add_warning("IMS domain '" + name + "' has no drift field. "
-                                      "Ion transport may rely solely on gas flow (e.g., SIFT mode).");
+                    fields.dc.axial_V.constant_value.value() == 0.0 &&
+                    !fields.tims.enabled) {
+                    result.add_warning("IMS/TIMS domain '" + name + "' has no drift field. "
+                                      "Ion transport may rely solely on gas flow.");
                 }
                 break;
                 

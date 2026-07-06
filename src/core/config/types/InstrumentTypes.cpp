@@ -24,6 +24,7 @@ InstrumentType instrumentTypeFromString(std::string_view type) {
     const std::string key = toUpper(type);
     if (key == "LQIT") return InstrumentType::LQIT;
     if (key == "IMS" || key == "SIFDT-MS" || key == "SIFDT_MS" || key == "SIFDT") return InstrumentType::IMS;
+    if (key == "TIMS" || key == "TIMS_TUNNEL") return InstrumentType::TIMS;
     if (key == "ORBITRAP") return InstrumentType::Orbitrap;
     if (key == "QUADRUPOLE" || key == "QUADRUPOLE_RF" || key == "SLIM") return InstrumentType::QuadrupoleRF;
     if (key == "TOF" || key == "TIME-OF-FLIGHT") return InstrumentType::TOF;
@@ -42,6 +43,7 @@ std::string instrumentTypeToString(InstrumentType type) {
         case InstrumentType::TOF: return "TOF";
         case InstrumentType::FTICR: return "FTICR";
         case InstrumentType::NoFixedInstrument: return "NoFixedInstrument";
+        case InstrumentType::TIMS: return "TIMS";
         case InstrumentType::UnknownInstrument:
         default:
             return "UnknownInstrument";
@@ -51,6 +53,7 @@ std::string instrumentTypeToString(InstrumentType type) {
 bool instrumentSupportsMultipleDomains(InstrumentType type) {
     switch (type) {
         case InstrumentType::IMS:
+        case InstrumentType::TIMS:
         case InstrumentType::QuadrupoleRF:
             return true;
         default:

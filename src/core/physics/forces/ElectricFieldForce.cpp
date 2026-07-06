@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Christoph Schaefer
 #include "ElectricFieldForce.h"
+#include "core/config/types/TIMSAxialFieldModel.h"
 #include "fieldsolver/utils/IFieldProvider.h"
 #include <stdexcept>
 
@@ -17,7 +18,13 @@ ElectricFieldForce::ElectricFieldForce(const ICARION::config::DomainConfig& doma
     , domain_(&domain)  // SSOT: store config reference
 {
     // Build analytical fallback model from config for legacy contexts
-    fallback_model_ = std::make_unique<ICARION::config::AnalyticalFieldModel>(domain);
+    const bool use_tims_model =
+        (domain.instrument == ICARION::config::Instrument::TIMS || domain.fields.tims.enabled);
+    if (use_tims_model) {
+        fallback_model_ = std::make_unique<ICARION::config::TIMSAxialFieldModel>(domain);
+    } else {
+        fallback_model_ = std::make_unique<ICARION::config::AnalyticalFieldModel>(domain);
+    }
 }
 
 ElectricFieldForce::ElectricFieldForce(std::shared_ptr<::IFieldProvider> field_provider)
@@ -88,6 +95,7 @@ std::string ElectricFieldForce::name() const {
     switch (domain_->instrument) {
         case Inst::LQIT:              return "ElectricField(LQIT)";
         case Inst::IMS:               return "ElectricField(IMS)";
+        case Inst::TIMS:              return "ElectricField(TIMS)";
         case Inst::TOF:               return "ElectricField(TOF)";
         case Inst::FTICR:             return "ElectricField(FTICR)";
         case Inst::Orbitrap:          return "ElectricField(Orbitrap)";

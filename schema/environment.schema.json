@@ -42,6 +42,43 @@
       "description": "Background gas flow velocity vector (vx, vy, vz) in m/s"
     },
 
+    "flow_model": {
+      "type": "string",
+      "enum": ["constant", "legacy", "axial_uniform", "uniform", "axial_const", "axial_parabolic", "parabolic", "poiseuille"],
+      "default": "constant",
+      "description": "Optional gas-flow profile. TIMS commonly uses axial_uniform."
+    },
+
+    "axial_flow_velocity_m_s": {
+      "type": "number",
+      "minimum": 0.0,
+      "default": 0.0,
+      "description": "Uniform axial gas-flow velocity [m/s]."
+    },
+
+    "axial_flow_max_velocity_m_s": {
+      "type": "number",
+      "minimum": 0.0,
+      "default": 0.0,
+      "description": "Centerline velocity for axial parabolic flow [m/s]."
+    },
+
+    "flow_parameters": {
+      "type": "object",
+      "description": "Nested flow parameters alias used by TIMS/flowtube examples.",
+      "properties": {
+        "axial_flow_velocity_m_s": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "axial_flow_max_velocity_m_s": {
+          "type": "number",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+
     "gas_mixture": {
       "type": "array",
       "description": "Optional gas mixture; if present, overrides gas_species",

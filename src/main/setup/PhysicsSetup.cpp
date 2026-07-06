@@ -11,6 +11,7 @@
 #include "core/physics/collisions/geometryUtils.h"
 #include "core/physics/reactions/ReactionHandlerFactory.h"
 #include "core/io/fieldArrayLoader.h"
+#include "core/config/types/TIMSAxialFieldModel.h"
 #include "fieldsolver/utils/GridFieldProvider.h"
 #include "fieldsolver/utils/CompositeFieldProvider.h"
 #include "core/log/Logger.h"
@@ -145,7 +146,14 @@ std::vector<std::shared_ptr<physics::ForceRegistry>> PhysicsSetup::create_force_
         } else {
             // Use analytical mode (instrument-specific fields) and set SSOT model
             registry->add_force(std::make_unique<physics::ElectricFieldForce>(domain));
-            auto model = std::make_unique<config::AnalyticalFieldModel>(domain);
+            std::unique_ptr<config::IFieldModel> model;
+            const bool use_tims_model =
+                (domain.instrument == config::Instrument::TIMS || domain.fields.tims.enabled);
+            if (use_tims_model) {
+                model = std::make_unique<config::TIMSAxialFieldModel>(domain);
+            } else {
+                model = std::make_unique<config::AnalyticalFieldModel>(domain);
+            }
             registry->set_field_model(model.get());
             field_models_storage_.push_back(std::move(model));
         }

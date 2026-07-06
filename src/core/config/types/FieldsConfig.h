@@ -235,6 +235,72 @@ struct MagneticFieldConfig {
 };
 
 /**
+ * @brief TIMS axial field program.
+ *
+ * Evaluates E_z(z,t) = (1 - f(t)) * E_initial(z) + f(t) * E_final(z),
+ * with optional 1D profiles along local z. RF/DC radial confinement still
+ * comes from standard IMS RF/DC fields.
+ */
+struct TIMSFieldConfig {
+    bool enabled = false;
+
+    double axial_field_initial_uniform_V_m = 0.0; ///< Initial axial field before the ramp [V/m]
+    double axial_field_final_uniform_V_m = 0.0;   ///< Final axial field after the ramp [V/m]
+
+    std::vector<double> z_positions_m;          ///< Local z grid for profiles [m]
+    std::vector<double> axial_field_initial_profile_V_m; ///< Initial axial field profile [V/m]
+    std::vector<double> axial_field_final_profile_V_m;   ///< Final axial field profile [V/m]
+
+    double ramp_start_s = 0.0;
+    double ramp_end_s = 0.0;
+    std::string ramp_mode = "linear";  ///< "linear" or "exponential"
+    double ramp_tau_s = 1e-3;          ///< Exponential time constant [s]
+
+    bool ramp_fraction_defined = false;
+    ValueOrWaveform ramp_fraction{0.0};
+
+    ValidationResult validate() const {
+        ValidationResult result;
+        if (!enabled) {
+            return result;
+        }
+
+        if (ramp_end_s < ramp_start_s) {
+            result.add_error("TIMS ramp_end_s must be >= ramp_start_s");
+        }
+        if (ramp_mode != "linear" && ramp_mode != "exponential") {
+            result.add_error("TIMS ramp_mode must be 'linear' or 'exponential'");
+        }
+        if (ramp_mode == "exponential" && ramp_tau_s <= 0.0) {
+            result.add_error("TIMS ramp_tau_s must be > 0 for exponential mode");
+        }
+        if (ramp_fraction_defined && !ramp_fraction.is_valid()) {
+            result.add_error("TIMS ramp_fraction must be a valid ValueOrWaveform");
+        }
+
+        if (!z_positions_m.empty()) {
+            if (z_positions_m.size() < 2) {
+                result.add_error("TIMS z_positions_m must contain at least two points");
+            }
+            if (axial_field_initial_profile_V_m.size() != z_positions_m.size()) {
+                result.add_error("TIMS axial_field_initial_profile_V_m size must match z_positions_m");
+            }
+            if (!axial_field_final_profile_V_m.empty() && axial_field_final_profile_V_m.size() != z_positions_m.size()) {
+                result.add_error("TIMS axial_field_final_profile_V_m size must match z_positions_m when provided");
+            }
+            for (size_t i = 1; i < z_positions_m.size(); ++i) {
+                if (z_positions_m[i] < z_positions_m[i - 1]) {
+                    result.add_error("TIMS z_positions_m must be non-decreasing");
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
+};
+
+/**
  * @brief Complete field configuration for a domain
  * 
  * Aggregates DC, RF, AC, and magnetic fields.
@@ -245,6 +311,7 @@ struct FieldsConfig {
     DCFieldConfig dc;
     RFFieldConfig rf;
     ACFieldConfig ac;
+    TIMSFieldConfig tims;
     MagneticFieldConfig magnetic;
     
     // === Waveform library (v1.0.0) ===
@@ -288,6 +355,7 @@ struct FieldsConfig {
         result.merge(dc.validate());
         result.merge(rf.validate());
         result.merge(ac.validate());
+        result.merge(tims.validate());
         result.merge(magnetic.validate());
         
         // Field array validation

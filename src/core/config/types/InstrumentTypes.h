@@ -15,6 +15,8 @@ namespace instrument {
  * Canonical enumeration used across config/physics/integrator and mirrored
  * by GPU enums (see param/InstrumentEnums.h).
  * Note: SIFDT_MS has been consolidated into IMS (Ion Mobility Spectrometry).
+ * TIMS is kept as a distinct instrument type because its field program and
+ * gas-flow semantics differ from a simple drift-tube IMS setup.
  */
 enum class InstrumentType {
     LQIT = 0,              ///< Linear Quadrupole Ion Trap
@@ -24,7 +26,8 @@ enum class InstrumentType {
     TOF = 4,               ///< Time-of-Flight
     FTICR = 5,             ///< Fourier Transform Ion Cyclotron Resonance
     NoFixedInstrument = 6, ///< Generic/custom instrument
-    UnknownInstrument = 7  ///< Unrecognized instrument type
+    TIMS = 7,              ///< Trapped Ion Mobility Spectrometry
+    UnknownInstrument = 8  ///< Unrecognized instrument type
 };
 
 /**
@@ -32,6 +35,7 @@ enum class InstrumentType {
  * 
  * Accepts various naming conventions (case-insensitive):
  * - "IMS", "SIFDT-MS", "SIFDT_MS", "SIFDT" → InstrumentType::IMS
+ * - "TIMS", "TIMS_TUNNEL" → InstrumentType::TIMS
  * - "LQIT" → InstrumentType::LQIT
  * - "Orbitrap" → InstrumentType::Orbitrap
  * - etc.

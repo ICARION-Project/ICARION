@@ -47,6 +47,28 @@ set_tests_properties(ElectricFieldForce PROPERTIES
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+# Test: TIMS axial ramp field model
+add_executable(test_tims_axial_field_model
+    test_tims_axial_field_model.cpp
+)
+
+target_link_libraries(test_tims_axial_field_model
+    PRIVATE
+        icarion_core
+        Catch2::Catch2WithMain
+)
+
+target_include_directories(test_tims_axial_field_model
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+add_test(NAME TIMSAxialFieldModel COMMAND test_tims_axial_field_model)
+set_tests_properties(TIMSAxialFieldModel PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
 # Test: AnalyticalFieldModel parity with ElectricFieldForce
 add_executable(test_field_model_parity
     test_field_model_parity.cpp

@@ -7,14 +7,23 @@
 #include "core/utils/mathUtils.h"
 #include "utils/constants.h"
 #include "WaveformConfig.h"
+#include "GeometryConfig.h"
 #include "../validation/ValidationResult.h"
 #include <string>
 #include <cmath>
 #include <stdexcept>
 #include <vector>
 #include <unordered_map>
+#include <algorithm>
+#include <cctype>
 
 namespace ICARION::config {
+
+enum class FlowModelKind {
+    Constant,       ///< Use gas_velocity_m_s directly
+    AxialUniform,   ///< u = (0, 0, u_z)
+    AxialParabolic  ///< u_z(r) = u_max * (1 - (r/R)^2)
+};
 
 /**
  * @brief Single gas component for mixtures
@@ -50,6 +59,9 @@ struct EnvironmentConfig {
     double temperature_K = 300.0;           ///< Temperature [K] (default: room temp)
     std::string gas_species = "He";         ///< Buffer gas species ID
     Vec3 gas_velocity_m_s = {0.0, 0.0, 0.0}; ///< Bulk gas flow velocity [m/s]
+    FlowModelKind flow_model = FlowModelKind::Constant; ///< Optional gas-flow profile
+    double axial_flow_velocity_m_s = 0.0;   ///< Uniform axial flow speed [m/s]
+    double axial_flow_max_velocity_m_s = 0.0; ///< Parabolic profile centerline speed [m/s]
     std::vector<GasMixtureComponent> gas_mixture; ///< Optional mixture (if non-empty, overrides gas_species)
     
     // === Derived quantities (computed from input) ===
@@ -64,6 +76,45 @@ struct EnvironmentConfig {
 
     bool has_dynamic_pressure() const {
         return pressure_Pa_waveform.is_time_varying();
+    }
+
+    static FlowModelKind parse_flow_model(std::string model_name) {
+        std::transform(model_name.begin(), model_name.end(), model_name.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (model_name == "constant" || model_name == "legacy") {
+            return FlowModelKind::Constant;
+        }
+        if (model_name == "axial_uniform" || model_name == "uniform" || model_name == "axial_const") {
+            return FlowModelKind::AxialUniform;
+        }
+        if (model_name == "axial_parabolic" || model_name == "parabolic" || model_name == "poiseuille") {
+            return FlowModelKind::AxialParabolic;
+        }
+        throw std::runtime_error("EnvironmentConfig: unknown flow_model '" + model_name + "'");
+    }
+
+    Vec3 gas_velocity_at(const Vec3& global_pos,
+                         const GeometryConfig* geometry = nullptr) const {
+        switch (flow_model) {
+            case FlowModelKind::Constant:
+                return gas_velocity_m_s;
+            case FlowModelKind::AxialUniform:
+                return Vec3{0.0, 0.0, axial_flow_velocity_m_s};
+            case FlowModelKind::AxialParabolic: {
+                if (!geometry || geometry->radius_m <= 0.0) {
+                    return Vec3{0.0, 0.0, axial_flow_max_velocity_m_s};
+                }
+                const double dx = global_pos.x - geometry->origin_m.x;
+                const double dy = global_pos.y - geometry->origin_m.y;
+                const double r2 = dx * dx + dy * dy;
+                const double R2 = geometry->radius_m * geometry->radius_m;
+                const double rr = (R2 > 0.0) ? r2 / R2 : 0.0;
+                const double uz = axial_flow_max_velocity_m_s * std::max(0.0, 1.0 - rr);
+                return Vec3{0.0, 0.0, uz};
+            }
+            default:
+                return gas_velocity_m_s;
+        }
     }
 
     void update_time_dependent(double t_s, const std::map<std::string, Waveform>& waveform_library = {}) {
@@ -243,6 +294,12 @@ struct EnvironmentConfig {
         }
         if (gas_species.empty()) {
             result.add_error("Gas species cannot be empty");
+        }
+        if (flow_model == FlowModelKind::AxialUniform && axial_flow_velocity_m_s < 0.0) {
+            result.add_error("axial_flow_velocity_m_s must be >= 0 for axial_uniform flow");
+        }
+        if (flow_model == FlowModelKind::AxialParabolic && axial_flow_max_velocity_m_s < 0.0) {
+            result.add_error("axial_flow_max_velocity_m_s must be >= 0 for axial_parabolic flow");
         }
         double frac_sum = 0.0;
         for (const auto& comp : gas_mixture) {

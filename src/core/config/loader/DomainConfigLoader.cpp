@@ -143,6 +143,7 @@ EnvironmentConfig DomainConfigLoader::load_environment(
     const std::map<std::string, Waveform>& global_waveforms
 ) {
     EnvironmentConfig env;
+    bool gas_velocity_explicit = false;
     
     // Pressure
     if (json.isMember("pressure_Pa")) {
@@ -197,6 +198,36 @@ EnvironmentConfig DomainConfigLoader::load_environment(
     // Gas velocity
     if (json.isMember("gas_velocity_m_s")) {
         env.gas_velocity_m_s = load_vec3(json["gas_velocity_m_s"]);
+        gas_velocity_explicit = true;
+    }
+
+    if (json.isMember("flow_model") && json["flow_model"].isString()) {
+        env.flow_model = EnvironmentConfig::parse_flow_model(json["flow_model"].asString());
+    }
+    if (json.isMember("axial_flow_velocity_m_s") && json["axial_flow_velocity_m_s"].isNumeric()) {
+        env.axial_flow_velocity_m_s = json["axial_flow_velocity_m_s"].asDouble();
+    }
+    if (json.isMember("axial_flow_max_velocity_m_s") && json["axial_flow_max_velocity_m_s"].isNumeric()) {
+        env.axial_flow_max_velocity_m_s = json["axial_flow_max_velocity_m_s"].asDouble();
+    }
+    if (json.isMember("flow_parameters") && json["flow_parameters"].isObject()) {
+        const auto& flow = json["flow_parameters"];
+        if (flow.isMember("axial_flow_velocity_m_s") && flow["axial_flow_velocity_m_s"].isNumeric()) {
+            env.axial_flow_velocity_m_s = flow["axial_flow_velocity_m_s"].asDouble();
+        }
+        if (flow.isMember("axial_flow_max_velocity_m_s") && flow["axial_flow_max_velocity_m_s"].isNumeric()) {
+            env.axial_flow_max_velocity_m_s = flow["axial_flow_max_velocity_m_s"].asDouble();
+        }
+    }
+
+    // Collision handlers currently consume gas_velocity_m_s directly; keep it
+    // synchronized for the common TIMS/flowtube flow models.
+    if (!gas_velocity_explicit) {
+        if (env.flow_model == FlowModelKind::AxialUniform) {
+            env.gas_velocity_m_s = Vec3{0.0, 0.0, env.axial_flow_velocity_m_s};
+        } else if (env.flow_model == FlowModelKind::AxialParabolic) {
+            env.gas_velocity_m_s = Vec3{0.0, 0.0, 0.5 * env.axial_flow_max_velocity_m_s};
+        }
     }
     
     // Compute derived properties (density, mass, radius for mixture components)
@@ -242,6 +273,11 @@ FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json, const std:
     }
     if (has_top_level_dipolar) {
         load_ac_dipolar_excitation(fields.ac, json["dipolar_excitation"], fields.waveform_library, global_waveforms);
+    }
+
+    if (json.isMember("TIMS") || json.isMember("tims")) {
+        const Json::Value& tims_json = json.isMember("TIMS") ? json["TIMS"] : json["tims"];
+        fields.tims = load_tims_fields(tims_json, fields.waveform_library, global_waveforms);
     }
     
     // Magnetic fields
@@ -296,6 +332,75 @@ FieldsConfig DomainConfigLoader::load_fields(const Json::Value& json, const std:
     }
     
     return fields;
+}
+
+TIMSFieldConfig DomainConfigLoader::load_tims_fields(
+    const Json::Value& json,
+    const std::map<std::string, Waveform>& local_library,
+    const std::map<std::string, Waveform>& global_library
+) {
+    TIMSFieldConfig tims;
+
+    if (json.isMember("enabled") && json["enabled"].isBool()) {
+        tims.enabled = json["enabled"].asBool();
+    } else {
+        tims.enabled = true;
+    }
+
+    if (json.isMember("axial_field_initial_uniform_V_m") && json["axial_field_initial_uniform_V_m"].isNumeric()) {
+        tims.axial_field_initial_uniform_V_m = json["axial_field_initial_uniform_V_m"].asDouble();
+    }
+    if (json.isMember("axial_field_final_uniform_V_m") && json["axial_field_final_uniform_V_m"].isNumeric()) {
+        tims.axial_field_final_uniform_V_m = json["axial_field_final_uniform_V_m"].asDouble();
+    }
+    if (json.isMember("ramp_start_s") && json["ramp_start_s"].isNumeric()) {
+        tims.ramp_start_s = json["ramp_start_s"].asDouble();
+    }
+    if (json.isMember("ramp_end_s") && json["ramp_end_s"].isNumeric()) {
+        tims.ramp_end_s = json["ramp_end_s"].asDouble();
+    }
+    if (json.isMember("ramp_mode") && json["ramp_mode"].isString()) {
+        tims.ramp_mode = json["ramp_mode"].asString();
+    }
+    if (json.isMember("ramp_tau_s") && json["ramp_tau_s"].isNumeric()) {
+        tims.ramp_tau_s = json["ramp_tau_s"].asDouble();
+    }
+    if (json.isMember("ramp_fraction")) {
+        try {
+            tims.ramp_fraction = WaveformLoader::load_value_or_waveform(
+                json["ramp_fraction"], local_library, global_library);
+            tims.ramp_fraction_defined = true;
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Failed to load TIMS ramp_fraction: ") + e.what());
+        }
+    }
+
+    auto load_double_array = [](const Json::Value& arr, const std::string& field_name) {
+        if (!arr.isArray()) {
+            throw std::runtime_error(field_name + " must be an array");
+        }
+        std::vector<double> values;
+        values.reserve(arr.size());
+        for (const auto& v : arr) {
+            if (!v.isNumeric()) {
+                throw std::runtime_error(field_name + " entries must be numeric");
+            }
+            values.push_back(v.asDouble());
+        }
+        return values;
+    };
+
+    if (json.isMember("z_positions_m")) {
+        tims.z_positions_m = load_double_array(json["z_positions_m"], "TIMS.z_positions_m");
+    }
+    if (json.isMember("axial_field_initial_profile_V_m")) {
+        tims.axial_field_initial_profile_V_m = load_double_array(json["axial_field_initial_profile_V_m"], "TIMS.axial_field_initial_profile_V_m");
+    }
+    if (json.isMember("axial_field_final_profile_V_m")) {
+        tims.axial_field_final_profile_V_m = load_double_array(json["axial_field_final_profile_V_m"], "TIMS.axial_field_final_profile_V_m");
+    }
+
+    return tims;
 }
 
 DCFieldConfig DomainConfigLoader::load_dc_fields(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library, const GeometryConfig& geometry, const EnvironmentConfig& environment) {

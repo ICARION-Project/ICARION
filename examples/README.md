@@ -30,6 +30,7 @@ Results written to `results/`. GPU runtime path is disabled in v1.0.0; `enable_g
 
 ### Ion Mobility - `ims/`
 - **ims_basic.json**: Drift tube, 500 H3O+ + 500 26DTBPH+ ions, HSS collisions.
+- **ims_tims_basic.json**: TIMS axial ramp field with axial gas flow, RF confinement, and three-species packet.
 - **ims_with_field_array.json**: Field array example (200 V/cm base array scaled by DC.axial_V to 400 V/cm).
 - **ims_field_array_time_varying.json**: Superposition of DC (500 V/cm) + RF (+/-100 V @ 1 MHz)
 - **ims_field_array_multi_domain.json**: Two-stage drift (600 V/cm to 300 V/cm)

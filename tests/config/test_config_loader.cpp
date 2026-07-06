@@ -144,6 +144,81 @@ TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
     REQUIRE(std::filesystem::exists(cfg.config_file_path));
 }
 
+TEST_CASE("ConfigLoader parses TIMS instrument, field program, and axial flow", "[config][loader][tims]") {
+    std::string config = R"({
+        "simulation": {
+            "dt_s": 1e-8,
+            "total_time_s": 1e-6,
+            "integrator": "RK4",
+            "write_interval": 10
+        },
+        "physics": {
+            "collision_model": "HSS"
+        },
+        "output": {
+            "folder": "./output",
+            "trajectory_file": "tims_loader_test.h5"
+        },
+        "ions": {
+            "species": [{
+                "id": "H3O+",
+                "count": 1,
+                "position": {"type": "point", "center": [0.0, 0.0, 0.01]},
+                "velocity": {"type": "thermal", "temperature_K": 300.0}
+            }]
+        },
+        "domains": [{
+            "name": "tims_domain",
+            "instrument": "TIMS",
+            "geometry": {
+                "origin_m": [0.0, 0.0, 0.0],
+                "length_m": 0.02,
+                "radius_m": 0.005
+            },
+            "environment": {
+                "pressure_Pa": 310.0,
+                "temperature_K": 300.0,
+                "gas_species": "N2",
+                "flow_model": "axial_uniform",
+                "flow_parameters": {
+                    "axial_flow_velocity_m_s": 134.0
+                }
+            },
+            "fields": {
+                "RF": {
+                    "voltage_V": 180.0,
+                    "frequency_Hz": 2000000.0
+                },
+                "TIMS": {
+                    "enabled": true,
+                    "z_positions_m": [0.0, 0.02],
+                    "axial_field_initial_profile_V_m": [0.0, -4495.0],
+                    "axial_field_final_profile_V_m": [0.0, 0.0],
+                    "ramp_start_s": 8e-4,
+                    "ramp_end_s": 1.8e-3,
+                    "ramp_mode": "linear"
+                }
+            }
+        }]
+    })";
+
+    std::string path = create_temp_config(config, "_tims_loader");
+    auto cfg = ConfigLoader::load(path);
+
+    REQUIRE(cfg.domains.size() == 1);
+    const auto& domain = cfg.domains[0];
+    REQUIRE(domain.instrument == Instrument::TIMS);
+    REQUIRE(domain.environment.flow_model == FlowModelKind::AxialUniform);
+    REQUIRE(domain.environment.axial_flow_velocity_m_s == Approx(134.0));
+    REQUIRE(domain.environment.gas_velocity_m_s.z == Approx(134.0));
+    REQUIRE(domain.fields.tims.enabled);
+    REQUIRE(domain.fields.tims.axial_field_initial_profile_V_m[1] == Approx(-4495.0));
+    REQUIRE(domain.fields.tims.ramp_start_s == Approx(8e-4));
+    REQUIRE(domain.fields.tims.ramp_end_s == Approx(1.8e-3));
+
+    std::filesystem::remove(path);
+}
+
 TEST_CASE("ConfigLoader loads LQIT two-axis dipolar AC excitation", "[config][loader][lqit][ac]") {
     std::string config = make_lqit_config_with_fields(R"({
         "RF": {

@@ -70,7 +70,15 @@ Vec3 DampingForce::compute_soa(const ForceState& state, double t,
         return Vec3{0.0, 0.0, 0.0};
     }
 
-    return ion.vel * (-gamma * ion.mass_kg);
+    const auto* active_env = env_;
+    const config::GeometryConfig* geometry = nullptr;
+    if (ctx.domain) {
+        active_env = &ctx.domain->environment;
+        geometry = &ctx.domain->geometry;
+    }
+    const Vec3 gas_velocity = active_env->gas_velocity_at(state.pos, geometry);
+    const Vec3 relative_velocity = ion.vel - gas_velocity;
+    return relative_velocity * (-gamma * ion.mass_kg);
 }
 
 std::string DampingForce::name() const {

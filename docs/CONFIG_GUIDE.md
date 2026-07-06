@@ -1199,6 +1199,7 @@ Ions outside these boundaries are deactivated (electrode collision).
 Complete configuration examples for all supported instruments are available in `examples/`:
 
 - **IMS**: `examples/ims/ims_basic.json` - Ion mobility spectrometry
+- **TIMS**: `examples/ims/ims_tims_basic.json` - Trapped IMS axial ramp field with gas flow
 - **TOF**: `examples/tof/tof_linear.json` - Time-of-flight mass spectrometry
 - **LQIT**: `examples/lqit/lqit_basic.json` - Linear quadrupole ion trap
 - **Orbitrap**: `examples/orbitrap/orbitrap_basic.json` - Orbitrap mass analyzer
@@ -1258,6 +1259,38 @@ Complete configuration examples for all supported instruments are available in `
 ```
 
 See `examples/README.md` for detailed documentation of all example configurations.
+
+---
+
+### TIMS Axial Ramp Fields
+
+TIMS can be declared with `instrument: "TIMS"` and a `fields.TIMS` block. The
+analytical model evaluates the local axial field as:
+
+```text
+E_z(z,t) = (1 - f(t)) * E_initial(z) + f(t) * E_final(z)
+```
+
+`axial_field_initial_*` and `axial_field_final_*` can be uniform values or 1D
+profiles sampled at `z_positions_m`. The ramp fraction `f(t)` is linear or exponential between
+`ramp_start_s` and `ramp_end_s`, or can be supplied directly via
+`ramp_fraction`. Standard IMS RF/DC settings still provide radial confinement.
+
+TIMS examples usually also set an axial gas flow:
+
+```json
+"env": {
+  "temperature_K": 300.0,
+  "pressure_Pa": 310.0,
+  "gas_species": "N2",
+  "flow_model": "axial_uniform",
+  "flow_parameters": {
+    "axial_flow_velocity_m_s": 134.0
+  }
+}
+```
+
+See `examples/ims/ims_tims_basic.json` for a complete configuration.
 
 ---
 

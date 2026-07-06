@@ -44,6 +44,7 @@ private:
     static ACFieldConfig load_ac_fields(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library);
     static ACDipolarAxisConfig load_ac_dipolar_axis(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library, const std::string& axis_name);
     static void load_ac_dipolar_excitation(ACFieldConfig& ac, const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library);
+    static TIMSFieldConfig load_tims_fields(const Json::Value& json, const std::map<std::string, Waveform>& local_library, const std::map<std::string, Waveform>& global_library);
     static MagneticFieldConfig load_magnetic_fields(const Json::Value& json);
     
     // Helpers

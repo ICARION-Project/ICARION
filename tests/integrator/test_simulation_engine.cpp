@@ -36,6 +36,26 @@ std::vector<IonState> run_engine_aos(SimulationEngine& engine, std::vector<IonSt
     auto result_ens = engine.run(ensemble);
     return result_ens.to_legacy();
 }
+
+class CountingCollisionHandler : public ICollisionHandler {
+public:
+    bool handle_collision(core::IonCollisionData&,
+                          double dt,
+                          PhysicsRng&,
+                          const config::EnvironmentConfig&) override {
+        ++calls_;
+        last_dt_ = dt;
+        return false;
+    }
+
+    std::string name() const override { return "CountingCollisionHandler"; }
+    size_t calls() const { return calls_; }
+    double last_dt() const { return last_dt_; }
+
+private:
+    size_t calls_ = 0;
+    double last_dt_ = 0.0;
+};
 }
 
 // ============================================================================
@@ -395,6 +415,65 @@ TEST_CASE("SimulationEngine: Collision handler integration", "[simulation][engin
         
         // Velocity should be unchanged (no collisions)
         REQUIRE_THAT(result[0].vel.z, Catch::Matchers::WithinRel(1000.0, 1e-6));
+    }
+}
+
+TEST_CASE("SimulationEngine: collision micro-subcycling dispatch", "[simulation][engine][collision][subcycle]") {
+    auto cfg = create_test_config();
+    cfg.physics.collision_model = CollisionModel::HSS;
+    cfg.simulation.total_time_s = 5e-9;
+    cfg.simulation.dt_s = 1e-9;
+    cfg.simulation.enable_openmp = false;
+    cfg.simulation.compute_derived();
+
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
+    auto integrator = std::make_shared<RK4Strategy>();
+
+    SECTION("Baseline mode calls handler once per ion-step") {
+        auto collision_handler = std::make_shared<CountingCollisionHandler>();
+        SimulationEngine engine(cfg, {force_registry}, integrator, collision_handler);
+
+        std::vector<IonState> ions = {create_test_ion()};
+        ions[0].vel = Vec3{0.0, 0.0, 0.0};
+
+        auto result = run_engine_aos(engine, ions);
+
+        REQUIRE(result.size() == 1);
+        REQUIRE(collision_handler->calls() == 5);
+        REQUIRE_THAT(collision_handler->last_dt(), Catch::Matchers::WithinAbs(1e-9, 1e-18));
+    }
+
+    SECTION("collision_subcycles_per_step splits collision dt") {
+        cfg.physics.collision_subcycles_per_step = 3;
+
+        auto collision_handler = std::make_shared<CountingCollisionHandler>();
+        SimulationEngine engine(cfg, {force_registry}, integrator, collision_handler);
+
+        std::vector<IonState> ions = {create_test_ion()};
+        ions[0].vel = Vec3{0.0, 0.0, 0.0};
+
+        auto result = run_engine_aos(engine, ions);
+
+        REQUIRE(result.size() == 1);
+        REQUIRE(collision_handler->calls() == 15);
+        REQUIRE_THAT(collision_handler->last_dt(), Catch::Matchers::WithinAbs(1.0e-9 / 3.0, 1e-18));
+    }
+
+    SECTION("Multi-event mode enforces max-event micro-subcycling") {
+        cfg.physics.collision_multi_event_mode = true;
+        cfg.physics.collision_max_events_per_step = 4;
+
+        auto collision_handler = std::make_shared<CountingCollisionHandler>();
+        SimulationEngine engine(cfg, {force_registry}, integrator, collision_handler);
+
+        std::vector<IonState> ions = {create_test_ion()};
+        ions[0].vel = Vec3{0.0, 0.0, 0.0};
+
+        auto result = run_engine_aos(engine, ions);
+
+        REQUIRE(result.size() == 1);
+        REQUIRE(collision_handler->calls() == 20);
+        REQUIRE_THAT(collision_handler->last_dt(), Catch::Matchers::WithinAbs(2.5e-10, 1e-18));
     }
 }
 

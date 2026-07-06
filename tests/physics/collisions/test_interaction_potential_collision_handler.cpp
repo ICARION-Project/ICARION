@@ -152,6 +152,10 @@ IonState make_test_ion(double vx_m_s) {
     return ion;
 }
 
+bool near_rate(double actual, double expected) {
+    return std::abs(actual - expected) <= std::max(1.0e3, 1.0e-12 * std::abs(expected));
+}
+
 }  // namespace
 
 TEST_CASE("InteractionPotentialOfflineSampleSet validates CDF offset/count bounds", "[collision][ipm][validation]") {
@@ -469,12 +473,16 @@ TEST_CASE("InteractionPotentialCollisionHandler clamps out-of-range relative vel
     auto low_ensemble = core::IonEnsemble::from_legacy({make_test_ion(100.0)});
     auto low_view = low_ensemble.collision_data(0);
     REQUIRE(handler.handle_collision(low_view, 1.0e-6, low_rng, env));
+    CHECK(near_rate(handler.get_stats().average_collision_rate, 1.0e9));
     CHECK(low_view.kin.vel().x > 100.0);
+
+    handler.reset_stats();
 
     physics::PhysicsRng high_rng(456);
     auto high_ensemble = core::IonEnsemble::from_legacy({make_test_ion(400.0)});
     auto high_view = high_ensemble.collision_data(0);
     REQUIRE(handler.handle_collision(high_view, 1.0e-6, high_rng, env));
+    CHECK(near_rate(handler.get_stats().average_collision_rate, 4.0e9));
     CHECK(high_view.kin.vel().x > 400.0);
 
     std::error_code ec;
@@ -506,6 +514,7 @@ TEST_CASE("InteractionPotentialCollisionHandler falls back to dp_stats when CDF 
 
     physics::PhysicsRng rng(999);
     REQUIRE(handler.handle_collision(view, 1.0e-6, rng, env));
+    CHECK(near_rate(handler.get_stats().average_collision_rate, 5.0e9));
     CHECK(view.kin.vel().x > 250.0);
 
     std::error_code ec;
@@ -541,6 +550,7 @@ TEST_CASE("InteractionPotentialCollisionHandler fixed orientation selects the re
 
     physics::PhysicsRng rng(2026);
     REQUIRE(handler.handle_collision(view, 1.0e-6, rng, env));
+    CHECK(near_rate(handler.get_stats().average_collision_rate, 1.5e10));
     CHECK(view.kin.vel().x > 300.0);
 
     std::error_code ec;
@@ -571,19 +581,32 @@ TEST_CASE("InteractionPotentialCollisionHandler random orientation samples multi
     env.particle_density_m_3 = 1.0e25;
     env.gas_velocity_m_s = Vec3{0.0, 0.0, 0.0};
 
-    int collisions = 0;
+    bool saw_first_orientation = false;
+    bool saw_second_orientation = false;
     physics::PhysicsRng rng(7);
 
     for (int attempt = 0; attempt < 32; ++attempt) {
         auto ensemble = core::IonEnsemble::from_legacy({make_test_ion(300.0)});
         auto view = ensemble.collision_data(0);
 
-        if (handler.handle_collision(view, 1.0e-6, rng, env)) {
-            ++collisions;
+        handler.reset_stats();
+        REQUIRE(handler.handle_collision(view, 1.0e-6, rng, env));
+        const double rate = handler.get_stats().average_collision_rate;
+        if (near_rate(rate, 3.0e9)) {
+            saw_first_orientation = true;
+        } else if (near_rate(rate, 1.5e10)) {
+            saw_second_orientation = true;
+        } else {
+            FAIL("Unexpected sigma_mt selected by random orientation path");
+        }
+
+        if (saw_first_orientation && saw_second_orientation) {
+            break;
         }
     }
 
-    CHECK(collisions > 0);
+    CHECK(saw_first_orientation);
+    CHECK(saw_second_orientation);
 
     std::error_code ec;
     std::filesystem::remove(sample_path, ec);
@@ -619,23 +642,37 @@ TEST_CASE("InteractionPotentialCollisionHandler parses orientation_mode case-ins
         physics::PhysicsRng rng(2040);
 
         REQUIRE(handler.handle_collision(view, 1.0e-6, rng, env));
+        CHECK(near_rate(handler.get_stats().average_collision_rate, 1.5e10));
     }
 
     SECTION("RANDOM is treated like random") {
         physics::InteractionPotentialCollisionHandler handler(false, &species_db, "RANDOM", 0);
-        int collisions = 0;
+        bool saw_first_orientation = false;
+        bool saw_second_orientation = false;
         physics::PhysicsRng rng(2041);
 
         for (int attempt = 0; attempt < 32; ++attempt) {
             auto ensemble = core::IonEnsemble::from_legacy({make_test_ion(300.0)});
             auto view = ensemble.collision_data(0);
 
-            if (handler.handle_collision(view, 1.0e-6, rng, env)) {
-                ++collisions;
+            handler.reset_stats();
+            REQUIRE(handler.handle_collision(view, 1.0e-6, rng, env));
+            const double rate = handler.get_stats().average_collision_rate;
+            if (near_rate(rate, 3.0e9)) {
+                saw_first_orientation = true;
+            } else if (near_rate(rate, 1.5e10)) {
+                saw_second_orientation = true;
+            } else {
+                FAIL("Unexpected sigma_mt selected by uppercase random orientation path");
+            }
+
+            if (saw_first_orientation && saw_second_orientation) {
+                break;
             }
         }
 
-        CHECK(collisions > 0);
+        CHECK(saw_first_orientation);
+        CHECK(saw_second_orientation);
     }
 
     std::error_code ec;

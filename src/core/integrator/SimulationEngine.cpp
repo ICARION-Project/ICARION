@@ -1508,6 +1508,10 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
     const auto* active = ensemble.active_data();
     const auto* born = ensemble.born_data();
     const bool use_omp = parallel_enabled_;
+    int collision_substeps = std::max(1, config_.physics.collision_subcycles_per_step);
+    if (config_.physics.collision_multi_event_mode) {
+        collision_substeps = std::max(collision_substeps, config_.physics.collision_max_events_per_step);
+    }
 
     #pragma omp parallel if(use_omp)
     {
@@ -1518,8 +1522,11 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
                 continue;
             }
             auto view = ensemble.collision_data(ion_idx);
-            collision_handler_->handle_collision(
-                view, dt_used_per_ion[ion_idx], rng_by_ion_[ion_idx], env);
+            const double collision_dt = dt_used_per_ion[ion_idx] / static_cast<double>(collision_substeps);
+            for (int substep = 0; substep < collision_substeps; ++substep) {
+                collision_handler_->handle_collision(
+                    view, collision_dt, rng_by_ion_[ion_idx], env);
+            }
         }
     }
 }

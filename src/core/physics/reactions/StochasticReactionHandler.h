@@ -63,7 +63,18 @@ public:
     std::string name() const override { return "Stochastic"; }
     
     ReactionStats get_stats() const override { return stats_; }
-    void reset_stats() override { stats_ = {}; }
+    void reset_stats() override;
+
+    /**
+     * @brief Compute effective rate constant for a reaction (public for GPU parity use)
+     */
+    double compute_effective_rate(
+        const config::Reaction& reaction,
+        double temperature,
+        double particle_density,
+        const std::unordered_map<std::string, double>& concentrations,
+        const config::ReactionDatabase& reaction_db
+    ) const;
     
 private:
     bool enable_logging_;
@@ -85,7 +96,7 @@ private:
     ) const;
     
     /**
-     * @brief Compute effective rate constant for reaction
+     * @brief Compute effective rate constant for reaction (private helper)
      * 
      * @param reaction Reaction definition (from database)
      * @param temperature Temperature [K] (from env)
@@ -109,13 +120,6 @@ private:
      * - [He] = 2.5e25 [m⁻³] (buffer gas)
      * - k_eff = 1.2e-28 × 2.5e25 × 2.5e25 = 7.5e22 [s⁻¹]
      */
-    double compute_effective_rate(
-        const config::Reaction& reaction,
-        double temperature,
-        double particle_density,
-        const std::unordered_map<std::string, double>& concentrations
-    ) const;
-    
     /**
      * @brief Update ion after reaction
      * 

@@ -18,7 +18,16 @@ enum class CollisionModel {
     Friction,           ///< Friction force model
     EHSS,               ///< Energy-dependent hard-sphere scattering
     HSS,                ///< Hard-Sphere Stochastic (spherical scattering)
+    InteractionPotentialModel, ///< Offline-sampled ion-neutral interaction potential model
     UnknownCollisionModel  ///< Invalid/unknown model
+};
+
+/**
+ * @brief Orientation sampling mode for the InteractionPotentialModel/IPM collision model
+ */
+enum class IPMOrientationMode {
+    Random, ///< Draw random orientation each collision event
+    Fixed   ///< Use a fixed orientation index (ipm_fixed_orientation_index)
 };
 
 } // namespace ICARION::config

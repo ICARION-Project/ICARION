@@ -29,6 +29,64 @@
       "default": false,
       "description": "Enable GPU implementation of space-charge solver"
     },
+
+    "collision_multi_event_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable approximate multi-collision handling via micro-subcycling within each dt. This is not a full Poisson event-time sampler; use for controlled speed/accuracy studies."
+    },
+
+    "collision_max_events_per_step": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 16,
+      "description": "Upper bound for micro-subcycles per dt when collision_multi_event_mode is enabled. Higher values improve collision fidelity at large dt but increase cost."
+    },
+
+    "collision_time_centered": {
+      "type": "boolean",
+      "default": false,
+      "description": "Apply stochastic collisions in two half-steps around integration to reduce large-dt splitting bias"
+    },
+
+    "collision_time_randomized": {
+      "type": "boolean",
+      "default": false,
+      "description": "Randomize stochastic collision timing within each timestep using per-ion random pre/post split fractions"
+    },
+
+    "collision_subcycles_per_step": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Split each collision application into equal micro-steps and recompute collision rates after each micro-step. collision_multi_event_mode enforces at least collision_max_events_per_step subcycles."
+    },
+
+    "ipm_orientation_mode": {
+      "type": "string",
+      "enum": ["random", "fixed"],
+      "default": "random",
+      "description": "InteractionPotential orientation sampling mode: random picks a new orientation each collision; fixed uses ipm_fixed_orientation_index"
+    },
+
+    "ipm_fixed_orientation_index": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "InteractionPotential orientation index used when ipm_orientation_mode=fixed"
+    },
+
+    "ipm_vrel_log_prefix": {
+      "type": "string",
+      "default": "",
+      "description": "If non-empty, enables InteractionPotential relative-velocity histogram logging and writes CSV output to this file/prefix"
+    },
+
+    "ipm_momentum_log_prefix": {
+      "type": "string",
+      "default": "",
+      "description": "If non-empty, enables InteractionPotential momentum diagnostic logging and writes CSV output to this file/prefix"
+    },
     
     "enable_ou_thermalization": {
       "type": "boolean",

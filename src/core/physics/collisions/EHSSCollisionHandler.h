@@ -31,7 +31,9 @@
 #include "core/types/Vec3.h"
 #include "core/config/types/SpeciesConfig.h"
 #include "EHSSSamples.h"
+#include "EHSSOfflineSampleSet.h"
 #include <vector>
+#include <mutex>
 #include <unordered_map>
 #include <utility>
 #include <unordered_set>
@@ -60,7 +62,8 @@ using GeometryMap = std::unordered_map<std::string, GeometryData>;
  * Implements structure-resolved collision model using atom-centered hard spheres.
  * Provides accurate collision cross-sections for complex molecular geometries.
  * 
- * Recommended when geometry is available and accurate scattering is needed; slower than\n+ * HSS due to per-atom checks.
+ * Recommended when geometry is available and accurate scattering is needed; slower than
+ * HSS due to per-atom checks.
  * 
  * **SSOT Pattern:**
  * ```cpp
@@ -75,6 +78,14 @@ using GeometryMap = std::unordered_map<std::string, GeometryData>;
  * handler.handle_collision(ion, dt, rng, env);  // SSOT!
  * ```
  * 
+ * **Offline Collision Samples (single-gas mode only):**
+ * When `SpeciesProperties::ehss_offline_samples_file` is configured, the handler loads
+ * pre-computed orientation-averaged cross-sections (σ_eff) and scattering cosine samples
+ * (μ) and uses them instead of the full atom-sphere ray-cast.  This path is **only active
+ * in single-gas environments** (`EnvironmentConfig::gas_mixture` empty); gas-mixture
+ * environments fall back to the geometry-based EHSS model automatically and emit a
+ * one-time warning if the offline file is tagged for a different gas.
+ *
  * @see HSSCollisionHandler for faster isotropic model
  * @see DampingForce for deterministic collision models
  */
@@ -106,16 +117,20 @@ public:
     
     std::string name() const override { return "EHSS"; }
     
-    CollisionStats get_stats() const override { return stats_; }
-    void reset_stats() override { stats_ = {}; }
+    CollisionStats get_stats() const override;
+    void reset_stats() override;
     
 private:
     const GeometryMap geometry_map_;  ///< Copy of geometry map (owned by handler)
     bool enable_logging_;
     const config::SpeciesDatabase* species_db_ = nullptr;
     mutable CollisionStats stats_;
+    mutable std::mutex state_mutex_;
     mutable std::unordered_set<std::string> warned_missing_sigma_;
     std::unordered_map<std::string, EHSSOrientationSamples> orientation_samples_;
+    std::unordered_map<std::string, EHSSOfflineSampleSet> offline_samples_;
+    mutable std::unordered_set<std::string> warned_offline_gas_;
+    mutable std::unordered_set<std::string> logged_offline_use_;
     
     /**
      * @brief Compute effective collision cross-section from geometry

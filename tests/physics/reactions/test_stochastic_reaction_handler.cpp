@@ -11,8 +11,7 @@
 // - Buffer gas fallback (concentration_m3 = 0)
 // - Species database lookup
 // - Reaction statistics
-//
-// Created: 2025-11-22 (Phase 3 Refactor)
+
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
@@ -22,6 +21,7 @@
 #include "core/config/types/EnvironmentConfig.h"
 #include "core/types/IonEnsemble.h"
 #include "utils/constants.h"
+#include <cmath>
 
 using namespace ICARION;
 using namespace ICARION::physics;
@@ -136,7 +136,11 @@ EnvironmentConfig create_test_environment(double T_K = 300.0, double n_m3 = 2.5e
     return env;
 }
 
-core::IonEnsemble make_ensemble_for_species(const SpeciesDatabase& db, const std::string& species) {
+core::IonEnsemble make_ensemble_for_species(
+    const SpeciesDatabase& db,
+    const std::string& species,
+    double axial_velocity_m_s = 0.0
+) {
     std::vector<IonState> ions;
     auto add = [&](const std::string& id) {
         IonState ion;
@@ -146,6 +150,7 @@ core::IonEnsemble make_ensemble_for_species(const SpeciesDatabase& db, const std
         ion.ion_charge_C = props.charge_C;
         ion.CCS_m2 = props.CCS_m2;
         ion.reduced_mobility_cm2_Vs = props.mobility_m2Vs / CM2_TO_M2;
+        ion.vel.z = axial_velocity_m_s;
         ion.active = (id == species);
         ion.born = true;
         ions.push_back(ion);
@@ -191,6 +196,276 @@ TEST_CASE("StochasticReactionHandler: Missing mixture concentration defaults to 
         }
     }
     REQUIRE(reactions <= 1);
+}
+
+TEST_CASE("StochasticReactionHandler: dynamic reverse without linked_forward_id is disabled", "[reaction][equilibrium]") {
+    auto species_db = create_test_species_db();
+    auto env = create_test_environment();
+
+    ReactionDatabase reaction_db;
+    Reaction reverse_only;
+    reverse_only.id = "reverse_experimental_unlinked";
+    reverse_only.reactant = "H3O+";
+    reverse_only.product = "NH4+";
+    reverse_only.rate_constant = 1.0e12;  // would react almost surely without guard
+    reverse_only.reverse_dynamic_from_equilibrium = true;
+    reverse_only.linked_forward_id = "";  // misconfigured
+    reaction_db.reactions.push_back(reverse_only);
+
+    StochasticReactionHandler handler(false);
+    PhysicsRng rng(777);
+    const double dt = 1e-3;
+
+    size_t reactions = 0;
+    for (int i = 0; i < 200; ++i) {
+        auto ensemble = make_ensemble_for_species(species_db, "H3O+");
+        auto view = ensemble.reaction_data(0);
+        if (handler.handle_reaction(view, dt, rng, reaction_db, species_db, env)) {
+            reactions++;
+        }
+    }
+
+    REQUIRE(reactions == 0);
+}
+
+TEST_CASE("StochasticReactionHandler: dynamic reverse without thermo forward is disabled", "[reaction][equilibrium]") {
+    auto species_db = create_test_species_db();
+    auto env = create_test_environment();
+
+    ReactionDatabase reaction_db;
+
+    Reaction forward_no_thermo;
+    forward_no_thermo.id = "forward_no_thermo";
+    forward_no_thermo.reactant = "NH4+";
+    forward_no_thermo.product = "H3O+";
+    forward_no_thermo.rate_constant = 1.0e12;
+    forward_no_thermo.has_thermo = false;
+    reaction_db.reactions.push_back(forward_no_thermo);
+
+    Reaction reverse_dyn;
+    reverse_dyn.id = "reverse_experimental_missing_thermo";
+    reverse_dyn.reactant = "H3O+";
+    reverse_dyn.product = "NH4+";
+    reverse_dyn.rate_constant = 1.0e12;  // must be ignored when dynamic reverse is enabled
+    reverse_dyn.reverse_dynamic_from_equilibrium = true;
+    reverse_dyn.linked_forward_id = "forward_no_thermo";
+    reaction_db.reactions.push_back(reverse_dyn);
+
+    StochasticReactionHandler handler(false);
+    PhysicsRng rng(778);
+    const double dt = 1e-3;
+
+    size_t reactions = 0;
+    for (int i = 0; i < 200; ++i) {
+        auto ensemble = make_ensemble_for_species(species_db, "H3O+");
+        auto view = ensemble.reaction_data(0);
+        if (handler.handle_reaction(view, dt, rng, reaction_db, species_db, env)) {
+            reactions++;
+        }
+    }
+
+    REQUIRE(reactions == 0);
+}
+
+TEST_CASE("StochasticReactionHandler: dynamic reverse is drift-independent at fixed bath temperature", "[reaction][equilibrium][drift]") {
+    auto species_db = create_test_species_db();
+    auto env = create_test_environment();
+
+    ReactionDatabase reaction_db;
+
+    Reaction forward;
+    forward.id = "forward_eq_ref";
+    forward.reactant = "NH4+";
+    forward.product = "H3O+";
+    forward.rate_constant = 2.0e4; // [1/s]
+    forward.has_thermo = true;
+    forward.delta_r_H_J_mol = 0.0;
+    forward.delta_r_S_J_molK = 0.0;
+    reaction_db.reactions.push_back(forward);
+
+    Reaction reverse_dyn;
+    reverse_dyn.id = "forward_eq_ref__reverse";
+    reverse_dyn.reactant = "H3O+";
+    reverse_dyn.product = "NH4+";
+    reverse_dyn.reverse_dynamic_from_equilibrium = true;
+    reverse_dyn.linked_forward_id = "forward_eq_ref";
+    reaction_db.reactions.push_back(reverse_dyn);
+
+    auto run_trials = [&](double axial_v_m_s, uint64_t seed) {
+        StochasticReactionHandler handler(false);
+        PhysicsRng rng(seed);
+        const int trials = 20000;
+        const double dt = 1e-6;
+        int count = 0;
+        for (int i = 0; i < trials; ++i) {
+            auto ensemble = make_ensemble_for_species(species_db, "H3O+", axial_v_m_s);
+            auto view = ensemble.reaction_data(0);
+            if (handler.handle_reaction(view, dt, rng, reaction_db, species_db, env)) {
+                count += 1;
+            }
+        }
+        return static_cast<double>(count) / static_cast<double>(trials);
+    };
+
+    const double p_low_drift = run_trials(0.0, 1001);
+    const double p_high_drift = run_trials(5000.0, 1002);
+
+    REQUIRE(p_low_drift > 0.0);
+    REQUIRE(p_high_drift > 0.0);
+    REQUIRE(p_high_drift == Catch::Approx(p_low_drift).margin(0.005));
+}
+
+TEST_CASE("StochasticReactionHandler: closed 2-species box converges to target K_eq", "[reaction][equilibrium][closed-box]") {
+    auto species_db = create_test_species_db();
+    auto env = create_test_environment(300.0, 2.5e25);
+
+    ReactionDatabase reaction_db;
+
+    // A+ + M <-> B+ + M with dynamic reverse from thermo on the forward channel.
+    // Because the same pseudo-first-order M factor appears in both directions,
+    // the stationary ratio remains [B]/[A] = K_eq.
+    const double target_keq = 4.0;
+    const double gas_constant_J_molK = 8.31446261815324;
+    const double dS_J_molK = gas_constant_J_molK * std::log(target_keq);
+
+    Reaction forward;
+    forward.id = "eq_closed_box_forward";
+    forward.reactant = "H3O+";   // A+
+    forward.product = "NH4+";    // B+
+    forward.rate_model = RateModel::Constant;
+    forward.rate_constant = 5.0e-24; // [m^3/s] with [M] fallback -> pseudo-first-order
+    ReactionOrderTerm forward_m;
+    forward_m.species = "M";
+    forward_m.exponent = 1;
+    forward_m.concentration_m3 = -1.0;
+    forward.order_terms.push_back(forward_m);
+    forward.has_thermo = true;
+    forward.delta_r_H_J_mol = 0.0;
+    forward.delta_r_S_J_molK = dS_J_molK;
+    reaction_db.reactions.push_back(forward);
+
+    Reaction reverse_dyn;
+    reverse_dyn.id = "eq_closed_box_forward__reverse";
+    reverse_dyn.reactant = "NH4+";
+    reverse_dyn.product = "H3O+";
+    reverse_dyn.reverse_dynamic_from_equilibrium = true;
+    reverse_dyn.linked_forward_id = "eq_closed_box_forward";
+    reaction_db.reactions.push_back(reverse_dyn);
+
+    std::vector<IonState> ions;
+    ions.reserve(400);
+    const auto& a_props = species_db.get("H3O+");
+    for (int i = 0; i < 399; ++i) {
+        IonState ion;
+        ion.species_id = "H3O+";
+        ion.mass_kg = a_props.mass_kg;
+        ion.ion_charge_C = a_props.charge_C;
+        ion.CCS_m2 = a_props.CCS_m2;
+        ion.reduced_mobility_cm2_Vs = a_props.mobility_m2Vs / CM2_TO_M2;
+        ion.active = true;
+        ion.born = true;
+        ions.push_back(ion);
+    }
+
+    // Seed one B+ ion so IonEnsemble species pool/index contains both IDs.
+    // IonReactionData::set_species_id only switches to IDs that already exist in that map.
+    const auto& b_props = species_db.get("NH4+");
+    IonState seed_b;
+    seed_b.species_id = "NH4+";
+    seed_b.mass_kg = b_props.mass_kg;
+    seed_b.ion_charge_C = b_props.charge_C;
+    seed_b.CCS_m2 = b_props.CCS_m2;
+    seed_b.reduced_mobility_cm2_Vs = b_props.mobility_m2Vs / CM2_TO_M2;
+    seed_b.active = true;
+    seed_b.born = true;
+    ions.push_back(seed_b);
+
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
+    StochasticReactionHandler handler(false);
+    PhysicsRng rng(424242);
+
+    const double dt = 2.0e-4;
+    const int total_steps = 2200;
+    const int sample_start = 1200;
+    const int sample_stride = 20;
+
+    double sampled_b_fraction_sum = 0.0;
+    int sampled_points = 0;
+
+    for (int step = 0; step < total_steps; ++step) {
+        for (size_t i = 0; i < ensemble.size(); ++i) {
+            auto view = ensemble.reaction_data(i);
+            handler.handle_reaction(view, dt, rng, reaction_db, species_db, env);
+        }
+
+        if (step >= sample_start && ((step - sample_start) % sample_stride == 0)) {
+            int count_a = 0;
+            int count_b = 0;
+            for (size_t i = 0; i < ensemble.size(); ++i) {
+                const auto ion = ensemble.ion_state(i);
+                if (ion.species_id == "H3O+") {
+                    count_a += 1;
+                } else if (ion.species_id == "NH4+") {
+                    count_b += 1;
+                }
+            }
+
+            const double total = static_cast<double>(count_a + count_b);
+            REQUIRE(total > 0.0);
+            sampled_b_fraction_sum += static_cast<double>(count_b) / total;
+            sampled_points += 1;
+        }
+    }
+
+    REQUIRE(sampled_points > 5);
+
+    const double mean_b_fraction = sampled_b_fraction_sum / static_cast<double>(sampled_points);
+    const double expected_b_fraction = target_keq / (1.0 + target_keq);
+
+    // Statistical tolerance for Monte-Carlo finite-size/fine-step fluctuations.
+    REQUIRE(mean_b_fraction == Catch::Approx(expected_b_fraction).margin(0.06));
+}
+
+TEST_CASE("StochasticReactionHandler: inactive gas_mixture disables species-dependent reactions", "[reaction][mixture]") {
+    auto species_db = create_test_species_db();
+
+    ReactionDatabase reaction_db;
+    Reaction rxn;
+    rxn.id = "rxn_h3o_he";
+    rxn.reactant = "H3O+";
+    rxn.product = "NH4+";
+    rxn.rate_constant = 1.0e-9;
+    ReactionOrderTerm term;
+    term.species = "He";
+    term.exponent = 1;
+    term.concentration_m3 = -1.0;  // mixture lookup / fallback behavior under test
+    rxn.order_terms.push_back(term);
+    reaction_db.reactions.push_back(rxn);
+
+    EnvironmentConfig env = create_test_environment();
+    env.gas_mixture.clear();
+    env.gas_mixture.push_back({});
+    auto& comp = env.gas_mixture.back();
+    comp.species = "He";
+    comp.mole_fraction = 1.0;
+    comp.density_m3 = env.particle_density_m_3;
+    comp.mass_kg = env.gas_mass_kg;
+    comp.participates_in_reactions = false;  // explicitly inactive
+
+    StochasticReactionHandler handler(false);
+    PhysicsRng rng(90210);
+
+    size_t reactions = 0;
+    const double dt = 1e-4;
+    for (int i = 0; i < 200; ++i) {
+        auto ensemble = make_ensemble_for_species(species_db, "H3O+");
+        auto view = ensemble.reaction_data(0);
+        if (handler.handle_reaction(view, dt, rng, reaction_db, species_db, env)) {
+            reactions++;
+        }
+    }
+
+    REQUIRE(reactions == 0);
 }
 
 // ===================================================================

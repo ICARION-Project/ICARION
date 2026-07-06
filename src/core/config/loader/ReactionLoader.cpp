@@ -4,6 +4,7 @@
 #include "ReactionLoader.h"
 #include <fstream>
 #include <iostream>
+#include <unordered_set>
 
 namespace ICARION::config {
 
@@ -66,6 +67,61 @@ ReactionDatabase ReactionLoader::load_from_json(const Json::Value& json,
         }
         
         db.reactions.push_back(rxn);
+    }
+
+    // Auto-generate reverse channels for equilibrium-tagged reactions that provide thermo data.
+    // Reverse rates are evaluated dynamically at runtime from forward effective rate and K_eq(T).
+    {
+        std::unordered_set<std::string> existing_ids;
+        existing_ids.reserve(db.reactions.size() * 2);
+        for (const auto& rxn : db.reactions) {
+            existing_ids.insert(rxn.id);
+        }
+
+        std::vector<Reaction> generated_reverse;
+        generated_reverse.reserve(db.reactions.size() / 4 + 1);
+
+        for (const auto& forward : db.reactions) {
+            if (!forward.equilibrium || !forward.has_thermo) {
+                continue;
+            }
+
+            const std::string reverse_id = forward.id + "__reverse";
+            if (existing_ids.count(reverse_id) > 0) {
+                continue;
+            }
+
+            // If user already provided explicit reverse stoichiometry, do not add duplicate auto reverse.
+            bool explicit_reverse_exists = false;
+            for (const auto& candidate : db.reactions) {
+                if (candidate.reactant == forward.product && candidate.product == forward.reactant) {
+                    explicit_reverse_exists = true;
+                    break;
+                }
+            }
+            if (explicit_reverse_exists) {
+                continue;
+            }
+
+            Reaction reverse;
+            reverse.id = reverse_id;
+            reverse.reactant = forward.product;
+            reverse.product = forward.reactant;
+            reverse.rate_constant = 1e-30;  // placeholder, overridden by dynamic reverse evaluation
+            reverse.rate_model = RateModel::Constant;
+            reverse.reverse_dynamic_from_equilibrium = true;
+            reverse.linked_forward_id = forward.id;
+            reverse.has_thermo = true;
+            reverse.delta_r_H_J_mol = forward.delta_r_H_J_mol;
+            reverse.delta_r_S_J_molK = forward.delta_r_S_J_molK;
+
+            generated_reverse.push_back(reverse);
+            existing_ids.insert(reverse.id);
+        }
+
+        if (!generated_reverse.empty()) {
+            db.reactions.insert(db.reactions.end(), generated_reverse.begin(), generated_reverse.end());
+        }
     }
     
     // Validate database
@@ -161,7 +217,6 @@ Reaction ReactionLoader::parse_reaction(const Json::Value& json) {
     // === Optional: Concentration dependence (order terms) ===
     if (json.isMember("order") && json["order"].isArray()) {
         std::unordered_map<std::string, int> species_count;  // Track duplicate species
-        int neutral_fallback_count = 0;  // Track multiple neutral=-1 entries
         
         for (const auto& term_json : json["order"]) {
             ReactionOrderTerm term = parse_order_term(term_json);
@@ -174,17 +229,6 @@ Reaction ReactionLoader::parse_reaction(const Json::Value& json) {
                 );
             }
             species_count[term.species] = 1;
-            
-            // VALIDATION RULE #5: Max one neutral fallback (concentration_m3 = -1)
-            if (term.concentration_m3 == -1.0) {
-                neutral_fallback_count++;
-                if (neutral_fallback_count > 1) {
-                    throw std::runtime_error(
-                        "Reaction '" + rxn.id + "': multiple order terms with concentration_m3 = -1.0 " +
-                        "(buffer gas fallback). Only one term can use buffer gas density."
-                    );
-                }
-            }
             
             rxn.order_terms.push_back(term);
         }
@@ -210,6 +254,44 @@ Reaction ReactionLoader::parse_reaction(const Json::Value& json) {
             std::cout << "⚠  Reaction '" << rxn.id << "': 3rd-order (total exponent=2) but k = " 
                       << rxn.rate_constant << " outside typical range [1e-30, 1e-24] m⁶/s.\n";
         }
+    }
+
+    // === Optional: Thermochemistry / equilibrium metadata ===
+    if (json.isMember("equilibrium") && json["equilibrium"].isBool()) {
+        rxn.equilibrium = json["equilibrium"].asBool();
+    }
+
+    // Accept SI keys (primary) or legacy cal-unit keys (deprecated, converted immediately).
+    const bool has_dh_si     = json.isMember("delta_r_H_J_mol")    && json["delta_r_H_J_mol"].isNumeric();
+    const bool has_ds_si     = json.isMember("delta_r_S_J_molK")   && json["delta_r_S_J_molK"].isNumeric();
+    const bool has_dh_legacy = json.isMember("delta_r_H_kcalmol")  && json["delta_r_H_kcalmol"].isNumeric();
+    const bool has_ds_legacy = json.isMember("delta_r_S_cal_molK") && json["delta_r_S_cal_molK"].isNumeric();
+    const bool has_dh = has_dh_si || has_dh_legacy;
+    const bool has_ds = has_ds_si || has_ds_legacy;
+    if (has_dh != has_ds) {
+        std::cerr << "[ReactionLoader] Warning: reaction '" << rxn.id
+                  << "' provides incomplete thermo metadata (need both ΔrH and ΔrS). "
+                     "Thermo metadata for dynamic equilibrium reverse generation will be ignored.\n";
+    }
+    if (has_dh && has_ds) {
+        rxn.has_thermo = true;
+        rxn.delta_r_H_J_mol  = has_dh_si ? json["delta_r_H_J_mol"].asDouble()
+                                          : json["delta_r_H_kcalmol"].asDouble() * 4184.0;
+        rxn.delta_r_S_J_molK = has_ds_si ? json["delta_r_S_J_molK"].asDouble()
+                                          : json["delta_r_S_cal_molK"].asDouble() * 4.184;
+        if (has_dh_legacy || has_ds_legacy) {
+            std::cerr << "[ReactionLoader] Warning: reaction '" << rxn.id
+                      << "' uses deprecated cal-unit thermo keys; please migrate to "
+                         "delta_r_H_J_mol / delta_r_S_J_molK (SI).\n";
+        }
+    }
+
+    if (json.isMember("linked_forward_id") && json["linked_forward_id"].isString()) {
+        rxn.linked_forward_id = json["linked_forward_id"].asString();
+    }
+
+    if (json.isMember("reverse_dynamic_from_equilibrium") && json["reverse_dynamic_from_equilibrium"].isBool()) {
+        rxn.reverse_dynamic_from_equilibrium = json["reverse_dynamic_from_equilibrium"].asBool();
     }
     
     return rxn;

@@ -6,6 +6,7 @@
 
 #include "PhysicsEnums.h"
 #include "../validation/ValidationResult.h"
+#include <string>
 #include <stdexcept>
 
 namespace ICARION::config {
@@ -24,6 +25,21 @@ struct PhysicsConfig {
     bool enable_reactions = false;
     bool enable_space_charge = false;
     bool enable_space_charge_gpu = false;
+
+    // === Stochastic collision event handling ===
+    bool collision_multi_event_mode = false;   ///< If true, enable multi-collision approximation via micro-subcycling inside each dt.
+    int collision_max_events_per_step = 16;    ///< Upper bound for micro-subcycles/events per dt when collision_multi_event_mode is enabled.
+    bool collision_time_centered = false;      ///< If true, apply collisions in two half-steps around force integration (reduces splitting bias)
+    bool collision_time_randomized = false;    ///< If true, randomize collision timing within each step (per-ion random pre/post split)
+    int collision_subcycles_per_step = 1;      ///< If >1, split each collision application into equal micro-steps (recompute rates each micro-step)
+
+    // === InteractionPotentialModel model controls ===
+    // --- Orientation mode (SSOT: ipm_orientation_mode_type) ---
+    IPMOrientationMode ipm_orientation_mode_type = IPMOrientationMode::Random; ///< Canonical. Parsed from JSON "ipm_orientation_mode".
+    std::string ipm_orientation_mode = "random"; ///< Compatibility mirror — do not dispatch on this.
+    int ipm_fixed_orientation_index = 0;           ///< Fixed orientation index used when mode=fixed (>=0)
+    std::string ipm_vrel_log_prefix = "";          ///< If non-empty, enable InteractionPotentialModel v_rel histogram logging and write to this file/prefix
+    std::string ipm_momentum_log_prefix = "";      ///< If non-empty, enable InteractionPotentialModel momentum diagnostic logging and write to this file/prefix
     
     // === Thermalization ===
     bool enable_ou_thermalization = false;
@@ -48,7 +64,21 @@ struct PhysicsConfig {
              collision_model == CollisionModel::EHSS)) {
             result.add_error("force_ou_for_stochastic cannot be true when using stochastic collision models (HSS or EHSS)");
         }
-        
+
+        if (collision_model == CollisionModel::InteractionPotentialModel) {
+            if (ipm_orientation_mode_type == IPMOrientationMode::Fixed &&
+                ipm_fixed_orientation_index < 0) {
+                result.add_error("ipm_fixed_orientation_index must be >= 0");
+            }
+        }
+
+        if (collision_max_events_per_step < 1) {
+            result.add_error("collision_max_events_per_step must be >= 1");
+        }
+
+        if (collision_subcycles_per_step < 1) {
+            result.add_error("collision_subcycles_per_step must be >= 1");
+        }
         return result;
     }
 };

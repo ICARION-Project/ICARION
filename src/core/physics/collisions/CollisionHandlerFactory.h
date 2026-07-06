@@ -42,6 +42,7 @@
 #include "ICollisionHandler.h"
 #include "EHSSCollisionHandler.h"
 #include "HSSCollisionHandler.h"
+#include "InteractionPotentialCollisionHandler.h"
 #include "OUCollisionHandler.h"
 #include "GPUCollisionHandler.h"
 #include "core/config/types/PhysicsConfig.h"
@@ -63,7 +64,7 @@ namespace ICARION::physics {
  * 
  * **Validation:**
  * - EHSS requires geometry_map (throws if nullptr)
- * - OU requires gamma_for_ou > 0 (throws if invalid)
+ * - gamma_for_ou must be >= 0
  */
 class CollisionHandlerFactory {
 public:
@@ -72,13 +73,13 @@ public:
      * 
      * @param config Physics configuration (SSOT reference)
      * @param geometry_map Molecular geometry map (required for EHSS, optional otherwise)
-     * @param gamma_for_ou Damping coefficient for OU thermalization (required if enable_ou_thermalization)
+    * @param gamma_for_ou Fixed damping coefficient for OU thermalization.
      * @param enable_logging Enable collision logging (default: false)
      * 
      * @return Unique pointer to handler, or nullptr for deterministic/no-collision models
      * 
      * @throws std::invalid_argument if EHSS requested but geometry_map is nullptr
-     * @throws std::invalid_argument if OU thermalization enabled but gamma_for_ou <= 0
+    * @throws std::invalid_argument if gamma_for_ou < 0
      */
     static std::unique_ptr<ICollisionHandler> create(
         const config::PhysicsConfig& config,

@@ -6,6 +6,7 @@
 
 #include "SpeciesConfig.h"
 #include "../validation/ValidationResult.h"
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -92,6 +93,19 @@ struct Reaction {
     
     // === Concentration dependence (optional) ===
     std::vector<ReactionOrderTerm> order_terms; ///< Concentration dependence
+
+    // === Thermochemistry / equilibrium metadata (optional) ===
+    // All thermo values are stored internally in SI units.
+    // The loader accepts SI keys (delta_r_H_J_mol, delta_r_S_J_molK) as primary
+    // and legacy keys (delta_r_H_kcalmol, delta_r_S_cal_molK) with immediate conversion.
+    bool equilibrium = false;                     ///< Marks forward reaction as equilibrium-controlled
+    bool has_thermo = false;                      ///< True if delta_r_H/S were provided in input
+    double delta_r_H_J_mol = 0.0;                ///< Reaction enthalpy ΔrH° [J/mol] (SI, SSOT)
+    double delta_r_S_J_molK = 0.0;               ///< Reaction entropy ΔrS° [J/(mol·K)] (SI, SSOT)
+
+    // === Reverse-link metadata (internal/runtime) ===
+    bool reverse_dynamic_from_equilibrium = false; ///< Compute reverse rate from linked forward + K_eq(T)
+    std::string linked_forward_id;                 ///< Forward reaction ID used by dynamic reverse evaluation
     
     /**
      * @brief Compute temperature-dependent rate constant
@@ -129,7 +143,19 @@ struct Reaction {
         double k_eff = k_T;
         for (const auto& term : order_terms) {
             auto it = concentrations.find(term.species);
-            double conc = (it != concentrations.end()) ? it->second : term.concentration_m3;
+            // Fallback: use explicit concentration_m3 only when >= 0.
+            // concentration_m3 == -1.0 is a sentinel meaning "use buffer gas density";
+            // if the caller did not insert the species into `concentrations`, fall back to 0.0
+            // rather than using the raw sentinel and producing a negative rate.
+            double conc;
+            if (it != concentrations.end()) {
+                conc = it->second;
+            } else if (term.concentration_m3 >= 0.0) {
+                conc = term.concentration_m3;
+            } else {
+                conc = 0.0;  // sentinel -1.0: species absent from map → treat as zero
+            }
+            conc = std::max(0.0, conc);  // guard: densities must be non-negative
             
             // Apply concentration^exponent
             for (int i = 0; i < term.exponent; ++i) {

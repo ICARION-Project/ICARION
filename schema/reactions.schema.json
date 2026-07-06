@@ -105,6 +105,37 @@
             "type": "number",
             "description": "Temperature in Kelvin at which rate constant was measured",
             "exclusiveMinimum": 0
+          },
+          "equilibrium": {
+            "type": "boolean",
+            "default": false,
+                      "description": "Mark reaction as equilibrium-capable (forward+reverse pair). If true and delta_r_H_J_mol and delta_r_S_J_molK are both provided, a dynamic reverse reaction will be auto-generated."
+          },
+          "delta_r_H_J_mol": {
+            "type": "number",
+            "description": "Enthalpy of reaction ΔrH° in J/mol (SI, primary). Required together with delta_r_S_J_molK to auto-generate equilibrium reverse reactions. Legacy key delta_r_H_kcalmol is still accepted but deprecated."
+          },
+          "delta_r_S_J_molK": {
+            "type": "number",
+            "description": "Entropy of reaction ΔrS° in J/(mol·K) (SI, primary). Required together with delta_r_H_J_mol to auto-generate equilibrium reverse reactions. Legacy key delta_r_S_cal_molK is still accepted but deprecated."
+          },
+          "delta_r_H_kcalmol": {
+            "type": "number",
+            "description": "DEPRECATED: use delta_r_H_J_mol instead. Enthalpy of reaction ΔrH° in kcal/mol. Converted automatically to J/mol by the loader."
+          },
+          "delta_r_S_cal_molK": {
+            "type": "number",
+            "description": "DEPRECATED: use delta_r_S_J_molK instead. Entropy of reaction ΔrS° in cal/(mol·K). Converted automatically to J/(mol·K) by the loader."
+          },
+          "linked_forward_id": {
+            "type": "string",
+            "description": "For reverse reactions only: ID of the linked forward reaction used to evaluate K_eq(T). Used internally when reverse_dynamic_from_equilibrium is true.",
+            "pattern": "^[A-Za-z0-9_\\-]+$"
+          },
+          "reverse_dynamic_from_equilibrium": {
+            "type": "boolean",
+            "default": false,
+            "description": "For reverse reactions only: flag indicating this reverse rate is dynamically evaluated from K_eq(T) and the forward effective rate. Auto-set for auto-generated reversals."
           }
         }
       },
@@ -163,6 +194,25 @@
           ],
           "description": "Ion-dipole capture (T^-0.5 dependence, anti-Arrhenius)",
           "reference": "Johnson et al., Phys. Chem. Chem. Phys. (2022)"
+        },
+        {
+          "id": "rxn_004_equilibrium_forward",
+          "reactant": "A+",
+          "product": "B+",
+          "rate_constant": 1.0e-9,
+          "rate_model": "Constant",
+          "equilibrium": true,
+          "delta_r_H_J_mol": -20920.0,
+          "delta_r_S_J_molK": -62.76,
+          "order": [
+            {
+              "species": "buffer_gas",
+              "exponent": 1,
+              "concentration_m3": -1.0
+            }
+          ],
+          "description": "Forward reaction in equilibrium pair. Reverse reaction (rxn_004_equilibrium_forward__reverse) will be auto-generated.",
+          "reference": "Internal equilibrium study"
         }
       ]
     }

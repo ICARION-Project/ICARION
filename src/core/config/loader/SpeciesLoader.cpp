@@ -42,10 +42,28 @@ SpeciesDatabase SpeciesLoader::load_from_json(const Json::Value& json,
         const Json::Value& species_json = *it;
         
         SpeciesProperties species = parse_species(species_id, species_json);
+        if (!base_path.empty() && species.geometry_file) {
+            std::filesystem::path geom_path(*species.geometry_file);
+            if (geom_path.is_relative()) {
+                species.geometry_file = (base_path / geom_path).string();
+            }
+        }
         if (!base_path.empty() && species.ehss_samples_file) {
             std::filesystem::path sample_path(*species.ehss_samples_file);
             if (sample_path.is_relative()) {
                 species.ehss_samples_file = (base_path / sample_path).string();
+            }
+        }
+        if (!base_path.empty() && species.ehss_offline_samples_file) {
+            std::filesystem::path sample_path(*species.ehss_offline_samples_file);
+            if (sample_path.is_relative()) {
+                species.ehss_offline_samples_file = (base_path / sample_path).string();
+            }
+        }
+        if (!base_path.empty() && species.ipm_samples_file) {
+            std::filesystem::path sample_path(*species.ipm_samples_file);
+            if (sample_path.is_relative()) {
+                species.ipm_samples_file = (base_path / sample_path).string();
             }
         }
         species.convert_to_SI();
@@ -110,6 +128,8 @@ SpeciesProperties SpeciesLoader::parse_species(const std::string& id, const Json
     species.name = get_optional_string(json, "name");
     species.geometry_file = get_optional_string(json, "geometry_file");
     species.ehss_samples_file = get_optional_string(json, "EHSS_samples_file");
+    species.ehss_offline_samples_file = get_optional_string(json, "EHSS_offline_samples_file");
+    species.ipm_samples_file = get_optional_string(json, "ipm_samples_file");
     
     // Optional reference conditions
     species.reference_temperature_K = get_optional_double(json, "reference_temperature_K");

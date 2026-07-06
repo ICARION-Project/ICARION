@@ -90,6 +90,25 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
 #endif
             return cpu_handler;
         }
+
+        case CollisionModel::InteractionPotentialModel: {
+            if (enable_logging) {
+                ICARION::log::debug_log(
+                    "[CollisionHandlerFactory] Creating InteractionPotentialCollisionHandler "
+                    "(offline samples)"
+                );
+            }
+
+            auto cpu_handler = std::make_unique<InteractionPotentialCollisionHandler>(
+                enable_logging,
+                species_db,
+                config.ipm_orientation_mode,
+                config.ipm_fixed_orientation_index,
+                config.ipm_vrel_log_prefix,
+                config.ipm_momentum_log_prefix
+            );
+            return cpu_handler;
+        }
         
         // Deterministic models - use DampingForce for damping
         case CollisionModel::Friction:
@@ -99,19 +118,19 @@ std::unique_ptr<ICollisionHandler> CollisionHandlerFactory::create(
             if (config.enable_ou_thermalization) {
                 if (gamma_for_ou <= 0.0) {
                     throw std::invalid_argument(
-                        "[CollisionHandlerFactory] OU thermalization enabled but "
-                        "gamma_for_ou <= 0. Must provide valid damping coefficient."
+                        "[CollisionHandlerFactory] gamma_for_ou must be > 0 when OU thermalization is enabled"
                     );
                 }
-                
+
                 if (enable_logging) {
                     std::ostringstream msg;
                     msg << "[CollisionHandlerFactory] Creating OUCollisionHandler "
-                        << "for deterministic model (gamma=" << gamma_for_ou << ", apply_damping=false)";
+                        << "for deterministic model (apply_damping=false, fixed_gamma="
+                        << gamma_for_ou << ")";
                     ICARION::log::debug_log(msg.str());
                 }
-                
-                // apply_damping=false: Only thermal kicks, DampingForce provides friction
+
+                // apply_damping=false: Only thermal kicks, DampingForce provides friction.
                 return std::make_unique<OUCollisionHandler>(gamma_for_ou, false);
             }
             

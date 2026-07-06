@@ -17,6 +17,9 @@ double Reaction::compute_rate_constant(double temperature_K) const {
         case RateModel::Arrhenius: {
             // k(T) = A × exp(-Eₐ / (kB·T))
             
+            if (temperature_K <= 0.0) {
+                return 0.0;  // Unphysical temperature → zero rate
+            }
             if (activation_energy_eV <= 0.0) {
                 // No barrier → constant rate
                 return rate_constant;
@@ -44,6 +47,9 @@ double Reaction::compute_rate_constant(double temperature_K) const {
         case RateModel::ModifiedArrhenius: {
             // k(T) = A × (T/T₀)ⁿ × exp(-Eₐ / (kB·T))
             
+            if (temperature_K <= 0.0) {
+                return 0.0;  // Unphysical temperature → zero rate
+            }
             // Temperature power term: (T/T₀)ⁿ
             double T_ratio = temperature_K / reference_temperature_K;
             double T_factor = std::pow(T_ratio, temperature_exponent);

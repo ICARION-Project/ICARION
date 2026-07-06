@@ -1,0 +1,60 @@
+{
+  "simulation": {
+    "total_time_s": 2e-5,
+    "dt_s": 2e-9,
+    "write_interval": 20,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 123
+  },
+  "physics": {
+    "collision_model": "EHSS",
+    "enable_space_charge": false
+  },
+  "output": {
+    "folder": "results/ims_ehss_offline_basic",
+    "trajectory_file": "trajectories.h5",
+    "print_progress": true
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "26DTBPH+",
+        "count": 120,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0005],
+          "std": [0.0004, 0.0004, 0.0002]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "species_database": "../../data/species_database_v1.json",
+  "domains": [
+    {
+      "name": "drift_region",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, -0.01],
+        "length_m": 0.06,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 150.0,
+        "gas_species": "He",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "EN_Td": 8.0
+        }
+      }
+    }
+  ]
+}

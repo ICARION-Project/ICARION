@@ -34,6 +34,8 @@ public:
         static const std::unordered_map<std::string, Instrument> map = {
             {"lqit", Instrument::LQIT},
             {"ims", Instrument::IMS},
+            {"tims", Instrument::IMS},
+            {"tims_tunnel", Instrument::IMS},
             {"sifdt-ms", Instrument::IMS},
             {"sifdt_ms", Instrument::IMS},
             {"sifdt", Instrument::IMS},
@@ -73,6 +75,10 @@ public:
             {"ehss", CollisionModel::EHSS},
             {"hss", CollisionModel::HSS},
             {"hsmc", CollisionModel::HSS},  // Legacy alias
+            {"interactionpotentialmodel", CollisionModel::InteractionPotentialModel},
+            {"interaction_potential_model", CollisionModel::InteractionPotentialModel},
+            {"interaction-potential-model", CollisionModel::InteractionPotentialModel},
+            {"ipm", CollisionModel::InteractionPotentialModel},
             {"langevin", CollisionModel::Langevin},
             {"friction", CollisionModel::Friction},
             {"hsd", CollisionModel::HSD},
@@ -150,6 +156,7 @@ public:
             case CollisionModel::Friction: return "Friction";
             case CollisionModel::EHSS: return "EHSS";
             case CollisionModel::HSS: return "HSS";
+            case CollisionModel::InteractionPotentialModel: return "InteractionPotentialModel";
             case CollisionModel::UnknownCollisionModel: return "Unknown";
             default: return "Unknown";
         }
@@ -170,6 +177,30 @@ public:
         }
     }
     
+    /**
+     * @brief Parse InteractionPotentialModel orientation mode from string (case-insensitive)
+     * @throws std::runtime_error if unknown
+     */
+    static IPMOrientationMode parse_ipm_orientation_mode(const std::string& str) {
+        static const std::unordered_map<std::string, IPMOrientationMode> map = {
+            {"random", IPMOrientationMode::Random},
+            {"fixed",  IPMOrientationMode::Fixed}
+        };
+        auto it = map.find(to_lower(str));
+        if (it == map.end()) {
+            throw std::runtime_error("Unknown ipm_orientation_mode: '" + str + "'. Expected: random, fixed");
+        }
+        return it->second;
+    }
+
+    static std::string ipm_orientation_mode_to_string(IPMOrientationMode m) {
+        switch (m) {
+            case IPMOrientationMode::Random: return "random";
+            case IPMOrientationMode::Fixed:  return "fixed";
+            default: return "random";
+        }
+    }
+
 private:
     /**
      * @brief Convert string to lowercase (helper)

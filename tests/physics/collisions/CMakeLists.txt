@@ -133,6 +133,18 @@ target_include_directories(test_ehss_samples_loader PRIVATE
 )
 add_test(NAME EHSSSamplesLoader COMMAND test_ehss_samples_loader)
 
+# Test: Interaction-potential collision handler
+add_executable(test_interaction_potential_collision_handler test_interaction_potential_collision_handler.cpp)
+target_link_libraries(test_interaction_potential_collision_handler PRIVATE
+    icarion_core
+    Catch2::Catch2WithMain
+)
+target_include_directories(test_interaction_potential_collision_handler PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME InteractionPotentialCollisionHandler COMMAND test_interaction_potential_collision_handler)
+
 # Diagnostic: Energy distribution analysis
 add_executable(test_collision_energy_diagnostic test_collision_energy_diagnostic.cpp)
 target_link_libraries(test_collision_energy_diagnostic PRIVATE

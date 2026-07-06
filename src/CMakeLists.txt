@@ -168,6 +168,18 @@ add_executable(ehss_samples_precompute
 )
 target_link_libraries(ehss_samples_precompute PRIVATE icarion_core)
 
+# EHSS offline sample precompute tool
+add_executable(ehss_offline_precompute
+    ../tools/ehss_offline_precompute.cpp
+)
+target_link_libraries(ehss_offline_precompute PRIVATE icarion_core)
+
+# Interaction-potential offline sample precompute tool
+add_executable(interaction_potential_precompute
+    ../tools/interaction_potential_precompute.cpp
+)
+target_link_libraries(interaction_potential_precompute PRIVATE icarion_core)
+
 # ---------------------------------------------------------------------
 # Installable runtime package
 # ---------------------------------------------------------------------
@@ -176,6 +188,8 @@ install(TARGETS
         icarion_main
         ccs_precompute
         ehss_samples_precompute
+        ehss_offline_precompute
+        interaction_potential_precompute
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
         COMPONENT runtime)
 

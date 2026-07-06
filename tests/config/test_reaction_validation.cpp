@@ -5,12 +5,11 @@
  * @file test_reaction_validation.cpp
  * @brief Tests for reaction order term validation rules
  * 
- * Validates all 5 validation rules:
+ * Validates reaction order term validation rules:
  * 1. exponent ∈ {0, 1, 2}
  * 2. concentration_m3 ≥ -1.0
  * 3. species exists in database (if != "neutral")
  * 4. No duplicate species
- * 5. Max one neutral fallback (concentration_m3 = -1)
  */
 
 #include <catch2/catch_test_macros.hpp>
@@ -66,7 +65,7 @@ TEST_CASE("Reaction validation rules", "[reaction][validation]") {
     // Note: We test validation WITHOUT species_db to focus on order term rules
     // Species validation is tested separately in test_reaction_loader_unit.cpp
     
-    SECTION("✅ Valid: Pseudo-first-order with neutral=-1") {
+    SECTION("Valid: Pseudo-first-order with neutral=-1") {
         Json::Value root;
         root["reactions"] = Json::arrayValue;
         
@@ -88,7 +87,7 @@ TEST_CASE("Reaction validation rules", "[reaction][validation]") {
         REQUIRE_NOTHROW(ReactionLoader::load_from_json(root, nullptr));
     }
     
-    SECTION("✅ Valid: Explicit concentration") {
+    SECTION("Valid: Explicit concentration") {
         Json::Value root;
         root["reactions"] = Json::arrayValue;
         
@@ -110,7 +109,7 @@ TEST_CASE("Reaction validation rules", "[reaction][validation]") {
         REQUIRE_NOTHROW(ReactionLoader::load_from_json(root, nullptr));
     }
     
-    SECTION("✅ Valid: Termolecular (exponent=2)") {
+    SECTION("Valid: Termolecular (exponent=2)") {
         Json::Value root;
         root["reactions"] = Json::arrayValue;
         
@@ -209,7 +208,7 @@ TEST_CASE("Reaction validation rules", "[reaction][validation]") {
     
     // NOTE: RULE #3 (species exists) is tested in test_reaction_loader_unit.cpp
     // because it requires a species_db. Here we test without species_db to focus
-    // on order term validation rules #1, #2, #4, #5.
+    // on order term validation rules #1, #2, #4.
     
     SECTION("❌ INVALID: Duplicate species (RULE #4)") {
         Json::Value root;
@@ -243,7 +242,7 @@ TEST_CASE("Reaction validation rules", "[reaction][validation]") {
         );
     }
     
-    SECTION("❌ INVALID: Two neutral fallbacks (RULE #5)") {
+    SECTION("Valid: Multiple -1 fallbacks") {
         Json::Value root;
         root["reactions"] = Json::arrayValue;
         
@@ -261,7 +260,7 @@ TEST_CASE("Reaction validation rules", "[reaction][validation]") {
         Json::Value term2;
         term2["species"] = "neutral_gas";
         term2["exponent"] = 1;
-        term2["concentration_m3"] = -1.0;  // ❌ SECOND FALLBACK
+        term2["concentration_m3"] = -1.0;
         
         rxn["order"] = Json::arrayValue;
         rxn["order"].append(term1);
@@ -269,10 +268,7 @@ TEST_CASE("Reaction validation rules", "[reaction][validation]") {
         
         root["reactions"].append(rxn);
         
-        REQUIRE_THROWS_WITH(
-            ReactionLoader::load_from_json(root, nullptr),
-            Catch::Matchers::ContainsSubstring("multiple order terms with concentration_m3 = -1.0")
-        );
+        REQUIRE_NOTHROW(ReactionLoader::load_from_json(root, nullptr));
     }
 }
 

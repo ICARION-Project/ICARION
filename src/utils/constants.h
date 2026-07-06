@@ -13,6 +13,8 @@
 inline constexpr double AMU_TO_KG          = 1.66053906660e-27;  // 1 atomic mass unit in kg
 inline constexpr double ELEM_CHARGE_C      = 1.602176634e-19;    // Elementary charge (Coulombs)
 inline constexpr double BOLTZMANN_CONSTANT = 1.380649e-23;       // Boltzmann constant (J/K)
+inline constexpr double GAS_CONSTANT_J_MOLK = 8.31446261815324;  // Molar gas constant (J/mol/K)
+inline constexpr double AVOGADRO_CONSTANT = 6.02214076e23;       // Avogadro constant (mol^-1)
 inline constexpr double LOSCHMIDT_CONSTANT = 2.6867811e25;       // Loschmidt constant (m⁻³ at STP)
 inline constexpr double EPSILON_0      = 8.854187817e-12;    // Permittivity of free space (F/m)
 inline constexpr double COULOMB_CONST  = 8.987551787e9;      // Coulomb constant k_e = 1/(4πε₀) (N·m²/C²)
@@ -22,6 +24,14 @@ inline constexpr double CM2_TO_M2          = 1e-4;               // cm² to m² 
 inline constexpr double ANGSTROM_TO_M      = 1e-10;              // Å (Angstrom) to m
 inline constexpr double ANGSTROM2_TO_M2    = 1e-20;              // Ų (Angstrom²) to m²
 inline constexpr double ANGSTROM3_TO_M3    = 1e-30;              // ų (Angstrom³) to m³
+inline constexpr double KCAL_TO_J          = 4184.0;             // kcal to J conversion
+
+// Interaction-potential precompute constants
+inline constexpr double EXP6_PREEXP_FACTOR = 1.84e5;
+inline constexpr double EXP6_DISPERSION_FACTOR = 2.25;
+inline constexpr double EXP6_BETA = 12.0;
+inline constexpr double MMFF_MIXING_B = 0.2;
+inline constexpr double MMFF_MIXING_BETA = 12.0;
 
 // STP values
 inline constexpr double STP_TEMP     = 273.15;  // STP temperature in K

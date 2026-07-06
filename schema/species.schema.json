@@ -76,6 +76,11 @@
               "description": "Optional path to precomputed EHSS orientation samples (JSON)",
               "minLength": 1
             },
+            "ipm_samples_file": {
+              "type": "string",
+              "description": "Optional path to precomputed InteractionPotential collision samples (HDF5)",
+              "minLength": 1
+            },
             "reference_temperature_K": {
               "type": "number",
               "description": "Reference temperature in Kelvin for mobility/CCS measurements",

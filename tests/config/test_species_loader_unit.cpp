@@ -101,6 +101,44 @@ TEST_CASE("SpeciesLoader - Load multiple species", "[species][loader]") {
     CHECK(db.has("O2-"));
 }
 
+TEST_CASE("SpeciesLoader - Accepts ipm_samples_file alias", "[species][loader][ipm]") {
+    TempSpeciesFile tmp_file(R"({
+        "species": {
+            "H3O+": {
+                "mass_amu": 19.02,
+                "charge": 1,
+                "ipm_samples_file": "samples/H3O+_He_ipm.h5"
+            }
+        }
+    })");
+
+    auto db = SpeciesLoader::load(tmp_file.path);
+
+    REQUIRE(db.has("H3O+"));
+    const auto& ion = db.get("H3O+");
+    REQUIRE(ion.ipm_samples_file.has_value());
+    CHECK(ion.ipm_samples_file->find("samples/H3O+_He_ipm.h5") != std::string::npos);
+}
+
+TEST_CASE("SpeciesLoader - Accepts lowercase legacy ipm_samples_file alias", "[species][loader][ipm]") {
+    TempSpeciesFile tmp_file(R"({
+        "species": {
+            "H3O+": {
+                "mass_amu": 19.02,
+                "charge": 1,
+                "ipm_samples_file": "samples/H3O+_He_ipm.h5"
+            }
+        }
+    })");
+
+    auto db = SpeciesLoader::load(tmp_file.path);
+
+    REQUIRE(db.has("H3O+"));
+    const auto& ion = db.get("H3O+");
+    REQUIRE(ion.ipm_samples_file.has_value());
+    CHECK(ion.ipm_samples_file->find("samples/H3O+_He_ipm.h5") != std::string::npos);
+}
+
 TEST_CASE("SpeciesLoader - Missing required field throws", "[species][loader][error]") {
     TempSpeciesFile tmp_file(R"({
         "species": {

@@ -89,6 +89,8 @@ void FullConfig::load_databases(const std::filesystem::path& base_path) {
         // Pass species DB for validation if available
         const SpeciesDatabase* species_ptr = (species_db.size() > 0) ? &species_db : nullptr;
         reaction_db = ReactionLoader::load(reaction_path, species_ptr);
+    } else if (!physics.enable_reactions) {
+        std::cout << "[DatabaseLoader] Reactions disabled; no reaction database loaded\n";
     } else {
         // Try global fallback (only if species DB exists)
         if (species_db.size() > 0) {

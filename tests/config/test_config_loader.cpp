@@ -94,6 +94,69 @@ TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
     REQUIRE(std::filesystem::exists(cfg.config_file_path));
 }
 
+TEST_CASE("ConfigLoader does not load global reactions when reactions are disabled", "[config][loader][reactions]") {
+    const auto species_db_path = (std::filesystem::current_path() / "data" / "species_database_v1.json").string();
+    std::string config = R"({
+        "simulation": {
+            "dt_s": 1e-9,
+            "total_time_s": 1e-6,
+            "integrator": "RK4",
+            "write_interval": 100
+        },
+        "physics": {
+            "collision_model": "NoCollisions",
+            "enable_reactions": false
+        },
+        "species_database": ")" + species_db_path + R"(",
+        "output": {
+            "folder": "./output",
+            "trajectory_file": "test.h5"
+        },
+        "ions": {
+            "species": [
+                {
+                    "id": "H3O+",
+                    "count": 1,
+                    "position": {
+                        "type": "point",
+                        "center": [0.0, 0.0, 0.001]
+                    },
+                    "velocity": {
+                        "type": "thermal",
+                        "temperature_K": 300.0
+                    }
+                }
+            ]
+        },
+        "domains": [
+            {
+                "name": "test_domain",
+                "domain_index": 0,
+                "instrument": "IMS",
+                "geometry": {
+                    "length_m": 0.1,
+                    "radius_m": 0.01
+                },
+                "environment": {
+                    "pressure_Pa": 101325.0,
+                    "temperature_K": 300.0,
+                    "gas_species": "He"
+                },
+                "fields": {
+                    "dc": {"axial_V": 0.0}
+                }
+            }
+        ]
+    })";
+
+    std::string path = create_temp_config(config, "_reactions_disabled");
+    FullConfig cfg = ConfigLoader::load(path);
+
+    REQUIRE_FALSE(cfg.physics.enable_reactions);
+    REQUIRE(cfg.species_db.size() > 0);
+    REQUIRE(cfg.reaction_db.size() == 0);
+}
+
 TEST_CASE("ConfigLoader loads config with two domains", "[config][loader][domains]") {
     std::string config = R"({
         "simulation": {

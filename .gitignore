@@ -11,6 +11,8 @@ cmake-build-*/
 
 # Output files
 *.h5
+!data/molecules/precomputed_ipm/
+!data/molecules/precomputed_ipm/*.h5
 *.log
 *.csv
 results/

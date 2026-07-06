@@ -39,8 +39,9 @@ icarion examples/ims/ims_basic.json
 Start here if you care about mobility, gas composition, field arrays, or
 arrival time analysis.
 
-The IPM example expects `examples/ims/species_database_ipm_basic.json` to point
-to a generated HDF5 sample table. Create that table first with
+The IPM example uses the global species database and bundled example sample
+tables under `data/molecules/precomputed_ipm/`. For production-quality IPM
+tables, regenerate species-specific HDF5 samples with
 `interaction_potential_precompute`; see [CLI reference](cli-reference.md#precompute-tools).
 
 ## Instrument examples

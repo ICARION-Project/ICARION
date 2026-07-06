@@ -16,7 +16,8 @@
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/H3O+.json",
       "note": "CCS_HSS values are MOBILITY CCS \u03a9(1,1) from Mason-Schamp, NOT geometrical hard-sphere! HSS collision rate should use mobility CCS to account for Langevin enhancement.",
-      "EHSS_samples_file": "molecules/precomputed_ccs/H3O+_ehss_samples.json"
+      "EHSS_samples_file": "molecules/precomputed_ccs/H3O+_ehss_samples.json",
+      "ipm_samples_file": "molecules/precomputed_ipm/H3O+_ipm_samples_He.h5"
     },
     "AcetonitrileH+": {
       "mass_amu": 42.04,
@@ -85,7 +86,8 @@
       "EHSS_sample_file": "../tmp/PentanalH+_EHSS_sample.json",
       "ccs_method": "trajectory (MobCal-MPI 2.0)",
       "geometry_file": "molecules/PentanalH+.json",
-      "EHSS_samples_file": "molecules/precomputed_ccs/PentanalH+_ehss_samples.json"
+      "EHSS_samples_file": "molecules/precomputed_ccs/PentanalH+_ehss_samples.json",
+      "ipm_samples_file": "molecules/precomputed_ipm/PentanalH+_ipm_samples_He.h5"
     },
     "26DTBPH+": {
       "mass_amu": 192.0,

@@ -36,7 +36,7 @@
       }
     ]
   },
-  "species_database": "species_database_ipm_basic.json",
+  "species_database": "../../data/species_database_v1.json",
   "domains": [
     {
       "name": "drift_region",

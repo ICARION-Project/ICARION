@@ -158,6 +158,8 @@ public:
     }
     
 private:
+    static constexpr int kOmpChunk = 128;
+
     // Configuration (SSOT)
     config::FullConfig config_;
     
@@ -236,6 +238,12 @@ private:
      * @brief Refresh time-varying environment parameters (e.g., pressure waveform).
      */
     void update_dynamic_environments(double t);
+    void refresh_ensemble_environment_cache(core::IonEnsemble& ensemble);
+    bool has_space_charge_model() const;
+    std::vector<int> prepare_ions_for_integration(core::IonEnsemble& ensemble);
+    void finalize_ions_after_integration(core::IonEnsemble& ensemble,
+                                         const std::vector<double>& dt_used_per_ion,
+                                         std::vector<double>& dt_next_per_ion);
     
     /**
      * @brief Process one timestep using SoA (Structure of Arrays)

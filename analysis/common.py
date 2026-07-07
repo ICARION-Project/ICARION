@@ -4,7 +4,6 @@
 New code should import from the focused modules:
 - ``analysis.trajectory`` for trajectory HDF5 access and selection
 - ``analysis.physics`` for constants, conversions, histograms, and fitting
-- ``analysis.fields`` for field-map loading, slicing, and interpolation
 """
 
 from __future__ import annotations

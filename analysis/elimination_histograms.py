@@ -31,10 +31,58 @@ from analysis.common import (
 )
 
 
+def export_to_csv(
+    csv_path: Path,
+    ion_indices: np.ndarray,
+    species: np.ndarray,
+    death_times: np.ndarray,
+    last_positions: np.ndarray,
+    reasons: np.ndarray,
+    geom: "Geometry",
+) -> None:
+    """Export elimination data to CSV."""
+    import csv
+
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "ion_index",
+                "species",
+                "death_time_s",
+                "elimination_reason",
+                "position_x_m",
+                "position_y_m",
+                "position_z_m",
+                "radius_m",
+            ]
+        )
+
+        for i, (idx, sp, dt, reason, pos) in enumerate(
+            zip(ion_indices, species, death_times, reasons, last_positions)
+        ):
+            r = np.sqrt(pos[0] ** 2 + pos[1] ** 2)
+            writer.writerow(
+                [
+                    int(idx),
+                    sp,
+                    f"{float(dt):.6e}",
+                    reason,
+                    f"{float(pos[0]):.6e}",
+                    f"{float(pos[1]):.6e}",
+                    f"{float(pos[2]):.6e}",
+                    f"{float(r):.6e}",
+                ]
+            )
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Plot elimination-time histograms (radial/axial).")
     p.add_argument("--traj", type=Path, required=True, help="Trajectory HDF5 file.")
     p.add_argument("--out", type=Path, default=Path("analysis/output/elimination_hist.png"), help="Output image path.")
+    p.add_argument("--csv", type=Path, default=None, help="Optional CSV output file for elimination data.")
     p.add_argument("--species", nargs="+", default=None, help="Optional species filter.")
     p.add_argument("--max-ions", type=int, default=500, help="Max ions to include after filtering.")
     p.add_argument("--max-per-species", type=int, default=200, help="Cap per species before global cap.")
@@ -126,6 +174,18 @@ def main() -> int:
                 orbitrap_mode=orbitrap_mode,
             )
             print(f"Wrote {per_species_path}")
+
+        if args.csv is not None:
+            export_to_csv(
+                args.csv,
+                ion_indices,
+                selected_species,
+                death_times,
+                last_positions,
+                reasons,
+                geom,
+            )
+            print(f"Wrote {args.csv}")
 
     print(f"Wrote {args.out}")
     return 0

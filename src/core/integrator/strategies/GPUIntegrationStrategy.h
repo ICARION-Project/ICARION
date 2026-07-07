@@ -63,6 +63,7 @@ private:
     bool adaptive_ = false;
     bool warned_multiple_domains_ = false;
     bool warned_force_mix_ = false;
+    bool warned_field_provider_ = false;
     bool warned_experimental_ = false;
     bool gpu_damping_enabled_ = false;
 #ifdef ICARION_USE_GPU

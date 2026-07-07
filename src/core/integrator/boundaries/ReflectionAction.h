@@ -17,6 +17,9 @@
 
 #include "BoundaryAction.h"
 #include "utils/constants.h"
+#include <cstdint>
+#include <cstring>
+#include <functional>
 #include <random>
 #include <cmath>
 
@@ -63,6 +66,11 @@ public:
     ) override {
         // Set position to boundary
         ion.pos = boundary_pos;
+
+        // Use deterministic per-event RNG for stochastic boundary actions.
+        // This avoids thread-order dependent RNG drift when boundary events are
+        // processed in parallel and routed through critical sections.
+        auto event_rng = make_event_rng(ion, boundary_pos, normal, temperature_K, current_time);
         
         // Apply reflection based on type
         switch (type_) {
@@ -70,15 +78,14 @@ public:
                 apply_specular(ion, normal);
                 break;
             case Type::DIFFUSE:
-                apply_diffuse(ion, normal, temperature_K);
+                apply_diffuse(ion, normal, temperature_K, event_rng);
                 break;
             case Type::THERMAL:
-                apply_thermal(ion, normal, temperature_K);
+                apply_thermal(ion, normal, temperature_K, event_rng);
                 break;
         }
-        
+
         // Note: Ion remains active after reflection, death_time_s not set
-        (void)current_time;  // Unused for reflections
     }
     
     std::string name() const override {
@@ -94,6 +101,51 @@ private:
     Type type_;
     double accommodation_coeff_;
     std::mt19937* rng_;
+
+    static uint64_t splitmix64(uint64_t x) {
+        x += 0x9e3779b97f4a7c15ULL;
+        x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+        return x ^ (x >> 31);
+    }
+
+    static uint64_t dbl_bits(double v) {
+        uint64_t bits = 0;
+        std::memcpy(&bits, &v, sizeof(bits));
+        return bits;
+    }
+
+    static uint64_t mix_seed(uint64_t seed, uint64_t value) {
+        return splitmix64(seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2)));
+    }
+
+    uint64_t event_seed(const IonState& ion,
+                        const Vec3& boundary_pos,
+                        const Vec3& normal,
+                        double temperature_K,
+                        double current_time) const {
+        uint64_t seed = 0xC01DCAFE5EED1234ULL;
+        seed = mix_seed(seed, static_cast<uint64_t>(ion.history_index + 1));
+        seed = mix_seed(seed, std::hash<std::string>{}(ion.species_id));
+        seed = mix_seed(seed, dbl_bits(boundary_pos.x));
+        seed = mix_seed(seed, dbl_bits(boundary_pos.y));
+        seed = mix_seed(seed, dbl_bits(boundary_pos.z));
+        seed = mix_seed(seed, dbl_bits(normal.x));
+        seed = mix_seed(seed, dbl_bits(normal.y));
+        seed = mix_seed(seed, dbl_bits(normal.z));
+        seed = mix_seed(seed, dbl_bits(temperature_K));
+        seed = mix_seed(seed, dbl_bits(current_time));
+        return seed;
+    }
+
+    std::mt19937 make_event_rng(const IonState& ion,
+                                const Vec3& boundary_pos,
+                                const Vec3& normal,
+                                double temperature_K,
+                                double current_time) const {
+        return std::mt19937(static_cast<uint32_t>(event_seed(
+            ion, boundary_pos, normal, temperature_K, current_time)));
+    }
     
     /**
      * @brief Specular reflection: v' = v - 2(v·n)n
@@ -110,9 +162,9 @@ private:
      * - Outgoing direction sampled from cos(θ) distribution
      * - Speed partially thermalized based on accommodation coefficient
      */
-    void apply_diffuse(IonState& ion, const Vec3& normal, double temperature_K) {
+    void apply_diffuse(IonState& ion, const Vec3& normal, double temperature_K, std::mt19937& rng) {
         // Sample outgoing direction (cosine-weighted)
-        Vec3 outgoing_dir = sample_cosine_hemisphere(normal);
+        Vec3 outgoing_dir = sample_cosine_hemisphere(normal, rng);
         
         // Compute thermal speed (RMS velocity)
         double v_thermal = std::sqrt(2.0 * BOLTZMANN_CONSTANT * temperature_K / ion.mass_kg);
@@ -131,19 +183,19 @@ private:
      * - Velocity magnitude sampled from Maxwell-Boltzmann at wall temperature
      * - Direction sampled from cosine-weighted hemisphere
      */
-    void apply_thermal(IonState& ion, const Vec3& normal, double temperature_K) {
+    void apply_thermal(IonState& ion, const Vec3& normal, double temperature_K, std::mt19937& rng) {
         // Sample velocity magnitude from Maxwell-Boltzmann distribution
         // Using Box-Muller transform for 3D Gaussian → Maxwell-Boltzmann speed
         std::normal_distribution<double> normal_dist(0.0, 1.0);
         double sigma = std::sqrt(BOLTZMANN_CONSTANT * temperature_K / ion.mass_kg);
         
-        double vx = sigma * normal_dist(*rng_);
-        double vy = sigma * normal_dist(*rng_);
-        double vz = sigma * normal_dist(*rng_);
+        double vx = sigma * normal_dist(rng);
+        double vy = sigma * normal_dist(rng);
+        double vz = sigma * normal_dist(rng);
         double v_mag = std::sqrt(vx*vx + vy*vy + vz*vz);
         
         // Sample outgoing direction (cosine-weighted)
-        Vec3 outgoing_dir = sample_cosine_hemisphere(normal);
+        Vec3 outgoing_dir = sample_cosine_hemisphere(normal, rng);
         
         ion.vel = outgoing_dir * v_mag;
     }
@@ -159,12 +211,12 @@ private:
      * @param normal Surface normal (pointing inward, unit length)
      * @return Unit vector in outgoing hemisphere
      */
-    Vec3 sample_cosine_hemisphere(const Vec3& normal) {
+    Vec3 sample_cosine_hemisphere(const Vec3& normal, std::mt19937& rng) {
         std::uniform_real_distribution<double> uniform(0.0, 1.0);
         
         // Sample unit disk (Malley's method)
-        double r = std::sqrt(uniform(*rng_));
-        double theta = 2.0 * M_PI * uniform(*rng_);
+        double r = std::sqrt(uniform(rng));
+        double theta = 2.0 * M_PI * uniform(rng);
         double x = r * std::cos(theta);
         double y = r * std::sin(theta);
         double z = std::sqrt(1.0 - x*x - y*y);

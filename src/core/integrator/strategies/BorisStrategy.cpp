@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Christoph Schaefer
 #include "BorisStrategy.h"
+#include "core/config/types/IFieldModel.h"
 #include "core/physics/forces/ForceContext.h"
 #include <cmath>
 
@@ -49,9 +50,17 @@ void BorisStrategy::step(
     Vec3 F_electric = force_registry.compute_total_force(ensemble, ion_idx, t, ctx);
     Vec3 a_electric = F_electric / mass[ion_idx];
 
+    // Sample B from the SSOT field model if it provides magnetic data;
+    // fall back to the config uniform field otherwise.
     Vec3 B{0, 0, 0};
     if (domain->fields.magnetic.enabled) {
-        B = domain->fields.magnetic.field_strength_T;
+        const config::IFieldModel* fm = ctx.field_model;
+        if (fm && fm->has_B()) {
+            Vec3 pos{pos_x[ion_idx], pos_y[ion_idx], pos_z[ion_idx]};
+            B = fm->B(pos, t);
+        } else {
+            B = domain->fields.magnetic.field_strength_T;
+        }
     }
 
     Vec3 v_minus{vel_x[ion_idx], vel_y[ion_idx], vel_z[ion_idx]};

@@ -3,6 +3,11 @@
 // Copyright (c) 2026 Christoph Schaefer
 #include "GPUIntegrationStrategy.h"
 
+#ifdef ICARION_USE_GPU
+#include "fieldsolver/utils/GridFieldProvider.h"
+#include "core/gpu/fields/FieldArrayGPU_conversion.h"
+#endif
+
 namespace ICARION::integrator {
 
 GPUIntegrationStrategy::GPUIntegrationStrategy(
@@ -215,6 +220,40 @@ bool GPUIntegrationStrategy::step_batch(
         }
         return run_cpu_fallback(ensemble, t, dt, registries, domain_indices);
     }
+
+#ifdef ICARION_USE_GPU
+    const auto* grid_provider = dynamic_cast<const GridFieldProvider*>(e_force->get_field_provider());
+    if (!grid_provider) {
+        if (!warned_field_provider_) {
+            log::Logger::main()->warn(
+                "GPUIntegrationStrategy: domain '{}' uses a non-grid field provider; GPU path requires GridFieldProvider-backed electric fields, using CPU",
+                registries[selected_domain]->domain() ? registries[selected_domain]->domain()->name : "<unknown>");
+            warned_field_provider_ = true;
+        }
+        return run_cpu_fallback(ensemble, t, dt, registries, domain_indices);
+    }
+
+    const FieldArray* field_array = grid_provider->get_field_array();
+    if (!field_array) {
+        if (!warned_field_provider_) {
+            log::Logger::main()->warn(
+                "GPUIntegrationStrategy: domain '{}' uses a GridFieldProvider without a GPU-uploadable FieldArray (for example FieldSnapshot-backed); using CPU",
+                registries[selected_domain]->domain() ? registries[selected_domain]->domain()->name : "<unknown>");
+            warned_field_provider_ = true;
+        }
+        return run_cpu_fallback(ensemble, t, dt, registries, domain_indices);
+    }
+
+    if (!icarion::gpu::is_field_valid_for_gpu(*field_array)) {
+        if (!warned_field_provider_) {
+            log::Logger::main()->warn(
+                "GPUIntegrationStrategy: domain '{}' has an invalid or incomplete FieldArray for GPU upload; using CPU",
+                registries[selected_domain]->domain() ? registries[selected_domain]->domain()->name : "<unknown>");
+            warned_field_provider_ = true;
+        }
+        return run_cpu_fallback(ensemble, t, dt, registries, domain_indices);
+    }
+#endif
 
     std::vector<IonState> gpu_ions;
     gpu_ions.reserve(mapping.size());

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "IIntegrationStrategy.h"
+#include <vector>
 
 namespace ICARION {
 namespace integrator {
@@ -72,7 +73,26 @@ public:
     bool is_adaptive() const override { return false; }
 
 private:
+    void ensure_scratch_size(size_t n);
+
     bool parallel_enabled_ = false;
+
+    // Persistent scratch buffers to avoid per-step large allocations.
+    std::vector<double> base_px_;
+    std::vector<double> base_py_;
+    std::vector<double> base_pz_;
+    std::vector<double> base_vx_;
+    std::vector<double> base_vy_;
+    std::vector<double> base_vz_;
+
+    std::vector<Vec3> k1_v_;
+    std::vector<Vec3> k2_v_;
+    std::vector<Vec3> k3_v_;
+    std::vector<Vec3> k4_v_;
+    std::vector<Vec3> k1_a_;
+    std::vector<Vec3> k2_a_;
+    std::vector<Vec3> k3_a_;
+    std::vector<Vec3> k4_a_;
 };
 
 } // namespace integrator

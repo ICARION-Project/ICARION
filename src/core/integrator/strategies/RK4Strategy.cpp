@@ -4,6 +4,7 @@
 #include "RK4Strategy.h"
 #include "core/physics/forces/ForceContext.h"
 #include "core/types/IonEnsemble.h"
+#include <algorithm>
 #include <vector>
 
 #ifdef _OPENMP
@@ -12,6 +13,25 @@
 
 namespace ICARION {
 namespace integrator {
+
+void RK4Strategy::ensure_scratch_size(size_t n) {
+    base_px_.resize(n);
+    base_py_.resize(n);
+    base_pz_.resize(n);
+    base_vx_.resize(n);
+    base_vy_.resize(n);
+    base_vz_.resize(n);
+
+    const Vec3 zero{0.0, 0.0, 0.0};
+    k1_v_.assign(n, zero);
+    k2_v_.assign(n, zero);
+    k3_v_.assign(n, zero);
+    k4_v_.assign(n, zero);
+    k1_a_.assign(n, zero);
+    k2_a_.assign(n, zero);
+    k3_a_.assign(n, zero);
+    k4_a_.assign(n, zero);
+}
 
 namespace {
 IonState make_state_from_ensemble(const core::IonEnsemble& ensemble, size_t i) {
@@ -175,17 +195,15 @@ bool RK4Strategy::step_batch(
     auto* mass = ensemble.mass_data();
     auto* active = ensemble.active_data();
 
-    std::vector<double> base_px(pos_x, pos_x + n);
-    std::vector<double> base_py(pos_y, pos_y + n);
-    std::vector<double> base_pz(pos_z, pos_z + n);
-    std::vector<double> base_vx(vel_x, vel_x + n);
-    std::vector<double> base_vy(vel_y, vel_y + n);
-    std::vector<double> base_vz(vel_z, vel_z + n);
+    ensure_scratch_size(n);
 
-    std::vector<Vec3> k1_v(n), k2_v(n), k3_v(n), k4_v(n);
-    std::vector<Vec3> k1_a(n), k2_a(n), k3_a(n), k4_a(n);
+    std::copy(pos_x, pos_x + n, base_px_.begin());
+    std::copy(pos_y, pos_y + n, base_py_.begin());
+    std::copy(pos_z, pos_z + n, base_pz_.begin());
+    std::copy(vel_x, vel_x + n, base_vx_.begin());
+    std::copy(vel_y, vel_y + n, base_vy_.begin());
+    std::copy(vel_z, vel_z + n, base_vz_.begin());
 
-    constexpr int kOmpChunk = 128;
     const bool use_omp = parallel_enabled_;
 #ifndef _OPENMP
     (void)use_omp;
@@ -219,86 +237,86 @@ bool RK4Strategy::step_batch(
 
     #pragma omp parallel if(use_omp)
     {
-        #pragma omp for schedule(guided, kOmpChunk)
+        #pragma omp for schedule(static)
         for (int i = 0; i < n_int; ++i) {
             const size_t idx = static_cast<size_t>(i);
             if (domain_indices[idx] < 0 || !active[idx]) {
                 continue;
             }
-            k1_v[idx] = Vec3{base_vx[i], base_vy[i], base_vz[i]};
-            compute_accel(i, t, k1_a);
+            k1_v_[idx] = Vec3{base_vx_[i], base_vy_[i], base_vz_[i]};
+            compute_accel(i, t, k1_a_);
         }
 
-        #pragma omp for schedule(guided, kOmpChunk)
+        #pragma omp for schedule(static)
         for (int i = 0; i < n_int; ++i) {
             const size_t idx = static_cast<size_t>(i);
             if (domain_indices[idx] < 0 || !active[idx]) {
                 continue;
             }
-            pos_x[i] = base_px[i] + k1_v[idx].x * half_dt;
-            pos_y[i] = base_py[i] + k1_v[idx].y * half_dt;
-            pos_z[i] = base_pz[i] + k1_v[idx].z * half_dt;
-            vel_x[i] = base_vx[i] + k1_a[idx].x * half_dt;
-            vel_y[i] = base_vy[i] + k1_a[idx].y * half_dt;
-            vel_z[i] = base_vz[i] + k1_a[idx].z * half_dt;
-            k2_v[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+            pos_x[i] = base_px_[i] + k1_v_[idx].x * half_dt;
+            pos_y[i] = base_py_[i] + k1_v_[idx].y * half_dt;
+            pos_z[i] = base_pz_[i] + k1_v_[idx].z * half_dt;
+            vel_x[i] = base_vx_[i] + k1_a_[idx].x * half_dt;
+            vel_y[i] = base_vy_[i] + k1_a_[idx].y * half_dt;
+            vel_z[i] = base_vz_[i] + k1_a_[idx].z * half_dt;
+            k2_v_[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
         }
 
-        #pragma omp for schedule(guided, kOmpChunk)
+        #pragma omp for schedule(static)
         for (int i = 0; i < n_int; ++i) {
-            compute_accel(i, t + half_dt, k2_a);
+            compute_accel(i, t + half_dt, k2_a_);
         }
 
-        #pragma omp for schedule(guided, kOmpChunk)
-        for (int i = 0; i < n_int; ++i) {
-            const size_t idx = static_cast<size_t>(i);
-            if (domain_indices[idx] < 0 || !active[idx]) {
-                continue;
-            }
-            pos_x[i] = base_px[i] + k2_v[idx].x * half_dt;
-            pos_y[i] = base_py[i] + k2_v[idx].y * half_dt;
-            pos_z[i] = base_pz[i] + k2_v[idx].z * half_dt;
-            vel_x[i] = base_vx[i] + k2_a[idx].x * half_dt;
-            vel_y[i] = base_vy[i] + k2_a[idx].y * half_dt;
-            vel_z[i] = base_vz[i] + k2_a[idx].z * half_dt;
-            k3_v[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
-        }
-
-        #pragma omp for schedule(guided, kOmpChunk)
-        for (int i = 0; i < n_int; ++i) {
-            compute_accel(i, t + half_dt, k3_a);
-        }
-
-        #pragma omp for schedule(guided, kOmpChunk)
+        #pragma omp for schedule(static)
         for (int i = 0; i < n_int; ++i) {
             const size_t idx = static_cast<size_t>(i);
             if (domain_indices[idx] < 0 || !active[idx]) {
                 continue;
             }
-            pos_x[i] = base_px[i] + k3_v[idx].x * dt;
-            pos_y[i] = base_py[i] + k3_v[idx].y * dt;
-            pos_z[i] = base_pz[i] + k3_v[idx].z * dt;
-            vel_x[i] = base_vx[i] + k3_a[idx].x * dt;
-            vel_y[i] = base_vy[i] + k3_a[idx].y * dt;
-            vel_z[i] = base_vz[i] + k3_a[idx].z * dt;
-            k4_v[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+            pos_x[i] = base_px_[i] + k2_v_[idx].x * half_dt;
+            pos_y[i] = base_py_[i] + k2_v_[idx].y * half_dt;
+            pos_z[i] = base_pz_[i] + k2_v_[idx].z * half_dt;
+            vel_x[i] = base_vx_[i] + k2_a_[idx].x * half_dt;
+            vel_y[i] = base_vy_[i] + k2_a_[idx].y * half_dt;
+            vel_z[i] = base_vz_[i] + k2_a_[idx].z * half_dt;
+            k3_v_[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
         }
 
-        #pragma omp for schedule(guided, kOmpChunk)
+        #pragma omp for schedule(static)
         for (int i = 0; i < n_int; ++i) {
-            compute_accel(i, t + dt, k4_a);
+            compute_accel(i, t + half_dt, k3_a_);
         }
 
-        #pragma omp for schedule(guided, kOmpChunk)
+        #pragma omp for schedule(static)
         for (int i = 0; i < n_int; ++i) {
             const size_t idx = static_cast<size_t>(i);
             if (domain_indices[idx] < 0 || !active[idx]) {
                 continue;
             }
-            Vec3 pos_new = Vec3{base_px[i], base_py[i], base_pz[i]} +
-                (k1_v[idx] + k2_v[idx] * 2.0 + k3_v[idx] * 2.0 + k4_v[idx]) * (dt / 6.0);
-            Vec3 vel_new = Vec3{base_vx[i], base_vy[i], base_vz[i]} +
-                (k1_a[idx] + k2_a[idx] * 2.0 + k3_a[idx] * 2.0 + k4_a[idx]) * (dt / 6.0);
+            pos_x[i] = base_px_[i] + k3_v_[idx].x * dt;
+            pos_y[i] = base_py_[i] + k3_v_[idx].y * dt;
+            pos_z[i] = base_pz_[i] + k3_v_[idx].z * dt;
+            vel_x[i] = base_vx_[i] + k3_a_[idx].x * dt;
+            vel_y[i] = base_vy_[i] + k3_a_[idx].y * dt;
+            vel_z[i] = base_vz_[i] + k3_a_[idx].z * dt;
+            k4_v_[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+        }
+
+        #pragma omp for schedule(static)
+        for (int i = 0; i < n_int; ++i) {
+            compute_accel(i, t + dt, k4_a_);
+        }
+
+        #pragma omp for schedule(static)
+        for (int i = 0; i < n_int; ++i) {
+            const size_t idx = static_cast<size_t>(i);
+            if (domain_indices[idx] < 0 || !active[idx]) {
+                continue;
+            }
+            Vec3 pos_new = Vec3{base_px_[i], base_py_[i], base_pz_[i]} +
+                (k1_v_[idx] + k2_v_[idx] * 2.0 + k3_v_[idx] * 2.0 + k4_v_[idx]) * (dt / 6.0);
+            Vec3 vel_new = Vec3{base_vx_[i], base_vy_[i], base_vz_[i]} +
+                (k1_a_[idx] + k2_a_[idx] * 2.0 + k3_a_[idx] * 2.0 + k4_a_[idx]) * (dt / 6.0);
 
             pos_x[i] = pos_new.x;
             pos_y[i] = pos_new.y;

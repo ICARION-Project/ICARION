@@ -34,6 +34,7 @@
 #include "core/integrator/DomainManager.h"
 #include "core/integrator/OutputManager.h"
 #include "core/integrator/DeepCollisionDiagnosticsTracker.h"
+#include <cstdint>
 #include <vector>
 #include <memory>
 
@@ -135,6 +136,28 @@ public:
      * @brief Get output manager (for testing)
      */
     const OutputManager& get_output_manager() const { return *output_manager_; }
+
+    uint64_t collision_events_total() const { return collision_events_total_; }
+    uint64_t collision_macro_attempts_total() const { return collision_macro_attempts_total_; }
+    uint64_t collision_substep_attempts_total() const { return collision_substep_attempts_total_; }
+    bool collision_monitor_complete() const { return collision_monitor_complete_; }
+    int steps_completed() const { return current_step_; }
+    double last_wall_runtime_s() const { return last_wall_runtime_s_; }
+
+    double mean_collisions_per_step() const {
+        const int denom = (current_step_ > 0) ? current_step_ : 1;
+        return static_cast<double>(collision_events_total_) / static_cast<double>(denom);
+    }
+
+    double collision_event_fraction_per_ion_step() const {
+        const uint64_t denom = (collision_macro_attempts_total_ > 0) ? collision_macro_attempts_total_ : 1;
+        return static_cast<double>(collision_events_total_) / static_cast<double>(denom);
+    }
+
+    double collision_event_fraction_per_substep() const {
+        const uint64_t denom = (collision_substep_attempts_total_ > 0) ? collision_substep_attempts_total_ : 1;
+        return static_cast<double>(collision_events_total_) / static_cast<double>(denom);
+    }
     
 private:
     // Configuration (SSOT)
@@ -160,7 +183,13 @@ private:
     
     // Per-ion RNG states (persistent across timesteps!)
     std::vector<physics::PhysicsRng> rng_by_ion_;
+    std::vector<uint64_t> rng_fingerprints_;
     bool space_charge_stale_warned_ = false;
+    uint64_t collision_macro_attempts_total_ = 0;
+    uint64_t collision_substep_attempts_total_ = 0;
+    uint64_t collision_events_total_ = 0;
+    bool collision_monitor_complete_ = true;
+    double last_wall_runtime_s_ = 0.0;
     
 #ifdef ICARION_USE_GPU
     // GPU acceleration (optional)

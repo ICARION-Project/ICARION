@@ -23,6 +23,9 @@
 #include <chrono>
 #include <cstdlib>  // for setenv (NUMA thread placement)
 #include <limits>
+#include <cstring>
+#include <atomic>
+#include <unordered_map>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -38,6 +41,70 @@ namespace integrator {
 using physics::PhysicsRng;
 namespace {
 constexpr int kOmpChunk = 128;
+
+uint64_t splitmix64(uint64_t x) {
+    x += 0x9e3779b97f4a7c15ULL;
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+    return x ^ (x >> 31);
+}
+
+uint64_t ion_rng_seed(uint64_t base_seed, size_t ion_index) {
+    return base_seed + static_cast<uint64_t>(ion_index);
+}
+
+uint64_t hash_double_bits(double value) {
+    uint64_t bits = 0;
+    static_assert(sizeof(bits) == sizeof(value), "Unexpected double size");
+    std::memcpy(&bits, &value, sizeof(bits));
+    return splitmix64(bits);
+}
+
+uint64_t ion_rng_fingerprint(const core::IonEnsemble& ensemble, size_t idx) {
+    uint64_t h = 0x6a09e667f3bcc909ULL;
+    h = splitmix64(h ^ hash_double_bits(ensemble.pos_x_data()[idx]));
+    h = splitmix64(h ^ hash_double_bits(ensemble.pos_y_data()[idx]));
+    h = splitmix64(h ^ hash_double_bits(ensemble.pos_z_data()[idx]));
+    h = splitmix64(h ^ hash_double_bits(ensemble.vel_x_data()[idx]));
+    h = splitmix64(h ^ hash_double_bits(ensemble.vel_y_data()[idx]));
+    h = splitmix64(h ^ hash_double_bits(ensemble.vel_z_data()[idx]));
+    h = splitmix64(h ^ hash_double_bits(ensemble.mass_data()[idx]));
+    h = splitmix64(h ^ hash_double_bits(ensemble.charge_data()[idx]));
+    h = splitmix64(h ^ static_cast<uint64_t>(ensemble.species_id_indices()[idx]));
+    return h;
+}
+
+std::vector<uint64_t> build_ion_rng_fingerprints(const core::IonEnsemble& ensemble) {
+    std::vector<uint64_t> out(ensemble.size());
+    for (size_t i = 0; i < ensemble.size(); ++i) {
+        out[i] = ion_rng_fingerprint(ensemble, i);
+    }
+    return out;
+}
+
+std::vector<size_t> collect_active_domain_indices(const core::IonEnsemble& ensemble,
+                                                  const std::vector<int>& domain_indices) {
+    std::vector<size_t> active_indices;
+    active_indices.reserve(ensemble.size());
+    const auto* active = ensemble.active_data();
+    const auto* born = ensemble.born_data();
+    for (size_t i = 0; i < ensemble.size(); ++i) {
+        if (active[i] && born[i] && domain_indices[i] >= 0) {
+            active_indices.push_back(i);
+        }
+    }
+    return active_indices;
+}
+
+std::vector<std::vector<size_t>> group_active_indices_by_domain(const core::IonEnsemble& ensemble,
+                                                                const std::vector<int>& domain_indices,
+                                                                size_t domain_count) {
+    std::vector<std::vector<size_t>> per_domain(domain_count);
+    for (size_t idx : collect_active_domain_indices(ensemble, domain_indices)) {
+        per_domain[static_cast<size_t>(domain_indices[idx])].push_back(idx);
+    }
+    return per_domain;
+}
 
 bool adaptive_space_charge_enabled() {
     const char* env = std::getenv("ICARION_ADAPTIVE_SC");
@@ -86,6 +153,8 @@ SimulationEngine::SimulationEngine(
         throw std::invalid_argument("SimulationEngine: IntegrationStrategy cannot be null");
     }
 
+    parallel_enabled_ = config_.simulation.enable_openmp;
+
     // Capture RK45 runtime settings for metadata
     if (auto* rk45 = dynamic_cast<RK45Strategy*>(integrator_.get())) {
         auto cfg = rk45->get_config();
@@ -102,7 +171,6 @@ SimulationEngine::SimulationEngine(
         rk45->enable_stats(!parallel_enabled_);
     }
 
-    parallel_enabled_ = config_.simulation.enable_openmp;
     integrator_->set_parallel_enabled(parallel_enabled_);
     
     // Create domain manager
@@ -200,6 +268,11 @@ void SimulationEngine::initialize(const core::IonEnsemble& ensemble) {
         config_.physics.collision_model != config::CollisionModel::NoCollisions) {
         output_manager_->log_progress(
             "Warning: Collisions/reactions use pre-step environment; mid-step boundary crossings do not refresh gas properties (approximate SSOT). Use small dt across sharp domain changes.");
+    }
+
+    if (config_.physics.collision_multi_event_mode) {
+        output_manager_->log_progress(
+            "Info: physics.collision_multi_event_mode enabled. Collisions use approximate micro-subcycling; for highest accuracy keep unresolved multiple collisions rare.");
     }
 }
 
@@ -374,6 +447,7 @@ void SimulationEngine::log_progress(double t) {
 }
 
 core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
+    const auto wall_start = std::chrono::steady_clock::now();
     
     // 1. Initialize subsystems
     initialize(ensemble);
@@ -383,6 +457,10 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     current_step_ = 0;
     dt_per_ion_.assign(ensemble.size(), config_.simulation.dt_s);
     deep_collision_diagnostics_.reset(ensemble.size());
+    collision_macro_attempts_total_ = 0;
+    collision_substep_attempts_total_ = 0;
+    collision_events_total_ = 0;
+    collision_monitor_complete_ = true;
     
     output_manager_->log_progress("Starting main simulation loop (SoA)");
     
@@ -460,6 +538,37 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     std::ostringstream msg;
     msg << "Final state: " << active_count << "/" << ensemble.size() << " ions active";
     output_manager_->log_progress(msg.str());
+
+    if (collision_macro_attempts_total_ > 0 || collision_substep_attempts_total_ > 0) {
+        std::ostringstream coll_msg;
+        coll_msg << std::fixed << std::setprecision(6)
+                 << "Collision load: avg collisions/step=" << mean_collisions_per_step()
+                 << ", event fraction per ion-step=" << (100.0 * collision_event_fraction_per_ion_step()) << "%"
+                 << ", event fraction per substep=" << (100.0 * collision_event_fraction_per_substep()) << "%"
+                 << " (events=" << collision_events_total_
+                 << ", ion_steps=" << collision_macro_attempts_total_
+                 << ", substeps=" << collision_substep_attempts_total_ << ")";
+        if (!collision_monitor_complete_) {
+            coll_msg << " [monitor incomplete: batch collision path used]";
+        }
+        output_manager_->log_progress(coll_msg.str());
+        log::Logger::main()->info("{}", coll_msg.str());
+
+        if (!config_.physics.collision_multi_event_mode &&
+            collision_monitor_complete_ &&
+            collision_event_fraction_per_ion_step() > 0.10) {
+            std::ostringstream warn_msg;
+            warn_msg << std::fixed << std::setprecision(2)
+                     << "WARNING: collision event fraction per ion-step is "
+                     << (100.0 * collision_event_fraction_per_ion_step())
+                     << "% (>10%). Consider reducing dt or enabling collision micro-subcycling.";
+            output_manager_->log_progress(warn_msg.str());
+            log::Logger::main()->warn("{}", warn_msg.str());
+        }
+    }
+
+    const auto wall_end = std::chrono::steady_clock::now();
+    last_wall_runtime_s_ = std::chrono::duration<double>(wall_end - wall_start).count();
     
     // Direct SoA finalization (no conversion overhead)
     output_manager_->finalize(current_time_, ensemble);
@@ -523,6 +632,7 @@ void SimulationEngine::update_dynamic_environments(double t) {
 
 double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
     const size_t n_ions = ensemble.size();
+    const std::vector<uint64_t> current_fingerprints = build_ion_rng_fingerprints(ensemble);
     if (dt_per_ion_.size() != n_ions) {
         dt_per_ion_.assign(n_ions, config_.simulation.dt_s);
     }
@@ -559,11 +669,49 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
 
     if (rng_by_ion_.size() != n_ions) {
         PROFILE_SCOPE_IF_ENABLED("RNG Initialization");
-        rng_by_ion_.clear();
-        rng_by_ion_.reserve(n_ions);
-        for (size_t i = 0; i < n_ions; ++i) {
-            uint64_t ion_seed = config_.simulation.rng_seed + static_cast<uint64_t>(i);
-            rng_by_ion_.emplace_back(ion_seed);
+        if (rng_by_ion_.empty() || rng_fingerprints_.empty()) {
+            rng_by_ion_.clear();
+            rng_by_ion_.reserve(n_ions);
+            for (size_t i = 0; i < n_ions; ++i) {
+                rng_by_ion_.emplace_back(ion_rng_seed(config_.simulation.rng_seed, i));
+            }
+        } else {
+            std::unordered_map<uint64_t, std::vector<size_t>> old_slots;
+            old_slots.reserve(rng_fingerprints_.size() * 2 + 1);
+            for (size_t i = 0; i < rng_fingerprints_.size(); ++i) {
+                old_slots[rng_fingerprints_[i]].push_back(i);
+            }
+
+            std::vector<uint8_t> old_used(rng_by_ion_.size(), 0);
+            std::vector<PhysicsRng> remapped;
+            remapped.reserve(n_ions);
+            for (size_t i = 0; i < n_ions; ++i) {
+                size_t match = std::numeric_limits<size_t>::max();
+                auto slot_it = old_slots.find(current_fingerprints[i]);
+                if (slot_it != old_slots.end()) {
+                    auto& slots = slot_it->second;
+                    while (!slots.empty()) {
+                        const size_t candidate = slots.back();
+                        slots.pop_back();
+                        if (candidate < rng_by_ion_.size() && !old_used[candidate]) {
+                            match = candidate;
+                            break;
+                        }
+                    }
+                }
+                if (match == std::numeric_limits<size_t>::max() &&
+                    i < rng_by_ion_.size() &&
+                    !old_used[i]) {
+                    match = i;
+                }
+                if (match != std::numeric_limits<size_t>::max()) {
+                    old_used[match] = 1;
+                    remapped.push_back(std::move(rng_by_ion_[match]));
+                } else {
+                    remapped.emplace_back(ion_rng_seed(config_.simulation.rng_seed, i));
+                }
+            }
+            rng_by_ion_ = std::move(remapped);
         }
     }
 
@@ -758,6 +906,7 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
             new_time = current_time_ + config_.simulation.dt_s;
         }
     }
+    rng_fingerprints_ = build_ion_rng_fingerprints(ensemble);
     return new_time;
 }
 
@@ -1465,20 +1614,19 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
 
     PROFILE_SCOPE_IF_ENABLED("Collision Handling");
 
-    const size_t n = ensemble.size();
-    const auto* active = ensemble.active_data();
-    const auto* born = ensemble.born_data();
-
-    const bool has_batch = collision_handler_->supports_batch() && !deep_collision_diagnostics_.enabled();
+    const bool has_batch = collision_handler_->supports_batch();
+    const bool multi_event_mode = config_.physics.collision_multi_event_mode;
+    const bool split_centered = config_.physics.collision_time_centered;
+    const bool split_randomized = config_.physics.collision_time_randomized;
+    const int configured_subcycles = std::max(1, config_.physics.collision_subcycles_per_step);
+    const int max_events = std::max(1, config_.physics.collision_max_events_per_step);
+    const int subcycles = multi_event_mode
+        ? std::max(configured_subcycles, max_events)
+        : configured_subcycles;
+    const bool needs_cpu_split = split_centered || split_randomized || subcycles > 1;
+    const bool deep_collision_enabled = deep_collision_diagnostics_.enabled();
     const size_t domain_count = config_.domains.size();
-    std::vector<std::vector<size_t>> per_domain(domain_count);
-    for (size_t i = 0; i < n; ++i) {
-        int dom = domain_indices[i];
-        if (dom < 0 || !active[i] || !born[i]) {
-            continue;
-        }
-        per_domain[static_cast<size_t>(dom)].push_back(i);
-    }
+    auto per_domain = group_active_indices_by_domain(ensemble, domain_indices, domain_count);
 
     for (size_t dom = 0; dom < domain_count; ++dom) {
         auto& indices = per_domain[dom];
@@ -1487,7 +1635,7 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
         }
         const auto& env = config_.domains[dom].environment;
         bool handled = false;
-        if (has_batch) {
+        if (has_batch && !multi_event_mode && !needs_cpu_split && !deep_collision_enabled) {
             // Use batch path only if all dt are equal (avoids bias)
             double dt_batch = dt_used_per_ion[indices.front()];
             bool uniform_dt = true;
@@ -1498,8 +1646,13 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
                 }
             }
             if (uniform_dt) {
+                collision_monitor_complete_ = false;
                 handled = collision_handler_->handle_batch(
                     ensemble, indices, dt_batch, env, rng_by_ion_);
+                if (handled) {
+                    collision_macro_attempts_total_ += static_cast<uint64_t>(indices.size());
+                    collision_substep_attempts_total_ += static_cast<uint64_t>(indices.size());
+                }
             }
         }
         if (!handled) {
@@ -1520,50 +1673,131 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
     const auto* active = ensemble.active_data();
     const auto* born = ensemble.born_data();
     const bool use_omp = parallel_enabled_;
-    int collision_substeps = std::max(1, config_.physics.collision_subcycles_per_step);
-    if (config_.physics.collision_multi_event_mode) {
-        collision_substeps = std::max(collision_substeps, config_.physics.collision_max_events_per_step);
-    }
+    const bool multi_event_mode = config_.physics.collision_multi_event_mode;
+    const bool split_centered = config_.physics.collision_time_centered;
+    const bool split_randomized = config_.physics.collision_time_randomized;
+    const int configured_subcycles = std::max(1, config_.physics.collision_subcycles_per_step);
+    const int max_events = std::max(1, config_.physics.collision_max_events_per_step);
+    const int collision_substeps = multi_event_mode
+        ? std::max(configured_subcycles, max_events)
+        : configured_subcycles;
+    uint64_t macro_attempts_local = 0;
+    uint64_t substep_attempts_local = 0;
+    uint64_t events_local = 0;
+    std::atomic<bool> collision_exception{false};
+    std::string collision_exception_msg;
 
     #pragma omp parallel if(use_omp)
     {
-        #pragma omp for schedule(guided, kOmpChunk)
+        #pragma omp for schedule(guided, kOmpChunk) reduction(+:macro_attempts_local,substep_attempts_local,events_local)
         for (int k = 0; k < static_cast<int>(indices.size()); ++k) {
+            if (collision_exception.load(std::memory_order_relaxed)) {
+                continue;
+            }
             size_t ion_idx = indices[static_cast<size_t>(k)];
             if (!active[ion_idx] || !born[ion_idx]) {
                 continue;
             }
-            auto view = ensemble.collision_data(ion_idx);
-            const double collision_dt = dt_used_per_ion[ion_idx] / static_cast<double>(collision_substeps);
-            for (int substep = 0; substep < collision_substeps; ++substep) {
-                physics::CollisionEventDiagnostics event_diag{};
-                const bool collect_deep = deep_collision_diagnostics_.enabled();
-                const Vec3 pos_before = collect_deep ? view.kin.pos() : Vec3{};
-                const Vec3 vel_before = collect_deep ? view.kin.vel() : Vec3{};
-                const bool collided = collision_handler_->handle_collision(
-                    view,
-                    collision_dt,
-                    rng_by_ion_[ion_idx],
-                    env,
-                    collect_deep ? &event_diag : nullptr);
-                if (collect_deep) {
-                    const double event_time =
-                        current_time_ + (static_cast<double>(substep) + 0.5) * collision_dt;
-                    deep_collision_diagnostics_.note_collision(
-                        ion_idx,
-                        domain_index,
-                        collided,
-                        event_time,
-                        view.kin.get_mass(),
-                        pos_before,
-                        event_diag.v_rel_before_m_s,
-                        event_diag.sigma_mt_m2,
-                        vel_before,
-                        view.kin.vel(),
-                        !active[ion_idx]);
+            macro_attempts_local += 1;
+            const double dt_total = dt_used_per_ion[ion_idx];
+            std::array<double, 2> primary_segments{dt_total, 0.0};
+            int primary_count = 1;
+            if (split_randomized) {
+                const double alpha = rng_by_ion_[ion_idx].uniform01();
+                primary_segments[0] = dt_total * alpha;
+                primary_segments[1] = dt_total * (1.0 - alpha);
+                primary_count = 2;
+            } else if (split_centered) {
+                primary_segments[0] = 0.5 * dt_total;
+                primary_segments[1] = 0.5 * dt_total;
+                primary_count = 2;
+            }
+
+            double elapsed = 0.0;
+            for (int seg = 0; seg < primary_count; ++seg) {
+                const double seg_dt = primary_segments[seg];
+                if (seg_dt <= 0.0) {
+                    continue;
+                }
+                const double collision_dt = seg_dt / static_cast<double>(collision_substeps);
+                for (int substep = 0; substep < collision_substeps; ++substep) {
+                    if (collision_exception.load(std::memory_order_relaxed)) {
+                        break;
+                    }
+                    substep_attempts_local += 1;
+                    auto view = ensemble.collision_data(ion_idx);
+                    physics::CollisionEventDiagnostics event_diag{};
+                    const bool collect_deep = deep_collision_diagnostics_.enabled();
+                    const Vec3 pos_before = collect_deep ? view.kin.pos() : Vec3{};
+                    const Vec3 vel_before = collect_deep ? view.kin.vel() : Vec3{};
+                    bool collided = false;
+                    try {
+                        collided = collision_handler_->handle_collision(
+                            view,
+                            collision_dt,
+                            rng_by_ion_[ion_idx],
+                            env,
+                            collect_deep ? &event_diag : nullptr);
+                    } catch (const std::exception& e) {
+                        if (!collision_exception.exchange(true)) {
+                            std::ostringstream oss;
+                            oss << "Collision handling failed in domain '"
+                                << config_.domains[static_cast<size_t>(domain_index)].name
+                                << "' for ion index " << ion_idx
+                                << " (species='" << ensemble.species_id(ion_idx) << "'): "
+                                << e.what();
+                            #pragma omp critical(simengine_collision_exception)
+                            {
+                                collision_exception_msg = oss.str();
+                            }
+                        }
+                        break;
+                    } catch (...) {
+                        if (!collision_exception.exchange(true)) {
+                            std::ostringstream oss;
+                            oss << "Collision handling failed in domain '"
+                                << config_.domains[static_cast<size_t>(domain_index)].name
+                                << "' for ion index " << ion_idx
+                                << " (species='" << ensemble.species_id(ion_idx) << "'): unknown exception";
+                            #pragma omp critical(simengine_collision_exception)
+                            {
+                                collision_exception_msg = oss.str();
+                            }
+                        }
+                        break;
+                    }
+                    if (collided) {
+                        events_local += 1;
+                    }
+                    if (collect_deep) {
+                        const double event_time = current_time_ + elapsed + 0.5 * collision_dt;
+                        deep_collision_diagnostics_.note_collision(
+                            ion_idx,
+                            domain_index,
+                            collided,
+                            event_time,
+                            view.kin.get_mass(),
+                            pos_before,
+                            event_diag.v_rel_before_m_s,
+                            event_diag.sigma_mt_m2,
+                            vel_before,
+                            view.kin.vel(),
+                            !active[ion_idx]);
+                    }
+                    elapsed += collision_dt;
                 }
             }
         }
+    }
+
+    collision_macro_attempts_total_ += macro_attempts_local;
+    collision_substep_attempts_total_ += substep_attempts_local;
+    collision_events_total_ += events_local;
+    if (collision_exception.load()) {
+        if (collision_exception_msg.empty()) {
+            throw std::runtime_error("Collision handling failed due to an exception in parallel section");
+        }
+        throw std::runtime_error(collision_exception_msg);
     }
 }
 
@@ -1576,22 +1810,19 @@ void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
 
     PROFILE_SCOPE_IF_ENABLED("Reaction Handling");
 
+    const auto active_indices = collect_active_domain_indices(ensemble, domain_indices);
+
     if (reaction_handler_->supports_batch()) {
         // Batch only if dt is uniform across active ions
-        double dt_batch = 0.0;
-        bool dt_set = false;
-        bool uniform_dt = true;
-        for (size_t i = 0; i < dt_used_per_ion.size(); ++i) {
-            if (!ensemble.is_active(i) || !ensemble.born_data()[i] || domain_indices[i] < 0) continue;
-            if (!dt_set) {
-                dt_batch = dt_used_per_ion[i];
-                dt_set = true;
-            } else if (dt_used_per_ion[i] != dt_batch) {
+        bool uniform_dt = !active_indices.empty();
+        double dt_batch = uniform_dt ? dt_used_per_ion[active_indices.front()] : 0.0;
+        for (size_t idx : active_indices) {
+            if (dt_used_per_ion[idx] != dt_batch) {
                 uniform_dt = false;
                 break;
             }
         }
-        if (dt_set && uniform_dt) {
+        if (uniform_dt) {
             const bool handled = reaction_handler_->handle_batch(
                 ensemble,
                 domain_indices,
@@ -1607,27 +1838,19 @@ void SimulationEngine::perform_reactions(core::IonEnsemble& ensemble,
         }
     }
 
-    const size_t n = ensemble.size();
-    const auto* active = ensemble.active_data();
-    const auto* born = ensemble.born_data();
     const bool use_omp = parallel_enabled_;
 
     #pragma omp parallel if(use_omp)
     {
         #pragma omp for schedule(guided, kOmpChunk)
-        for (int i = 0; i < static_cast<int>(n); ++i) {
-            if (!active[i] || !born[i]) {
-                continue;
-            }
-            const int dom = domain_indices[static_cast<size_t>(i)];
-            if (dom < 0) {
-                continue;
-            }
+        for (int k = 0; k < static_cast<int>(active_indices.size()); ++k) {
+            const size_t i = active_indices[static_cast<size_t>(k)];
+            const int dom = domain_indices[i];
             auto reaction_view = ensemble.reaction_data(i);
             reaction_handler_->handle_reaction(
                 reaction_view,
-                dt_used_per_ion[static_cast<size_t>(i)],
-                rng_by_ion_[static_cast<size_t>(i)],
+                dt_used_per_ion[i],
+                rng_by_ion_[i],
                 config_.reaction_db,
                 config_.species_db,
                 config_.domains[static_cast<size_t>(dom)].environment);

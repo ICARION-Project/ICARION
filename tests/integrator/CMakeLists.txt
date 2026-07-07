@@ -59,6 +59,12 @@ target_include_directories(test_domain_geometry PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME test_domain_geometry COMMAND test_domain_geometry)
 
+add_executable(test_engine_rng_compaction test_engine_rng_compaction.cpp)
+target_link_libraries(test_engine_rng_compaction PRIVATE icarion_core Catch2::Catch2WithMain)
+target_include_directories(test_engine_rng_compaction PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME test_engine_rng_compaction COMMAND test_engine_rng_compaction)
+
 # GPU Integration Tests (conditional on USE_GPU_ACCEL)
 
 if (USE_GPU_ACCEL)

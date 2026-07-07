@@ -16,6 +16,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include "core/integrator/SimulationEngine.h"
 #include "core/physics/forces/ForceRegistry.h"
 #include "core/integrator/strategies/RK4Strategy.h"
@@ -79,6 +80,19 @@ public:
     }
 
     std::string name() const override { return "DeterministicCollisionHandler"; }
+};
+
+class ThrowingCollisionHandler : public ICollisionHandler {
+public:
+    bool handle_collision(core::IonCollisionData&,
+                          double,
+                          PhysicsRng&,
+                          const config::EnvironmentConfig&,
+                          CollisionEventDiagnostics* = nullptr) override {
+        throw std::runtime_error("synthetic collision failure");
+    }
+
+    std::string name() const override { return "ThrowingCollisionHandler"; }
 };
 }
 
@@ -464,6 +478,9 @@ TEST_CASE("SimulationEngine: collision micro-subcycling dispatch", "[simulation]
 
         REQUIRE(result.size() == 1);
         REQUIRE(collision_handler->calls() == 5);
+        REQUIRE(engine.collision_macro_attempts_total() == 5);
+        REQUIRE(engine.collision_substep_attempts_total() == 5);
+        REQUIRE(engine.collision_events_total() == 0);
         REQUIRE_THAT(collision_handler->last_dt(), Catch::Matchers::WithinAbs(1e-9, 1e-18));
     }
 
@@ -480,6 +497,9 @@ TEST_CASE("SimulationEngine: collision micro-subcycling dispatch", "[simulation]
 
         REQUIRE(result.size() == 1);
         REQUIRE(collision_handler->calls() == 15);
+        REQUIRE(engine.collision_macro_attempts_total() == 5);
+        REQUIRE(engine.collision_substep_attempts_total() == 15);
+        REQUIRE(engine.collision_events_total() == 0);
         REQUIRE_THAT(collision_handler->last_dt(), Catch::Matchers::WithinAbs(1.0e-9 / 3.0, 1e-18));
     }
 
@@ -497,6 +517,9 @@ TEST_CASE("SimulationEngine: collision micro-subcycling dispatch", "[simulation]
 
         REQUIRE(result.size() == 1);
         REQUIRE(collision_handler->calls() == 20);
+        REQUIRE(engine.collision_macro_attempts_total() == 5);
+        REQUIRE(engine.collision_substep_attempts_total() == 20);
+        REQUIRE(engine.collision_events_total() == 0);
         REQUIRE_THAT(collision_handler->last_dt(), Catch::Matchers::WithinAbs(2.5e-10, 1e-18));
     }
 }
@@ -528,6 +551,10 @@ TEST_CASE("SimulationEngine writes deep collision diagnostics", "[simulation][en
     auto result = run_engine_aos(engine, ions);
 
     REQUIRE(result.size() == 1);
+    REQUIRE(engine.collision_monitor_complete());
+    REQUIRE(engine.collision_macro_attempts_total() == 2);
+    REQUIRE(engine.collision_substep_attempts_total() == 2);
+    REQUIRE(engine.collision_events_total() == 2);
     REQUIRE(std::filesystem::exists(hdf5_path));
 
     H5::H5File file(hdf5_path, H5F_ACC_RDONLY);
@@ -541,6 +568,30 @@ TEST_CASE("SimulationEngine writes deep collision diagnostics", "[simulation][en
     H5::Group events = deep.openGroup("events");
     REQUIRE(H5Lexists(events.getId(), "v_rel_before_ms", H5P_DEFAULT) > 0);
     REQUIRE(H5Lexists(events.getId(), "sigma_mt_m2", H5P_DEFAULT) > 0);
+}
+
+TEST_CASE("SimulationEngine surfaces collision exceptions with context", "[simulation][engine][collision]") {
+    auto cfg = create_test_config();
+    cfg.physics.collision_model = CollisionModel::HSS;
+    cfg.simulation.total_time_s = 1e-9;
+    cfg.simulation.dt_s = 1e-9;
+    cfg.simulation.enable_openmp = false;
+    cfg.simulation.compute_derived();
+    cfg.output.trajectory_file = "icarion_test_collision_exception.h5";
+
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
+    auto integrator = std::make_shared<RK4Strategy>();
+    auto collision_handler = std::make_shared<ThrowingCollisionHandler>();
+    SimulationEngine engine(cfg, {force_registry}, integrator, collision_handler);
+
+    std::vector<IonState> ions = {create_test_ion()};
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
+
+    REQUIRE_THROWS_WITH(
+        engine.run(ensemble),
+        Catch::Matchers::ContainsSubstring("synthetic collision failure") &&
+            Catch::Matchers::ContainsSubstring("test_domain") &&
+            Catch::Matchers::ContainsSubstring("test_species"));
 }
 
 TEST_CASE("SimulationEngine: Reaction handler integration", "[simulation][engine][reaction]") {

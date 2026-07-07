@@ -18,7 +18,7 @@ For scientific validation (long, high-fidelity tests for publications), see `val
 
 ---
 
-Test organization and quick pointers for v1.0.0.
+Test organization and quick pointers for the current v1.1.0 branch.
 
 ## Layout
 
@@ -26,9 +26,9 @@ Test organization and quick pointers for v1.0.0.
 tests/
 ├── instruments/    # Instrument physics (IMS, Orbitrap, TOF, LQIT, Quadrupole, FTICR, domain transitions)
 ├── physics/        # Forces, collisions, reactions, space charge
-├── integrator/     # RK4/RK45/Boris, SimulationEngine, GPU parity
+├── integrator/     # RK4/RK45/Boris, SimulationEngine, domains, boundaries, RNG
 ├── config/         # Loaders/validators for config, species/reactions, waveforms, field arrays
-├── io/             # HDF5 writer tests (v1/v2)
+├── io/             # HDF5 writer tests
 ├── integration/    # End-to-end main.cpp pipeline
 ├── gpu/            # GPU-specific kernels (boundaries, space charge, interpolation)
 ├── unit/           # SoA benchmarks/tests (IonEnsemble, SimulationEngine SoA, OpenMP benchmarks)
@@ -36,40 +36,33 @@ tests/
 ├── helpers/        # Test utilities (headers only)
 ```
 
-## Notable Test Files (by area)
+## CTests by Area
 
-- **Instruments:** `test_instrument_basic.cpp`, `test_ims_drift.cpp`, `test_lqit_stability.cpp`, `test_orbitrap_frequency.cpp`, `test_quadrupole_filter.cpp`, `test_tof_flight_time.cpp`, `test_fticr_cyclotron.cpp`, `test_domain_transition.cpp`
-- **Physics – Collisions:** `test_collision_energy_conservation.cpp`, `test_hss_collision_handler.cpp`, `test_ehss_collision_handler.cpp`, `test_ou_collision_handler.cpp`, `test_temperature_scaling.cpp`, `test_multi_gas_collision.cpp`, CPU SoA parity (`test_collision_soa_parity.cpp`), GPU parity/thermalization (`test_gpu_collision_parity.cpp`, `test_gpu_thermalization.cpp`, `test_gpu_ehss_thermalization.cpp`)
-- **Physics – Collisions (GPU EHSS):** `test_gpu_ehss_mapping.cpp` (geometry→species map), `test_gpu_ehss_parity.cpp` (CPU vs GPU thermalization sanity)
-- **Physics – Forces:** `test_electric_field_force.cpp`, `test_field_model_parity.cpp`, `test_field_model_provider.cpp`, `test_magnetic_damping_forces.cpp`, `test_force_registry.cpp`
-- **Physics – Reactions:** `test_reaction_factory.cpp`, `test_stochastic_reaction_handler.cpp`, `test_multi_gas_reaction.cpp`, SoA parity (`test_reaction_soa_parity.cpp`)
-- **Physics – Reactions (GPU):** `test_gpu_reaction_parity.cpp` (GPU vs CPU stochastic parity for constant/Arrhenius/modified rates incl. multi-gas; requires `USE_GPU_ACCEL=ON`)
-- **Physics – Space Charge:** `test_poisson_solver.cpp`, `test_charge_deposition.cpp`, `test_space_charge_integration.cpp`, `test_space_charge_model_direct.cpp`, `test_space_charge_model_parity.cpp`, `test_space_charge_gpu_model.cpp`
-- **Physics – Gas Flow Transport:** `test_gas_flow_transport.cpp`
-- **Integrator:** `test_rk4_strategy.cpp`, `test_rk45_strategy.cpp`, `test_boris_strategy.cpp`, `test_domain_manager.cpp`, `test_domain_geometry.cpp`, `test_output_manager.cpp`, `test_simulation_engine.cpp` (SoA parity, birth/transition), GPU integration/parity tests (`test_gpu_integration.cpp`, `test_gpu_rk45.cpp`, `test_gpu_boris.cpp`, `test_rk45_boris_parity.cpp`, `test_gpu_field_interpolation.cpp`), `test_simulation_engine_soa.cpp` (SoA unit/parity)
-  - **RK45 per-ion dt/OpenMP:** `test_rk45_per_ion_dt.cpp`
-  - **Integration batch dt fallback:** `test_integration_batch_dt.cpp`
-  - **SimulationEngine per-ion dt determinism:** `test_simulation_engine_per_ion_dt.cpp`
-  - **SimulationEngine RNG/compaction determinism:** `test_engine_rng_compaction.cpp`
-  - **SimulationEngine delayed-birth regression:** covered in `test_simulation_engine.cpp` (`All ions delayed birth must still advance time`) to prevent zero-time stalls when all ions are born in the future
-- **Config:** `test_config_loader.cpp`, `test_field_array_terms_loader.cpp`, `test_field_array_e2e.cpp`, `test_ion_loader.cpp`, `test_species_loader_unit.cpp`, `test_reaction_loader_unit.cpp`, `test_reaction_validation.cpp`, `test_waveform_loader.cpp`, `test_waveform_types.cpp`, `test_database_integration.cpp`
-- **I/O:** `test_hdf5_writer.cpp`, `test_hdf5_writer_v2.cpp`
-- **GPU (misc):** `test_gpu_boundaries.cpp`, `test_gpu_space_charge.cpp`, `test_adaptive_interpolation.cpp`
-- **Unit/SoA:** `test_ion_ensemble.cpp`, `test_simulation_engine_soa.cpp`, `benchmark_openmp_soa.cpp`, `benchmark_soa_performance.cpp`
-- **Utils:** `test_hash.cpp`
+Current CPU-only build (`ctest -N`) exposes 70 tests. Each entry lists the CTest name followed by the source file.
 
-## Coverage Snapshot (v1.0.0)
+- **Unit/SoA/benchmarks:** `test_ion_ensemble` (`test_ion_ensemble.cpp`), `test_simulation_engine_soa` (`test_simulation_engine_soa.cpp`), `benchmark_soa_performance` (`benchmark_soa_performance.cpp`), `benchmark_openmp_soa` (`benchmark_openmp_soa.cpp`), `test_domain_manager_lookup` (`test_domain_manager_lookup.cpp`), `benchmark_domain_lookup` (`benchmark_domain_lookup.cpp`)
+- **Config:** `ConfigLoader` (`test_config_loader.cpp`), `ConfigOverride` (`test_config_override.cpp`), `SpeciesLoaderSmoke` (`test_species_loader.cpp`), `SpeciesLoaderUnit` (`test_species_loader_unit.cpp`), `ReactionLoaderUnit` (`test_reaction_loader_unit.cpp`), `ReactionValidation` (`test_reaction_validation.cpp`), `DatabaseIntegration` (`test_database_integration.cpp`), `IonLoader` (`test_ion_loader.cpp`), `FieldArrayTermsLoader` (`test_field_array_terms_loader.cpp`)
+- **I/O and utils:** `HDF5Writer` (`test_hdf5_writer.cpp`), `test_hash` (`test_hash.cpp`)
+- **Forces and fields:** `ForceRegistry` (`test_force_registry.cpp`), `ElectricFieldForce` (`test_electric_field_force.cpp`), `TIMSAxialFieldModel` (`test_tims_axial_field_model.cpp`), `FieldModelParity` (`test_field_model_parity.cpp`), `FieldModelProvider` (`test_field_model_provider.cpp`), `MagneticAndDampingForces` (`test_magnetic_damping_forces.cpp`), `ForceIntegration` (`test_force_integration.cpp`), `GasFlowTransport` (`test_gas_flow_transport.cpp`)
+- **Collisions:** `CollisionGeometry` (`core/test_collision_geometry.cpp`), `VelocitySampling` (`core/test_velocity_sampling.cpp`), `CollisionKernels` (`core/test_collision_kernels.cpp`), `CollisionFactory` (`test_collision_factory.cpp`), `EHSSCollisionHandler` (`test_ehss_collision_handler.cpp`), `HSSCollisionHandler` (`test_hss_collision_handler.cpp`), `OUCollisionHandler` (`test_ou_collision_handler.cpp`), `GeometryUtils` (`test_geometry_utils.cpp`), `CollisionEnergyConservation` (`test_collision_energy_conservation.cpp`), `EHSSSamplesLoader` (`test_ehss_samples_loader.cpp`), `InteractionPotentialCollisionHandler` (`test_interaction_potential_collision_handler.cpp`), `TemperatureScaling` (`test_temperature_scaling.cpp`), `MultiGasCollision` (`test_multi_gas_collision.cpp`), `CollisionSoAParity` (`test_collision_soa_parity.cpp`)
+- **Reactions:** `StochasticReactionHandler` (`test_stochastic_reaction_handler.cpp`), `ReactionFactory` (`test_reaction_factory.cpp`), `MultiGasReaction` (`test_multi_gas_reaction.cpp`), `ReactionSoAParity` (`test_reaction_soa_parity.cpp`)
+- **Space charge:** `PoissonSolver` (`test_poisson_solver.cpp`), `ChargeDeposition` (`test_charge_deposition.cpp`), `SpaceChargeIntegration` (`test_space_charge_integration.cpp`), `SpaceChargeDirectModel` (`test_space_charge_model_direct.cpp`), `SpaceChargeFactory` (`test_space_charge_factory.cpp`), `SpaceChargeGridModelParity` (`test_space_charge_model_parity.cpp`), `SpaceChargeGPUModelTest` (`test_space_charge_gpu_model.cpp`)
+- **Integrator/engine:** `test_rk4_strategy` (`test_rk4_strategy.cpp`), `test_rk45_strategy` (`test_rk45_strategy.cpp`), `test_boris_strategy` (`test_boris_strategy.cpp`), `test_domain_manager` (`test_domain_manager.cpp`), `test_output_manager` (`test_output_manager.cpp`), `test_simulation_engine` (`test_simulation_engine.cpp`), `test_simulation_engine_per_ion_dt` (`test_simulation_engine_per_ion_dt.cpp`), `test_simulation_engine_adaptive_sc` (`test_simulation_engine_adaptive_sc.cpp`), `test_domain_geometry` (`test_domain_geometry.cpp`), `test_boundary_actions` (`test_boundary_actions.cpp`), `test_engine_rng_compaction` (`test_engine_rng_compaction.cpp`)
+- **Integration:** `test_main_integration` (`test_main_integration.cpp`)
+- **Instruments:** `InstrumentBasic` (`test_instrument_basic.cpp`), `IMSDrift` (`test_ims_drift.cpp`), `TOFFlightTime` (`test_tof_flight_time.cpp`), `LQITStability` (`test_lqit_stability.cpp`), `OrbitrapFrequency` (`test_orbitrap_frequency.cpp`), `DomainTransition` (`test_domain_transition.cpp`), `FTICRCyclotron` (`test_fticr_cyclotron.cpp`), `QuadrupoleFilter` (`test_quadrupole_filter.cpp`)
+- **GPU-only tests:** additional CUDA tests are built only with `-DUSE_GPU_ACCEL=ON`; examples include `test_gpu_collision_parity.cpp`, `test_gpu_reaction_parity.cpp`, `test_gpu_boundaries.cpp`, `test_gpu_space_charge.cpp`, and `test_gpu_field_interpolation.cpp`.
 
-- **Instruments:** IMS, LQIT, Orbitrap, TOF, Quadrupole, FTICR, multi-domain transitions
-- **Integrators:** RK4, RK45 (adaptive), Boris; SimulationEngine CPU/GPU parity and field interpolation
-- **Forces:** Electric, magnetic, damping, space charge; registry superposition
-- **Collisions:** HSS, EHSS, OU, deterministic damping; geometry/mixture cases; GPU parity/thermalization
-- **Reactions:** Stochastic handler, factory, multi-gas mixtures, validation
-- **Space Charge:** Direct Poisson solver, charge deposition, integration tests (CPU); GPU helper tests
-- **Gas Flow Transport:** SIFT-MS like ion transport without field  
-- **Config:** Loaders/validators for configs, species, reactions, waveforms, field arrays
-- **I/O:** HDF5 writer v2 (primary) and legacy writer regression
-- **SoA/Unit:** IonEnsemble, SimulationEngine SoA, OpenMP/SoA benchmarks
+## Coverage Snapshot (v1.1.0 branch)
+
+- **Instruments:** IMS, TIMS axial ramp fields, LQIT, Orbitrap, TOF, Quadrupole, FTICR, multi-domain transitions
+- **Integrators:** RK4, RK45 adaptive/fixed behavior, Boris, per-ion dt handling, adaptive space-charge stage refresh, boundary actions, RNG/compaction determinism
+- **Forces:** Electric and field-model providers, magnetic, damping, gas-flow transport, space charge, registry superposition
+- **Collisions:** HSS, EHSS, OU, interaction-potential collisions, EHSS offline sample loading, geometry kernels, velocity sampling, energy diagnostics, temperature scaling, multi-gas cases, CPU SoA parity
+- **Reactions:** Stochastic handler, factory setup, multi-gas mixtures, loader/validation rules, CPU SoA parity
+- **Space Charge:** Direct/grid model selection, Poisson solver, charge deposition, integration tests, CPU/GPU-model availability behavior
+- **Config:** Loaders/validators for configs, species, reactions, ions, field-array terms, database integration
+- **I/O:** HDF5 writer regression coverage
+- **SoA/Unit:** IonEnsemble, SimulationEngine SoA, OpenMP/SoA benchmarks, domain lookup benchmarks
 
 ## Running Tests
 
@@ -94,9 +87,8 @@ If CTest times out in constrained environments, run the desired binary directly 
 
 ## Notes and Known Status
 
-- GPU tests are only built with `-DUSE_GPU_ACCEL=ON` (defines `ICARION_USE_GPU`); some assume a CUDA device and do not skip if none is available.
+- GPU-specific tests are only built with `-DUSE_GPU_ACCEL=ON` (defines `ICARION_USE_GPU`); some assume a CUDA device and do not skip if none is available. `SpaceChargeGPUModelTest` is present in CPU-only builds because it validates CPU-side availability/fallback behavior.
 - EHSS/HSS mobility/thermalization tests have stochastic tolerance; occasional seed sensitivity may appear—rerun if needed.
 - Space-charge GPU model is opt-in (`physics.enable_space_charge_gpu`) and falls back automatically; GPU tests validate helper behavior while CPU-only builds exercise the stub.
-- HDF5 writer v2 is the primary path; legacy writer tests remain for regression coverage.
 
 For full test intent/details, see the individual test files.

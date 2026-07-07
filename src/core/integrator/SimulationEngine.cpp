@@ -5,6 +5,7 @@
 #include "core/utils/safety/numericalSafetyGuards.h"
 #include "core/utils/safety/numericalSafetyLogger.h"
 #include "core/utils/Profiler.h"
+#include "core/utils/RngUtils.h"
 #include "core/physics/forces/ElectricFieldForce.h"
 #include "core/log/Logger.h"
 #include "core/types/IonEnsemble.h"
@@ -23,9 +24,7 @@
 #include <chrono>
 #include <cstdlib>  // for setenv (NUMA thread placement)
 #include <limits>
-#include <cstring>
 #include <atomic>
-#include <unordered_map>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -38,84 +37,8 @@
 namespace ICARION {
 namespace integrator {
 
-using physics::PhysicsRng;
 namespace {
 constexpr int kOmpChunk = 128;
-
-uint64_t splitmix64(uint64_t x) {
-    x += 0x9e3779b97f4a7c15ULL;
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
-    return x ^ (x >> 31);
-}
-
-uint64_t ion_rng_seed(uint64_t base_seed, size_t ion_index) {
-    return base_seed + static_cast<uint64_t>(ion_index);
-}
-
-uint64_t hash_double_bits(double value) {
-    uint64_t bits = 0;
-    static_assert(sizeof(bits) == sizeof(value), "Unexpected double size");
-    std::memcpy(&bits, &value, sizeof(bits));
-    return splitmix64(bits);
-}
-
-uint64_t ion_rng_fingerprint(const core::IonEnsemble& ensemble, size_t idx) {
-    uint64_t h = 0x6a09e667f3bcc909ULL;
-    h = splitmix64(h ^ hash_double_bits(ensemble.pos_x_data()[idx]));
-    h = splitmix64(h ^ hash_double_bits(ensemble.pos_y_data()[idx]));
-    h = splitmix64(h ^ hash_double_bits(ensemble.pos_z_data()[idx]));
-    h = splitmix64(h ^ hash_double_bits(ensemble.vel_x_data()[idx]));
-    h = splitmix64(h ^ hash_double_bits(ensemble.vel_y_data()[idx]));
-    h = splitmix64(h ^ hash_double_bits(ensemble.vel_z_data()[idx]));
-    h = splitmix64(h ^ hash_double_bits(ensemble.mass_data()[idx]));
-    h = splitmix64(h ^ hash_double_bits(ensemble.charge_data()[idx]));
-    h = splitmix64(h ^ static_cast<uint64_t>(ensemble.species_id_indices()[idx]));
-    return h;
-}
-
-std::vector<uint64_t> build_ion_rng_fingerprints(const core::IonEnsemble& ensemble) {
-    std::vector<uint64_t> out(ensemble.size());
-    for (size_t i = 0; i < ensemble.size(); ++i) {
-        out[i] = ion_rng_fingerprint(ensemble, i);
-    }
-    return out;
-}
-
-std::vector<size_t> collect_active_domain_indices(const core::IonEnsemble& ensemble,
-                                                  const std::vector<int>& domain_indices) {
-    std::vector<size_t> active_indices;
-    active_indices.reserve(ensemble.size());
-    const auto* active = ensemble.active_data();
-    const auto* born = ensemble.born_data();
-    for (size_t i = 0; i < ensemble.size(); ++i) {
-        if (active[i] && born[i] && domain_indices[i] >= 0) {
-            active_indices.push_back(i);
-        }
-    }
-    return active_indices;
-}
-
-std::vector<std::vector<size_t>> group_active_indices_by_domain(const core::IonEnsemble& ensemble,
-                                                                const std::vector<int>& domain_indices,
-                                                                size_t domain_count) {
-    std::vector<std::vector<size_t>> per_domain(domain_count);
-    for (size_t idx : collect_active_domain_indices(ensemble, domain_indices)) {
-        per_domain[static_cast<size_t>(domain_indices[idx])].push_back(idx);
-    }
-    return per_domain;
-}
-
-bool adaptive_space_charge_enabled() {
-    const char* env = std::getenv("ICARION_ADAPTIVE_SC");
-    if (!env) {
-        return true;
-    }
-    // Any of "0", "false", "off" disables; everything else enables.
-    std::string val(env);
-    std::transform(val.begin(), val.end(), val.begin(), ::tolower);
-    return !(val == "0" || val == "false" || val == "off");
-}
 }
 
 SimulationEngine::SimulationEngine(
@@ -457,10 +380,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     current_step_ = 0;
     dt_per_ion_.assign(ensemble.size(), config_.simulation.dt_s);
     deep_collision_diagnostics_.reset(ensemble.size());
-    collision_macro_attempts_total_ = 0;
-    collision_substep_attempts_total_ = 0;
-    collision_events_total_ = 0;
-    collision_monitor_complete_ = true;
+    collision_runtime_stats_.reset();
     
     output_manager_->log_progress("Starting main simulation loop (SoA)");
     
@@ -539,33 +459,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     msg << "Final state: " << active_count << "/" << ensemble.size() << " ions active";
     output_manager_->log_progress(msg.str());
 
-    if (collision_macro_attempts_total_ > 0 || collision_substep_attempts_total_ > 0) {
-        std::ostringstream coll_msg;
-        coll_msg << std::fixed << std::setprecision(6)
-                 << "Collision load: avg collisions/step=" << mean_collisions_per_step()
-                 << ", event fraction per ion-step=" << (100.0 * collision_event_fraction_per_ion_step()) << "%"
-                 << ", event fraction per substep=" << (100.0 * collision_event_fraction_per_substep()) << "%"
-                 << " (events=" << collision_events_total_
-                 << ", ion_steps=" << collision_macro_attempts_total_
-                 << ", substeps=" << collision_substep_attempts_total_ << ")";
-        if (!collision_monitor_complete_) {
-            coll_msg << " [monitor incomplete: batch collision path used]";
-        }
-        output_manager_->log_progress(coll_msg.str());
-        log::Logger::main()->info("{}", coll_msg.str());
-
-        if (!config_.physics.collision_multi_event_mode &&
-            collision_monitor_complete_ &&
-            collision_event_fraction_per_ion_step() > 0.10) {
-            std::ostringstream warn_msg;
-            warn_msg << std::fixed << std::setprecision(2)
-                     << "WARNING: collision event fraction per ion-step is "
-                     << (100.0 * collision_event_fraction_per_ion_step())
-                     << "% (>10%). Consider reducing dt or enabling collision micro-subcycling.";
-            output_manager_->log_progress(warn_msg.str());
-            log::Logger::main()->warn("{}", warn_msg.str());
-        }
-    }
+    log_collision_runtime_stats();
 
     const auto wall_end = std::chrono::steady_clock::now();
     last_wall_runtime_s_ = std::chrono::duration<double>(wall_end - wall_start).count();
@@ -595,6 +489,23 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     
     // Return final SoA ensemble
     return ensemble;
+}
+
+void SimulationEngine::log_collision_runtime_stats() {
+    if (!collision_runtime_stats_.has_activity()) {
+        return;
+    }
+
+    const std::string coll_msg = collision_runtime_stats_.summary_message(current_step_);
+    output_manager_->log_progress(coll_msg);
+    log::Logger::main()->info("{}", coll_msg);
+
+    if (!config_.physics.collision_multi_event_mode &&
+        collision_runtime_stats_.should_warn_single_collision_timestep_load()) {
+        const std::string warn_msg = collision_runtime_stats_.single_collision_timestep_warning();
+        output_manager_->log_progress(warn_msg);
+        log::Logger::main()->warn("{}", warn_msg);
+    }
 }
 
 void SimulationEngine::update_space_charge_models(core::IonEnsemble& ensemble) {
@@ -632,7 +543,6 @@ void SimulationEngine::update_dynamic_environments(double t) {
 
 double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
     const size_t n_ions = ensemble.size();
-    const std::vector<uint64_t> current_fingerprints = build_ion_rng_fingerprints(ensemble);
     if (dt_per_ion_.size() != n_ions) {
         dt_per_ion_.assign(n_ions, config_.simulation.dt_s);
     }
@@ -669,50 +579,8 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
 
     if (rng_by_ion_.size() != n_ions) {
         PROFILE_SCOPE_IF_ENABLED("RNG Initialization");
-        if (rng_by_ion_.empty() || rng_fingerprints_.empty()) {
-            rng_by_ion_.clear();
-            rng_by_ion_.reserve(n_ions);
-            for (size_t i = 0; i < n_ions; ++i) {
-                rng_by_ion_.emplace_back(ion_rng_seed(config_.simulation.rng_seed, i));
-            }
-        } else {
-            std::unordered_map<uint64_t, std::vector<size_t>> old_slots;
-            old_slots.reserve(rng_fingerprints_.size() * 2 + 1);
-            for (size_t i = 0; i < rng_fingerprints_.size(); ++i) {
-                old_slots[rng_fingerprints_[i]].push_back(i);
-            }
-
-            std::vector<uint8_t> old_used(rng_by_ion_.size(), 0);
-            std::vector<PhysicsRng> remapped;
-            remapped.reserve(n_ions);
-            for (size_t i = 0; i < n_ions; ++i) {
-                size_t match = std::numeric_limits<size_t>::max();
-                auto slot_it = old_slots.find(current_fingerprints[i]);
-                if (slot_it != old_slots.end()) {
-                    auto& slots = slot_it->second;
-                    while (!slots.empty()) {
-                        const size_t candidate = slots.back();
-                        slots.pop_back();
-                        if (candidate < rng_by_ion_.size() && !old_used[candidate]) {
-                            match = candidate;
-                            break;
-                        }
-                    }
-                }
-                if (match == std::numeric_limits<size_t>::max() &&
-                    i < rng_by_ion_.size() &&
-                    !old_used[i]) {
-                    match = i;
-                }
-                if (match != std::numeric_limits<size_t>::max()) {
-                    old_used[match] = 1;
-                    remapped.push_back(std::move(rng_by_ion_[match]));
-                } else {
-                    remapped.emplace_back(ion_rng_seed(config_.simulation.rng_seed, i));
-                }
-            }
-            rng_by_ion_ = std::move(remapped);
-        }
+        utils::sync_rng_pool_for_ensemble(
+            rng_by_ion_, rng_fingerprints_, ensemble, config_.simulation.rng_seed);
     }
 
     update_space_charge_models(ensemble);
@@ -807,16 +675,8 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
             }
             if (new_domain_idx < 0) {
                 const int prev_dom = ensemble.domain_index(i);
-                bool bridged = false;
-                if (prev_dom >= 0 && static_cast<size_t>(prev_dom + 1) < config_.domains.size()) {
-                    const auto& cur_dom = config_.domains[static_cast<size_t>(prev_dom)];
-                    const double cur_end = cur_dom.geometry.origin_m.z + cur_dom.geometry.length_m;
-                    if (pos_after.z >= cur_end) {
-                        new_domain_idx = prev_dom + 1;
-                        bridged = true;
-                    }
-                }
-                if (!bridged && new_domain_idx < 0) {
+                new_domain_idx = domain_manager_->forward_axial_bridge_domain(prev_dom, pos_after);
+                if (new_domain_idx < 0) {
                     active[i] = 0;
                     ensemble.set_death_time(i, current_time_);
                     continue;
@@ -824,24 +684,11 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
             } else {
                 // Still inside current domain; allow seamless hand-off at a shared boundary
                 const int cur_dom_idx = ensemble.domain_index(i);
-                if (cur_dom_idx >= 0 &&
-                    new_domain_idx == cur_dom_idx &&
-                    static_cast<size_t>(cur_dom_idx + 1) < config_.domains.size()) {
-                    const auto& cur_dom = config_.domains[static_cast<size_t>(cur_dom_idx)];
-                    const double local_z = pos_after.z - cur_dom.geometry.origin_m.z;
-                    const double tol = 1e-9;
-                    if (local_z >= cur_dom.geometry.length_m - tol) {
-                        const double dx = pos_after.x - cur_dom.geometry.origin_m.x;
-                        const double dy = pos_after.y - cur_dom.geometry.origin_m.y;
-                        const double r2 = dx * dx + dy * dy;
-                        const double aperture = cur_dom.geometry.end_aperture_m > 0.0
-                            ? cur_dom.geometry.end_aperture_m
-                            : cur_dom.geometry.radius_m;
-                        if (r2 <= aperture * aperture) {
-                            // Hand off to next domain without deactivation
-                            new_domain_idx = cur_dom_idx + 1;
-                        }
-                    }
+                const int handoff_domain = domain_manager_->shared_boundary_handoff_domain(
+                    cur_dom_idx, new_domain_idx, pos_after);
+                if (handoff_domain >= 0) {
+                    // Hand off to next domain without deactivation
+                    new_domain_idx = handoff_domain;
                 }
             }
             if (new_domain_idx != ensemble.domain_index(i)) {
@@ -878,35 +725,13 @@ double SimulationEngine::process_timestep(core::IonEnsemble& ensemble) {
 
     dt_per_ion_.swap(dt_next_per_ion);
 
-    double new_time = current_time_;
-    const double* time_ptr = ensemble.time_data();
-    for (size_t i = 0; i < n_ions; ++i) {
-        new_time = std::max(new_time, time_ptr[i]);
-    }
-    // If no ion advanced this step (e.g., all ions have delayed birth_time),
-    // advance simulation time to avoid a zero-time stall.
-    if (new_time <= current_time_) {
-        double next_birth_time = std::numeric_limits<double>::max();
-        const auto* born_flags = ensemble.born_data();
-        for (size_t i = 0; i < n_ions; ++i) {
-            if (born_flags[i]) {
-                continue;
-            }
-            const double bt = ensemble.birth_time(i);
-            if (bt > current_time_ && bt <= config_.simulation.total_time_s) {
-                next_birth_time = std::min(next_birth_time, bt);
-            }
-        }
-
-        if (next_birth_time < std::numeric_limits<double>::max()) {
-            new_time = next_birth_time;
-        } else if (max_dt_used > 0.0) {
-            new_time = current_time_ + max_dt_used;
-        } else {
-            new_time = current_time_ + config_.simulation.dt_s;
-        }
-    }
-    rng_fingerprints_ = build_ion_rng_fingerprints(ensemble);
+    const double new_time = next_engine_time_after_step(
+        ensemble,
+        current_time_,
+        config_.simulation.total_time_s,
+        config_.simulation.dt_s,
+        max_dt_used);
+    rng_fingerprints_ = utils::build_ion_rng_fingerprints(ensemble);
     return new_time;
 }
 
@@ -1646,12 +1471,10 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
                 }
             }
             if (uniform_dt) {
-                collision_monitor_complete_ = false;
                 handled = collision_handler_->handle_batch(
                     ensemble, indices, dt_batch, env, rng_by_ion_);
                 if (handled) {
-                    collision_macro_attempts_total_ += static_cast<uint64_t>(indices.size());
-                    collision_substep_attempts_total_ += static_cast<uint64_t>(indices.size());
+                    collision_runtime_stats_.add_incomplete_batch_attempts(indices.size());
                 }
             }
         }
@@ -1790,9 +1613,7 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
         }
     }
 
-    collision_macro_attempts_total_ += macro_attempts_local;
-    collision_substep_attempts_total_ += substep_attempts_local;
-    collision_events_total_ += events_local;
+    collision_runtime_stats_.add_cpu_counts(macro_attempts_local, substep_attempts_local, events_local);
     if (collision_exception.load()) {
         if (collision_exception_msg.empty()) {
             throw std::runtime_error("Collision handling failed due to an exception in parallel section");

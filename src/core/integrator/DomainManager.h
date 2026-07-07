@@ -183,6 +183,19 @@ public:
                                       Vec3& intersection_global,
                                       Vec3& normal_global) const;
 
+    /**
+     * @brief Preserve the existing axial bridge behavior when a step lands just beyond a domain end.
+     */
+    int forward_axial_bridge_domain(int current_domain_idx, const Vec3& pos_after) const;
+
+    /**
+     * @brief Preserve the existing shared-boundary handoff behavior near a downstream aperture.
+     */
+    int shared_boundary_handoff_domain(int current_domain_idx,
+                                       int found_domain_idx,
+                                       const Vec3& pos_after,
+                                       double tolerance_m = 1e-9) const;
+
 private:
     const std::vector<config::DomainConfig>& domains_;  ///< Reference to domain list (not owned, SSOT)
     std::vector<std::unique_ptr<BoundaryAction>> boundary_actions_;  ///< Boundary actions per domain

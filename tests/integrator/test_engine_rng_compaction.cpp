@@ -85,10 +85,7 @@ TEST_CASE("SimulationEngine RNG determinism after compaction with per-ion dt", "
         eng.current_step_ = 0;
         eng.dt_per_ion_.assign(ens.size(), cfg.simulation.dt_s);
         eng.deep_collision_diagnostics_.reset(ens.size());
-        eng.collision_macro_attempts_total_ = 0;
-        eng.collision_substep_attempts_total_ = 0;
-        eng.collision_events_total_ = 0;
-        eng.collision_monitor_complete_ = true;
+        eng.collision_runtime_stats_.reset();
 
         auto do_step = [&]() {
             const double t_new = eng.process_timestep(ens);

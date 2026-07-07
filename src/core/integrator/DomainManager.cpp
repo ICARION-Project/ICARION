@@ -160,6 +160,43 @@ bool DomainManager::boundary_intersection_global(const Vec3& start_global,
     return true;
 }
 
+int DomainManager::forward_axial_bridge_domain(int current_domain_idx,
+                                               const Vec3& pos_after) const {
+    if (current_domain_idx < 0 ||
+        static_cast<size_t>(current_domain_idx + 1) >= domains_.size()) {
+        return -1;
+    }
+
+    const auto& cur_dom = domains_[static_cast<size_t>(current_domain_idx)];
+    const double cur_end = cur_dom.geometry.origin_m.z + cur_dom.geometry.length_m;
+    return (pos_after.z >= cur_end) ? current_domain_idx + 1 : -1;
+}
+
+int DomainManager::shared_boundary_handoff_domain(int current_domain_idx,
+                                                  int found_domain_idx,
+                                                  const Vec3& pos_after,
+                                                  double tolerance_m) const {
+    if (current_domain_idx < 0 ||
+        found_domain_idx != current_domain_idx ||
+        static_cast<size_t>(current_domain_idx + 1) >= domains_.size()) {
+        return -1;
+    }
+
+    const auto& cur_dom = domains_[static_cast<size_t>(current_domain_idx)];
+    const double local_z = pos_after.z - cur_dom.geometry.origin_m.z;
+    if (local_z < cur_dom.geometry.length_m - tolerance_m) {
+        return -1;
+    }
+
+    const double dx = pos_after.x - cur_dom.geometry.origin_m.x;
+    const double dy = pos_after.y - cur_dom.geometry.origin_m.y;
+    const double r2 = dx * dx + dy * dy;
+    const double aperture = cur_dom.geometry.end_aperture_m > 0.0
+        ? cur_dom.geometry.end_aperture_m
+        : cur_dom.geometry.radius_m;
+    return (r2 <= aperture * aperture) ? current_domain_idx + 1 : -1;
+}
+
 Vec3 DomainManager::global_to_local_pos(const Vec3& pos, int domain_idx) const {
     if (domain_idx < 0 || domain_idx >= static_cast<int>(geometries_.size())) {
         throw std::out_of_range("DomainManager::global_to_local_pos: invalid index");

@@ -34,6 +34,7 @@
 #include "core/integrator/DomainManager.h"
 #include "core/integrator/OutputManager.h"
 #include "core/integrator/DeepCollisionDiagnosticsTracker.h"
+#include "core/integrator/SimulationEngineUtils.h"
 #include <cstdint>
 #include <vector>
 #include <memory>
@@ -137,26 +138,23 @@ public:
      */
     const OutputManager& get_output_manager() const { return *output_manager_; }
 
-    uint64_t collision_events_total() const { return collision_events_total_; }
-    uint64_t collision_macro_attempts_total() const { return collision_macro_attempts_total_; }
-    uint64_t collision_substep_attempts_total() const { return collision_substep_attempts_total_; }
-    bool collision_monitor_complete() const { return collision_monitor_complete_; }
+    uint64_t collision_events_total() const { return collision_runtime_stats_.events_total; }
+    uint64_t collision_macro_attempts_total() const { return collision_runtime_stats_.macro_attempts_total; }
+    uint64_t collision_substep_attempts_total() const { return collision_runtime_stats_.substep_attempts_total; }
+    bool collision_monitor_complete() const { return collision_runtime_stats_.monitor_complete; }
     int steps_completed() const { return current_step_; }
     double last_wall_runtime_s() const { return last_wall_runtime_s_; }
 
     double mean_collisions_per_step() const {
-        const int denom = (current_step_ > 0) ? current_step_ : 1;
-        return static_cast<double>(collision_events_total_) / static_cast<double>(denom);
+        return collision_runtime_stats_.mean_events_per_step(current_step_);
     }
 
     double collision_event_fraction_per_ion_step() const {
-        const uint64_t denom = (collision_macro_attempts_total_ > 0) ? collision_macro_attempts_total_ : 1;
-        return static_cast<double>(collision_events_total_) / static_cast<double>(denom);
+        return collision_runtime_stats_.event_fraction_per_ion_step();
     }
 
     double collision_event_fraction_per_substep() const {
-        const uint64_t denom = (collision_substep_attempts_total_ > 0) ? collision_substep_attempts_total_ : 1;
-        return static_cast<double>(collision_events_total_) / static_cast<double>(denom);
+        return collision_runtime_stats_.event_fraction_per_substep();
     }
     
 private:
@@ -185,10 +183,7 @@ private:
     std::vector<physics::PhysicsRng> rng_by_ion_;
     std::vector<uint64_t> rng_fingerprints_;
     bool space_charge_stale_warned_ = false;
-    uint64_t collision_macro_attempts_total_ = 0;
-    uint64_t collision_substep_attempts_total_ = 0;
-    uint64_t collision_events_total_ = 0;
-    bool collision_monitor_complete_ = true;
+    CollisionRuntimeStats collision_runtime_stats_;
     double last_wall_runtime_s_ = 0.0;
     
 #ifdef ICARION_USE_GPU
@@ -279,6 +274,8 @@ private:
     void perform_reactions(core::IonEnsemble& ensemble,
                            const std::vector<double>& dt_used_per_ion,
                            const std::vector<int>& domain_indices);
+
+    void log_collision_runtime_stats();
     
     /**
      * @brief Log progress message (every 10%)

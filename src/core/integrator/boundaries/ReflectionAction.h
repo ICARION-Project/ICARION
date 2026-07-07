@@ -16,9 +16,9 @@
 #pragma once
 
 #include "BoundaryAction.h"
+#include "core/utils/RngUtils.h"
 #include "utils/constants.h"
 #include <cstdint>
-#include <cstring>
 #include <functional>
 #include <random>
 #include <cmath>
@@ -102,39 +102,22 @@ private:
     double accommodation_coeff_;
     std::mt19937* rng_;
 
-    static uint64_t splitmix64(uint64_t x) {
-        x += 0x9e3779b97f4a7c15ULL;
-        x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
-        x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
-        return x ^ (x >> 31);
-    }
-
-    static uint64_t dbl_bits(double v) {
-        uint64_t bits = 0;
-        std::memcpy(&bits, &v, sizeof(bits));
-        return bits;
-    }
-
-    static uint64_t mix_seed(uint64_t seed, uint64_t value) {
-        return splitmix64(seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2)));
-    }
-
     uint64_t event_seed(const IonState& ion,
                         const Vec3& boundary_pos,
                         const Vec3& normal,
                         double temperature_K,
                         double current_time) const {
         uint64_t seed = 0xC01DCAFE5EED1234ULL;
-        seed = mix_seed(seed, static_cast<uint64_t>(ion.history_index + 1));
-        seed = mix_seed(seed, std::hash<std::string>{}(ion.species_id));
-        seed = mix_seed(seed, dbl_bits(boundary_pos.x));
-        seed = mix_seed(seed, dbl_bits(boundary_pos.y));
-        seed = mix_seed(seed, dbl_bits(boundary_pos.z));
-        seed = mix_seed(seed, dbl_bits(normal.x));
-        seed = mix_seed(seed, dbl_bits(normal.y));
-        seed = mix_seed(seed, dbl_bits(normal.z));
-        seed = mix_seed(seed, dbl_bits(temperature_K));
-        seed = mix_seed(seed, dbl_bits(current_time));
+        seed = utils::mix_seed(seed, static_cast<uint64_t>(ion.history_index + 1));
+        seed = utils::mix_seed(seed, std::hash<std::string>{}(ion.species_id));
+        seed = utils::mix_seed(seed, utils::double_bits(boundary_pos.x));
+        seed = utils::mix_seed(seed, utils::double_bits(boundary_pos.y));
+        seed = utils::mix_seed(seed, utils::double_bits(boundary_pos.z));
+        seed = utils::mix_seed(seed, utils::double_bits(normal.x));
+        seed = utils::mix_seed(seed, utils::double_bits(normal.y));
+        seed = utils::mix_seed(seed, utils::double_bits(normal.z));
+        seed = utils::mix_seed(seed, utils::double_bits(temperature_K));
+        seed = utils::mix_seed(seed, utils::double_bits(current_time));
         return seed;
     }
 

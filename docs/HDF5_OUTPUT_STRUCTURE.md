@@ -1,9 +1,9 @@
 # HDF5 Output Structure
 
-**Version:** 1.0.0  
-**Last Updated:** December 2025  
-**Status:** Implemented in v1.0.0; waveform library, config/species/reaction DBs, and field arrays are embedded in HDF5 (config snapshot also written alongside output).  
-**Implementation:** Writer is SoA-native (IonEnsemble) in v1.0.0.
+**Version:** 1.1.0
+**Last Updated:** July 2026
+**Status:** Current for v1.1.0; waveform library, config/species/reaction DBs, field arrays, compact output, and collision diagnostics are embedded in HDF5 where enabled.
+**Implementation:** Writer is SoA-native (IonEnsemble).
 
 ---
 
@@ -44,7 +44,7 @@ simulation.h5
 │   ├── birth_time_s               # Birth time [N]
 │   ├── death_time_s               # Death time [N] (-1 if still alive)
 │   └── charge_C                   # Charge [N]
-└── domains/
+├── domains/
     ├── domain_0/
     │   ├── name                   # Domain name
     │   ├── instrument             # Instrument type
@@ -59,7 +59,8 @@ simulation.h5
     └── domain_1/
         └── ...
 └── analysis/                      # Optional diagnostics groups
-    └── minimal_transport/         # Optional compact final-state output (trajectory_mode=minimal)
+    ├── minimal_transport/         # Optional compact final-state output (trajectory_mode=minimal)
+    └── deep_collision/            # Optional collision summaries/events
 ```
 
 ---
@@ -106,7 +107,7 @@ Configuration parameters extracted from `FullConfig`.
 | `derived_summary/num_species_db` | int | Species entries loaded | - |
 | `derived_summary/num_reactions_db` | int | Reactions loaded | - |
 
-**Note:** `format_version` is currently `2.0.0` in the v1.0.0 release. The full resolved config snapshot is embedded as `config_json` (also written as a `.config.json` snapshot alongside the HDF5). Selected key fields remain broken out as individual datasets for fast access.
+**Note:** `format_version` is currently `2.0.0`. The full resolved config snapshot is embedded as `config_json` (also written as a `.config.json` snapshot alongside the HDF5). Selected key fields remain broken out as individual datasets for fast access.
 
 ---
 

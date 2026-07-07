@@ -135,11 +135,11 @@
         "Langevin",
         "Friction",
         "HSD",
-        "HSS",
         "HardSphere",
-        "InteractionPotentialModel"
+        "InteractionPotentialModel",
+        "ipm"
       ],
-      "description": "Collision model. Preferred: EHSS, HSS, HSD, Langevin, Friction, InteractionPotentialModel. Legacy aliases: hsmc→HSS, HardSphere→HSD"
+      "description": "Collision model. Preferred: EHSS, HSS, HSD, Langevin, Friction, InteractionPotentialModel. Legacy aliases: hsmc→HSS, HardSphere→HSD, ipm→InteractionPotentialModel"
     },
     
     "solver_type": {

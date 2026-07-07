@@ -1,4 +1,4 @@
-# ICARION Configuration Schema (v1.0.0)
+# ICARION Configuration Schema (v1.1.0)
 
 JSON Schema definitions for validating ICARION configuration files.
 
@@ -102,6 +102,21 @@ local x axis. When `dipolar_excitation` is present, the x/y axis definitions are
 the source of truth. Validation rejects mixed top-level and nested dipolar
 definitions, and rejects axes that specify both `amplitude_V` and the legacy
 alias `voltage_V`.
+
+## v1.1 Runtime Additions
+
+- `physics.space_charge_model` selects `auto`, `direct`, `grid`, or `gpu`.
+- `physics.collision_multi_event_mode`, `collision_max_events_per_step`,
+  `collision_time_centered`, `collision_time_randomized`, and
+  `collision_subcycles_per_step` configure high-rate stochastic collision
+  approximations.
+- `physics.ipm_*` fields configure InteractionPotentialModel orientation and
+  optional diagnostics.
+- `output.trajectory_mode="minimal"` writes compact final state output under
+  `/analysis/minimal_transport`.
+- `output.deep_analysis` and the legacy flat `output.deep_analysis_*` aliases
+  configure `/analysis/deep_collision` diagnostics.
+- `fields.dipolar_excitation` describes LQIT x/y dipolar AC excitation.
 
 ## Key Features
 

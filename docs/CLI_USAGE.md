@@ -1,7 +1,7 @@
 # ICARION Command-Line Interface (CLI) Guide
 
-**Version:** 1.0.0  
-**Last Updated:** December 2025
+**Version:** 1.1.0
+**Last Updated:** July 2026
 
 ---
 
@@ -64,9 +64,9 @@ Display version information, git commit hash, and build type.
 ```bash
 icarion --version
 # Output:
-# ICARION v1.0.0
-# Git commit: 4a2cbee
-# Build type: Full (with FieldSolver & Optimizer)
+# ICARION v1.1.0
+# Git commit: <current-commit-hash>
+# Build type: CPU
 # GPU acceleration: Disabled
 ```
 

@@ -1,8 +1,8 @@
 # ICARION v1.1.0 Release Notes
 
-Status: draft. This file currently covers the audited reactions, collision, and
-TIMS updates only; later runtime, output, fieldsolver, validation, and
-documentation blocks should extend it before the final v1.1.0 release.
+Status: draft. This file covers the audited v1.1 runtime, collision, reaction,
+TIMS, analysis, documentation, and schema changes. FieldSolver work is deferred
+to v1.2.
 
 ## Highlights
 
@@ -26,6 +26,9 @@ documentation blocks should extend it before the final v1.1.0 release.
   audits.
 - TIMS is available as a distinct instrument type with an analytical axial ramp
   field model, axial gas-flow parsing, and a basic TIMS elution example.
+- Analysis utilities now include maintained scripts for run summaries, spectra,
+  trap stability, transport diagnostics, collision diagnostics, reaction
+  kinetics, and space charge cloud broadening.
 
 ## Validation
 
@@ -50,6 +53,9 @@ documentation blocks should extend it before the final v1.1.0 release.
   `interaction_potential_precompute`; the local helper
   `tmp/run_large_ipm_precompute.sh` is intentionally not part of the release
   tree.
+- JSON Schema coverage was aligned with v1.1 runtime controls, including
+  `space_charge_model`, InteractionPotentialModel controls, compact/minimal
+  output, and deep collision diagnostics.
 
 ## Compatibility Notes
 

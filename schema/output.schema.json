@@ -68,6 +68,34 @@
         }
       },
       "additionalProperties": false
+    },
+
+    "deep_analysis_mode": {
+      "type": "string",
+      "enum": ["off", "summary", "sampled_events", "full_events"],
+      "default": "off",
+      "description": "Backward-compatible flat alias for deep_analysis.mode"
+    },
+
+    "deep_analysis_domain_filter_index": {
+      "type": "integer",
+      "minimum": -1,
+      "default": -1,
+      "description": "Backward-compatible flat alias for deep_analysis.domain_filter_index"
+    },
+
+    "deep_analysis_sample_every_n": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 10,
+      "description": "Backward-compatible flat alias for deep_analysis.sample_every_n"
+    },
+
+    "deep_analysis_max_events_per_ion": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Backward-compatible flat alias for deep_analysis.max_events_per_ion"
     }
   },
 

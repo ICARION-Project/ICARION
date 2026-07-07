@@ -388,7 +388,7 @@ When `enable_reactions` is enabled, ICARION will:
 5. **Select channels** if multiple reactions compete (probability-weighted)
 6. **Update species** by replacing reactant particle with product particle
 
-Equilibrium-linked reactions can mark a forward channel with `equilibrium=true` and SI thermochemistry metadata (`delta_r_H_J_mol`, `delta_r_S_J_molK`). The loader then creates a dynamic reverse channel unless one is already explicit; see `rtd/reactions.md` for the full schema and assumptions.
+Equilibrium-linked reactions can mark a forward channel with `equilibrium=true` and SI thermochemistry metadata (`delta_r_H_J_mol`, `delta_r_S_J_molK`). The loader then creates a dynamic reverse channel unless one is already explicit; see `schema/reactions.schema.json` for the full schema.
 
 See [Reaction Database Schema](#reaction-database-schema) for details on configuring reactions.
 
@@ -893,7 +893,7 @@ This section provides a quick reference for all configuration sections. For comp
   "dt_s": 1e-9,
   "integrator": "RK4",           // RK4, RK45, Boris
   "write_interval": 100,
-  "enable_gpu": false,           // Ignored in v1.0.0 (GPU runtime disabled)
+  "enable_gpu": false,           // Runtime GPU path falls back to CPU unless CUDA support is available
   "rng_seed": 42
 }
 ```
@@ -1425,7 +1425,7 @@ rejects mixed top-level/nested definitions and rejects axes that specify both
 
 4. **Check units**: All values in SI units (meters, seconds, Pascal, Kelvin)
 
-5. **Enable GPU** for large simulations (`enable_gpu: true`) — ignored in v1.0.0 (runtime GPU path is disabled; CPU only)
+5. **Use OpenMP first** for large CPU simulations. Enable GPU only for builds and physics paths that explicitly support it; unsupported GPU paths fall back to CPU.
 
 ---
 
@@ -1441,6 +1441,6 @@ rejects mixed top-level/nested definitions and rejects axes that specify both
 
 ## Version
 
-This guide corresponds to ICARION v1.0.0 configuration schema.
+This guide corresponds to the ICARION v1.1.0 configuration surface.
 
 For schema version history, see the git log for the `schema/` directory.

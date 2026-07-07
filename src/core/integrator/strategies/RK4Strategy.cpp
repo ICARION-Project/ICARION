@@ -175,13 +175,23 @@ bool RK4Strategy::step_batch(
     double dt,
     const std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
     const std::vector<int>& domain_indices) {
+    return step_batch_with_stage_refresh(ensemble, t, dt, registries, domain_indices, {});
+}
+
+bool RK4Strategy::step_batch_with_stage_refresh(
+    core::IonEnsemble& ensemble,
+    double t,
+    double dt,
+    const std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
+    const std::vector<int>& domain_indices,
+    const StageRefreshCallback& stage_refresh) {
     const size_t n = ensemble.size();
     if (n == 0 || domain_indices.size() != n) {
         return false;
     }
 
     for (const auto& reg : registries) {
-        if (reg && reg->space_charge_model()) {
+        if (reg && reg->space_charge_model() && !stage_refresh) {
             return false;
         }
     }
@@ -237,6 +247,11 @@ bool RK4Strategy::step_batch(
 
     #pragma omp parallel if(use_omp)
     {
+        if (stage_refresh) {
+            #pragma omp single
+            stage_refresh(t);
+        }
+
         #pragma omp for schedule(static)
         for (int i = 0; i < n_int; ++i) {
             const size_t idx = static_cast<size_t>(i);
@@ -262,6 +277,11 @@ bool RK4Strategy::step_batch(
             k2_v_[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
         }
 
+        if (stage_refresh) {
+            #pragma omp single
+            stage_refresh(t + half_dt);
+        }
+
         #pragma omp for schedule(static)
         for (int i = 0; i < n_int; ++i) {
             compute_accel(i, t + half_dt, k2_a_);
@@ -282,6 +302,11 @@ bool RK4Strategy::step_batch(
             k3_v_[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
         }
 
+        if (stage_refresh) {
+            #pragma omp single
+            stage_refresh(t + half_dt);
+        }
+
         #pragma omp for schedule(static)
         for (int i = 0; i < n_int; ++i) {
             compute_accel(i, t + half_dt, k3_a_);
@@ -300,6 +325,11 @@ bool RK4Strategy::step_batch(
             vel_y[i] = base_vy_[i] + k3_a_[idx].y * dt;
             vel_z[i] = base_vz_[i] + k3_a_[idx].z * dt;
             k4_v_[idx] = Vec3{vel_x[i], vel_y[i], vel_z[i]};
+        }
+
+        if (stage_refresh) {
+            #pragma omp single
+            stage_refresh(t + dt);
         }
 
         #pragma omp for schedule(static)

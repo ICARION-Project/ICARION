@@ -14,6 +14,8 @@
 #include "core/types/Vec3.h"
 
 #include <cmath>
+#include <memory>
+#include <vector>
 
 using namespace ICARION;
 using namespace ICARION::integrator;
@@ -167,6 +169,38 @@ TEST_CASE("RK4Strategy: Free fall (constant acceleration)", "[integrator][rk4]")
     SECTION("Velocity after 1s") {
         REQUIRE_THAT(ion_out.vel.z, WithinAbs(v_expected, 0.01));  // 1cm/s error
     }
+}
+
+TEST_CASE("RK4Strategy: batch stage refresh callback fires once per RK stage",
+          "[integrator][rk4][batch][spacecharge]") {
+    RK4Strategy strategy;
+    DomainConfig domain = create_test_domain();
+    auto registry = std::make_shared<ForceRegistry>(domain);
+    registry->add_force(std::make_unique<ConstantGravityForce>(9.81));
+
+    IonState ion;
+    ion.pos = Vec3{0, 0, 100.0};
+    ion.vel = Vec3{0, 0, 0};
+    ion.mass_kg = 1.0;
+    ion.ion_charge_C = 1e-19;
+    ion.active = true;
+    ion.born = true;
+    IonEnsemble ensemble = IonEnsemble::from_legacy({ion});
+
+    std::vector<std::shared_ptr<ForceRegistry>> registries{registry};
+    std::vector<int> domain_indices{0};
+    std::vector<double> stage_times;
+
+    const bool ran = strategy.step_batch_with_stage_refresh(
+        ensemble, 0.0, 0.01, registries, domain_indices,
+        [&](double stage_time_s) { stage_times.push_back(stage_time_s); });
+
+    REQUIRE(ran);
+    REQUIRE(stage_times.size() == 4);
+    REQUIRE_THAT(stage_times[0], WithinAbs(0.0, 1e-15));
+    REQUIRE_THAT(stage_times[1], WithinAbs(0.005, 1e-15));
+    REQUIRE_THAT(stage_times[2], WithinAbs(0.005, 1e-15));
+    REQUIRE_THAT(stage_times[3], WithinAbs(0.01, 1e-15));
 }
 
 TEST_CASE("RK4Strategy: Harmonic oscillator (periodic motion)", "[integrator][rk4]") {

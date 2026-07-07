@@ -4,6 +4,7 @@
 #pragma once
 
 #include "IIntegrationStrategy.h"
+#include <functional>
 #include <vector>
 
 namespace ICARION {
@@ -36,6 +37,8 @@ namespace integrator {
  */
 class RK4Strategy : public IIntegrationStrategy {
 public:
+    using StageRefreshCallback = std::function<void(double stage_time_s)>;
+
     /**
      * @brief Constructor
      * 
@@ -66,6 +69,15 @@ public:
         const std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
         const std::vector<int>& domain_indices
     ) override;
+
+    bool step_batch_with_stage_refresh(
+        core::IonEnsemble& ensemble,
+        double t,
+        double dt,
+        const std::vector<std::shared_ptr<physics::ForceRegistry>>& registries,
+        const std::vector<int>& domain_indices,
+        const StageRefreshCallback& stage_refresh
+    );
 
     void set_parallel_enabled(bool enabled) override { parallel_enabled_ = enabled; }
     

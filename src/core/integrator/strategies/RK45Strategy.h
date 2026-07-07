@@ -5,6 +5,7 @@
 
 #include "IIntegrationStrategy.h"
 #include "core/types/IonState.h"
+#include <functional>
 #include <limits>
 #include <optional>
 
@@ -45,6 +46,8 @@ namespace integrator {
  */
 class RK45Strategy : public IIntegrationStrategy {
 public:
+  using StageRefreshCallback = std::function<void(double stage_time_s)>;
+
   /**
    * @brief Configuration for adaptive timestep control
    */
@@ -134,6 +137,24 @@ public:
                      const physics::ForceRegistry &force_registry,
                      const std::vector<IonState> &all_ions);
 
+  bool step_batch_fixed(
+      core::IonEnsemble &ensemble, double t, double dt,
+      const std::vector<std::shared_ptr<physics::ForceRegistry>> &registries,
+      const std::vector<int> &domain_indices,
+      const StageRefreshCallback &stage_refresh = {});
+
+  struct BatchAdaptiveResult {
+    bool accepted = false;
+    double dt_used = 0.0;
+    double dt_next = 0.0;
+  };
+
+  BatchAdaptiveResult step_batch_adaptive(
+      core::IonEnsemble &ensemble, double t, double dt_initial,
+      const std::vector<std::shared_ptr<physics::ForceRegistry>> &registries,
+      const std::vector<int> &domain_indices,
+      const StageRefreshCallback &stage_refresh = {});
+
   /**
    * @brief Get method name
    */
@@ -183,6 +204,7 @@ private:
   double last_dt_used_ = 0.0;      ///< Actual dt used in last step (per call)
   double last_dt_suggested_ = 0.0; ///< Suggested dt for next step (per call)
   bool stats_enabled_ = true;
+  double batch_last_error_ = 1.0;
 
   // FSAL storage: k1 for next step = k7 from previous step
   RK45State &state_for(size_t ion_idx);

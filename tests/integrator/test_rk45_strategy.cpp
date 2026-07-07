@@ -14,6 +14,8 @@
 
 #include <cmath>
 #include <iostream>
+#include <memory>
+#include <vector>
 
 using namespace ICARION;
 using namespace ICARION::integrator;
@@ -147,6 +149,40 @@ TEST_CASE("RK45Strategy: Constructor and configuration", "[integrator][rk45]") {
         
         REQUIRE_THROWS_AS(RK45Strategy(config), std::invalid_argument);
     }
+}
+
+TEST_CASE("RK45Strategy: batch adaptive stage refresh callback fires once per stage",
+          "[integrator][rk45][batch][spacecharge]") {
+    RK45Strategy::AdaptiveConfig config;
+    config.max_step_increase = 1.0;
+    config.max_step_decrease = 1.0;
+    RK45Strategy strategy(config);
+
+    auto registry = std::make_shared<ForceRegistry>(create_test_domain());
+    registry->add_force(std::make_unique<ConstantGravityForce>(9.81));
+
+    IonState ion = create_test_ion();
+    ion.active = true;
+    ion.born = true;
+    IonEnsemble ensemble = IonEnsemble::from_legacy({ion});
+
+    std::vector<std::shared_ptr<ForceRegistry>> registries{registry};
+    std::vector<int> domain_indices{0};
+    std::vector<double> stage_times;
+
+    const auto result = strategy.step_batch_adaptive(
+        ensemble, 0.0, 0.01, registries, domain_indices,
+        [&](double stage_time_s) { stage_times.push_back(stage_time_s); });
+
+    REQUIRE(result.accepted);
+    REQUIRE(stage_times.size() == 7);
+    REQUIRE_THAT(stage_times[0], WithinAbs(0.0, 1e-15));
+    REQUIRE_THAT(stage_times[1], WithinAbs(0.002, 1e-15));
+    REQUIRE_THAT(stage_times[2], WithinAbs(0.003, 1e-15));
+    REQUIRE_THAT(stage_times[3], WithinAbs(0.008, 1e-15));
+    REQUIRE_THAT(stage_times[4], WithinAbs(8.0 / 9.0 * 0.01, 1e-15));
+    REQUIRE_THAT(stage_times[5], WithinAbs(0.01, 1e-15));
+    REQUIRE_THAT(stage_times[6], WithinAbs(0.01, 1e-15));
 }
 
 // =============================================================================

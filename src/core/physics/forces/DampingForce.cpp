@@ -106,9 +106,14 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
     double temperature_K = active_env->temperature_K;
     double m_neutral = active_env->gas_mass_kg;
     if (ctx.ion_ensemble && ctx.ion_index < ctx.ion_ensemble->size()) {
-        gas_density = ctx.ion_ensemble->gas_density(ctx.ion_index);
-        temperature_K = ctx.ion_ensemble->temperature(ctx.ion_index);
-        m_neutral = ctx.ion_ensemble->neutral_mass(ctx.ion_index);
+        const double cached_density = ctx.ion_ensemble->gas_density(ctx.ion_index);
+        const double cached_temperature = ctx.ion_ensemble->temperature(ctx.ion_index);
+        const double cached_neutral_mass = ctx.ion_ensemble->neutral_mass(ctx.ion_index);
+        if (cached_density > 0.0 && cached_temperature > 0.0 && cached_neutral_mass > 0.0) {
+            gas_density = cached_density;
+            temperature_K = cached_temperature;
+            m_neutral = cached_neutral_mass;
+        }
     }
     const double v_th = (temperature_K > 0.0 && m_neutral > 0.0)
         ? std::sqrt(8.0 * BOLTZMANN_CONSTANT * temperature_K / (M_PI * m_neutral))
@@ -177,16 +182,6 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
             // Temperature correction (Mason-Schamp): K ∝ sqrt(T0 / T)
             const double teff_scale = std::sqrt(STP_TEMP / std::max(temperature_K, 1.0));
             const double K0_teff_m2_Vs = K0_m2_Vs * teff_scale;
-
-            // DEBUG: Print what we're actually using
-            static bool debug_once = false;
-            if (!debug_once) {
-                std::cerr << "\n[DampingForce::Friction DEBUG]\n";
-                std::cerr << "  K₀ (from ion) = " << K0_cm2_Vs << " cm²/(V·s)\n";
-                std::cerr << "  gas_density = " << gas_density << " m⁻³\n";
-                std::cerr << "  LOSCHMIDT = " << LOSCHMIDT_CONSTANT << " m⁻³\n";
-                debug_once = true;
-            }
 
             auto lookup_sigma = [&](const config::GasMixtureComponent& comp) -> double {
                 // Prefer DB CCS_HSS per gas if available
@@ -265,18 +260,7 @@ double DampingForce::calculate_gamma(const IonState& ion, const ForceContext& ct
 
             // Single-gas fallback: K = K₀·(n₀/n)
             const double ion_mobility = K0_teff_m2_Vs * N_ratio;
-            const double gamma_result = q / (ion_mobility * m_ion);
-            
-            // DEBUG: Print calculated values
-            static bool debug_calc = false;
-            if (!debug_calc) {
-                std::cerr << "  K (actual) = " << ion_mobility << " m²/(V·s)\n";
-                std::cerr << "  γ = " << gamma_result << " Hz\n";
-                std::cerr << "  Expected v_term = q·E/(γ·m) = " << (q * 10000.0 / (gamma_result * m_ion)) << " m/s @ E=10kV/m\n\n";
-                debug_calc = true;
-            }
-            
-            return gamma_result;
+            return q / (ion_mobility * m_ion);
         }
         
         default:

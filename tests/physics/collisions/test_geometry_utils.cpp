@@ -182,6 +182,7 @@ TEST_CASE("convert_molecule_to_geometry - Basic conversion", "[geometry_utils][u
     
     auto molecule = load_molecule((temp.get_path() / "H3O+.json").string());
     auto geom = convert_molecule_to_geometry(molecule);
+    auto raw_geom = convert_molecule_to_geometry(molecule, false);
     
     SECTION("Correct number of atoms") {
         REQUIRE(geom.first.size() == 4);  // centers
@@ -190,14 +191,14 @@ TEST_CASE("convert_molecule_to_geometry - Basic conversion", "[geometry_utils][u
     
     SECTION("Position conversion (Angstrom to meters)") {
         // O atom at origin
-        REQUIRE_THAT(geom.first[0].x, Catch::Matchers::WithinAbs(0.0, 1e-12));
-        REQUIRE_THAT(geom.first[0].y, Catch::Matchers::WithinAbs(0.0, 1e-12));
-        REQUIRE_THAT(geom.first[0].z, Catch::Matchers::WithinAbs(0.0, 1e-12));
+        REQUIRE_THAT(raw_geom.first[0].x, Catch::Matchers::WithinAbs(0.0, 1e-12));
+        REQUIRE_THAT(raw_geom.first[0].y, Catch::Matchers::WithinAbs(0.0, 1e-12));
+        REQUIRE_THAT(raw_geom.first[0].z, Catch::Matchers::WithinAbs(0.0, 1e-12));
         
         // H atom at [0.96, 0, 0] Å = [0.96e-10, 0, 0] m
-        REQUIRE_THAT(geom.first[1].x, Catch::Matchers::WithinAbs(0.96e-10, 1e-12));
-        REQUIRE_THAT(geom.first[1].y, Catch::Matchers::WithinAbs(0.0, 1e-12));
-        REQUIRE_THAT(geom.first[1].z, Catch::Matchers::WithinAbs(0.0, 1e-12));
+        REQUIRE_THAT(raw_geom.first[1].x, Catch::Matchers::WithinAbs(0.96e-10, 1e-12));
+        REQUIRE_THAT(raw_geom.first[1].y, Catch::Matchers::WithinAbs(0.0, 1e-12));
+        REQUIRE_THAT(raw_geom.first[1].z, Catch::Matchers::WithinAbs(0.0, 1e-12));
     }
     
     SECTION("Radius conversion (LJ sigma to hard-sphere)") {

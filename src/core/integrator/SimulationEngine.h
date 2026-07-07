@@ -33,6 +33,7 @@
 #include "core/physics/reactions/IReactionHandler.h"
 #include "core/integrator/DomainManager.h"
 #include "core/integrator/OutputManager.h"
+#include "core/integrator/DeepCollisionDiagnosticsTracker.h"
 #include <vector>
 #include <memory>
 
@@ -149,6 +150,7 @@ private:
     std::unique_ptr<DomainManager> domain_manager_;
     std::unique_ptr<OutputManager> output_manager_;
     bool parallel_enabled_ = false;  ///< OpenMP allowed (disabled for adaptive integrators)
+    DeepCollisionDiagnosticsTracker deep_collision_diagnostics_;
     
     // Simulation state
     double current_time_ = 0.0;
@@ -242,7 +244,8 @@ private:
     void handle_collisions_cpu(core::IonEnsemble& ensemble,
                                const std::vector<double>& dt_used_per_ion,
                                const std::vector<size_t>& indices,
-                               const config::EnvironmentConfig& env);
+                               const config::EnvironmentConfig& env,
+                               int domain_index);
 
     void perform_reactions(core::IonEnsemble& ensemble,
                            const std::vector<double>& dt_used_per_ion,

@@ -27,7 +27,8 @@ public:
     bool handle_collision(core::IonCollisionData& view,
                           double dt,
                           PhysicsRng& rng,
-                          const config::EnvironmentConfig& env) override;
+                          const config::EnvironmentConfig& env,
+                          CollisionEventDiagnostics* diagnostics = nullptr) override;
 
     std::string name() const override;
     CollisionStats get_stats() const override;

@@ -25,7 +25,8 @@ bool HSSCollisionHandler::handle_collision(
     core::IonCollisionData& view,
     double dt,
     PhysicsRng& rng,
-    const config::EnvironmentConfig& env
+    const config::EnvironmentConfig& env,
+    CollisionEventDiagnostics* diagnostics
 ) {
     // Build lightweight IonState view for reuse of scalar helpers
     IonState ion;
@@ -51,6 +52,7 @@ bool HSSCollisionHandler::handle_collision(
             double k_i;              // Collision rate for this component
             Vec3 v_neutral;          // Sampled neutral velocity
             double sigma_i;          // Cross section
+            double v_rel_mag;        // Relative speed used in rate
         };
         
         std::vector<ComponentCollisionData> collision_data;
@@ -136,7 +138,7 @@ bool HSSCollisionHandler::handle_collision(
             // Collision rate using actual relative velocity (like single-gas path)
             double k_i = n_i * sigma_i * v_rel_mag;
             
-            collision_data.push_back({i, k_i, v_neutral, sigma_i});
+            collision_data.push_back({i, k_i, v_neutral, sigma_i, v_rel_mag});
             k_total += k_i;
         }
 
@@ -180,6 +182,10 @@ bool HSSCollisionHandler::handle_collision(
         
         // Write back velocity to SoA view
         view.kin.set_vel(v_post);
+        if (diagnostics) {
+            diagnostics->v_rel_before_m_s = selected.v_rel_mag;
+            diagnostics->sigma_mt_m2 = selected.sigma_i;
+        }
         
         // For single-threaded tests, update collision statistics
         stats_.total_collisions++;
@@ -306,6 +312,10 @@ bool HSSCollisionHandler::handle_collision(
     // Update ion velocity
     ion.vel = v_post;
     view.kin.set_vel(ion.vel);
+    if (diagnostics) {
+        diagnostics->v_rel_before_m_s = v_rel_mag;
+        diagnostics->sigma_mt_m2 = sigma_eff;
+    }
     
     // Update statistics (for single-threaded tests)
     stats_.total_collisions++;

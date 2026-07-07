@@ -23,6 +23,8 @@
 #include "core/physics/collisions/HSSCollisionHandler.h"
 #include "core/physics/reactions/NoReactionHandler.h"
 #include "core/types/IonState.h"
+#include <H5Cpp.h>
+#include <filesystem>
 #include <memory>
 
 using namespace ICARION;
@@ -42,7 +44,9 @@ public:
     bool handle_collision(core::IonCollisionData&,
                           double dt,
                           PhysicsRng&,
-                          const config::EnvironmentConfig&) override {
+                          const config::EnvironmentConfig&,
+                          CollisionEventDiagnostics* diagnostics = nullptr) override {
+        (void)diagnostics;
         ++calls_;
         last_dt_ = dt;
         return false;
@@ -55,6 +59,26 @@ public:
 private:
     size_t calls_ = 0;
     double last_dt_ = 0.0;
+};
+
+class DeterministicCollisionHandler : public ICollisionHandler {
+public:
+    bool handle_collision(core::IonCollisionData& view,
+                          double,
+                          PhysicsRng&,
+                          const config::EnvironmentConfig&,
+                          CollisionEventDiagnostics* diagnostics = nullptr) override {
+        auto vel = view.kin.vel();
+        vel.z += 10.0;
+        view.kin.set_vel(vel);
+        if (diagnostics) {
+            diagnostics->v_rel_before_m_s = 123.0;
+            diagnostics->sigma_mt_m2 = 4.5e-19;
+        }
+        return true;
+    }
+
+    std::string name() const override { return "DeterministicCollisionHandler"; }
 };
 }
 
@@ -475,6 +499,48 @@ TEST_CASE("SimulationEngine: collision micro-subcycling dispatch", "[simulation]
         REQUIRE(collision_handler->calls() == 20);
         REQUIRE_THAT(collision_handler->last_dt(), Catch::Matchers::WithinAbs(2.5e-10, 1e-18));
     }
+}
+
+TEST_CASE("SimulationEngine writes deep collision diagnostics", "[simulation][engine][collision][deep]") {
+    auto cfg = create_test_config();
+    cfg.physics.collision_model = CollisionModel::HSS;
+    cfg.simulation.total_time_s = 2e-9;
+    cfg.simulation.dt_s = 1e-9;
+    cfg.simulation.enable_openmp = false;
+    cfg.simulation.compute_derived();
+    cfg.output.trajectory_file = "icarion_test_deep_collision.h5";
+    cfg.output.deep_analysis.mode_type = DeepAnalysisMode::SampledEvents;
+    cfg.output.deep_analysis.mode = "sampled_events";
+    cfg.output.deep_analysis.sample_every_n = 1;
+    cfg.output.deep_analysis.max_events_per_ion = 10;
+
+    const std::string hdf5_path = cfg.output.folder + "/" + cfg.output.trajectory_file;
+    if (std::filesystem::exists(hdf5_path)) {
+        std::filesystem::remove(hdf5_path);
+    }
+
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
+    auto integrator = std::make_shared<RK4Strategy>();
+    auto collision_handler = std::make_shared<DeterministicCollisionHandler>();
+    SimulationEngine engine(cfg, {force_registry}, integrator, collision_handler);
+
+    std::vector<IonState> ions = {create_test_ion()};
+    auto result = run_engine_aos(engine, ions);
+
+    REQUIRE(result.size() == 1);
+    REQUIRE(std::filesystem::exists(hdf5_path));
+
+    H5::H5File file(hdf5_path, H5F_ACC_RDONLY);
+    REQUIRE(H5Lexists(file.getId(), "/analysis/deep_collision", H5P_DEFAULT) > 0);
+
+    H5::Group deep = file.openGroup("/analysis/deep_collision");
+    std::vector<int32_t> collisions_total(1, 0);
+    deep.openDataSet("collisions_total").read(collisions_total.data(), H5::PredType::NATIVE_INT32);
+    REQUIRE(collisions_total[0] == 2);
+
+    H5::Group events = deep.openGroup("events");
+    REQUIRE(H5Lexists(events.getId(), "v_rel_before_ms", H5P_DEFAULT) > 0);
+    REQUIRE(H5Lexists(events.getId(), "sigma_mt_m2", H5P_DEFAULT) > 0);
 }
 
 TEST_CASE("SimulationEngine: Reaction handler integration", "[simulation][engine][reaction]") {

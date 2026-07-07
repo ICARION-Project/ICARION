@@ -123,6 +123,13 @@ struct FullConfig {
         if (physics.enable_reactions && reaction_db.size() == 0) {
             result.add_error("Reactions enabled but no reactions loaded (check reaction_database path or global fallback)");
         }
+
+        if (!domains.empty() && output.deep_analysis.domain_filter_index >= 0) {
+            const int n_domains = static_cast<int>(domains.size());
+            if (output.deep_analysis.domain_filter_index >= n_domains) {
+                result.add_error("output.deep_analysis.domain_filter_index out of range");
+            }
+        }
         
         // Ion configuration validation
         if (!ions.is_valid()) {

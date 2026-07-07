@@ -20,8 +20,10 @@ bool OUCollisionHandler::handle_collision(
     core::IonCollisionData& view,
     double dt,
     PhysicsRng& rng,
-    const config::EnvironmentConfig& env
+    const config::EnvironmentConfig& env,
+    CollisionEventDiagnostics* diagnostics
 ) {
+    (void)diagnostics;
     IonState ion;
     ion.vel = view.kin.vel();
     ion.mass_kg = view.kin.get_mass();

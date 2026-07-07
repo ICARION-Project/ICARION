@@ -154,6 +154,49 @@ public:
         size_t active_ions
     );
 
+    /**
+     * @brief Write deep collision diagnostics for mechanistic analysis.
+     */
+    static void write_deep_collision_diagnostics(
+        const std::string& filename,
+        const std::string& mode,
+        int domain_filter_index,
+        int sample_every_n,
+        int max_events_per_ion,
+        const std::vector<int32_t>& collisions_total,
+        const std::vector<int32_t>& cooling_axial_count,
+        const std::vector<int32_t>& heating_axial_count,
+        const std::vector<double>& sum_delta_px_kgms,
+        const std::vector<double>& sum_delta_px2_kg2m2s2,
+        const std::vector<double>& sum_delta_py_kgms,
+        const std::vector<double>& sum_delta_py2_kg2m2s2,
+        const std::vector<double>& sum_delta_pz_kgms,
+        const std::vector<double>& sum_delta_pz2_kg2m2s2,
+        const std::vector<double>& sum_delta_ke_eV,
+        const std::vector<double>& mean_delta_px_kgms,
+        const std::vector<double>& mean_delta_py_kgms,
+        const std::vector<double>& mean_delta_pz_kgms,
+        const std::vector<double>& mean_delta_ke_eV,
+        const std::vector<double>& event_time_s,
+        const std::vector<uint32_t>& event_ion_index,
+        const std::vector<int32_t>& event_domain_index,
+        const std::vector<double>& event_delta_px_kgms,
+        const std::vector<double>& event_delta_py_kgms,
+        const std::vector<double>& event_delta_pz_kgms,
+        const std::vector<double>& event_delta_ke_eV,
+        const std::vector<double>& event_vx_before_ms,
+        const std::vector<double>& event_vx_after_ms,
+        const std::vector<double>& event_vy_before_ms,
+        const std::vector<double>& event_vy_after_ms,
+        const std::vector<double>& event_vz_before_ms,
+        const std::vector<double>& event_vz_after_ms,
+        const std::vector<double>& event_v_rel_before_ms,
+        const std::vector<double>& event_sigma_mt_m2,
+        const std::vector<double>& event_radius_m,
+        const std::vector<double>& event_vr_before_ms,
+        const std::vector<uint8_t>& event_ejected_flag
+    );
+
 private:
     // === Metadata writers ===
     

@@ -21,6 +21,9 @@ documentation blocks should extend it before the final v1.1.0 release.
   simulation timestep. This is useful for high collision-rate regimes, but for
   highest accuracy the physical timestep should still keep unresolved multiple
   events rare.
+- Deep collision diagnostics can write per-ion collision summaries and optional
+  sampled/full event rows under `/analysis/deep_collision` for momentum-transfer
+  audits.
 - TIMS is available as a distinct instrument type with an analytical axial ramp
   field model, axial gas-flow parsing, and a basic TIMS elution example.
 

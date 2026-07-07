@@ -46,8 +46,9 @@ GPUCollisionHandler::GPUCollisionHandler(
 bool GPUCollisionHandler::handle_collision(core::IonCollisionData& view,
                                            double dt,
                                            PhysicsRng& rng,
-                                           const config::EnvironmentConfig& env) {
-    return cpu_handler_ && cpu_handler_->handle_collision(view, dt, rng, env);
+                                           const config::EnvironmentConfig& env,
+                                           CollisionEventDiagnostics* diagnostics) {
+    return cpu_handler_ && cpu_handler_->handle_collision(view, dt, rng, env, diagnostics);
 }
 
 std::string GPUCollisionHandler::name() const {

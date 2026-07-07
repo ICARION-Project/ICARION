@@ -6,6 +6,7 @@
 
 #include "../types/PhysicsEnums.h"
 #include "../types/SolverEnums.h"
+#include "../types/OutputEnums.h"
 #include "core/config/types/InstrumentTypes.h"
 #include <string>
 #include <unordered_map>
@@ -175,6 +176,32 @@ public:
             case SolverType::RK45: return "RK45";
             case SolverType::Boris: return "Boris";
             default: return "Unknown";
+        }
+    }
+
+    static DeepAnalysisMode parse_deep_analysis_mode(const std::string& str) {
+        static const std::unordered_map<std::string, DeepAnalysisMode> map = {
+            {"off", DeepAnalysisMode::Off},
+            {"summary", DeepAnalysisMode::Summary},
+            {"sampled_events", DeepAnalysisMode::SampledEvents},
+            {"full_events", DeepAnalysisMode::FullEvents}
+        };
+
+        std::string lower = to_lower(str);
+        auto it = map.find(lower);
+        if (it == map.end()) {
+            throw std::runtime_error("Unknown deep_analysis.mode: '" + str + "'. Expected: off, summary, sampled_events, full_events");
+        }
+        return it->second;
+    }
+
+    static std::string deep_analysis_mode_to_string(DeepAnalysisMode mode) {
+        switch (mode) {
+            case DeepAnalysisMode::Off: return "off";
+            case DeepAnalysisMode::Summary: return "summary";
+            case DeepAnalysisMode::SampledEvents: return "sampled_events";
+            case DeepAnalysisMode::FullEvents: return "full_events";
+            default: return "off";
         }
     }
     

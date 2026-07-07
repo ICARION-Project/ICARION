@@ -22,6 +22,8 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
 - **TIMS axial ramp model**: `instrument: "TIMS"` now selects an analytical TIMS
   axial field program with `axial_field_initial_*` / `axial_field_final_*`
   profiles, axial gas-flow parsing, an IMS example, and elution validation.
+- **Deep collision diagnostics**: `output.deep_analysis` can write per-ion
+  collision summaries and optional event samples to `/analysis/deep_collision`.
 
 ### Changed
 

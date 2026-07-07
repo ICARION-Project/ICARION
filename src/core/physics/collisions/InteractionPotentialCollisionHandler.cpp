@@ -210,7 +210,8 @@ bool InteractionPotentialCollisionHandler::handle_collision(
     core::IonCollisionData& view,
     double dt,
     PhysicsRng& rng,
-    const config::EnvironmentConfig& env
+    const config::EnvironmentConfig& env,
+    CollisionEventDiagnostics* diagnostics
 ) {
     auto mark_logged_once = [&](const std::string& key) {
         std::lock_guard<std::mutex> lock(state_mutex_);
@@ -461,6 +462,10 @@ bool InteractionPotentialCollisionHandler::handle_collision(
 
     Vec3 v_post = view.kin.vel() + dp_lab / m_ion;
     view.kin.set_vel(v_post);
+    if (diagnostics) {
+        diagnostics->v_rel_before_m_s = v_rel_mag;
+        diagnostics->sigma_mt_m2 = sigma_mt;
+    }
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
         stats_.total_collisions++;

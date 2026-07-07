@@ -30,6 +30,11 @@ struct CollisionStats {
     double average_collision_rate = 0.0;///< Mean collision rate [Hz]
 };
 
+struct CollisionEventDiagnostics {
+    double v_rel_before_m_s = 0.0;  ///< Exact pre-collision relative speed [m/s]
+    double sigma_mt_m2 = 0.0;       ///< Momentum-transfer cross section used for this event [m^2]
+};
+
 /**
  * @brief Abstract interface for stochastic collision handlers
  * 
@@ -69,7 +74,8 @@ public:
         core::IonCollisionData& view,
         double dt,
         PhysicsRng& rng,
-        const config::EnvironmentConfig& env
+        const config::EnvironmentConfig& env,
+        CollisionEventDiagnostics* diagnostics = nullptr
     ) = 0;
     
     /**

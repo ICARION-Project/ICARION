@@ -61,7 +61,8 @@ SimulationEngine::SimulationEngine(
     force_registries_(std::move(force_registries)),
     integrator_(integrator),
     collision_handler_(collision_handler),
-    reaction_handler_(reaction_handler)
+    reaction_handler_(reaction_handler),
+    deep_collision_diagnostics_(config_.output)
 {
     // Validate force registries (must have one per domain)
     if (force_registries_.size() != config_.domains.size()) {
@@ -381,6 +382,7 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     current_time_ = 0.0;
     current_step_ = 0;
     dt_per_ion_.assign(ensemble.size(), config_.simulation.dt_s);
+    deep_collision_diagnostics_.reset(ensemble.size());
     
     output_manager_->log_progress("Starting main simulation loop (SoA)");
     
@@ -461,6 +463,10 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
     
     // Direct SoA finalization (no conversion overhead)
     output_manager_->finalize(current_time_, ensemble);
+    if (deep_collision_diagnostics_.enabled()) {
+        const std::string hdf5_path = config_.output.folder + "/" + config_.output.trajectory_file;
+        deep_collision_diagnostics_.write_hdf5(hdf5_path);
+    }
     
     // Safety report
     if (config_.simulation.enable_safety_logging) {
@@ -1463,7 +1469,7 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
     const auto* active = ensemble.active_data();
     const auto* born = ensemble.born_data();
 
-    const bool has_batch = collision_handler_->supports_batch();
+    const bool has_batch = collision_handler_->supports_batch() && !deep_collision_diagnostics_.enabled();
     const size_t domain_count = config_.domains.size();
     std::vector<std::vector<size_t>> per_domain(domain_count);
     for (size_t i = 0; i < n; ++i) {
@@ -1497,7 +1503,7 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
             }
         }
         if (!handled) {
-            handle_collisions_cpu(ensemble, dt_used_per_ion, indices, env);
+            handle_collisions_cpu(ensemble, dt_used_per_ion, indices, env, static_cast<int>(dom));
         }
     }
 }
@@ -1505,7 +1511,8 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
 void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
                                              const std::vector<double>& dt_used_per_ion,
                                              const std::vector<size_t>& indices,
-                                             const config::EnvironmentConfig& env) {
+                                             const config::EnvironmentConfig& env,
+                                             int domain_index) {
     if (!collision_handler_ || indices.empty()) {
         return;
     }
@@ -1529,8 +1536,32 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
             auto view = ensemble.collision_data(ion_idx);
             const double collision_dt = dt_used_per_ion[ion_idx] / static_cast<double>(collision_substeps);
             for (int substep = 0; substep < collision_substeps; ++substep) {
-                collision_handler_->handle_collision(
-                    view, collision_dt, rng_by_ion_[ion_idx], env);
+                physics::CollisionEventDiagnostics event_diag{};
+                const bool collect_deep = deep_collision_diagnostics_.enabled();
+                const Vec3 pos_before = collect_deep ? view.kin.pos() : Vec3{};
+                const Vec3 vel_before = collect_deep ? view.kin.vel() : Vec3{};
+                const bool collided = collision_handler_->handle_collision(
+                    view,
+                    collision_dt,
+                    rng_by_ion_[ion_idx],
+                    env,
+                    collect_deep ? &event_diag : nullptr);
+                if (collect_deep) {
+                    const double event_time =
+                        current_time_ + (static_cast<double>(substep) + 0.5) * collision_dt;
+                    deep_collision_diagnostics_.note_collision(
+                        ion_idx,
+                        domain_index,
+                        collided,
+                        event_time,
+                        view.kin.get_mass(),
+                        pos_before,
+                        event_diag.v_rel_before_m_s,
+                        event_diag.sigma_mt_m2,
+                        vel_before,
+                        view.kin.vel(),
+                        !active[ion_idx]);
+                }
             }
         }
     }

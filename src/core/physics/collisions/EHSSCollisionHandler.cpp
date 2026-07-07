@@ -71,7 +71,8 @@ bool EHSSCollisionHandler::handle_collision(
     core::IonCollisionData& view,
     double dt,
     PhysicsRng& rng,
-    const config::EnvironmentConfig& env
+    const config::EnvironmentConfig& env,
+    CollisionEventDiagnostics* diagnostics
 ) {
     auto mark_once = [&](std::unordered_set<std::string>& set, const std::string& key) {
         std::lock_guard<std::mutex> lock(state_mutex_);
@@ -250,6 +251,10 @@ bool EHSSCollisionHandler::handle_collision(
 
         ion.vel = v_post;
         view.kin.set_vel(ion.vel);
+        if (diagnostics) {
+            diagnostics->v_rel_before_m_s = v_rel_mag;
+            diagnostics->sigma_mt_m2 = sigma_eff;
+        }
         record_collision();
         return true;
     };

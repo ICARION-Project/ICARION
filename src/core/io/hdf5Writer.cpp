@@ -26,6 +26,7 @@
 #include <sstream>
 #include <algorithm>
 #include <set>
+#include <stdexcept>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -886,6 +887,177 @@ void HDF5Writer::finalize(
         
     } catch (const H5::Exception& e) {
         log::Logger::hdf5()->error("Failed to finalize HDF5 file: {}", e.getCDetailMsg());
+        throw;
+    }
+}
+
+void HDF5Writer::write_deep_collision_diagnostics(
+    const std::string& filename,
+    const std::string& mode,
+    int domain_filter_index,
+    int sample_every_n,
+    int max_events_per_ion,
+    const std::vector<int32_t>& collisions_total,
+    const std::vector<int32_t>& cooling_axial_count,
+    const std::vector<int32_t>& heating_axial_count,
+    const std::vector<double>& sum_delta_px_kgms,
+    const std::vector<double>& sum_delta_px2_kg2m2s2,
+    const std::vector<double>& sum_delta_py_kgms,
+    const std::vector<double>& sum_delta_py2_kg2m2s2,
+    const std::vector<double>& sum_delta_pz_kgms,
+    const std::vector<double>& sum_delta_pz2_kg2m2s2,
+    const std::vector<double>& sum_delta_ke_eV,
+    const std::vector<double>& mean_delta_px_kgms,
+    const std::vector<double>& mean_delta_py_kgms,
+    const std::vector<double>& mean_delta_pz_kgms,
+    const std::vector<double>& mean_delta_ke_eV,
+    const std::vector<double>& event_time_s,
+    const std::vector<uint32_t>& event_ion_index,
+    const std::vector<int32_t>& event_domain_index,
+    const std::vector<double>& event_delta_px_kgms,
+    const std::vector<double>& event_delta_py_kgms,
+    const std::vector<double>& event_delta_pz_kgms,
+    const std::vector<double>& event_delta_ke_eV,
+    const std::vector<double>& event_vx_before_ms,
+    const std::vector<double>& event_vx_after_ms,
+    const std::vector<double>& event_vy_before_ms,
+    const std::vector<double>& event_vy_after_ms,
+    const std::vector<double>& event_vz_before_ms,
+    const std::vector<double>& event_vz_after_ms,
+    const std::vector<double>& event_v_rel_before_ms,
+    const std::vector<double>& event_sigma_mt_m2,
+    const std::vector<double>& event_radius_m,
+    const std::vector<double>& event_vr_before_ms,
+    const std::vector<uint8_t>& event_ejected_flag
+) {
+    const size_t n = collisions_total.size();
+    if (n == 0) {
+        return;
+    }
+
+    auto same_size = [n](size_t s) { return s == n; };
+    if (!same_size(cooling_axial_count.size()) ||
+        !same_size(heating_axial_count.size()) ||
+        !same_size(sum_delta_px_kgms.size()) ||
+        !same_size(sum_delta_px2_kg2m2s2.size()) ||
+        !same_size(sum_delta_py_kgms.size()) ||
+        !same_size(sum_delta_py2_kg2m2s2.size()) ||
+        !same_size(sum_delta_pz_kgms.size()) ||
+        !same_size(sum_delta_pz2_kg2m2s2.size()) ||
+        !same_size(sum_delta_ke_eV.size()) ||
+        !same_size(mean_delta_px_kgms.size()) ||
+        !same_size(mean_delta_py_kgms.size()) ||
+        !same_size(mean_delta_pz_kgms.size()) ||
+        !same_size(mean_delta_ke_eV.size())) {
+        throw std::invalid_argument("write_deep_collision_diagnostics: per-ion dataset size mismatch");
+    }
+
+    const size_t e = event_time_s.size();
+    auto same_event_size = [e](size_t s) { return s == e; };
+    if (!same_event_size(event_ion_index.size()) ||
+        !same_event_size(event_domain_index.size()) ||
+        !same_event_size(event_delta_px_kgms.size()) ||
+        !same_event_size(event_delta_py_kgms.size()) ||
+        !same_event_size(event_delta_pz_kgms.size()) ||
+        !same_event_size(event_delta_ke_eV.size()) ||
+        !same_event_size(event_vx_before_ms.size()) ||
+        !same_event_size(event_vx_after_ms.size()) ||
+        !same_event_size(event_vy_before_ms.size()) ||
+        !same_event_size(event_vy_after_ms.size()) ||
+        !same_event_size(event_vz_before_ms.size()) ||
+        !same_event_size(event_vz_after_ms.size()) ||
+        !same_event_size(event_v_rel_before_ms.size()) ||
+        !same_event_size(event_sigma_mt_m2.size()) ||
+        !same_event_size(event_radius_m.size()) ||
+        !same_event_size(event_vr_before_ms.size()) ||
+        !same_event_size(event_ejected_flag.size())) {
+        throw std::invalid_argument("write_deep_collision_diagnostics: event dataset size mismatch");
+    }
+
+    try {
+        H5::H5File file(filename, H5F_ACC_RDWR);
+
+        H5::Group analysis_group;
+        if (H5Lexists(file.getId(), "/analysis", H5P_DEFAULT) > 0) {
+            analysis_group = file.openGroup("/analysis");
+        } else {
+            analysis_group = file.createGroup("/analysis");
+        }
+
+        if (H5Lexists(analysis_group.getId(), "deep_collision", H5P_DEFAULT) > 0) {
+            (void)H5Ldelete(analysis_group.getId(), "deep_collision", H5P_DEFAULT);
+        }
+        H5::Group deep = analysis_group.createGroup("deep_collision");
+
+        write_string(deep, "mode", mode);
+        write_scalar(deep, "domain_filter_index", domain_filter_index);
+        write_scalar(deep, "sample_every_n", sample_every_n);
+        write_scalar(deep, "max_events_per_ion", max_events_per_ion);
+
+        auto write_i32 = [&](const std::string& name, const std::vector<int32_t>& data) {
+            hsize_t dims[1] = {data.size()};
+            H5::DataSpace space(1, dims);
+            H5::DataSet ds = deep.createDataSet(name, H5::PredType::NATIVE_INT32, space);
+            ds.write(data.data(), H5::PredType::NATIVE_INT32);
+        };
+
+        write_i32("collisions_total", collisions_total);
+        write_i32("cooling_axial_count", cooling_axial_count);
+        write_i32("heating_axial_count", heating_axial_count);
+        write_array(deep, "sum_delta_px_kgms", sum_delta_px_kgms);
+        write_array(deep, "sum_delta_px2_kg2m2s2", sum_delta_px2_kg2m2s2);
+        write_array(deep, "sum_delta_py_kgms", sum_delta_py_kgms);
+        write_array(deep, "sum_delta_py2_kg2m2s2", sum_delta_py2_kg2m2s2);
+        write_array(deep, "sum_delta_pz_kgms", sum_delta_pz_kgms);
+        write_array(deep, "sum_delta_pz2_kg2m2s2", sum_delta_pz2_kg2m2s2);
+        write_array(deep, "sum_delta_ke_eV", sum_delta_ke_eV);
+        write_array(deep, "mean_delta_px_kgms", mean_delta_px_kgms);
+        write_array(deep, "mean_delta_py_kgms", mean_delta_py_kgms);
+        write_array(deep, "mean_delta_pz_kgms", mean_delta_pz_kgms);
+        write_array(deep, "mean_delta_ke_eV", mean_delta_ke_eV);
+
+        if (e > 0) {
+            H5::Group events = deep.createGroup("events");
+
+            auto write_u32 = [&](const std::string& name, const std::vector<uint32_t>& data) {
+                hsize_t dims[1] = {data.size()};
+                H5::DataSpace space(1, dims);
+                H5::DataSet ds = events.createDataSet(name, H5::PredType::NATIVE_UINT32, space);
+                ds.write(data.data(), H5::PredType::NATIVE_UINT32);
+            };
+            auto write_ev_i32 = [&](const std::string& name, const std::vector<int32_t>& data) {
+                hsize_t dims[1] = {data.size()};
+                H5::DataSpace space(1, dims);
+                H5::DataSet ds = events.createDataSet(name, H5::PredType::NATIVE_INT32, space);
+                ds.write(data.data(), H5::PredType::NATIVE_INT32);
+            };
+
+            write_array(events, "time_s", event_time_s);
+            write_u32("ion_index", event_ion_index);
+            write_ev_i32("domain_index", event_domain_index);
+            write_array(events, "delta_px_kgms", event_delta_px_kgms);
+            write_array(events, "delta_py_kgms", event_delta_py_kgms);
+            write_array(events, "delta_pz_kgms", event_delta_pz_kgms);
+            write_array(events, "delta_ke_eV", event_delta_ke_eV);
+            write_array(events, "vx_before_ms", event_vx_before_ms);
+            write_array(events, "vx_after_ms", event_vx_after_ms);
+            write_array(events, "vy_before_ms", event_vy_before_ms);
+            write_array(events, "vy_after_ms", event_vy_after_ms);
+            write_array(events, "vz_before_ms", event_vz_before_ms);
+            write_array(events, "vz_after_ms", event_vz_after_ms);
+            write_array(events, "v_rel_before_ms", event_v_rel_before_ms);
+            write_array(events, "sigma_mt_m2", event_sigma_mt_m2);
+            write_array(events, "radius_m", event_radius_m);
+            write_array(events, "vr_before_ms", event_vr_before_ms);
+            hsize_t dims[1] = {event_ejected_flag.size()};
+            H5::DataSpace space(1, dims);
+            H5::DataSet ds = events.createDataSet("ejected_flag", H5::PredType::NATIVE_UINT8, space);
+            ds.write(event_ejected_flag.data(), H5::PredType::NATIVE_UINT8);
+        }
+
+        file.close();
+    } catch (const H5::Exception& e_h5) {
+        log::Logger::hdf5()->error("Failed to write deep collision diagnostics: {}", e_h5.getCDetailMsg());
         throw;
     }
 }

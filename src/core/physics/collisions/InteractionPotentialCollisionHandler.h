@@ -38,7 +38,8 @@ public:
         core::IonCollisionData& view,
         double dt,
         PhysicsRng& rng,
-        const config::EnvironmentConfig& env
+        const config::EnvironmentConfig& env,
+        CollisionEventDiagnostics* diagnostics = nullptr
     ) override;
 
     std::string name() const override { return "InteractionPotentialModel"; }

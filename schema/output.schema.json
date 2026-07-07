@@ -36,6 +36,38 @@
       "minimum": 0,
       "default": 0,
       "description": "Optional RAM cap for trajectory buffer in bytes (0 = unlimited)"
+    },
+
+    "deep_analysis": {
+      "type": "object",
+      "description": "Optional per-ion and per-event collision diagnostics written to /analysis/deep_collision",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["off", "summary", "sampled_events", "full_events"],
+          "default": "off",
+          "description": "Deep collision diagnostics mode. summary stores per-ion aggregates; sampled_events/full_events additionally store event rows"
+        },
+        "domain_filter_index": {
+          "type": "integer",
+          "minimum": -1,
+          "default": -1,
+          "description": "Restrict diagnostics to one domain index, or -1 for all domains"
+        },
+        "sample_every_n": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10,
+          "description": "For sampled_events mode, store every Nth collision event per ion"
+        },
+        "max_events_per_ion": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Optional cap on stored event rows per ion (0 = unlimited)"
+        }
+      },
+      "additionalProperties": false
     }
   },
 

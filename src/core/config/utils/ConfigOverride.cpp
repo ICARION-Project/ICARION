@@ -106,6 +106,11 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         else if (key == "output.buffer_byte_cap") {
             config.output.buffer_byte_cap = static_cast<size_t>(parse_uint64(value, key));
         }
+        else if (key == "output.deep_analysis.mode" || key == "output.deep_analysis_mode") {
+            config.output.deep_analysis.mode_type = EnumMapper::parse_deep_analysis_mode(value);
+            config.output.deep_analysis.mode =
+                EnumMapper::deep_analysis_mode_to_string(config.output.deep_analysis.mode_type);
+        }
         
         // === Database paths ===
         else if (key == "species_database" || key == "database.species") {

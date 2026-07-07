@@ -43,3 +43,20 @@ TEST_CASE("ConfigOverride rejects unknown IPM orientation mode", "[config][overr
         ConfigOverride::apply(cfg, {{"physics.ipm_orientation_mode", "uniform"}}),
         Catch::Matchers::ContainsSubstring("Unknown ipm_orientation_mode"));
 }
+
+TEST_CASE("ConfigOverride applies deep collision analysis mode", "[config][override][output]") {
+    FullConfig cfg;
+
+    ConfigOverride::apply(cfg, {{"output.deep_analysis.mode", "sampled_events"}});
+
+    REQUIRE(cfg.output.deep_analysis.mode_type == DeepAnalysisMode::SampledEvents);
+    REQUIRE(cfg.output.deep_analysis.mode == "sampled_events");
+}
+
+TEST_CASE("ConfigOverride rejects unknown deep collision analysis mode", "[config][override][output]") {
+    FullConfig cfg;
+
+    REQUIRE_THROWS_WITH(
+        ConfigOverride::apply(cfg, {{"output.deep_analysis.mode", "verbose"}}),
+        Catch::Matchers::ContainsSubstring("Unknown deep_analysis.mode"));
+}

@@ -81,7 +81,7 @@ public:
     void setPerformanceMode(bool high_performance_mode) { m_high_performance = high_performance_mode; }
     
     /** @brief Update field only every N timesteps (0 = every step) */
-    void setUpdateFrequency(int every_n_steps) { m_update_frequency = every_n_steps; }
+    void setUpdateFrequency(int every_n_steps) { m_update_frequency = (every_n_steps <= 0) ? 1 : every_n_steps; }
     
     /** @brief Cache field values to reduce interpolation overhead */
     void enableFieldCaching(bool enable) { m_cache_fields = enable; }
@@ -144,6 +144,7 @@ private:
     mutable FieldArray m_cached_field;
     mutable bool m_field_cache_valid = false;
     size_t m_last_ion_count = 0;
+    std::vector<unsigned char> m_last_active_born_flags;
     int m_step_counter = 0;
     std::vector<Vec3> m_last_ion_positions;
     const ICARION::config::IDomainGeometry* m_geometry_mask = nullptr;

@@ -27,7 +27,14 @@
     "enable_space_charge_gpu": {
       "type": "boolean",
       "default": false,
-      "description": "Enable GPU implementation of space-charge solver"
+      "description": "Request the GPU implementation of the space-charge solver when space_charge_model is auto and CUDA is available"
+    },
+
+    "space_charge_model": {
+      "type": "string",
+      "enum": ["auto", "direct", "grid", "gpu"],
+      "default": "auto",
+      "description": "Space charge backend selection. auto uses Direct for small ion counts, Grid for larger ion counts, and may use GPU when enable_space_charge_gpu is true and CUDA is available. direct and grid force the corresponding CPU backend; gpu requires an available CUDA backend."
     },
 
     "collision_multi_event_mode": {

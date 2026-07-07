@@ -580,8 +580,8 @@ Multi-domain geometry handling lives in `IDomainGeometry` strategies (e.g., `Cyl
   - `SpaceChargeDirectModel` – exact O(N²), per-domain for small ion counts.
   - `SpaceChargeGridModel` – geometry-driven Poisson solver (Dirichlet masks + bounding boxes from `IDomainGeometry`).
   - `SpaceChargeGPUModel` – wraps `gpu::GPUSpaceChargeP3M`; compiles as a stub in CPU-only builds.
-- `SpaceChargeModelFactory` decides per-domain: try GPU when `physics.enable_space_charge_gpu` and CUDA build (and ion count meets the GPU threshold), otherwise use direct for small ensembles and grid for larger ones. Logging records fallbacks automatically.
-- Configuration overrides / CLI: `physics.enable_space_charge` toggles feature, `physics.enable_space_charge_gpu` requests GPU acceleration (safe to enable even on CPU because the factory degrades gracefully).
+- `SpaceChargeModelFactory` decides per-domain from `physics.space_charge_model`: `auto` selects Direct for small ensembles and Grid for larger ones, with optional GPU P³M when `physics.enable_space_charge_gpu` and CUDA are available; `direct` and `grid` force the CPU backends.
+- Configuration overrides / CLI: `physics.enable_space_charge` toggles the feature, `physics.space_charge_model` selects `auto|direct|grid|gpu`, and `physics.enable_space_charge_gpu` requests GPU acceleration in `auto` mode.
 
 ### Step-by-Step Guide
 

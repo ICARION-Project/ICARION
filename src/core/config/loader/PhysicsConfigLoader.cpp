@@ -28,6 +28,9 @@ PhysicsConfig PhysicsConfigLoader::load(const Json::Value& json) {
     if (json.isMember("enable_space_charge_gpu") && json["enable_space_charge_gpu"].isBool()) {
         config.enable_space_charge_gpu = json["enable_space_charge_gpu"].asBool();
     }
+    if (json.isMember("space_charge_model") && json["space_charge_model"].isString()) {
+        config.space_charge_model_type = EnumMapper::parse_space_charge_model(json["space_charge_model"].asString());
+    }
     // Stochastic collision event handling
     if (json.isMember("collision_multi_event_mode") && json["collision_multi_event_mode"].isBool()) {
         config.collision_multi_event_mode = json["collision_multi_event_mode"].asBool();
@@ -74,6 +77,7 @@ PhysicsConfig PhysicsConfigLoader::load(const Json::Value& json) {
     // Validate
     config.validate();
 
+    config.space_charge_model = EnumMapper::space_charge_model_to_string(config.space_charge_model_type);
     config.ipm_orientation_mode = EnumMapper::ipm_orientation_mode_to_string(config.ipm_orientation_mode_type);
 
     return config;

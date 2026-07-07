@@ -3,6 +3,7 @@
 // Copyright (c) 2026 Christoph Schaefer
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include "core/config/loader/ConfigLoader.h"
 #include <fstream>
@@ -142,6 +143,94 @@ TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
     REQUIRE(cfg.config_file_path[0] == '/');  // Absolute path starts with /
     REQUIRE(cfg.config_file_path.find(".json") != std::string::npos);
     REQUIRE(std::filesystem::exists(cfg.config_file_path));
+}
+
+TEST_CASE("ConfigLoader parses space-charge model enum", "[config][loader][physics]") {
+    std::string config = R"({
+        "simulation": {
+            "dt_s": 1e-9,
+            "total_time_s": 1e-6,
+            "integrator": "RK4",
+            "write_interval": 100
+        },
+        "physics": {
+            "collision_model": "NoCollisions",
+            "enable_space_charge": true,
+            "space_charge_model": "direct"
+        },
+        "output": {
+            "folder": "./output",
+            "trajectory_file": "test.h5"
+        },
+        "ions": {
+            "species": [
+                {
+                    "id": "H3O+",
+                    "count": 1,
+                    "position": {"type": "point", "center": [0.0, 0.0, 0.001]},
+                    "velocity": {"type": "thermal", "temperature_K": 300.0}
+                }
+            ]
+        },
+        "domains": [
+            {
+                "name": "test_domain",
+                "instrument": "IMS",
+                "geometry": {"length_m": 0.1, "radius_m": 0.01},
+                "environment": {"pressure_Pa": 101325.0, "temperature_K": 300.0, "gas_species": "He"},
+                "fields": {"dc": {"axial_V": 0.0}}
+            }
+        ]
+    })";
+
+    std::string path = create_temp_config(config, "_space_charge_model");
+    FullConfig cfg = ConfigLoader::load(path);
+
+    REQUIRE(cfg.physics.space_charge_model_type == SpaceChargeModel::Direct);
+    REQUIRE(cfg.physics.space_charge_model == "direct");
+}
+
+TEST_CASE("ConfigLoader rejects unknown space-charge model", "[config][loader][physics]") {
+    std::string config = R"({
+        "simulation": {
+            "dt_s": 1e-9,
+            "total_time_s": 1e-6,
+            "integrator": "RK4",
+            "write_interval": 100
+        },
+        "physics": {
+            "collision_model": "NoCollisions",
+            "space_charge_model": "fmm"
+        },
+        "output": {
+            "folder": "./output",
+            "trajectory_file": "test.h5"
+        },
+        "ions": {
+            "species": [
+                {
+                    "id": "H3O+",
+                    "count": 1,
+                    "position": {"type": "point", "center": [0.0, 0.0, 0.001]},
+                    "velocity": {"type": "thermal", "temperature_K": 300.0}
+                }
+            ]
+        },
+        "domains": [
+            {
+                "name": "test_domain",
+                "instrument": "IMS",
+                "geometry": {"length_m": 0.1, "radius_m": 0.01},
+                "environment": {"pressure_Pa": 101325.0, "temperature_K": 300.0, "gas_species": "He"},
+                "fields": {"dc": {"axial_V": 0.0}}
+            }
+        ]
+    })";
+
+    std::string path = create_temp_config(config, "_space_charge_model_bad");
+    REQUIRE_THROWS_WITH(
+        ConfigLoader::load(path),
+        Catch::Matchers::ContainsSubstring("Unknown space_charge_model"));
 }
 
 TEST_CASE("ConfigLoader parses deep collision analysis output config", "[config][loader][output]") {

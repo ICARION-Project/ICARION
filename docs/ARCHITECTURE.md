@@ -117,8 +117,8 @@ Forces implement `IForce` and register with `ForceRegistry`. There is a single S
 - `ISpaceChargeModel` – interface implemented by:
   - `SpaceChargeDirectModel` (per-domain, O(N²))
   - `SpaceChargeGridModel` (geometry-aware Poisson solver)
-  - `SpaceChargeGPUModel` (experimental GPU P³M; enabled via `physics.enable_space_charge_gpu`)
-- `SpaceChargeModelFactory` selects the model per-domain (GPU if available, otherwise Direct for small N, else Grid) and `ForceRegistry` injects the Coulomb field into the SoA loop without AoS fallbacks.
+  - `SpaceChargeGPUModel` (experimental GPU P³M; selected via `physics.space_charge_model=gpu` or requested by `enable_space_charge_gpu` in auto mode)
+- `SpaceChargeModelFactory` selects the model per-domain from `physics.space_charge_model`: `auto` chooses Direct for small N and Grid for larger N, optionally trying GPU P³M when requested and available. `direct` and `grid` force the CPU implementations. `ForceRegistry` injects the Coulomb field into the SoA loop without AoS fallbacks.
 
 **Key Files:**
 - `src/core/physics/forces/ForceRegistry.{h,cpp}` - Force management

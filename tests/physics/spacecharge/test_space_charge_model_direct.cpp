@@ -12,6 +12,8 @@
 #include "core/types/Vec3.h"
 #include "utils/constants.h"
 
+#include <stdexcept>
+
 using namespace ICARION;
 using namespace ICARION::physics;
 using namespace ICARION::config;
@@ -93,4 +95,84 @@ TEST_CASE("ForceRegistry uses space-charge model contribution", "[spacecharge][f
     REQUIRE_THAT(total_force.y, WithinAbs(-expected_force_mag, 1e-6 * expected_force_mag));
     REQUIRE_THAT(total_force.x, WithinAbs(0.0, 1e-12));
     REQUIRE_THAT(total_force.z, WithinAbs(0.0, 1e-12));
+}
+
+TEST_CASE("SpaceChargeDirectModel handles edge cases", "[spacecharge][direct-model][edge]") {
+    SECTION("Zero ions") {
+        IonEnsemble empty = IonEnsemble::from_legacy({});
+        SpaceChargeDirectModel model{0.0};
+
+        REQUIRE_NOTHROW(model.update_fields(empty, 0.0));
+        auto E = model.sample_electric_field(0);
+
+        REQUIRE_THAT(E.x, WithinAbs(0.0, 1e-30));
+        REQUIRE_THAT(E.y, WithinAbs(0.0, 1e-30));
+        REQUIRE_THAT(E.z, WithinAbs(0.0, 1e-30));
+    }
+
+    SECTION("Single ion has no self-field") {
+        IonState ion = make_ion(core::Vec3{0.0, 0.0, 0.0}, ELEM_CHARGE_C);
+        IonEnsemble ensemble = IonEnsemble::from_legacy({ion});
+        SpaceChargeDirectModel model{0.0};
+
+        model.update_fields(ensemble, 0.0);
+        auto E = model.sample_electric_field(0);
+
+        REQUIRE_THAT(E.x, WithinAbs(0.0, 1e-30));
+        REQUIRE_THAT(E.y, WithinAbs(0.0, 1e-30));
+        REQUIRE_THAT(E.z, WithinAbs(0.0, 1e-30));
+    }
+
+    SECTION("Inactive ion is excluded") {
+        IonState active_ion = make_ion(core::Vec3{0.0, 0.0, 0.0}, ELEM_CHARGE_C);
+        IonState inactive_ion = make_ion(core::Vec3{1e-6, 0.0, 0.0}, ELEM_CHARGE_C);
+        inactive_ion.active = false;
+        IonEnsemble ensemble = IonEnsemble::from_legacy({active_ion, inactive_ion});
+        SpaceChargeDirectModel model{0.0};
+
+        model.update_fields(ensemble, 0.0);
+        auto E = model.sample_electric_field(0);
+
+        REQUIRE_THAT(E.x, WithinAbs(0.0, 1e-30));
+        REQUIRE_THAT(E.y, WithinAbs(0.0, 1e-30));
+        REQUIRE_THAT(E.z, WithinAbs(0.0, 1e-30));
+    }
+
+    SECTION("N-body force sum cancels") {
+        std::vector<core::Vec3> positions = {
+            {0.0, 0.0, 0.0},
+            {3e-6, 0.0, 0.0},
+            {0.0, 4e-6, 0.0},
+            {1e-6, 1e-6, 2e-6}};
+        std::vector<IonState> ions;
+        for (const auto& pos : positions) {
+            ions.push_back(make_ion(pos, ELEM_CHARGE_C));
+        }
+
+        IonEnsemble ensemble = IonEnsemble::from_legacy(ions);
+        SpaceChargeDirectModel model{0.0};
+        model.update_fields(ensemble, 0.0);
+
+        core::Vec3 force_sum{0.0, 0.0, 0.0};
+        for (size_t i = 0; i < ensemble.size(); ++i) {
+            force_sum += model.sample_electric_field(i) * ELEM_CHARGE_C;
+        }
+
+        REQUIRE_THAT(force_sum.x, WithinAbs(0.0, 1e-20));
+        REQUIRE_THAT(force_sum.y, WithinAbs(0.0, 1e-20));
+        REQUIRE_THAT(force_sum.z, WithinAbs(0.0, 1e-20));
+    }
+
+    SECTION("Negative softening is rejected") {
+        REQUIRE_THROWS_AS(SpaceChargeDirectModel(-1e-12), std::invalid_argument);
+    }
+
+    SECTION("Out-of-bounds sample returns zero") {
+        SpaceChargeDirectModel model{0.0};
+        auto E = model.sample_electric_field(999);
+
+        REQUIRE_THAT(E.x, WithinAbs(0.0, 1e-30));
+        REQUIRE_THAT(E.y, WithinAbs(0.0, 1e-30));
+        REQUIRE_THAT(E.z, WithinAbs(0.0, 1e-30));
+    }
 }

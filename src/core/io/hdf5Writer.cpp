@@ -1089,6 +1089,8 @@ void HDF5Writer::write_config_metadata(
     write_scalar(cfg_group, "enable_reactions", config.physics.enable_reactions);
     write_scalar(cfg_group, "enable_space_charge", config.physics.enable_space_charge);
     write_scalar(cfg_group, "enable_space_charge_gpu", config.physics.enable_space_charge_gpu);
+    write_string(cfg_group, "space_charge_model",
+                 config::EnumMapper::space_charge_model_to_string(config.physics.space_charge_model_type));
     write_scalar(cfg_group, "enable_gpu", config.simulation.enable_gpu);
     
     write_string(cfg_group, "output_file", config.output.trajectory_file);

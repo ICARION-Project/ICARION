@@ -368,6 +368,7 @@ Hierarchical Structure:
     enable_reactions        bool        Chemical reactions enabled?
     enable_space_charge     bool        Space charge enabled?
     enable_space_charge_gpu bool        Prefer GPU space charge (if available)?
+    space_charge_model      string      Space charge backend (auto, direct, grid, gpu)
     enable_gpu          bool        GPU acceleration enabled?
     output_file         string      Output trajectory file name
 

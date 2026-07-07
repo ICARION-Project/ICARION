@@ -204,6 +204,35 @@ public:
             default: return "off";
         }
     }
+
+    /**
+     * @brief Parse space-charge model from string (case-insensitive)
+     * @throws std::runtime_error if unknown
+     */
+    static SpaceChargeModel parse_space_charge_model(const std::string& str) {
+        static const std::unordered_map<std::string, SpaceChargeModel> map = {
+            {"auto", SpaceChargeModel::Auto},
+            {"direct", SpaceChargeModel::Direct},
+            {"grid", SpaceChargeModel::Grid},
+            {"gpu", SpaceChargeModel::GPU}
+        };
+        auto it = map.find(to_lower(str));
+        if (it == map.end()) {
+            throw std::runtime_error(
+                "Unknown space_charge_model: '" + str + "'. Expected: auto, direct, grid, gpu");
+        }
+        return it->second;
+    }
+
+    static std::string space_charge_model_to_string(SpaceChargeModel m) {
+        switch (m) {
+            case SpaceChargeModel::Auto: return "auto";
+            case SpaceChargeModel::Direct: return "direct";
+            case SpaceChargeModel::Grid: return "grid";
+            case SpaceChargeModel::GPU: return "gpu";
+            default: return "auto";
+        }
+    }
     
     /**
      * @brief Parse InteractionPotentialModel orientation mode from string (case-insensitive)

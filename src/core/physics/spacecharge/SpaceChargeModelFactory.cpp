@@ -104,17 +104,35 @@ SpaceChargeModelPtr SpaceChargeModelFactory::create(const config::FullConfig& co
         return nullptr;
     }
 
+    const auto model_type = config.physics.space_charge_model_type;
+
+    if (model_type == config::SpaceChargeModel::Direct) {
+        return std::make_shared<SpaceChargeDirectModel>(DIRECT_SOFTENING_M);
+    }
+
+    if (model_type == config::SpaceChargeModel::Grid) {
+        auto geometry = make_geometry(domain);
+        return std::make_shared<SpaceChargeGridModel>(
+            domain, std::move(geometry), GRID_PADDING_M, GRID_TARGET_RESOLUTION);
+    }
+
 #ifdef ICARION_USE_GPU
-    if (config.physics.enable_space_charge_gpu) {
+    if (model_type == config::SpaceChargeModel::GPU || config.physics.enable_space_charge_gpu) {
         if (auto gpu_model = try_create_gpu_model(config, domain, ion_count)) {
             return gpu_model;
         }
+        if (model_type == config::SpaceChargeModel::GPU) {
+            return nullptr;
+        }
+    }
+#else
+    if (model_type == config::SpaceChargeModel::GPU) {
+        return nullptr;
     }
 #endif
 
     if (ion_count < DIRECT_THRESHOLD) {
-        constexpr double DEFAULT_SOFTENING = 1e-10;
-        return std::make_shared<SpaceChargeDirectModel>(DEFAULT_SOFTENING);
+        return std::make_shared<SpaceChargeDirectModel>(DIRECT_SOFTENING_M);
     }
 
     auto geometry = make_geometry(domain);

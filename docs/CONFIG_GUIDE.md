@@ -912,6 +912,7 @@ See `schema/simulation.schema.json` for all options.
   "enable_reactions": false,
   "enable_space_charge": false,
   "enable_space_charge_gpu": false, // Prefer GPU P³M (requires CUDA build; falls back automatically)
+  "space_charge_model": "auto",     // auto, direct, grid, gpu
   "collision_subcycles_per_step": 1,
   "ipm_orientation_mode": "random"
 }
@@ -923,7 +924,7 @@ See `schema/simulation.schema.json` for all options.
 
 **InteractionPotentialModel controls:** `ipm_orientation_mode` accepts `random` or `fixed`; fixed mode uses `ipm_fixed_orientation_index`. Optional `ipm_vrel_log_prefix` and `ipm_momentum_log_prefix` enable CSV diagnostics. Species should reference offline sample files with the canonical `ipm_samples_file` key.
 
-**Space charge:** Set `enable_space_charge` to true to activate Coulomb coupling. Optional `enable_space_charge_gpu` requests the GPU P³M solver (only when ICARION is built with CUDA); otherwise the factory automatically falls back to grid/direct CPU implementations.
+**Space charge:** Set `enable_space_charge` to true to activate Coulomb coupling. `space_charge_model` selects the backend: `auto` uses Direct for small ion counts and Grid for larger ion counts, `direct` forces the O(N²) direct summation model, `grid` forces the geometry-aware Poisson model, and `gpu` requires an available CUDA-backed model. `enable_space_charge_gpu=true` requests GPU P³M only in `auto` mode; CPU builds or unavailable GPU contexts fall back to Direct/Grid.
 
 See `schema/physics.schema.json` for all options.
 

@@ -91,6 +91,27 @@ set_tests_properties(SpaceChargeDirectModel PROPERTIES
     TIMEOUT 10
 )
 
+# Factory model selection
+add_executable(test_space_charge_factory
+    test_space_charge_factory.cpp
+)
+
+target_include_directories(test_space_charge_factory PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_space_charge_factory PRIVATE
+    Catch2::Catch2WithMain
+    icarion_core
+)
+
+add_test(NAME SpaceChargeFactory COMMAND test_space_charge_factory)
+set_tests_properties(SpaceChargeFactory PROPERTIES
+    LABELS "physics;spacecharge;factory"
+    TIMEOUT 10
+)
+
 # Grid model parity vs direct
 add_executable(test_space_charge_model_parity
     test_space_charge_model_parity.cpp

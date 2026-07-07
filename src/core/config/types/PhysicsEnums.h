@@ -23,6 +23,16 @@ enum class CollisionModel {
 };
 
 /**
+ * @brief Space-charge solver model selection.
+ */
+enum class SpaceChargeModel {
+    Auto,   ///< Automatic selection based on particle count / GPU availability
+    Direct, ///< O(N^2) direct summation
+    Grid,   ///< Particle-mesh / grid-based solver
+    GPU     ///< GPU-accelerated model when CUDA support is available
+};
+
+/**
  * @brief Orientation sampling mode for the InteractionPotentialModel/IPM collision model
  */
 enum class IPMOrientationMode {

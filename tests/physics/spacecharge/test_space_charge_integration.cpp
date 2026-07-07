@@ -416,3 +416,95 @@ TEST_CASE("SpaceCharge Integration: Force symmetry", "[spacecharge][integration]
         REQUIRE_THAT(F_total.z, WithinAbs(0.0, 1e-30));
     }
 }
+
+TEST_CASE("SpaceChargeSolver update frequency zero refreshes every step",
+          "[spacecharge][solver][regression]") {
+    SpaceChargeSolver solver(32, 32, 32,
+                             3e-5, 3e-5, 3e-5,
+                             Vec3{-5e-4, -5e-4, -5e-4});
+
+    solver.setPerformanceMode(true);
+    solver.setUpdateFrequency(0);
+
+    IonState ion;
+    ion.pos = Vec3{0.0, 0.0, 0.0};
+    ion.vel = Vec3{0.0, 0.0, 0.0};
+    ion.active = true;
+    ion.born = true;
+    ion.mass_kg = AMU_TO_KG;
+    ion.ion_charge_C = 1e-12;
+
+    std::vector<IonState> ions{ion};
+    solver.update(ions);
+    const double e1 = norm(solver.fieldAt(Vec3{2e-4, 0.0, 0.0}));
+
+    ions[0].ion_charge_C = 2e-12;
+    solver.update(ions);
+    const double e2 = norm(solver.fieldAt(Vec3{2e-4, 0.0, 0.0}));
+
+    REQUIRE(e1 > 0.0);
+    REQUIRE(e2 > 1.5 * e1);
+}
+
+TEST_CASE("SpaceChargeSolver refreshes when active ions deactivate",
+          "[spacecharge][solver][regression]") {
+    SpaceChargeSolver solver(32, 32, 32,
+                             3e-5, 3e-5, 3e-5,
+                             Vec3{-5e-4, -5e-4, -5e-4});
+
+    solver.setPerformanceMode(false);
+    solver.setAdaptiveUpdateThreshold(1.0);
+
+    IonState ion;
+    ion.pos = Vec3{0.0, 0.0, 0.0};
+    ion.vel = Vec3{0.0, 0.0, 0.0};
+    ion.active = true;
+    ion.born = true;
+    ion.mass_kg = AMU_TO_KG;
+    ion.ion_charge_C = 1e-12;
+
+    std::vector<IonState> ions{ion};
+    solver.update(ions);
+    const double e_active = norm(solver.fieldAt(Vec3{2e-4, 0.0, 0.0}));
+
+    ions[0].active = false;
+    solver.update(ions);
+    const double e_inactive = norm(solver.fieldAt(Vec3{2e-4, 0.0, 0.0}));
+
+    REQUIRE(e_active > 0.0);
+    REQUIRE(e_inactive < 0.01 * e_active);
+}
+
+TEST_CASE("SpaceChargeSolver refreshes when active ion identity changes",
+          "[spacecharge][solver][regression]") {
+    SpaceChargeSolver solver(32, 32, 32,
+                             3e-5, 3e-5, 3e-5,
+                             Vec3{-5e-4, -5e-4, -5e-4});
+
+    solver.setPerformanceMode(false);
+    solver.setAdaptiveUpdateThreshold(1.0);
+
+    IonState ion0;
+    ion0.pos = Vec3{-2e-4, 0.0, 0.0};
+    ion0.vel = Vec3{0.0, 0.0, 0.0};
+    ion0.active = true;
+    ion0.born = true;
+    ion0.mass_kg = AMU_TO_KG;
+    ion0.ion_charge_C = 1e-12;
+
+    IonState ion1 = ion0;
+    ion1.pos = Vec3{2e-4, 0.0, 0.0};
+    ion1.active = false;
+
+    std::vector<IonState> ions{ion0, ion1};
+    solver.update(ions);
+    const double ex_left_active = solver.fieldAt(Vec3{0.0, 0.0, 0.0}).x;
+
+    ions[0].active = false;
+    ions[1].active = true;
+    solver.update(ions);
+    const double ex_right_active = solver.fieldAt(Vec3{0.0, 0.0, 0.0}).x;
+
+    REQUIRE(ex_left_active > 0.0);
+    REQUIRE(ex_right_active < 0.0);
+}

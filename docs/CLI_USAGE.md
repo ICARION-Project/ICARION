@@ -267,6 +267,7 @@ Can be specified multiple times to override multiple values.
 - `physics.enable_reactions` - Enable chemical reactions (true/false)
 - `physics.enable_space_charge` - Enable space charge effects (true/false)
 - `physics.enable_space_charge_gpu` - Prefer GPU-based P³M space charge (if built with CUDA; falls back to CPU if unavailable)
+- `physics.space_charge_model` - Space charge backend (`auto`, `direct`, `grid`, `gpu`)
 - `physics.enable_ou_thermalization` - Enable Ornstein-Uhlenbeck thermalization for deterministic collision models (requires custom wiring of `gamma_for_ou`; incompatible with HSS/EHSS)
 - `physics.collision_subcycles_per_step` - Split stochastic collision updates into this many micro-steps
 - `physics.collision_multi_event_mode` - Enable approximate multi-collision micro-subcycling (true/false)

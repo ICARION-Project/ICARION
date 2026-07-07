@@ -25,6 +25,8 @@ struct PhysicsConfig {
     bool enable_reactions = false;
     bool enable_space_charge = false;
     bool enable_space_charge_gpu = false;
+    SpaceChargeModel space_charge_model_type = SpaceChargeModel::Auto; ///< Canonical. Parsed from JSON "space_charge_model".
+    std::string space_charge_model = "auto"; ///< Compatibility mirror — do not dispatch on this.
 
     // === Stochastic collision event handling ===
     bool collision_multi_event_mode = false;   ///< If true, enable multi-collision approximation via micro-subcycling inside each dt.

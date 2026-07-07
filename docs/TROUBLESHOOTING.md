@@ -271,7 +271,7 @@ time ./icarion_main config.json  # Should be ~4-5× faster
 **Solution:**
 - Reduce ion count for testing
 - Disable space charge if not critical: `"enable_space_charge": false`
-- Note: GPU P³M is used when `enable_space_charge_gpu=true` and CUDA is available (above the threshold); otherwise the direct or grid model is used.
+- Note: `space_charge_model=auto` chooses direct summation for small ion counts and the grid model for larger counts. `enable_space_charge_gpu=true` requests GPU P³M in auto mode when CUDA is available; otherwise use `space_charge_model=direct` or `space_charge_model=grid` to force a CPU backend.
 
 ---
 

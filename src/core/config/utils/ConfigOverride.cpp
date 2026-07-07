@@ -57,6 +57,11 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         else if (key == "physics.enable_space_charge_gpu") {
             config.physics.enable_space_charge_gpu = parse_bool(value, key);
         }
+        else if (key == "physics.space_charge_model") {
+            config.physics.space_charge_model_type = EnumMapper::parse_space_charge_model(value);
+            config.physics.space_charge_model =
+                EnumMapper::space_charge_model_to_string(config.physics.space_charge_model_type);
+        }
         else if (key == "physics.enable_ou_thermalization") {
             config.physics.enable_ou_thermalization = parse_bool(value, key);
         }

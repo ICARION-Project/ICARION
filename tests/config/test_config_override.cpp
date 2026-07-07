@@ -36,6 +36,23 @@ TEST_CASE("ConfigOverride applies collision subcycle and IPM controls", "[config
     REQUIRE(cfg.physics.ipm_momentum_log_prefix == "momentum");
 }
 
+TEST_CASE("ConfigOverride applies space-charge model enum", "[config][override][physics]") {
+    FullConfig cfg;
+
+    ConfigOverride::apply(cfg, {{"physics.space_charge_model", "Grid"}});
+
+    REQUIRE(cfg.physics.space_charge_model_type == SpaceChargeModel::Grid);
+    REQUIRE(cfg.physics.space_charge_model == "grid");
+}
+
+TEST_CASE("ConfigOverride rejects unknown space-charge model", "[config][override][physics]") {
+    FullConfig cfg;
+
+    REQUIRE_THROWS_WITH(
+        ConfigOverride::apply(cfg, {{"physics.space_charge_model", "fmm"}}),
+        Catch::Matchers::ContainsSubstring("Unknown space_charge_model"));
+}
+
 TEST_CASE("ConfigOverride rejects unknown IPM orientation mode", "[config][override][physics]") {
     FullConfig cfg;
 

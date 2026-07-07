@@ -84,6 +84,7 @@ Configuration parameters extracted from `FullConfig`.
 | `enable_reactions` | bool | Reactions enabled? | - |
 | `enable_space_charge` | bool | Space charge enabled? | - |
 | `enable_space_charge_gpu` | bool | Space charge GPU requested? | - |
+| `space_charge_model` | string | Space charge backend selector (`auto`, `direct`, `grid`, `gpu`) | - |
 | `enable_gpu` | bool | GPU acceleration enabled? | - |
 | `output_file` | string | Output file path | - |
 | `trajectory_mode` | string | Trajectory output mode (`full` or `minimal`) | - |

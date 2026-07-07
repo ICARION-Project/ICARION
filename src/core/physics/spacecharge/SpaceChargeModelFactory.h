@@ -23,6 +23,7 @@ public:
     static constexpr std::size_t GRID_THRESHOLD = 1000;
     static constexpr int GRID_TARGET_RESOLUTION = 64;
     static constexpr double GRID_PADDING_M = 0.0;
+    static constexpr double DIRECT_SOFTENING_M = 1e-10;
 
     /**
      * @param config Full configuration (for global flags).

@@ -3,6 +3,7 @@
 // Copyright (c) 2026 Christoph Schaefer
 #include "spaceChargeSolver.h"
 #include <iostream>
+#include <utility>
 #include "core/log/Logger.h"
 
 // Adaptive update configuration constants
@@ -122,6 +123,13 @@ void SpaceChargeSolver::update(const std::vector<IonState>& ions)
 {
     const size_t num_ions = ions.size();
     m_step_counter++;
+
+    std::vector<unsigned char> active_born_flags;
+    active_born_flags.reserve(num_ions);
+    for (const auto& ion : ions) {
+        active_born_flags.push_back((ion.active && ion.born) ? 1 : 0);
+    }
+    const bool active_set_changed = (m_last_active_born_flags != active_born_flags);
     
     // Intelligent update logic for few ions, many timesteps
     bool should_update = false;
@@ -129,13 +137,15 @@ void SpaceChargeSolver::update(const std::vector<IonState>& ions)
     if (num_ions <= ADAPTIVE_THRESHOLD) {
         // Few ions: Use adaptive updating based on movement
         if (m_high_performance) {
-            should_update = (m_step_counter % m_update_frequency == 0) || needsUpdate(ions);
+            const int update_stride = (m_update_frequency <= 0) ? 1 : m_update_frequency;
+            should_update = (m_step_counter % update_stride == 0) || needsUpdate(ions) || active_set_changed;
         } else {
-            should_update = needsUpdate(ions);
+            should_update = needsUpdate(ions) || active_set_changed;
         }
     } else {
         // Many ions: Use fixed frequency
-        should_update = (m_step_counter % m_update_frequency == 0);
+        const int update_stride = (m_update_frequency <= 0) ? 1 : m_update_frequency;
+        should_update = (m_step_counter % update_stride == 0) || active_set_changed;
     }
     
     if (!should_update) {
@@ -186,6 +196,7 @@ void SpaceChargeSolver::update(const std::vector<IonState>& ions)
     // 4. Invalidate field cache and store ion positions
     m_field_cache_valid = false;
     m_last_ion_count = num_ions;
+    m_last_active_born_flags = std::move(active_born_flags);
     
     // Store current ion positions for next update check
     m_last_ion_positions.clear();
@@ -200,16 +211,27 @@ void SpaceChargeSolver::update(const ICARION::core::IonEnsemble& ions)
     const size_t num_ions = ions.size();
     m_step_counter++;
 
+    const auto* active = ions.active_data();
+    const auto* born = ions.born_data();
+    std::vector<unsigned char> active_born_flags;
+    active_born_flags.reserve(num_ions);
+    for (size_t i = 0; i < num_ions; ++i) {
+        active_born_flags.push_back((active[i] != 0 && born[i] != 0) ? 1 : 0);
+    }
+    const bool active_set_changed = (m_last_active_born_flags != active_born_flags);
+
     bool should_update = false;
 
     if (num_ions <= static_cast<size_t>(ADAPTIVE_THRESHOLD)) {
         if (m_high_performance) {
-            should_update = (m_step_counter % m_update_frequency == 0) || needsUpdate(ions);
+            const int update_stride = (m_update_frequency <= 0) ? 1 : m_update_frequency;
+            should_update = (m_step_counter % update_stride == 0) || needsUpdate(ions) || active_set_changed;
         } else {
-            should_update = needsUpdate(ions);
+            should_update = needsUpdate(ions) || active_set_changed;
         }
     } else {
-        should_update = (m_step_counter % m_update_frequency == 0);
+        const int update_stride = (m_update_frequency <= 0) ? 1 : m_update_frequency;
+        should_update = (m_step_counter % update_stride == 0) || active_set_changed;
     }
 
     if (!should_update) {
@@ -252,6 +274,7 @@ void SpaceChargeSolver::update(const ICARION::core::IonEnsemble& ions)
 
     m_field_cache_valid = false;
     m_last_ion_count = num_ions;
+    m_last_active_born_flags = std::move(active_born_flags);
 
     m_last_ion_positions.clear();
     m_last_ion_positions.reserve(num_ions);

@@ -1,0 +1,69 @@
+{
+  "title": "IMS output diagnostics example (minimal trajectory + deep collision)",
+  "simulation": {
+    "total_time_s": 1e-5,
+    "dt_s": 4e-9,
+    "write_interval": 20,
+    "integrator": "RK4",
+    "enable_gpu": false,
+    "enable_openmp": true,
+    "rng_seed": 42
+  },
+  "physics": {
+    "collision_model": "HSS",
+    "enable_space_charge": false,
+    "enable_reactions": false
+  },
+  "output": {
+    "folder": "results/ims_output_diagnostics",
+    "trajectory_file": "ims_output_diagnostics.h5",
+    "print_progress": true,
+    "trajectory_mode": "minimal",
+    "deep_analysis": {
+      "mode": "sampled_events",
+      "domain_filter_index": -1,
+      "sample_every_n": 5,
+      "max_events_per_ion": 200
+    }
+  },
+  "ions": {
+    "species": [
+      {
+        "id": "H3O+",
+        "count": 200,
+        "position": {
+          "type": "gaussian",
+          "center": [0.0, 0.0, 0.0],
+          "std": [4e-5, 4e-5, 4e-5]
+        },
+        "velocity": {
+          "type": "thermal",
+          "temperature_K": 300.0
+        }
+      }
+    ]
+  },
+  "species_database": "../../data/species_database_v1.json",
+  "domains": [
+    {
+      "name": "output_diag_gate",
+      "instrument": "IMS",
+      "geometry": {
+        "origin_m": [0.0, 0.0, -0.02],
+        "length_m": 0.04,
+        "radius_m": 0.01
+      },
+      "env": {
+        "temperature_K": 300.0,
+        "pressure_Pa": 1200.0,
+        "gas_species": "He",
+        "gas_velocity_m_s": [0.0, 0.0, 0.0]
+      },
+      "fields": {
+        "DC": {
+          "axial_V": 40.0
+        }
+      }
+    }
+  ]
+}

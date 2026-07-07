@@ -8,7 +8,7 @@ Example configurations demonstrating mass spectrometry instruments and simulatio
 ./build/src/icarion_main examples/<folder>/<config>.json
 ```
 
-Results written to `results/`. GPU runtime path is disabled in v1.0.0; `enable_gpu=true` falls back to CPU.
+Results written to `results/`. GPU runtime paths require an explicit CUDA-capable build and fall back to CPU when unavailable.
 
 ## Instrument Examples
 
@@ -20,6 +20,7 @@ Results written to `results/`. GPU runtime path is disabled in v1.0.0; `enable_g
 
 ### Quadrupole Mass Filter - `quadrupole/`
 - **quadrupole_basic.json**: RF quadrupole field (DC quad_V=0, axial_V=500 V), CaffeineH+ beam transport.
+- **quadrupole_selective_two_species.json**: Mass-selective transmission demo with H3O+ and ReserpineH+ in the same RF/DC filter.
 
 ### Time-of-Flight - `tof/`
 - **tof_basic.json**: Linear TOF, 1 m flight tube, 2 kV acceleration, two species.
@@ -36,6 +37,13 @@ Results written to `results/`. GPU runtime path is disabled in v1.0.0; `enable_g
 - **ims_field_array_multi_domain.json**: Two-stage drift (600 V/cm to 300 V/cm)
 - **ims_ehss_offline_basic.json**: EHSS run using a precomputed single gas offline sample file.
 - **ims_ipm_basic.json**: InteractionPotentialModel setup using bundled example `ipm_offline_samples` tables in `data/molecules/precomputed_ipm/`.
+- **ims_output_diagnostics_minimal.json**: Minimal trajectory output plus sampled deep collision diagnostics.
+
+To regenerate the bundled IPM example sample tables:
+
+```bash
+tools/generate_ipm_example_samples.sh
+```
 
 ### Reactions - `reactions/`
 - **reaction_demo.json**: Ion-molecule reaction demo (H3O+ + Pentanal -> PentanalH+) in a gas mixture.

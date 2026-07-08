@@ -30,7 +30,12 @@ AVAILABLE_TARGETS=(
   mixture_thermalization
   spacecharge
   reactions
+  ipm
   tims
+  multi_event
+  output_diagnostics
+  diffusion
+  ou_comparison
 )
 
 declare -A TARGET_LABELS=(
@@ -41,7 +46,12 @@ declare -A TARGET_LABELS=(
   [mixture_thermalization]="Gas mixture thermalization"
   [spacecharge]="Space charge expansion / IMS space charge"
   [reactions]="Reaction kinetics scenarios"
+  [ipm]="InteractionPotentialModel validation gates"
   [tims]="TIMS mobility-sorted elution"
+  [multi_event]="Collision multi-event mode"
+  [output_diagnostics]="Minimal output and deep collision diagnostics"
+  [diffusion]="Einstein diffusion relation"
+  [ou_comparison]="Friction/HSD Ornstein-Uhlenbeck thermalization"
 )
 
 print_usage() {
@@ -67,7 +77,12 @@ Targets (default: all):
   mixture_thermalization     ${TARGET_LABELS[mixture_thermalization]}
   spacecharge                ${TARGET_LABELS[spacecharge]}
   reactions                  ${TARGET_LABELS[reactions]}
+  ipm                        ${TARGET_LABELS[ipm]}
   tims                       ${TARGET_LABELS[tims]}
+  multi_event                ${TARGET_LABELS[multi_event]}
+  output_diagnostics         ${TARGET_LABELS[output_diagnostics]}
+  diffusion                  ${TARGET_LABELS[diffusion]}
+  ou_comparison              ${TARGET_LABELS[ou_comparison]}
 EOF
 }
 
@@ -98,8 +113,23 @@ normalize_target() {
     reactions|reaction|kinetics)
       printf '%s\n' "reactions"
       ;;
+    ipm|interaction-potential|interaction_potential|interactionpotential)
+      printf '%s\n' "ipm"
+      ;;
     tims|tims-elution|tims_elution)
       printf '%s\n' "tims"
+      ;;
+    multi-event|multi_event|multi)
+      printf '%s\n' "multi_event"
+      ;;
+    output-diagnostics|output_diagnostics|output)
+      printf '%s\n' "output_diagnostics"
+      ;;
+    diffusion|einstein)
+      printf '%s\n' "diffusion"
+      ;;
+    ou|ou-comparison|ou_comparison|ornstein)
+      printf '%s\n' "ou_comparison"
       ;;
     *)
       return 1
@@ -130,7 +160,12 @@ Available targets:
   mixture_thermalization ${TARGET_LABELS[mixture_thermalization]}
   spacecharge            ${TARGET_LABELS[spacecharge]}
   reactions              ${TARGET_LABELS[reactions]}
+  ipm                    ${TARGET_LABELS[ipm]}
   tims                   ${TARGET_LABELS[tims]}
+  multi_event            ${TARGET_LABELS[multi_event]}
+  output_diagnostics     ${TARGET_LABELS[output_diagnostics]}
+  diffusion              ${TARGET_LABELS[diffusion]}
+  ou_comparison          ${TARGET_LABELS[ou_comparison]}
 EOF
 }
 
@@ -219,10 +254,14 @@ if [[ ! -x "$THERMALIZATION_RUNNER" ]]; then
 fi
 
 NEED_ICARION=false
+NEED_IPM_PRECOMPUTE=false
 for tgt in "${SELECTED_TARGETS[@]}"; do
-  if [[ "$tgt" == "spacecharge" || "$tgt" == "reactions" ]]; then
+  if [[ "$tgt" == "spacecharge" || "$tgt" == "reactions" || "$tgt" == "ipm" || "$tgt" == "tims" || "$tgt" == "multi_event" || "$tgt" == "output_diagnostics" || "$tgt" == "diffusion" || "$tgt" == "ou_comparison" ]]; then
     NEED_ICARION=true
     break
+  fi
+  if [[ "$tgt" == "ipm" ]]; then
+    NEED_IPM_PRECOMPUTE=true
   fi
 done
 
@@ -233,6 +272,15 @@ if $NEED_ICARION; then
   if [[ ! -x "$ICARION_BIN" ]]; then
     echo "Error: ICARION binary not found or not executable: $ICARION_BIN" >&2
     echo "Hint: set --icarion-bin or build the project first." >&2
+    exit 1
+  fi
+fi
+
+if $NEED_IPM_PRECOMPUTE; then
+  IPM_PRECOMPUTE_BIN="$REPO_ROOT/build/src/interaction_potential_precompute"
+  if [[ ! -x "$IPM_PRECOMPUTE_BIN" ]]; then
+    echo "Error: IPM precompute binary not found or not executable: $IPM_PRECOMPUTE_BIN" >&2
+    echo "Hint: build it with: cmake --build build --target interaction_potential_precompute" >&2
     exit 1
   fi
 fi
@@ -418,8 +466,38 @@ build_command() {
         printf '%q ' --log-dir "$ICARION_VALIDATION_RUN_DIR/logs"
       fi
       ;;
+    ipm)
+      printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_ipm.py"
+      if [[ -n "$ICARION_BIN" ]]; then
+        printf '%q ' --icarion-bin "$ICARION_BIN"
+      fi
+      if [[ -n "${IPM_PRECOMPUTE_BIN:-}" ]]; then
+        printf '%q ' --precompute-bin "$IPM_PRECOMPUTE_BIN"
+      fi
+      ;;
     tims)
-      printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_tims_elution.py"
+      printf '%q ' env ICARION_BIN="$ICARION_BIN" "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_tims_elution.py"
+      ;;
+    multi_event)
+      printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_multi_event_mode.py"
+      if [[ -n "$ICARION_BIN" ]]; then
+        printf '%q ' --icarion-bin "$ICARION_BIN"
+      fi
+      ;;
+    output_diagnostics)
+      printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_output_diagnostics_e2e.py"
+      if [[ -n "$ICARION_BIN" ]]; then
+        printf '%q ' --icarion-bin "$ICARION_BIN"
+      fi
+      ;;
+    diffusion)
+      printf '%q ' "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_diffusion_einstein.py"
+      if [[ -n "$ICARION_BIN" ]]; then
+        printf '%q ' --icarion-bin "$ICARION_BIN"
+      fi
+      ;;
+    ou_comparison)
+      printf '%q ' env ICARION_BIN="$ICARION_BIN" "$PYTHON_BIN" "$PHYSICS_SCRIPT_DIR/validate_ou_comparison.py"
       ;;
     *)
       return 1

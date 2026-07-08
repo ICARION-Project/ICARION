@@ -6,6 +6,7 @@ This folder contains the orchestration scripts for the ICARION validation suite.
 
 Use these top-level runners in normal workflows:
 
+- `run_all_suites.sh` for the combined physics, instrument, and performance run
 - `run_physics_suite.sh` (+ `run_physics_analysis.sh`)
 - `run_instrument_suite.sh` (+ `run_instrument_analysis.sh`)
 - `performance/run_performance_suite.sh` (+ `performance/run_performance_analysis.sh`)
@@ -33,7 +34,7 @@ Legacy/baseline output is still supported via `--baseline-output` (where impleme
 - `physics/`: physics validators + analyzers (Python)
 - `instrumentation/`: instrument-specific generators/runners/analyzers
 - `thermalization/`: thermalization generators + runners
-- `performance/`: performance benchmark runners (CPU in v1.0.0)
+- `performance/`: performance benchmark runners
 
 ## Notes on legacy helpers
 

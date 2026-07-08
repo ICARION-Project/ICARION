@@ -120,7 +120,7 @@ else:
     LOGS_DIR    = VALIDATION_DIR / "logs"
     RESULTS_DIR = VALIDATION_DIR / "results" / "tims_elution"
 
-ICARION_BIN  = REPO_ROOT / "build" / "src" / "icarion_main"
+ICARION_BIN  = Path(os.environ.get("ICARION_BIN", REPO_ROOT / "build" / "src" / "icarion_main"))
 SPECIES_DB   = REPO_ROOT / "data" / "species_database_v1.json"
 
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)

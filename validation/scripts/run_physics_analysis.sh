@@ -13,6 +13,10 @@ THERMALIZATION_MODULE="analyze_thermalization_complete"
 TRANSPORT_ANALYZER="$PHYSICS_ANALYZER_DIR/analyze_transport_drift.py"
 SPACECHARGE_ANALYZER="$PHYSICS_ANALYZER_DIR/analyze_spacecharge.py"
 REACTIONS_ANALYZER="$PHYSICS_ANALYZER_DIR/analyze_reactions.py"
+IPM_ANALYZER="$PHYSICS_ANALYZER_DIR/analyze_ipm.py"
+TIMS_ANALYZER="$PHYSICS_ANALYZER_DIR/analyze_tims_elution.py"
+MULTI_EVENT_ANALYZER="$PHYSICS_ANALYZER_DIR/analyze_multi_event.py"
+OUTPUT_DIAGNOSTICS_ANALYZER="$PHYSICS_ANALYZER_DIR/analyze_output_diagnostics.py"
 
 PYTHON_BIN=${PYTHON_BIN:-python3}
 RESULTS_ROOT_OVERRIDE=""
@@ -20,15 +24,21 @@ THERM_DIR_OVERRIDE=""
 TRANSPORT_DIR_OVERRIDE=""
 SPACECHARGE_DIR_OVERRIDE=""
 REACTIONS_DIR_OVERRIDE=""
+IPM_DIR_OVERRIDE=""
+TIMS_DIR_OVERRIDE=""
 SELECTED_ANALYSES=()
 
-AVAILABLE_ANALYSES=(thermalization transport spacecharge reactions)
+AVAILABLE_ANALYSES=(thermalization transport spacecharge reactions ipm tims multi_event output_diagnostics)
 
 declare -A ANALYSIS_LABELS=(
   [thermalization]="Comprehensive thermalization analysis"
   [transport]="Transport & combined drift analysis"
   [spacecharge]="Space charge expansion / IMS analysis"
   [reactions]="Reaction kinetics scenario summaries"
+  [ipm]="InteractionPotentialModel gate summary"
+  [tims]="TIMS elution gate summary"
+  [multi_event]="Collision multi-event gate summary"
+  [output_diagnostics]="Minimal output and deep collision diagnostics summary"
 )
 
 print_usage() {
@@ -42,10 +52,12 @@ Options:
   --transport-dir DIR        Explicit directory for transport/drift outputs
   --spacecharge-dir DIR      Explicit directory for space charge outputs
   --reactions-dir DIR        Explicit directory for reaction outputs
+  --ipm-dir DIR              Explicit directory for IPM outputs
+  --tims-dir DIR             Explicit directory for TIMS outputs
   --list                     Show available analyses and exit
   -h, --help                 Show this help message
 
-Analyses (default: all): thermalization, transport, spacecharge, reactions
+Analyses (default: all): thermalization, transport, spacecharge, reactions, ipm, tims, multi_event, output_diagnostics
 EOF
 }
 
@@ -72,6 +84,18 @@ normalize_analysis() {
       ;;
     reactions|reaction|kinetics)
       printf '%s\n' "reactions"
+      ;;
+    ipm|interaction-potential|interaction_potential|interactionpotential)
+      printf '%s\n' "ipm"
+      ;;
+    tims|tims-elution|tims_elution)
+      printf '%s\n' "tims"
+      ;;
+    multi-event|multi_event|multi)
+      printf '%s\n' "multi_event"
+      ;;
+    output-diagnostics|output_diagnostics|output)
+      printf '%s\n' "output_diagnostics"
       ;;
     *)
       return 1
@@ -122,6 +146,16 @@ while [[ $# -gt 0 ]]; do
     --reactions-dir)
       [[ $# -lt 2 ]] && print_usage && exit 1
       REACTIONS_DIR_OVERRIDE="$2"
+      shift 2
+      ;;
+    --ipm-dir)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      IPM_DIR_OVERRIDE="$2"
+      shift 2
+      ;;
+    --tims-dir)
+      [[ $# -lt 2 ]] && print_usage && exit 1
+      TIMS_DIR_OVERRIDE="$2"
       shift 2
       ;;
     --list)
@@ -204,6 +238,18 @@ candidate_patterns() {
       reactions)
         entries+=("$RESULTS_ROOT_OVERRIDE/reactions")
         ;;
+      ipm)
+        entries+=("$RESULTS_ROOT_OVERRIDE/ipm")
+        ;;
+      tims)
+        entries+=("$RESULTS_ROOT_OVERRIDE/tims_elution" "$RESULTS_ROOT_OVERRIDE/tims")
+        ;;
+      multi_event)
+        entries+=("$RESULTS_ROOT_OVERRIDE/multi_event")
+        ;;
+      output_diagnostics)
+        entries+=("$RESULTS_ROOT_OVERRIDE/output_diagnostics")
+        ;;
     esac
   fi
   case "$key" in
@@ -241,6 +287,31 @@ candidate_patterns() {
         "$REPO_ROOT/results/v1.0.0_test/physics/reactions"
       )
       ;;
+    ipm)
+      entries+=(
+        "$VALIDATION_DIR/results/physics/ipm"
+        "$VALIDATION_DIR/results/ipm"
+      )
+      ;;
+    tims)
+      entries+=(
+        "$VALIDATION_DIR/results/tims_elution"
+        "$VALIDATION_DIR/results/physics/tims_elution"
+        "$VALIDATION_DIR/results/physics/tims"
+      )
+      ;;
+    multi_event)
+      entries+=(
+        "$VALIDATION_DIR/results/physics/multi_event"
+        "$VALIDATION_DIR/results/multi_event"
+      )
+      ;;
+    output_diagnostics)
+      entries+=(
+        "$VALIDATION_DIR/results/physics/output_diagnostics"
+        "$VALIDATION_DIR/results/output_diagnostics"
+      )
+      ;;
   esac
   printf '%s\n' "${entries[@]}"
 }
@@ -253,6 +324,8 @@ resolve_data_dir() {
     transport) override="$TRANSPORT_DIR_OVERRIDE" ;;
     spacecharge) override="$SPACECHARGE_DIR_OVERRIDE" ;;
     reactions) override="$REACTIONS_DIR_OVERRIDE" ;;
+    ipm) override="$IPM_DIR_OVERRIDE" ;;
+    tims) override="$TIMS_DIR_OVERRIDE" ;;
   esac
   if [[ -n "$override" ]]; then
     printf '%s' "$override"
@@ -305,6 +378,26 @@ run_reactions_analysis() {
   run_in_repo "$PYTHON_BIN" "$REACTIONS_ANALYZER" "$data_dir"
 }
 
+run_ipm_analysis() {
+  local data_dir="$1"
+  run_in_repo "$PYTHON_BIN" "$IPM_ANALYZER" "$data_dir"
+}
+
+run_tims_analysis() {
+  local data_dir="$1"
+  run_in_repo "$PYTHON_BIN" "$TIMS_ANALYZER" "$data_dir"
+}
+
+run_multi_event_analysis() {
+  local data_dir="$1"
+  run_in_repo "$PYTHON_BIN" "$MULTI_EVENT_ANALYZER" "$data_dir"
+}
+
+run_output_diagnostics_analysis() {
+  local data_dir="$1"
+  run_in_repo "$PYTHON_BIN" "$OUTPUT_DIAGNOSTICS_ANALYZER" "$data_dir"
+}
+
 run_analysis() {
   local key="$1"
   local label="${ANALYSIS_LABELS[$key]}"
@@ -333,6 +426,18 @@ run_analysis() {
     reactions)
       run_reactions_analysis "$data_dir"
       ;;
+    ipm)
+      run_ipm_analysis "$data_dir"
+      ;;
+    tims)
+      run_tims_analysis "$data_dir"
+      ;;
+    multi_event)
+      run_multi_event_analysis "$data_dir"
+      ;;
+    output_diagnostics)
+      run_output_diagnostics_analysis "$data_dir"
+      ;;
     *)
       echo "Internal error: unknown analysis '$key'" >&2
       return 1
@@ -355,7 +460,7 @@ echo "=============================================="
 echo "Repo root      : $REPO_ROOT"
 echo "Python         : $PYTHON_BIN"
 echo "Results root   : ${RESULTS_ROOT_OVERRIDE:-auto}" 
-echo "Overrides      : thermalization=${THERM_DIR_OVERRIDE:-auto}, transport=${TRANSPORT_DIR_OVERRIDE:-auto}, spacecharge=${SPACECHARGE_DIR_OVERRIDE:-auto}, reactions=${REACTIONS_DIR_OVERRIDE:-auto}"
+echo "Overrides      : thermalization=${THERM_DIR_OVERRIDE:-auto}, transport=${TRANSPORT_DIR_OVERRIDE:-auto}, spacecharge=${SPACECHARGE_DIR_OVERRIDE:-auto}, reactions=${REACTIONS_DIR_OVERRIDE:-auto}, ipm=${IPM_DIR_OVERRIDE:-auto}, tims=${TIMS_DIR_OVERRIDE:-auto}"
 echo "Analyses       : ${SELECTED_ANALYSES[*]}"
 echo "Started        : $START_TIME"
 echo "=============================================="

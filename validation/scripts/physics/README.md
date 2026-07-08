@@ -41,6 +41,48 @@ These are **NOT CTests** - they are long-running (up to 30 minutes), high-accura
 - **Output**:
   - `validation/figures/physics/tims_elution_validation.png`
   - `validation/logs/TIMS_ELUTION_VALIDATION.txt`
+- **Analyzer**:
+  - `analyze_tims_elution.py`
+
+### InteractionPotentialModel (`validate_ipm.py`)
+- **Physics**: Offline-sampled interaction-potential collision model
+- **Tests**:
+  - InteractionPotential C++ unit/loader safety gate
+  - Fresh mini `ipm_offline_samples` HDF5 generation
+  - Short IMS-style runtime check with generated sample table
+  - Finite trajectory and momentum diagnostics
+- **Analyzer**:
+  - `analyze_ipm.py`
+
+### Collision Multi-Event Mode (`validate_multi_event_mode.py`)
+- **Physics**: High-rate stochastic collision approximation with micro-subcycling
+- **Tests**:
+  - Paired single-event vs multi-event drift scenarios
+  - Activation of collision subcycling diagnostics
+  - Coarse-dt convergence envelope against a smaller-dt reference
+- **Analyzer**:
+  - `analyze_multi_event.py`
+
+### Output Diagnostics E2E (`validate_output_diagnostics_e2e.py`)
+- **Physics/output**: Minimal trajectory mode and deep collision diagnostics
+- **Tests**:
+  - `/analysis/minimal_transport` exists for `output.trajectory_mode=minimal`
+  - `/analysis/deep_collision` summaries/events are written for sampled diagnostics
+  - Reproducibility blob cap remains compatible with runtime output
+- **Analyzer**:
+  - `analyze_output_diagnostics.py`
+
+### Diffusion Einstein Relation (`validate_diffusion_einstein.py`)
+- **Physics**: Zero-field diffusion in HSS/EHSS transport
+- **Tests**:
+  - Mean-squared displacement fit
+  - Comparison against `D = k_B T K / q`
+
+### OU Comparison (`validate_ou_comparison.py`)
+- **Physics**: Deterministic Friction/HSD with Ornstein-Uhlenbeck thermalization
+- **Tests**:
+  - Cold ion cloud thermalizes toward gas temperature
+  - Final temperature stays within documented tolerance
 
 ### Adaptive SC Parity (`validate_space_charge_adaptive_parity.py`)
 - **Runtime**: ~1 minute
@@ -68,9 +110,17 @@ From repository root:
 # Single validation
 python validation/scripts/physics/validate_gas_flow_transport.py
 python validation/scripts/physics/validate_tims_elution.py
+python validation/scripts/physics/validate_ipm.py
+python validation/scripts/physics/validate_multi_event_mode.py
+python validation/scripts/physics/validate_output_diagnostics_e2e.py
+python validation/scripts/physics/validate_diffusion_einstein.py
+python validation/scripts/physics/validate_ou_comparison.py
 
-# All physics validations (when more are added)
-# python validation/scripts/physics/run_all_physics_validations.py
+# Central physics simulation runner
+validation/scripts/run_physics_suite.sh --list
+
+# Central physics analysis runner
+validation/scripts/run_physics_analysis.sh --list
 ```
 
 ## Planned Validations

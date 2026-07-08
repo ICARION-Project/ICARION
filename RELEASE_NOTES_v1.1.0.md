@@ -1,8 +1,8 @@
 # ICARION v1.1.0 Release Notes
 
-Status: draft. This file covers the audited v1.1 runtime, collision, reaction,
-TIMS, analysis, documentation, and schema changes. FieldSolver work is deferred
-to v1.2.
+This release covers the audited v1.1 runtime, collision, reaction, TIMS,
+analysis, documentation, schema, validation, and packaging surface. FieldSolver
+work from the development branch is intentionally deferred to v1.2.
 
 ## Highlights
 
@@ -57,11 +57,19 @@ to v1.2.
   `space_charge_model`, InteractionPotentialModel controls, compact/minimal
   output, and deep collision diagnostics.
 
+## Packaging
+
+- CMake/CPack package version is `1.1.0`.
+- Release packaging keeps the v1.0-style assets: Linux `.deb`, portable Linux
+  `.tar.gz`, Windows `.zip`, SHA256 files, and the minimal launchers.
+- Installed command-line tools include `icarion`, `icarion_main`,
+  `ccs_precompute`, `ehss_samples_precompute`, `ehss_offline_precompute`, and
+  `interaction_potential_precompute`.
+- Release packages exclude generated example `results/`, legacy
+  `precomputed_lr1264/` tables, and analysis result folders.
+
 ## Compatibility Notes
 
 - `physics.enable_reactions=false` no longer loads the global reaction database
   fallback, so disabled-reaction examples no longer emit unrelated reaction
   validation warnings.
-- Old `LR1264_*` sample names and old `lj1264_offline_samples` assumptions are
-  not part of the audited v1.1 public surface. Use `InteractionPotentialModel`
-  and `ipm_samples_file`.

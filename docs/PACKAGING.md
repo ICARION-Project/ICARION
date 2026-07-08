@@ -28,8 +28,8 @@ The `Release Packages` GitHub Actions workflow builds release assets
 automatically for tags matching `v*`.
 
 ```bash
-git tag v1.0.1-beta.1
-git push origin v1.0.1-beta.1
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 The workflow creates a draft GitHub Release with:
@@ -63,6 +63,9 @@ The zip contains a flat distribution layout:
 - `requirements-analysis.txt`
 - top-level `README.md`, `CHANGELOG.md`, and `LICENSE`
 - `ICARION-Launcher.cmd` and `ICARION-Launcher.ps1`
+
+Generated example `results/`, legacy `precomputed_lr1264/` tables, and
+analysis result folders are intentionally excluded from release packages.
 
 For the simplest Windows use, double-click:
 
@@ -128,6 +131,8 @@ Installed command-line tools:
 - `icarion_main`
 - `ccs_precompute`
 - `ehss_samples_precompute`
+- `ehss_offline_precompute`
+- `interaction_potential_precompute`
 
 Installed resource layout:
 

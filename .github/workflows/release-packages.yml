@@ -82,7 +82,13 @@ jobs:
             package_root="$(find "$workdir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
             cp packaging/linux/ICARION-Launcher.sh "$package_root/ICARION-Launcher.sh"
             chmod +x "$package_root/ICARION-Launcher.sh"
-            chmod +x "$package_root"/bin/icarion "$package_root"/bin/icarion_main "$package_root"/bin/ccs_precompute "$package_root"/bin/ehss_samples_precompute
+            chmod +x \
+              "$package_root"/bin/icarion \
+              "$package_root"/bin/icarion_main \
+              "$package_root"/bin/ccs_precompute \
+              "$package_root"/bin/ehss_samples_precompute \
+              "$package_root"/bin/ehss_offline_precompute \
+              "$package_root"/bin/interaction_potential_precompute
             tar -C "$workdir" -czf "$tarball" "$(basename "$package_root")"
             sha256sum "$tarball" > "$tarball.sha256"
             rm -rf "$workdir"

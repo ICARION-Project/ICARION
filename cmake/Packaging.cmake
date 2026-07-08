@@ -9,12 +9,14 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/data"
         DESTINATION "${ICARION_INSTALL_DATADIR}"
         COMPONENT runtime
         PATTERN "jobs" EXCLUDE
+        PATTERN "precomputed_lr1264" EXCLUDE
         PATTERN "*.Zone.Identifier" EXCLUDE
         PATTERN "*:Zone.Identifier" EXCLUDE)
 
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples"
         DESTINATION "${ICARION_INSTALL_DATADIR}"
         COMPONENT examples
+        PATTERN "results" EXCLUDE
         PATTERN "*.h5" EXCLUDE
         PATTERN "__pycache__" EXCLUDE)
 
@@ -27,7 +29,13 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/analysis"
         DESTINATION "${ICARION_INSTALL_DATADIR}"
         COMPONENT runtime
         PATTERN "__pycache__" EXCLUDE
-        PATTERN "output" EXCLUDE)
+        PATTERN "output" EXCLUDE
+        PATTERN "ccs_scaling" EXCLUDE
+        PATTERN "initial_velocity_sensitivity" EXCLUDE
+        PATTERN "initial_velocity_sensitivity_denseEN" EXCLUDE
+        PATTERN "length_scaling" EXCLUDE
+        PATTERN "mass_scaling" EXCLUDE
+        PATTERN "variance_diagnostics" EXCLUDE)
 
 install(FILES "${CMAKE_SOURCE_DIR}/requirements-analysis.txt"
         DESTINATION "${ICARION_INSTALL_DATADIR}"

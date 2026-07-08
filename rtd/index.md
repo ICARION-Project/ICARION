@@ -6,7 +6,7 @@ ICARION is designed for reproducible simulations of ion transport in electric fi
 
 ## What ICARION is for
 
-ICARION can be used to model ion motion in instrument regions such as drift cells, RF quadrupoles, time-of-flight sections, linear ion traps, Orbitraps, and FT-ICR, including multi-domain couplings of these. Its main purpose is to combine transport in deterministic electric or magnetic fields with collisional effects and optional effects of chemistry in one reproducible simulation workflow.
+ICARION can be used to model ion motion in instrument regions such as drift cells, trapped IMS regions, RF quadrupoles, time-of-flight sections, linear ion traps, Orbitraps, and FT-ICR, including multi-domain couplings of these. Its main purpose is to combine transport in deterministic electric or magnetic fields with collisional effects and optional effects of chemistry in one reproducible simulation workflow.
 
 ## Core ideas
 
@@ -31,7 +31,7 @@ For common first-run problems, see [Troubleshooting](troubleshooting.md).
 
 ## Current status
 
-ICARION v1.0.1 focuses on the validated CPU execution path. GPU-related helper code may be present in the repository, but GPU execution should be considered experimental unless stated otherwise for a specific release.
+ICARION v1.1.0 focuses on the validated CPU execution path and adds audited support for equilibrium-linked reactions, `InteractionPotentialModel` offline collisions, collision subcycling, deep collision diagnostics, and TIMS axial ramp fields. GPU-related helper code may be present in the repository, but GPU execution should be considered experimental unless stated otherwise for a specific release.
 
 For reproducibility checks, see [Validation](validation.md).
 

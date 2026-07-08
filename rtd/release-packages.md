@@ -32,6 +32,8 @@ Installed commands include:
 - `icarion_main`
 - `ccs_precompute`
 - `ehss_samples_precompute`
+- `ehss_offline_precompute`
+- `interaction_potential_precompute`
 
 Installed resources are under `/usr/share/icarion`:
 
@@ -91,6 +93,10 @@ Terminal run:
 
 The Windows package contains `bin/`, `examples/`, `schema/`, `data/`,
 `analysis/`, and launcher scripts.
+
+Release packages intentionally exclude generated example `results/`, legacy
+development sample folders, and analysis result folders. Small curated IPM
+example tables under `data/molecules/precomputed_ipm/` are included.
 
 ## Launcher scope
 

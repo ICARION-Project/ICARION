@@ -59,15 +59,21 @@ Primary runners:
 ```bash
 # Instrument validations
 ./scripts/run_instrument_suite.sh
+./scripts/run_instrument_analysis.sh
 
-# Physics validations: thermalization, transport, reactions, space charge
+# Physics validations: thermalization, transport, reactions, IPM, TIMS, space charge
 ./scripts/run_physics_suite.sh
+./scripts/run_physics_analysis.sh
 
 # CPU performance validation/benchmarking
 ./scripts/performance/run_performance_suite.sh
+./scripts/performance/run_performance_analysis.sh
 ```
 
-Depending on the selected suite and hardware, the full validation suite can take much longer than CTests.
+The `*_suite.sh` scripts run simulations and write raw outputs. The matching
+`*_analysis.sh` scripts turn those outputs into summaries, plots, or pass/fail
+metrics. Depending on the selected suite and hardware, the full validation suite
+can take much longer than CTests.
 
 ---
 
@@ -81,7 +87,10 @@ Depending on the selected suite and hardware, the full validation suite can take
 | IMS drift / mobility | selected regression tests | instrument validation and analysis scripts |
 | Quadrupole / linear ion trap / Orbitrap / TOF | selected tests | instrument suite |
 | Thermalization / collision models | selected tests | physics suite |
-| Reactions | selected tests | reaction validation scripts |
+| Reactions | selected tests | reaction validation scripts, including equilibrium-linked reverse reactions |
+| InteractionPotentialModel | selected tests | IPM validation with freshly generated mini sample tables |
+| TIMS | selected tests | TIMS elution validation |
+| Multi-event collisions | selected tests | physics suite |
 | Space charge | selected tests | physics/space-charge suite |
 | Performance | optional/limited | performance suite |
 
@@ -145,6 +154,9 @@ Run only a focused subset if supported by the runner:
 
 ```bash
 ./scripts/run_physics_suite.sh reactions
+./scripts/run_physics_suite.sh ipm
+./scripts/run_physics_suite.sh tims
+./scripts/run_physics_suite.sh multi_event
 ./scripts/run_physics_suite.sh spacecharge
 ```
 
@@ -165,7 +177,7 @@ cd validation
 ./scripts/performance/run_performance_suite.sh
 ```
 
-For v1.0.x, treat CPU performance as the validated baseline. GPU-related scripts may exist, but GPU runtime behavior should be interpreted according to the current release notes and build configuration.
+For v1.1, treat CPU performance as the validated baseline. GPU-related scripts may exist, but GPU runtime behavior should be interpreted according to the current release notes and build configuration.
 
 ---
 

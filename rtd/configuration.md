@@ -48,7 +48,7 @@ This section defines the numerical time axis and integrator.
 | `write_interval` | `10` to `1000` | steps | Store every n-th integration step. Increase this to reduce HDF5 size. |
 | `rng_seed` | integer | - | Global random seed for reproducible stochastic collisions and reactions. |
 | `enable_openmp` | `true` | - | Enable OpenMP parallel execution. |
-| `enable_gpu` | `false` | - | Request GPU execution where supported. CPU is the validated default for v1.0.x. |
+| `enable_gpu` | `false` | - | Request GPU execution where supported. CPU is the validated default for v1.1. |
 
 Example:
 
@@ -76,14 +76,17 @@ Example:
 This section selects the active collision, reaction, and space charge models. For more information on the used collision models, see [Collision models](collision-models.md).
 
 !!! note
-    `physics.collision_model` is a global setting for the whole run in v1.0.x. Different domains can use different geometry, fields, gas pressure, temperature, and gas species, but they do not select separate collision models.
+    `physics.collision_model` is a global setting for the whole run in v1.1. Different domains can use different geometry, fields, gas pressure, temperature, and gas species, but they do not select separate collision models.
 
 | Parameter | Example | Meaning |
 |---|---|---|
 | `collision_model` | `"NoCollisions"`, `"Friction"`, `"HSS"`, `"EHSS"`, `"InteractionPotentialModel"` | Selects ion-neutral collision handling. |
 | `collision_subcycles_per_step` | `1` | Splits each stochastic collision update into smaller substeps; useful when event probabilities become large, but still an approximation. For the most event-resolved calculations, choose `dt_s` so that at most one collision per ion and base time step is expected. |
+| `collision_multi_event_mode` | `false` | Enables a practical multi-event collision approximation by enforcing enough subcycles to allow multiple stochastic collision opportunities within one macro step. |
+| `collision_max_events_per_step` | `1` | Minimum subcycle count used by `collision_multi_event_mode`. |
 | `enable_reactions` | `true` / `false` | Enables stochastic species conversion from the reaction database based on configured reaction kinetics. |
 | `enable_space_charge` | `true` / `false` | Enables ion-ion space charge effects if configured. |
+| `space_charge_model` | `"auto"`, `"direct"`, `"grid"`, `"gpu"` | Selects the space charge backend. `auto` chooses an appropriate CPU model unless GPU space charge is explicitly requested and available. |
 | `ipm_orientation_mode` | `"random"` or `"fixed"` | Orientation sampling for `InteractionPotentialModel`; omitted configs default to `"random"`. |
 | `ipm_fixed_orientation_index` | `0` | Orientation index used when `ipm_orientation_mode` is `"fixed"`. |
 | `ipm_vrel_log_prefix` | `"debug/ipm_vrel"` | Optional relative-velocity diagnostic CSV prefix for `InteractionPotentialModel`. |
@@ -158,6 +161,7 @@ Each domain should define:
 
 Available `instrument` types include: 
 * ion mobility spectrometers: `IMS`
+* trapped ion mobility spectrometers: `TIMS`
 * linear (quadrupole) ion traps: `LQIT`
 * Orbitraps: `ORBITRAP` 
 * RF-Quadrupole (either as ion guide or mass filter, depending on specified voltages): `QUADRUPOLE`

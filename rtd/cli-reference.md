@@ -93,6 +93,8 @@ Supported high-value overrides include:
 - `simulation.rng_seed`, `simulation.integrator`, `simulation.rk45_min_step_s`
 - `simulation.enable_gpu`, `simulation.enable_openmp`
 - `physics.collision_model`
+- `physics.collision_subcycles_per_step`, `physics.collision_multi_event_mode`
+- `physics.space_charge_model`
 - `physics.enable_reactions`
 - `physics.enable_space_charge`, `physics.enable_space_charge_gpu`
 - `physics.enable_ou_thermalization`

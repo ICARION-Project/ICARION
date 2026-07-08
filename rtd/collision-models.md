@@ -29,7 +29,7 @@ A simulation step in ICARION can be thought of as three coupled operations:
 
 Stochastic collision models control step 3 by applying explicit gas-event updates after trajectory propagation. Deterministic collision models instead contribute effective drag forces during field/force evaluation. This is why the same instrument geometry can behave very differently depending on whether it is simulated as vacuum, continuum mobility drift, or explicit stochastic collisions.
 
-For example, a standalone time-of-flight simulation may often use `NoCollisions`, while an IMS drift simulation normally requires a gas model. In a coupled IMS-MS simulation, domains can use different gas pressures, temperatures, species, fields, and geometries; however, in v1.0.x the selected `physics.collision_model` is global for the whole run. See [Multi-domain simulations](multi-domain.md).
+For example, a standalone time-of-flight simulation may often use `NoCollisions`, while an IMS drift simulation normally requires a gas model. In a coupled IMS-MS simulation, domains can use different gas pressures, temperatures, species, fields, and geometries; however, in v1.1 the selected `physics.collision_model` is global for the whole run. See [Multi-domain simulations](multi-domain.md).
 
 ---
 
@@ -527,7 +527,7 @@ P(n >= 1) = 1 - exp(-lambda)
 A uniform random number `u` in `[0, 1)` is drawn. If `u < P(n >= 1)`, a collision event is applied. Otherwise, the ion continues without a collision during that step.
 
 !!! note
-    In the current event handler, at most one stochastic HSS/EHSS/IPM collision is applied per ion and integration step. The probability `1 - exp(-lambda)` is the exact Poisson probability for one or more events, but multiple events within the same step are not individually resolved. `collision_subcycles_per_step` can reduce this error by splitting the collision update into smaller pieces, but it remains an approximation. For the most accurate event-resolved simulations, choose the base time step such that `lambda << 1` and unresolved multiple-collision events are unlikely.
+    By default, each stochastic HSS/EHSS/IPM collision update samples one collision opportunity per ion and step. `collision_subcycles_per_step` splits the update into smaller pieces, and `collision_multi_event_mode` can enforce enough subcycles for multiple collision opportunities within one macro step. This reduces large step bias, but it remains an approximation. For the most accurate event-resolved simulations, choose the base time step such that `lambda << 1` and unresolved multiple-collision events are unlikely.
 
 ### Neutral velocity sampling
 
@@ -730,7 +730,7 @@ If an IMS or drift region should contain gas, `NoCollisions` is usually not appr
 
 ### Expecting per-domain collision model selection
 
-In v1.0.x, `physics.collision_model` applies to the full simulation. You can vary pressure, temperature, gas species, fields, and geometry by domain, but you cannot set `HSS` for one domain and `NoCollisions` for another in the same config.
+In v1.1, `physics.collision_model` applies to the full simulation. You can vary pressure, temperature, gas species, fields, and geometry by domain, but you cannot set `HSS` for one domain and `NoCollisions` for another in the same config.
 
 ### Using `Friction` and expecting collision statistics
 

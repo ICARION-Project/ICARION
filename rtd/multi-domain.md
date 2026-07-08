@@ -26,7 +26,7 @@ In ICARION, ions can move from one domain into the next without manually exporti
 Domain transitions are handled by the domain manager. The simulation resolves the active domain of each ion and applies the corresponding field model, environment, and boundary conditions.
 
 !!! note
-    In v1.0.x, `physics.collision_model` is global for the full run, not domain-local. Multi-domain simulations can vary pressure, temperature, gas species, fields, and geometry per domain. They cannot use `HSS` in one domain and `NoCollisions` in another domain within the same run.
+    In v1.1, `physics.collision_model` is global for the full run, not domain-local. Multi-domain simulations can vary pressure, temperature, gas species, fields, and geometry per domain. They cannot use `HSS` in one domain and `NoCollisions` in another domain within the same run.
 
 ## Example concept
 

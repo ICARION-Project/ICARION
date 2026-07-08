@@ -1,6 +1,6 @@
 # Fields and waveforms
 
-Fields are configured per domain under `domains[].fields`. ICARION v1.0.1
+Fields are configured per domain under `domains[].fields`. ICARION v1.1.0
 supports analytical DC/RF/AC fields, magnetic fields, and imported field array
 terms.
 
@@ -119,6 +119,7 @@ these analytical fields when imported data are available.
 | Instrument | Typical field parameters | Meaning |
 | --- | --- | --- |
 | `IMS` | `DC.EN_Td` or `DC.axial_V` | Drift field along the domain axis; `EN_Td` is converted using pressure, temperature, and domain length. |
+| `TIMS` | `TIMS.axial_field_initial_*`, `TIMS.axial_field_final_*`, optional gas flow | Trapped IMS axial ramp field. The runtime interpolates from an initial axial profile to a final axial profile over the configured ramp. |
 | `TOF` | `DC.axial_V` | Acceleration voltage over `geometry.acc_length_m`; field is zero outside the acceleration region. |
 | `Quadrupole` / `QuadrupoleRF` | `RF.voltage_V`, `RF.frequency_Hz`, optional `DC.quad_V`, optional `DC.axial_V` | Quadrupolar RF/DC confinement plus optional axial potential gradient. |
 | `LQIT` | `RF.voltage_V`, `RF.frequency_Hz`, optional `DC.axial_V`, optional `AC.voltage_V`/`AC.frequency_Hz` | Linear ion trap RF confinement, (approximated) harmonic axial DC, and optional AC excitation (in Cartesian `x` coordinate). |
@@ -138,6 +139,7 @@ additional geometry parameters:
 | Instrument | Geometry parameters to check | Notes |
 | --- | --- | --- |
 | `IMS` | `origin_m`, `length_m`, `radius_m` | `length_m` is used when converting `EN_Td` to `axial_V`. |
+| `TIMS` | `origin_m`, `length_m`, `radius_m` | `length_m` defines the axial ramp coordinate; TIMS examples commonly use axial gas flow. |
 | `TOF` | `origin_m`, `length_m`, `radius_m`, `acc_length_m`, optional `end_aperture_m` | `acc_length_m` defines the acceleration section. |
 | `Quadrupole` / `QuadrupoleRF` | `origin_m`, `length_m`, `radius_m` | `radius_m` is the effective quadrupole radius used in the analytical RF/DC field. |
 | `LQIT` | `origin_m`, `length_m`, `radius_m` | `radius_m` sets the radial field scale; `length_m` is used for harmonic axial DC terms. |
@@ -147,6 +149,23 @@ additional geometry parameters:
 These are practical starting points, not a calibration guide. Always check the
 example closest to your instrument and run timestep and output sanity checks before
 interpreting physics results.
+
+## TIMS axial ramp fields
+
+TIMS domains can use `instrument: "TIMS"` with a `fields.TIMS` block. The
+analytical model evaluates an axial field profile of the form:
+
+```text
+E_z(z,t) = (1 - f(t)) * E_initial(z) + f(t) * E_final(z)
+```
+
+where `f(t)` is the ramp fraction. Profiles may be configured as uniform values
+or tabulated axial points, depending on the example and schema. TIMS examples
+usually combine this field with an axial gas flow profile in the domain
+environment.
+
+Start from `examples/ims/ims_tims_basic.json` and inspect the validation case
+before using TIMS fields for production studies.
 
 ## Field arrays
 

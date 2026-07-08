@@ -128,5 +128,5 @@ with CUDA support, and unsupported paths can fall back to CPU behavior. Check:
 icarion --dump-build-info
 ```
 
-For v1.0.1 onboarding and validation, prefer the CPU path unless you explicitly
+For v1.1.0 onboarding and validation, prefer the CPU path unless you explicitly
 need to evaluate GPU support.

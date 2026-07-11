@@ -7,14 +7,36 @@
 #include "core/physics/collisions/core/CollisionGeometry.h"
 #include "utils/constants.h"
 #include "core/log/Logger.h"
+#include <atomic>
 #include <cmath>
+#include <memory>
+#include <mutex>
 #include <stdexcept>
+#include <unordered_map>
+
+namespace ICARION::physics {
 
 namespace {
     constexpr double MIN_RELATIVE_VELOCITY = 1e-10;  ///< Minimum relative velocity to consider collision [m/s]
+
+    struct alignas(64) EHSSStatsSlot {
+        std::uint64_t generation = 0;
+        CollisionStats stats{};
+    };
+
+    struct EHSSSlotCacheEntry {
+        std::weak_ptr<EHSSCollisionStatsState> state;
+        EHSSStatsSlot* slot = nullptr;
+    };
+
+    thread_local std::unordered_map<const EHSSCollisionStatsState*, EHSSSlotCacheEntry> ehss_slot_cache;
 }
 
-namespace ICARION::physics {
+struct EHSSCollisionStatsState {
+    mutable std::mutex mutex;
+    std::atomic<std::uint64_t> generation{1};
+    std::vector<std::unique_ptr<EHSSStatsSlot>> slots;
+};
 
 EHSSCollisionHandler::EHSSCollisionHandler(
     GeometryMap geometry_map,
@@ -24,6 +46,7 @@ EHSSCollisionHandler::EHSSCollisionHandler(
     : geometry_map_(std::move(geometry_map))  // Store copy (move to avoid unnecessary copying)
     , enable_logging_(enable_logging)
     , species_db_(species_db)
+    , stats_state_(std::make_shared<EHSSCollisionStatsState>())
 {
     if (geometry_map_.empty()) {
         throw std::invalid_argument("EHSSCollisionHandler: geometry_map cannot be empty!");
@@ -67,6 +90,44 @@ EHSSCollisionHandler::EHSSCollisionHandler(
     }
 }
 
+void EHSSCollisionHandler::record_collision() const {
+    auto state = stats_state_;
+    EHSSStatsSlot* slot = nullptr;
+    auto cache_it = ehss_slot_cache.find(state.get());
+    const auto cached_state = (cache_it == ehss_slot_cache.end())
+        ? std::shared_ptr<EHSSCollisionStatsState>{}
+        : cache_it->second.state.lock();
+    if (cache_it == ehss_slot_cache.end() || cached_state.get() != state.get()) {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        auto owned_slot = std::make_unique<EHSSStatsSlot>();
+        slot = owned_slot.get();
+        state->slots.push_back(std::move(owned_slot));
+        cache_it = ehss_slot_cache.find(state.get());
+        if (cache_it == ehss_slot_cache.end()) {
+            cache_it = ehss_slot_cache.emplace(state.get(), EHSSSlotCacheEntry{state, slot}).first;
+        } else {
+            cache_it->second = EHSSSlotCacheEntry{state, slot};
+        }
+    } else {
+        slot = cache_it->second.slot;
+    }
+
+    const std::uint64_t generation = state->generation.load(std::memory_order_acquire);
+    if (slot->generation != generation) {
+        slot->generation = generation;
+        slot->stats = {};
+    }
+    slot->stats.total_collisions++;
+}
+
+bool EHSSCollisionHandler::mark_warning_once(
+    std::unordered_set<std::string>& set,
+    const std::string& key
+) const {
+    std::lock_guard<std::mutex> lock(warning_mutex_);
+    return set.insert(key).second;
+}
+
 bool EHSSCollisionHandler::handle_collision(
     core::IonCollisionData& view,
     double dt,
@@ -74,16 +135,6 @@ bool EHSSCollisionHandler::handle_collision(
     const config::EnvironmentConfig& env,
     CollisionEventDiagnostics* diagnostics
 ) {
-    auto mark_once = [&](std::unordered_set<std::string>& set, const std::string& key) {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        return set.insert(key).second;
-    };
-
-    auto record_collision = [&]() {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        stats_.total_collisions++;
-    };
-
     IonState ion;
     ion.vel = view.kin.vel();
     ion.mass_kg = view.kin.get_mass();
@@ -103,7 +154,7 @@ bool EHSSCollisionHandler::handle_collision(
         if (it_off != offline_samples_.end() && it_off->second.valid()) {
             if (!it_off->second.gas.empty() && it_off->second.gas != env.gas_species) {
                 const std::string key = ion.species_id + ":" + env.gas_species;
-                if (mark_once(warned_offline_gas_, key)) {
+                if (mark_warning_once(warned_offline_gas_, key)) {
                     ICARION::log::Logger::get("collision")->warn(
                         "[EHSS] Offline samples for '{}' are tagged for gas '{}' (requested '{}'); "
                         "falling back to online EHSS.",
@@ -123,7 +174,7 @@ bool EHSSCollisionHandler::handle_collision(
     }
 
     if (use_offline && offline) {
-        if (mark_once(logged_offline_use_, ion.species_id)) {
+        if (mark_warning_once(logged_offline_use_, ion.species_id)) {
             ICARION::log::Logger::get("collision")->info(
                 "[EHSS] Using offline collision samples for '{}' (gas '{}', N={}, mu_stride={})",
                 ion.species_id,
@@ -462,12 +513,7 @@ double EHSSCollisionHandler::compute_effective_ccs(
                 if (derived_ccs > 0.0) {
                     // Log once per species:gas combination
                     std::string key = ion.species_id + ":" + gas_id;
-                    bool should_log = false;
-                    {
-                        std::lock_guard<std::mutex> lock(state_mutex_);
-                        should_log = warned_missing_sigma_.insert(key).second;
-                    }
-                    if (should_log) {
+                    if (mark_warning_once(warned_missing_sigma_, key)) {
                         ICARION::log::Logger::get("collision")->info(
                             "[EHSS] Derived CCS for {}:{} = {:.2f} Å² (from {} reference). "
                             "For better accuracy: ccs_precompute --species {} --ref-gas {} --ref-ccs-A2 {:.2f}",
@@ -484,12 +530,7 @@ double EHSSCollisionHandler::compute_effective_ccs(
     // 4. Last resort: use reference CCS (WARNING: may be wrong gas!)
     if (ion.CCS_m2 > 0.0) {
         std::string key = ion.species_id + ":" + gas_id;
-        bool should_log = false;
-        {
-            std::lock_guard<std::mutex> lock(state_mutex_);
-            should_log = warned_missing_sigma_.insert(key).second;
-        }
-        if (should_log) {
+        if (mark_warning_once(warned_missing_sigma_, key)) {
             ICARION::log::Logger::get("collision")->warn(
                 "[EHSS] Using reference CCS ({:.2f} Å²) for gas {} - may be inaccurate! "
                 "Run: ccs_precompute --species {} --ref-gas <gas> --ref-ccs-A2 <ccs>",
@@ -506,13 +547,25 @@ double EHSSCollisionHandler::compute_effective_ccs(
 }
 
 CollisionStats EHSSCollisionHandler::get_stats() const {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    return stats_;
+    auto state = stats_state_;
+    std::lock_guard<std::mutex> lock(state->mutex);
+    const std::uint64_t generation = state->generation.load(std::memory_order_acquire);
+
+    CollisionStats reduced{};
+    for (const auto& slot : state->slots) {
+        if (slot && slot->generation == generation) {
+            reduced.total_collisions += slot->stats.total_collisions;
+            reduced.rejected_collisions += slot->stats.rejected_collisions;
+            reduced.average_collision_rate += slot->stats.average_collision_rate;
+        }
+    }
+    return reduced;
 }
 
 void EHSSCollisionHandler::reset_stats() {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    stats_ = {};
+    auto state = stats_state_;
+    std::lock_guard<std::mutex> lock(state->mutex);
+    state->generation.fetch_add(1, std::memory_order_acq_rel);
 }
 
 double EHSSCollisionHandler::derive_ccs_for_target_gas(

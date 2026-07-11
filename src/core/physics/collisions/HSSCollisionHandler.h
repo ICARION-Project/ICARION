@@ -26,10 +26,14 @@
 
 #include "ICollisionHandler.h"
 #include "core/config/types/SpeciesConfig.h"
+#include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 
 namespace ICARION::physics {
+
+struct HSSCollisionStatsState;
 
 /**
  * @brief HSS (Hard-Sphere Stochastic) collision handler
@@ -96,9 +100,9 @@ public:
     
     std::string name() const override { return "HSS"; }
     
-    CollisionStats get_stats() const override { return stats_; }
-    void reset_stats() override { stats_ = {}; collisions_by_species_.clear(); }
-    const std::unordered_map<std::string, size_t>& collisions_by_species() const { return collisions_by_species_; }
+    CollisionStats get_stats() const override;
+    void reset_stats() override;
+    const std::unordered_map<std::string, size_t>& collisions_by_species() const;
     
 private:
     /**
@@ -116,12 +120,14 @@ private:
         const std::string& gas_ref,
         const std::string& gas_target
     ) const;
-    bool enable_logging_;
-    mutable CollisionStats stats_;
-    const config::SpeciesDatabase* species_db_;
-    mutable std::unordered_set<std::string> warned_missing_sigma_;
+    void record_collision(const std::string* gas_species = nullptr) const;
+    bool mark_warning_once(const std::string& key) const;
 
-    std::unordered_map<std::string, size_t> collisions_by_species_;
+    bool enable_logging_;
+    const config::SpeciesDatabase* species_db_;
+    std::shared_ptr<HSSCollisionStatsState> stats_state_;
+    mutable std::mutex warning_mutex_;
+    mutable std::unordered_set<std::string> warned_missing_sigma_;
 };
 
 } // namespace ICARION::physics

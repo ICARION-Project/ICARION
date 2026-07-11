@@ -19,6 +19,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include <cmath>
+#include <vector>
 
 using namespace ICARION::physics;
 using namespace ICARION::config;
@@ -659,4 +660,142 @@ TEST_CASE("EHSSCollisionHandler: mismatched orientation sample dimensions fall b
     REQUIRE(collisions > 0);
 
     std::filesystem::remove(json_path);
+}
+
+static EnvironmentConfig make_ehss_sync_env() {
+    EnvironmentConfig env;
+    env.temperature_K = 0.0;
+    env.gas_species = "N2";
+    env.gas_mass_kg = 28.0 * AMU_TO_KG;
+    env.gas_radius_m = RADIUS_N2_M;
+    env.particle_density_m_3 = 1.0e25;
+    env.gas_velocity_m_s = Vec3{0.0, 0.0, 0.0};
+    return env;
+}
+
+static size_t run_ehss_parallel_collisions(EHSSCollisionHandler& handler,
+                                           int thread_count,
+                                           int attempts_per_thread) {
+    const EnvironmentConfig env = make_ehss_sync_env();
+    size_t collisions = 0;
+
+    #pragma omp parallel for num_threads(thread_count) reduction(+:collisions)
+    for (int i = 0; i < thread_count * attempts_per_thread; ++i) {
+        IonState ion;
+        ion.species_id = "H3O+";
+        ion.mass_kg = 19.0 * AMU_TO_KG;
+        ion.ion_charge_C = ELEM_CHARGE_C;
+        ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
+        ion.pos = Vec3{0.0, 0.0, 0.0};
+        ion.vel = Vec3{300.0, 0.0, 0.0};
+
+        PhysicsRng rng(9000 + static_cast<uint64_t>(i));
+        auto ens = IonEnsemble::from_legacy({ion});
+        auto view = ens.collision_data(0);
+        if (handler.handle_collision(view, 1.0e-4, rng, env)) {
+            ++collisions;
+        }
+    }
+
+    return collisions;
+}
+
+TEST_CASE("EHSSCollisionHandler: OpenMP collision stats are reduced from thread-local slots",
+          "[collision][ehss][openmp][stats]") {
+    const std::vector<int> thread_counts{1, 4, 8, 16};
+
+    for (const int thread_count : thread_counts) {
+        GeometryMap geometry = make_test_h3o_geometry();
+        EHSSCollisionHandler handler(geometry, false, nullptr);
+
+        const size_t first = run_ehss_parallel_collisions(handler, thread_count, 32);
+        INFO("thread_count=" << thread_count << " first=" << first);
+        REQUIRE(first > 0);
+        REQUIRE(handler.get_stats().total_collisions == first);
+
+        handler.reset_stats();
+        REQUIRE(handler.get_stats().total_collisions == 0);
+
+        const size_t second = run_ehss_parallel_collisions(handler, thread_count, 16);
+        INFO("thread_count=" << thread_count << " second=" << second);
+        REQUIRE(second > 0);
+        REQUIRE(handler.get_stats().total_collisions == second);
+    }
+}
+
+TEST_CASE("EHSSCollisionHandler: repeated simulations on one handler accumulate until reset",
+          "[collision][ehss][openmp][stats]") {
+    GeometryMap geometry = make_test_h3o_geometry();
+    EHSSCollisionHandler handler(geometry, false, nullptr);
+
+    const size_t first = run_ehss_parallel_collisions(handler, 4, 24);
+    const size_t second = run_ehss_parallel_collisions(handler, 8, 24);
+    REQUIRE(first > 0);
+    REQUIRE(second > 0);
+    REQUIRE(handler.get_stats().total_collisions == first + second);
+
+    handler.reset_stats();
+    REQUIRE(handler.get_stats().total_collisions == 0);
+
+    const size_t third = run_ehss_parallel_collisions(handler, 16, 16);
+    REQUIRE(third > 0);
+    REQUIRE(handler.get_stats().total_collisions == third);
+}
+
+static void run_ehss_parallel_warning_path(EHSSCollisionHandler& handler,
+                                           const SpeciesDatabase& db,
+                                           int thread_count,
+                                           bool derived_path) {
+    (void)db;
+    EnvironmentConfig env = make_ehss_sync_env();
+    env.gas_species = derived_path ? "N2" : "Ar";
+    env.gas_radius_m = derived_path ? RADIUS_N2_M : RADIUS_AR_M;
+    env.gas_mass_kg = derived_path ? 28.0 * AMU_TO_KG : 40.0 * AMU_TO_KG;
+
+    #pragma omp parallel for num_threads(thread_count)
+    for (int i = 0; i < thread_count * 64; ++i) {
+        IonState ion;
+        ion.species_id = derived_path ? "DerivedIon+" : "FallbackIon+";
+        ion.mass_kg = 50.0 * AMU_TO_KG;
+        ion.ion_charge_C = ELEM_CHARGE_C;
+        ion.CCS_m2 = 40.0 * ANGSTROM2_TO_M2;
+        ion.pos = Vec3{0.0, 0.0, 0.0};
+        ion.vel = Vec3{300.0, 0.0, 0.0};
+
+        PhysicsRng rng(11000 + static_cast<uint64_t>(i));
+        auto ens = IonEnsemble::from_legacy({ion});
+        auto view = ens.collision_data(0);
+        REQUIRE_FALSE(handler.handle_collision(view, 0.0, rng, env));
+    }
+}
+
+TEST_CASE("EHSSCollisionHandler: concurrent derived and fallback CCS warning paths are thread-safe",
+          "[collision][ehss][openmp][warnings]") {
+    GeometryMap geometry;
+    geometry["Other+"] = {{Vec3{0.0, 0.0, 0.0}}, {1.0e-10}};
+
+    SpeciesDatabase db;
+    SpeciesProperties derived;
+    derived.id = "DerivedIon+";
+    derived.mass_amu = 50.0;
+    derived.charge = 1;
+    derived.CCS_A2 = 40.0;
+    derived.convert_to_SI();
+    derived.ccs_reference_gas = "He";
+    db.species[derived.id] = derived;
+
+    SpeciesProperties fallback;
+    fallback.id = "FallbackIon+";
+    fallback.mass_amu = 50.0;
+    fallback.charge = 1;
+    fallback.CCS_A2 = 40.0;
+    fallback.convert_to_SI();
+    db.species[fallback.id] = fallback;
+
+    for (const int thread_count : std::vector<int>{1, 4, 8, 16}) {
+        EHSSCollisionHandler handler(geometry, false, &db);
+        run_ehss_parallel_warning_path(handler, db, thread_count, true);
+        run_ehss_parallel_warning_path(handler, db, thread_count, false);
+        REQUIRE(handler.get_stats().total_collisions == 0);
+    }
 }

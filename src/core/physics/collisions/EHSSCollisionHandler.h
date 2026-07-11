@@ -32,6 +32,7 @@
 #include "core/config/types/SpeciesConfig.h"
 #include "EHSSSamples.h"
 #include "EHSSOfflineSampleSet.h"
+#include <memory>
 #include <vector>
 #include <mutex>
 #include <unordered_map>
@@ -39,6 +40,8 @@
 #include <unordered_set>
 
 namespace ICARION::physics {
+
+struct EHSSCollisionStatsState;
 
 /**
  * @brief Geometry data: atom centers and radii for a molecular species
@@ -125,8 +128,8 @@ private:
     const GeometryMap geometry_map_;  ///< Copy of geometry map (owned by handler)
     bool enable_logging_;
     const config::SpeciesDatabase* species_db_ = nullptr;
-    mutable CollisionStats stats_;
-    mutable std::mutex state_mutex_;
+    std::shared_ptr<EHSSCollisionStatsState> stats_state_;
+    mutable std::mutex warning_mutex_;
     mutable std::unordered_set<std::string> warned_missing_sigma_;
     std::unordered_map<std::string, EHSSOrientationSamples> orientation_samples_;
     std::unordered_map<std::string, EHSSOfflineSampleSet> offline_samples_;
@@ -169,6 +172,9 @@ private:
         const std::string& gas_ref,
         const std::string& gas_target
     ) const;
+
+    void record_collision() const;
+    bool mark_warning_once(std::unordered_set<std::string>& set, const std::string& key) const;
 };
 
 } // namespace ICARION::physics

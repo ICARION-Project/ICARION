@@ -6,20 +6,85 @@
 #include "core/physics/collisions/core/VelocitySampling.h"
 #include "utils/constants.h"
 #include "core/log/Logger.h"
+#include <atomic>
 #include <cmath>
+#include <memory>
+#include <mutex>
 #include <stdexcept>
+#include <unordered_map>
 #include <vector>
+
+namespace ICARION::physics {
 
 namespace {
     constexpr double MIN_RELATIVE_VELOCITY = 1e-10;  ///< Minimum relative velocity to consider collision [m/s]
+
+    struct alignas(64) HSSStatsSlot {
+        std::uint64_t generation = 0;
+        CollisionStats stats{};
+        std::unordered_map<std::string, size_t> collisions_by_species;
+    };
+
+    struct HSSSlotCacheEntry {
+        std::weak_ptr<HSSCollisionStatsState> state;
+        HSSStatsSlot* slot = nullptr;
+    };
+
+    thread_local std::unordered_map<const HSSCollisionStatsState*, HSSSlotCacheEntry> hss_slot_cache;
 }
 
-namespace ICARION::physics {
+struct HSSCollisionStatsState {
+    mutable std::mutex mutex;
+    std::atomic<std::uint64_t> generation{1};
+    std::vector<std::unique_ptr<HSSStatsSlot>> slots;
+    mutable std::unordered_map<std::string, size_t> species_snapshot;
+};
 
 HSSCollisionHandler::HSSCollisionHandler(bool enable_logging, const config::SpeciesDatabase* species_db)
     : enable_logging_(enable_logging)
     , species_db_(species_db)
+    , stats_state_(std::make_shared<HSSCollisionStatsState>())
 {}
+
+void HSSCollisionHandler::record_collision(const std::string* gas_species) const {
+    auto state = stats_state_;
+    HSSStatsSlot* slot = nullptr;
+    auto cache_it = hss_slot_cache.find(state.get());
+    const auto cached_state = (cache_it == hss_slot_cache.end())
+        ? std::shared_ptr<HSSCollisionStatsState>{}
+        : cache_it->second.state.lock();
+    if (cache_it == hss_slot_cache.end() || cached_state.get() != state.get()) {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        auto owned_slot = std::make_unique<HSSStatsSlot>();
+        slot = owned_slot.get();
+        state->slots.push_back(std::move(owned_slot));
+        cache_it = hss_slot_cache.find(state.get());
+        if (cache_it == hss_slot_cache.end()) {
+            cache_it = hss_slot_cache.emplace(state.get(), HSSSlotCacheEntry{state, slot}).first;
+        } else {
+            cache_it->second = HSSSlotCacheEntry{state, slot};
+        }
+    } else {
+        slot = cache_it->second.slot;
+    }
+
+    const std::uint64_t generation = state->generation.load(std::memory_order_acquire);
+    if (slot->generation != generation) {
+        slot->generation = generation;
+        slot->stats = {};
+        slot->collisions_by_species.clear();
+    }
+
+    slot->stats.total_collisions++;
+    if (gas_species) {
+        slot->collisions_by_species[*gas_species]++;
+    }
+}
+
+bool HSSCollisionHandler::mark_warning_once(const std::string& key) const {
+    std::lock_guard<std::mutex> lock(warning_mutex_);
+    return warned_missing_sigma_.insert(key).second;
+}
 
 bool HSSCollisionHandler::handle_collision(
     core::IonCollisionData& view,
@@ -76,13 +141,6 @@ bool HSSCollisionHandler::handle_collision(
                     auto it_g = map.find(comp.species);
                     if (it_g != map.end() && it_g->second > 0.0) {
                         sigma_i = it_g->second;
-                        std::string key = ion.species_id + ":" + comp.species;
-                        if (!warned_missing_sigma_.count(key)) {
-                            ICARION::log::Logger::main()->info(
-                                "[HSS] Using precomputed CCS for {}:{} = {:.1f} Å²",
-                                ion.species_id, comp.species, sigma_i * 1e20);
-                            warned_missing_sigma_.insert(key);
-                        }
                     } else {
                         // Try automatic derivation if no precomputed CCS
                         if (it_spec->second.CCS_m2 > 0.0 && 
@@ -95,21 +153,19 @@ bool HSSCollisionHandler::handle_collision(
                             if (derived > 0.0) {
                                 sigma_i = derived;
                                 std::string key = ion.species_id + ":" + comp.species;
-                                if (!warned_missing_sigma_.count(key)) {
+                                if (mark_warning_once(key)) {
                                     ICARION::log::Logger::main()->info(
                                         "[HSS] Derived CCS for {}:{} = {:.1f} Å² (from {} reference)",
                                         ion.species_id, comp.species, derived * 1e20, 
                                         *it_spec->second.ccs_reference_gas);
-                                    warned_missing_sigma_.insert(key);
                                 }
                             }
                         } else if (sigma_i > 0.0) {
                             std::string key = ion.species_id + ":" + comp.species;
-                            if (!warned_missing_sigma_.count(key)) {
+                            if (mark_warning_once(key)) {
                                 ICARION::log::debug_log(
                                     "[HSSCollisionHandler] Warning: No CCS_HSS for gas '" + comp.species +
                                     "' and species '" + ion.species_id + "'; using ion.CCS_m2 fallback");
-                                warned_missing_sigma_.insert(key);
                             }
                         }
                     }
@@ -187,9 +243,7 @@ bool HSSCollisionHandler::handle_collision(
             diagnostics->sigma_mt_m2 = selected.sigma_i;
         }
         
-        // For single-threaded tests, update collision statistics
-        stats_.total_collisions++;
-        collisions_by_species_[comp.species]++;
+        record_collision(&comp.species);
         
         return true;
     }
@@ -215,13 +269,12 @@ bool HSSCollisionHandler::handle_collision(
             auto it_g = map.find(env.gas_species);
             if (it_g != map.end() && it_g->second > 0.0) {
                 sigma_eff = it_g->second;  // Use gas-specific CCS
-                static bool logged = false;
-                if (!logged) {
+                static std::once_flag logged;
+                std::call_once(logged, [&]() {
                     ICARION::log::Logger::main()->info(
                         "[HSS] Single-gas: Using CCS_HSS[{}][{}] = {:.1f} Å²",
                         ion.species_id, env.gas_species, sigma_eff * 1e20);
-                    logged = true;
-                }
+                });
             } else if (it_spec->second.CCS_m2 > 0.0 && 
                        it_spec->second.ccs_reference_gas.has_value() &&
                        *it_spec->second.ccs_reference_gas != env.gas_species) {
@@ -233,26 +286,27 @@ bool HSSCollisionHandler::handle_collision(
                 );
                 if (derived > 0.0) {
                     sigma_eff = derived;
-                    ICARION::log::Logger::main()->info(
-                        "[HSS] Single-gas path: Derived CCS for {}:{} = {:.1f} Å² (from {} reference)",
-                        ion.species_id, env.gas_species, derived * 1e20, 
-                        *it_spec->second.ccs_reference_gas);
+                    const std::string key = ion.species_id + ":" + env.gas_species;
+                    if (mark_warning_once(key)) {
+                        ICARION::log::Logger::main()->info(
+                            "[HSS] Single-gas path: Derived CCS for {}:{} = {:.1f} Å² (from {} reference)",
+                            ion.species_id, env.gas_species, derived * 1e20,
+                            *it_spec->second.ccs_reference_gas);
+                    }
                 }
             }
         } else {
-            static bool logged = false;
-            if (!logged) {
+            static std::once_flag logged;
+            std::call_once(logged, [&]() {
                 ICARION::log::Logger::main()->warn(
                     "[HSS] Single-gas: Species '{}' not found in database!", ion.species_id);
-                logged = true;
-            }
+            });
         }
     } else {
-        static bool logged = false;
-        if (!logged) {
+        static std::once_flag logged;
+        std::call_once(logged, []() {
             ICARION::log::Logger::main()->warn("[HSS] Single-gas: species_db_ is NULL!");
-            logged = true;
-        }
+        });
     }
     
     if (sigma_eff <= 0.0) {
@@ -317,10 +371,49 @@ bool HSSCollisionHandler::handle_collision(
         diagnostics->sigma_mt_m2 = sigma_eff;
     }
     
-    // Update statistics (for single-threaded tests)
-    stats_.total_collisions++;
+    record_collision();
     
     return true;  // Collision occurred
+}
+
+CollisionStats HSSCollisionHandler::get_stats() const {
+    auto state = stats_state_;
+    std::lock_guard<std::mutex> lock(state->mutex);
+    const std::uint64_t generation = state->generation.load(std::memory_order_acquire);
+
+    CollisionStats reduced{};
+    for (const auto& slot : state->slots) {
+        if (slot && slot->generation == generation) {
+            reduced.total_collisions += slot->stats.total_collisions;
+            reduced.rejected_collisions += slot->stats.rejected_collisions;
+            reduced.average_collision_rate += slot->stats.average_collision_rate;
+        }
+    }
+    return reduced;
+}
+
+void HSSCollisionHandler::reset_stats() {
+    auto state = stats_state_;
+    std::lock_guard<std::mutex> lock(state->mutex);
+    state->generation.fetch_add(1, std::memory_order_acq_rel);
+    state->species_snapshot.clear();
+}
+
+const std::unordered_map<std::string, size_t>& HSSCollisionHandler::collisions_by_species() const {
+    auto state = stats_state_;
+    std::lock_guard<std::mutex> lock(state->mutex);
+    const std::uint64_t generation = state->generation.load(std::memory_order_acquire);
+
+    state->species_snapshot.clear();
+    for (const auto& slot : state->slots) {
+        if (!slot || slot->generation != generation) {
+            continue;
+        }
+        for (const auto& [species, count] : slot->collisions_by_species) {
+            state->species_snapshot[species] += count;
+        }
+    }
+    return state->species_snapshot;
 }
 
 double HSSCollisionHandler::derive_ccs_for_target_gas(

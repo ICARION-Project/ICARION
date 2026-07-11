@@ -17,6 +17,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include <cmath>
+#include <vector>
 
 using namespace ICARION::physics;
 using namespace ICARION::config;
@@ -33,6 +34,98 @@ static bool run_collision(HSSCollisionHandler& handler,
     bool res = handler.handle_collision(view, dt, rng, env);
     ion.vel = view.kin.vel();
     return res;
+}
+
+static EnvironmentConfig make_hss_sync_env(bool multi_species) {
+    EnvironmentConfig env;
+    env.temperature_K = 0.0;
+    env.gas_velocity_m_s = Vec3{0.0, 0.0, 0.0};
+    env.gas_mixture.clear();
+
+    GasMixtureComponent n2;
+    n2.species = "N2";
+    n2.mole_fraction = multi_species ? 0.5 : 1.0;
+    n2.density_m3 = 1.0e25;
+    n2.mass_kg = 28.0 * AMU_TO_KG;
+    n2.radius_m = RADIUS_N2_M;
+    n2.cross_section_m2 = 24.9 * ANGSTROM2_TO_M2;
+    n2.participates_in_collisions = true;
+    env.gas_mixture.push_back(n2);
+
+    if (multi_species) {
+        GasMixtureComponent o2;
+        o2.species = "O2";
+        o2.mole_fraction = 0.5;
+        o2.density_m3 = 1.0e25;
+        o2.mass_kg = 32.0 * AMU_TO_KG;
+        o2.radius_m = RADIUS_O2_M;
+        o2.cross_section_m2 = 24.9 * ANGSTROM2_TO_M2;
+        o2.participates_in_collisions = true;
+        env.gas_mixture.push_back(o2);
+    }
+
+    return env;
+}
+
+static size_t run_hss_parallel_collisions(HSSCollisionHandler& handler,
+                                          int thread_count,
+                                          int attempts_per_thread,
+                                          bool multi_species) {
+    const EnvironmentConfig env = make_hss_sync_env(multi_species);
+    size_t collisions = 0;
+
+    #pragma omp parallel for num_threads(thread_count) reduction(+:collisions)
+    for (int i = 0; i < thread_count * attempts_per_thread; ++i) {
+        IonState ion;
+        ion.species_id = "H3O+";
+        ion.mass_kg = 19.0 * AMU_TO_KG;
+        ion.ion_charge_C = ELEM_CHARGE_C;
+        ion.CCS_m2 = 24.9 * ANGSTROM2_TO_M2;
+        ion.pos = Vec3{0.0, 0.0, 0.0};
+        ion.vel = Vec3{300.0, 0.0, 0.0};
+
+        PhysicsRng rng(12000 + static_cast<uint64_t>(i));
+        auto ens = IonEnsemble::from_legacy({ion});
+        auto view = ens.collision_data(0);
+        if (handler.handle_collision(view, 1.0e-4, rng, env)) {
+            ++collisions;
+        }
+    }
+
+    return collisions;
+}
+
+TEST_CASE("HSSCollisionHandler: OpenMP stats preserve totals and per-gas counts",
+          "[collision][hss][openmp][stats]") {
+    for (const bool multi_species : {false, true}) {
+        for (const int thread_count : std::vector<int>{1, 4, 8, 16}) {
+            HSSCollisionHandler handler(false);
+            const int first_attempts = multi_species ? 256 : 32;
+            const size_t first = run_hss_parallel_collisions(handler, thread_count, first_attempts, multi_species);
+            REQUIRE(first > 0);
+            REQUIRE(handler.get_stats().total_collisions == first);
+
+            const auto by_species = handler.collisions_by_species();
+            size_t species_sum = 0;
+            for (const auto& [species, count] : by_species) {
+                (void)species;
+                species_sum += count;
+            }
+            REQUIRE(species_sum == first);
+            REQUIRE(by_species.count("N2") == 1);
+            if (multi_species) {
+                REQUIRE(by_species.count("O2") == 1);
+            }
+
+            handler.reset_stats();
+            REQUIRE(handler.get_stats().total_collisions == 0);
+            REQUIRE(handler.collisions_by_species().empty());
+
+            const size_t second = run_hss_parallel_collisions(handler, thread_count, 16, multi_species);
+            REQUIRE(second > 0);
+            REQUIRE(handler.get_stats().total_collisions == second);
+        }
+    }
 }
 
 // Helper: Calculate kinetic energy from velocity

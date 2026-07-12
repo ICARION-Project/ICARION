@@ -3,7 +3,9 @@ set -euo pipefail
 
 # Regenerate the small IPM example tables used by examples/ims/ims_ipm_basic.json.
 # Defaults are intentionally small so the script is useful as a reproducible
-# example. Increase N_TRIALS/N_ORIENTATIONS for production-quality sample sets.
+# example. It writes full-CDF momentum-kick tables; increase N_TRIALS,
+# N_ORIENTATIONS, V_BINS, and convergence settings for production-quality
+# sample sets.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="${BIN:-$ROOT/build/src/interaction_potential_precompute}"
@@ -21,7 +23,10 @@ POTENTIAL="${POTENTIAL:-lj1264}"
 POLARIZATION="${POLARIZATION:-partial}"
 MIXING_RULE="${MIXING_RULE:-lb}"
 ORIENT_GRID="${ORIENT_GRID:-random}"
-FORCEFIELD="${FORCEFIELD:-$OUT_DIR/ipm_example_forcefield.json}"
+MAX_NON_ASYMPTOTIC_FRAC="${MAX_NON_ASYMPTOTIC_FRAC:-0}"
+ETA_DT="${ETA_DT:-0.02}"
+MAX_STEPS="${MAX_STEPS:-1000000}"
+FORCEFIELD="${FORCEFIELD:-$ROOT/tmp/ipm_example_forcefield.json}"
 
 if [[ ! -x "$BIN" ]]; then
   echo "Missing precompute binary: $BIN" >&2
@@ -29,7 +34,7 @@ if [[ ! -x "$BIN" ]]; then
   exit 2
 fi
 
-mkdir -p "$OUT_DIR"
+mkdir -p "$OUT_DIR" "$(dirname "$FORCEFIELD")"
 
 cat > "$FORCEFIELD" <<'JSON'
 {
@@ -50,7 +55,7 @@ cat > "$FORCEFIELD" <<'JSON'
 JSON
 
 echo "Writing IPM example samples to: $OUT_DIR"
-echo "Settings: gas=$GAS orientations=$N_ORIENTATIONS trials=$N_TRIALS v_bins=$V_BINS v=[$V_MIN,$V_MAX]"
+echo "Settings: gas=$GAS orientations=$N_ORIENTATIONS trials=$N_TRIALS v_bins=$V_BINS v=[$V_MIN,$V_MAX] max_reject=$MAX_NON_ASYMPTOTIC_FRAC eta_dt=$ETA_DT max_steps=$MAX_STEPS"
 
 for SPECIES in $SPECIES_LIST; do
   OUT="$OUT_DIR/${SPECIES}_ipm_samples_${GAS}.h5"
@@ -72,6 +77,10 @@ for SPECIES in $SPECIES_LIST; do
     --v-bins "$V_BINS" \
     --v-min "$V_MIN" \
     --v-max "$V_MAX" \
+    --max-non-asymptotic-frac "$MAX_NON_ASYMPTOTIC_FRAC" \
+    --eta-dt "$ETA_DT" \
+    --max-steps "$MAX_STEPS" \
+    --store-full-cdf \
     --threads "$THREADS"
 done
 

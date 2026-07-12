@@ -200,12 +200,75 @@ At high pressure or large `dt_s`, one macro-step can contain more than one physi
 
 - `physics.collision_subcycles_per_step`: splits the collision update into equal micro-steps and recomputes rates in each micro-step.
 - `physics.collision_multi_event_mode`: enables a practical multi-collision approximation and uses at least `collision_max_events_per_step` micro subcycles.
+- `physics.collision_max_events_per_step`: legacy field name; in multi-event mode this is a minimum micro-subcycle count, not a guaranteed upper bound on physical continuous-time collision events.
 
 These options reduce bias from large steps, but they are still approximations. The most accurate setup is to choose `dt_s` such that less than one collision per ion per step is likely.
+
+There are two separate accuracy criteria:
+
+- Collision-count/statistics accuracy: each collision micro step should keep
+  `mu = lambda * dt_collision` below the range validated for the selected
+  model and pressure regime, where `lambda` is the instantaneous collision
+  rate. If a sub-step allows at most one accepted event, the missed multiple
+  event error is second order in `mu`, while the relative bias in the expected
+  event count is roughly proportional to `mu / 2` for small `mu`. As a generic
+  orientation, `mu <= 0.02` is around percent level, `mu <= 0.05` is a few
+  percent, and `mu >= 0.1` is no longer a strict setting. Prefer measured
+  validation thresholds over these generic numbers.
+- Trajectory accuracy: `dt_s` must still resolve deterministic motion. Collision
+  subcycling improves collision counts and velocity relaxation inside a
+  macro-step, but it does not make an arbitrarily large RK/global step valid.
+  The global step must resolve RF or field timescales, momentum relaxation,
+  relevant field gradients, time to walls or domain boundaries, and intervals
+  with strong velocity changes.
+
+In practice, use both checks: keep `max(lambda * dt_collision)` below the
+validated collision threshold, and keep the global `dt_s` small enough for the
+fields, geometry, boundary crossings, and deterministic acceleration.
+
+Current public validation coverage for this release:
+
+| Model | Tested Regime | Maximum `mu` | Deviation | Runtime Gain |
+| --- | --- | --- | --- | --- |
+| HSS multi-event dispatch | CTest synthetic handlers with fixed `dt_s`, no physical rate model | n/a | Verifies handler call count, collision microstep size, event accounting, and that multi-event mode is not a global event cap | Not measured |
+| HSS drift convergence gate | `validation/scripts/physics/validate_multi_event_mode.py`, short IMS drift envelope against a smaller-`dt` reference | Not reported by the gate | Checks median arrival and active ion fraction envelope; not a Poisson count or relaxation limit proof | Reported in generated gate output, not fixed in docs |
+| Full high pressure physical envelope | Poisson collision counts, relaxation against a small-`dt` reference, mobility/temperature convergence, and error vs. `mu` sweeps | Not established as release evidence | Not established as release evidence | Not established as release evidence |
+
+Do not interpret collision subcycling as permission to take a large global
+integration step. The subcycles improve stochastic collision statistics inside
+one macro-step; they do not automatically feed collision impulses back into the
+deterministic trajectory at exact event times.
 
 ### InteractionPotentialModel Offline Tables
 
 `InteractionPotentialModel` uses precomputed offline sample files referenced from the species database via `ipm_samples_file`. The runtime interpolates the table for the current relative speed and samples from stored momentum-transfer possibilities. For one relative speed and orientation, multiple momentum-transfer outcomes remain possible because the impact parameter is still sampled; the table stores that distribution rather than a single deterministic transfer.
+
+Format version 1 separates the event cross section from the diagnostic momentum-transfer cross section. Runtime collision probabilities use `sigma_event_m2`, while `sigma_mt_m2` records the corresponding momentum-transfer integral for auditing. Stored `dp_samples` and `dp_stats` are sampled over impact-parameter area, so the momentum-transfer factor is not applied a second time during runtime sampling.
+
+Use full-CDF sample tables for scientific production runs. The compact
+`dp_stats` fallback reconstructs momentum kicks from per-cell moments only; it
+does not preserve parallel/perpendicular correlations, non-Gaussian tails, or
+per-event kinematic bounds from the offline trajectories. The precompute tool
+therefore writes full-CDF tables by default; `--compact-dp-stats` is reserved
+for lightweight debugging or legacy compatibility.
+
+The precompute tool uses `qmc` orientation sampling by default. `lebedev` remains
+available as an explicit option, but v1.1 runtime sampling draws stored
+orientations uniformly by index and does not consume Lebedev quadrature weights.
+Tables store `attempted_trajectories`, `accepted_trajectories`, and
+`rejected_non_asymptotic` per cell, plus `max_energy_step_error` and
+`max_energy_cumulative_error` diagnostics for the offline trajectory integrator.
+Precompute aborts if the non-asymptotic fraction exceeds
+`--max-non-asymptotic-frac` (default: `0.005`). The stored CDF and `dp_stats`
+payloads contain the accepted asymptotic trajectories only; for strict
+production tables, require zero rejects or treat any nonzero reject fraction as
+a small conditioning error bounded by this threshold.
+
+For relative speeds between stored bins, the runtime randomly chooses one of
+the neighboring log-speed bins. The sampled absolute momentum kick belongs to
+the selected bin speed, so production tables should be checked for convergence
+with respect to velocity-bin density as well as orientations, trials, `b_max_m`,
+and CDF sample count.
 
 Supported runtime controls include:
 

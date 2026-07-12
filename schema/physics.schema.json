@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0.0/physics.schema.json",
+  "$id": "https://icarion.io/schemas/v1.1.0/physics.schema.json",
   "title": "ICARION Physics Configuration",
   "description": "Global physics options for collision models and thermalization",
   "type": "object",
@@ -47,26 +47,14 @@
       "type": "integer",
       "minimum": 1,
       "default": 16,
-      "description": "Upper bound for micro-subcycles per dt when collision_multi_event_mode is enabled. Higher values improve collision fidelity at large dt but increase cost."
-    },
-
-    "collision_time_centered": {
-      "type": "boolean",
-      "default": false,
-      "description": "Apply stochastic collisions in two half-steps around integration to reduce large-dt splitting bias"
-    },
-
-    "collision_time_randomized": {
-      "type": "boolean",
-      "default": false,
-      "description": "Randomize stochastic collision timing within each timestep using per-ion random pre/post split fractions"
+      "description": "Legacy name. In collision_multi_event_mode this is the minimum micro-subcycle count per dt, via max(collision_subcycles_per_step, collision_max_events_per_step). It is not a guaranteed upper bound on physical continuous-time collision events."
     },
 
     "collision_subcycles_per_step": {
       "type": "integer",
       "minimum": 1,
       "default": 1,
-      "description": "Split each collision application into equal micro-steps and recompute collision rates after each micro-step. collision_multi_event_mode enforces at least collision_max_events_per_step subcycles."
+      "description": "Split each collision application into equal micro-steps and recompute collision rates after each micro-step. collision_multi_event_mode enforces at least collision_max_events_per_step subcycles. This improves collision statistics but does not relax the need for dt_s to resolve fields, gradients, momentum relaxation, walls, and domain boundaries."
     },
 
     "ipm_orientation_mode": {
@@ -108,6 +96,6 @@
     }
   },
   
-  "required": [],
+  "required": ["collision_model"],
   "additionalProperties": false
 }

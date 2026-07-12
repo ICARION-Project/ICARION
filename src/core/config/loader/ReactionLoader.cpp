@@ -50,9 +50,9 @@ ReactionDatabase ReactionLoader::load_from_json(const Json::Value& json,
                 throw std::runtime_error(error_msg);
             }
             
-            // VALIDATION RULE #3: species exists in database (if not "neutral")
+            // VALIDATION RULE #3: species exists in database (if not a runtime placeholder)
             for (const auto& term : rxn.order_terms) {
-                if (term.species != "neutral" && !species_db->has(term.species)) {
+                if (!is_reaction_order_placeholder(term.species) && !species_db->has(term.species)) {
                     throw std::runtime_error(
                         "Reaction '" + rxn.id + "': order term species '" + term.species + 
                         "' not found in species database"
@@ -233,7 +233,7 @@ Reaction ReactionLoader::parse_reaction(const Json::Value& json) {
             rxn.order_terms.push_back(term);
         }
         
-        // ⚠️ DIMENSIONAL CONSISTENCY WARNING
+        // DIMENSIONAL CONSISTENCY WARNING
         int total_order = 0;
         for (const auto& term : rxn.order_terms) {
             total_order += term.exponent;
@@ -245,14 +245,14 @@ Reaction ReactionLoader::parse_reaction(const Json::Value& json) {
                       << rxn.rate_constant << " suggests [m³/s] units. Expected [s⁻¹] (~1e-3 to 1e6).\n";
         }
         
-        if (total_order == 1 && (rxn.rate_constant < 1e-12 || rxn.rate_constant > 1e-6)) {
+        if (total_order == 1 && (rxn.rate_constant < 1e-18 || rxn.rate_constant > 1e-12)) {
             std::cout << "⚠  Reaction '" << rxn.id << "': 2nd-order (total exponent=1) but k = " 
-                      << rxn.rate_constant << " outside typical range [1e-12, 1e-6] m³/s.\n";
+                      << rxn.rate_constant << " outside typical SI range [1e-18, 1e-12] m³/s.\n";
         }
         
-        if (total_order == 2 && (rxn.rate_constant < 1e-30 || rxn.rate_constant > 1e-24)) {
+        if (total_order == 2 && (rxn.rate_constant < 1e-44 || rxn.rate_constant > 1e-38)) {
             std::cout << "⚠  Reaction '" << rxn.id << "': 3rd-order (total exponent=2) but k = " 
-                      << rxn.rate_constant << " outside typical range [1e-30, 1e-24] m⁶/s.\n";
+                      << rxn.rate_constant << " outside typical SI range [1e-44, 1e-38] m⁶/s.\n";
         }
     }
 
@@ -292,6 +292,17 @@ Reaction ReactionLoader::parse_reaction(const Json::Value& json) {
 
     if (json.isMember("reverse_dynamic_from_equilibrium") && json["reverse_dynamic_from_equilibrium"].isBool()) {
         rxn.reverse_dynamic_from_equilibrium = json["reverse_dynamic_from_equilibrium"].asBool();
+    }
+
+    if (rxn.equilibrium) {
+        for (const auto& term : rxn.order_terms) {
+            if (term.species == "neutral") {
+                throw std::runtime_error(
+                    "Reaction '" + rxn.id + "': equilibrium=true cannot use order term species 'neutral'. "
+                    "Use 'M' for a third-body placeholder or an explicit neutral species name such as 'N2' or 'H2O'."
+                );
+            }
+        }
     }
     
     return rxn;

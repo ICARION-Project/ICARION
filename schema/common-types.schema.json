@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://icarion.io/schemas/v1.0.0/common-types.schema.json",
+  "$id": "https://icarion.io/schemas/v1.1.0/common-types.schema.json",
   "title": "ICARION Common Types",
   "description": "Reusable type definitions for ICARION configuration schemas",
   

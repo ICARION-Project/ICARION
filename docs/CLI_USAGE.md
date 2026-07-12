@@ -271,7 +271,7 @@ Can be specified multiple times to override multiple values.
 - `physics.enable_ou_thermalization` - Enable Ornstein-Uhlenbeck thermalization for deterministic collision models (requires custom wiring of `gamma_for_ou`; incompatible with HSS/EHSS)
 - `physics.collision_subcycles_per_step` - Split stochastic collision updates into this many micro-steps
 - `physics.collision_multi_event_mode` - Enable approximate multi-collision micro-subcycling (true/false)
-- `physics.collision_max_events_per_step` - Minimum subcycle count used by multi-event mode
+- `physics.collision_max_events_per_step` - Legacy name for the minimum subcycle count used by multi-event mode; not a physical event cap
 - `physics.ipm_orientation_mode` - InteractionPotential orientation sampling (`random` or `fixed`)
 - `physics.ipm_fixed_orientation_index` - Fixed IPM orientation index when mode is `fixed`
 - `physics.ipm_vrel_log_prefix` - Optional InteractionPotential relative-speed CSV log prefix

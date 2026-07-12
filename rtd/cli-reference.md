@@ -184,10 +184,15 @@ build/src/interaction_potential_precompute \
 ```
 
 The runtime format attribute is `ipm_offline_samples`. Required datasets are
-`logv_bins`, `orientations_quat`, `sigma_mt_m2`, and `b_max_m`. Files may also
-store full CDF datasets (`cdf_offsets`, `cdf_counts`, `cdf_values`,
-`dp_samples`) for higher-fidelity momentum-kick sampling; otherwise the runtime
-uses `dp_stats`.
+`logv_bins`, `orientations_quat`, `sigma_event_m2`, `sigma_mt_m2`, and
+`b_max_m`. Tables also include trajectory quality datasets
+`attempted_trajectories`, `accepted_trajectories`, and
+`rejected_non_asymptotic`, plus `max_energy_step_error` and
+`max_energy_cumulative_error`. Production files should store full CDF datasets
+(`cdf_offsets`, `cdf_counts`, `cdf_values`, `dp_samples`) for momentum-kick
+sampling. If the full CDF is absent, the runtime can use the lower-fidelity
+`dp_stats` fallback. Runtime event rates use `sigma_event_m2`; `sigma_mt_m2` is
+diagnostic and is not applied a second time to stored momentum kicks.
 
 ## Exit codes
 

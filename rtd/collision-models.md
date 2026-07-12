@@ -395,7 +395,11 @@ The main precompute settings are:
 | `--mixing-rule` | `lb`, `mmff`, `pair` | How ion-atom and gas-atom van der Waals parameters are combined. |
 | `--polarization` | `partial`, `total`, `pairwise`, `none` | How ion-induced dipole attraction is represented. |
 | `--param-model` | `sigma_epsilon`, `mmff_reij` | Element parameter source; `mmff_reij` is used with the Exp-6/MMFF path. |
-| `--store-full-cdf` | flag | Stores sampled momentum-kick CDFs instead of only summary statistics. |
+| `--orient-grid` | `qmc`, `random`, `lebedev` | Orientation sampling grid. Default is `qmc`; `lebedev` is explicit because v1.1 runtime samples stored orientations uniformly by index. |
+| `--max-non-asymptotic-frac` | float | Abort when the per-cell non-asymptotic trajectory fraction exceeds this threshold; default is `0.005`. |
+| `--max-steps` | integer | Maximum integration steps per offline trajectory; increase for strict zero-reject production tables. |
+| `--store-full-cdf` | flag | Stores sampled momentum-kick CDFs; this is the default and the recommended production path. |
+| `--compact-dp-stats` | flag | Stores only compact `dp_stats`; lower-fidelity legacy/debug path. |
 
 ### Interaction potential terms
 
@@ -468,19 +472,21 @@ hard-sphere geometry model, while IPM uses an interaction potential and samples
 momentum kicks from the precomputed table.
 
 The runtime expects HDF5 files with format attribute `ipm_offline_samples`.
-Required datasets include `logv_bins`, `orientations_quat`, `sigma_mt_m2`, and
-`b_max_m`; high-fidelity files may also include full momentum-kick CDF datasets.
+Required datasets include `logv_bins`, `orientations_quat`, `sigma_event_m2`,
+`sigma_mt_m2`, and `b_max_m`; production files should also include full
+momentum-kick CDF datasets.
 See [CLI reference](cli-reference.md#precompute-tools) for the producer tool.
 
 At runtime, ICARION does not integrate the potential again. It samples an
 orientation and relative speed bin, reads the corresponding
-`sigma_mt_m2(orientation, logv)` entry for the event rate, and then samples the
-momentum transfer from the same table. With `--store-full-cdf`, the runtime
+`sigma_event_m2(orientation, logv)` entry for the event rate, and then samples
+the momentum kick from the table. With the default full-CDF format, the runtime
 draws from the stored `cdf_*`/`dp_samples` distribution. Without the full CDF,
-it draws from the compact `dp_stats` approximation. This means the offline file
-should contain enough orientations, velocity bins, and trials for the intended
-accuracy; runtime stochastic sampling cannot recover detail that was not
-resolved during precomputation.
+it can fall back to the compact `dp_stats` approximation, but that path only
+reconstructs independent Gaussian parallel/perpendicular momentum components
+from four moments and is lower fidelity. It does not preserve correlations,
+non-Gaussian tails, or per-event two-body kinematic bounds from the offline
+trajectories. Use full-CDF tables for scientific production runs.
 
 For a fixed orientation and relative speed bin there is still not a single
 unique momentum transfer. Different impact parameters and azimuthal approach
@@ -494,11 +500,31 @@ $$
 $$
 
 by Monte Carlo integration. The same `(1 - cos(theta))` weights define the
-stored runtime distribution over `dp_samples`, so the collision rate and the
-sampled momentum kick are derived from the same offline ensemble. In compact
-files, this per-cell distribution is reduced to `dp_stats`; in full-CDF files,
-`cdf_offsets`, `cdf_counts`, `cdf_values`, and `dp_samples` preserve the sampled
-distribution for each `(orientation, logv)` cell.
+diagnostic momentum-transfer cross section `sigma_mt_m2`, but runtime event
+probabilities use the separate geometric `sigma_event_m2`. The stored
+`dp_samples` are area-sampled momentum kicks from the accepted offline
+trajectories; the momentum-transfer weight is not applied a second time at
+runtime. In full-CDF files, `cdf_offsets`, `cdf_counts`, `cdf_values`, and
+`dp_samples` preserve the sampled distribution for each `(orientation, logv)`
+cell. In compact files this per-cell distribution is reduced to `dp_stats`.
+
+The precompute table also stores per-cell trajectory-quality diagnostics:
+`attempted_trajectories`, `accepted_trajectories`, and
+`rejected_non_asymptotic`, plus `max_energy_step_error` and
+`max_energy_cumulative_error` for the offline trajectory integrator.
+Non-asymptotic trajectories are not silently redrawn until the target sample
+count is reached; if their fraction exceeds `--max-non-asymptotic-frac`
+(default: `0.005`), precompute aborts. The stored CDF and `dp_stats` payloads
+contain the accepted asymptotic trajectories only. For strict production
+tables, require zero rejects or treat any nonzero reject fraction as a small
+conditioning error bounded by this threshold. Regenerate IPM HDF5 files after
+changes to these numerical controls.
+
+For relative speeds between stored bins, the runtime randomly chooses one of
+the neighboring log-speed bins. The sampled absolute momentum kick therefore
+belongs to the selected bin speed, not exactly to the instantaneous relative
+speed. Use sufficiently fine velocity grids and convergence checks over
+orientation count, trial count, `b_max_m`, velocity bins, and CDF sample count.
 
 ---
 

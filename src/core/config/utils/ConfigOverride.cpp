@@ -71,12 +71,6 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         else if (key == "physics.collision_max_events_per_step") {
             config.physics.collision_max_events_per_step = parse_int(value, key);
         }
-        else if (key == "physics.collision_time_centered") {
-            config.physics.collision_time_centered = parse_bool(value, key);
-        }
-        else if (key == "physics.collision_time_randomized") {
-            config.physics.collision_time_randomized = parse_bool(value, key);
-        }
         else if (key == "physics.collision_subcycles_per_step") {
             config.physics.collision_subcycles_per_step = parse_int(value, key);
         }

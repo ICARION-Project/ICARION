@@ -31,7 +31,7 @@ double get_concentration_m3(
         if (it != concentrations.end()) {
             conc_m3 = it->second;
         } else {
-            conc_m3 = (term.species == "M") ? particle_density : 0.0;
+            conc_m3 = (term.species == "M" || term.species == "neutral") ? particle_density : 0.0;
         }
     }
     return conc_m3;
@@ -101,6 +101,10 @@ double compute_partner_pressure_ratio(
 ) {
     double ratio = 1.0;
     for (const auto& term : forward.order_terms) {
+        // M is a third-body placeholder and cancels from the population
+        // equilibrium expression. "neutral" is rejected for equilibrium=true by
+        // ReactionLoader; keep the guard here for backward compatible explicit
+        // reverse channels loaded without that metadata.
         if (term.species == "M" || term.species == "neutral") {
             continue;
         }
@@ -165,8 +169,9 @@ bool StochasticReactionHandler::handle_reaction(
                 "mixture flags/densities are fixed.");
         });
     }
-    // Third-body convenience key for termolecular reactions (A+ + B + M)
+    // Third-body and legacy buffer-gas convenience keys.
     concentrations["M"] = n_m3;
+    concentrations["neutral"] = n_m3;
     // If gas_species is not explicitly listed in mixture map, provide total buffer fallback.
     if (env.gas_mixture.empty() && !env.gas_species.empty() && concentrations.find(env.gas_species) == concentrations.end()) {
         concentrations[env.gas_species] = n_m3;
@@ -191,7 +196,8 @@ bool StochasticReactionHandler::handle_reaction(
     double k_total = 0.0;
     
     for (const auto* reaction : applicable_reactions) {
-        // Reverse rates from equilibrium must use the bath temperature to preserve detailed balance.
+        // Equilibrium-linked reverse rates use the bath temperature so the
+        // configured chemical population ratio is not drift energy dependent.
         double k_eff = compute_effective_rate(*reaction, T_K, n_m3, concentrations, reaction_db);
         if (!std::isfinite(k_eff) || k_eff < 0.0) {
             if (enable_logging_) {
@@ -378,7 +384,7 @@ double StochasticReactionHandler::compute_effective_rate(
     for (const auto& term : reaction.order_terms) {
         // Concentration handling:
         // - If concentration_m3 == -1.0: Use mixture concentration when available.
-        //   Special case: third-body placeholder 'M' falls back to total buffer density.
+        //   Special cases: placeholders 'M' and 'neutral' fall back to total buffer density.
         // - Otherwise: Use explicit concentration (including 0 = no neutral)
         double conc_m3 = term.concentration_m3;
         if (term.concentration_m3 < 0.0) {
@@ -395,7 +401,7 @@ double StochasticReactionHandler::compute_effective_rate(
                             "' in mixture; using zero concentration fallback");
                     }
                 }
-                conc_m3 = (term.species == "M") ? particle_density : 0.0;
+                conc_m3 = (term.species == "M" || term.species == "neutral") ? particle_density : 0.0;
             }
         }
 

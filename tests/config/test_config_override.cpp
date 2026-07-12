@@ -15,8 +15,6 @@ TEST_CASE("ConfigOverride applies collision subcycle and IPM controls", "[config
     ConfigOverride::apply(cfg, {
         {"physics.collision_multi_event_mode", "true"},
         {"physics.collision_max_events_per_step", "8"},
-        {"physics.collision_time_centered", "true"},
-        {"physics.collision_time_randomized", "false"},
         {"physics.collision_subcycles_per_step", "4"},
         {"physics.ipm_orientation_mode", "fixed"},
         {"physics.ipm_fixed_orientation_index", "3"},
@@ -26,14 +24,24 @@ TEST_CASE("ConfigOverride applies collision subcycle and IPM controls", "[config
 
     REQUIRE(cfg.physics.collision_multi_event_mode);
     REQUIRE(cfg.physics.collision_max_events_per_step == 8);
-    REQUIRE(cfg.physics.collision_time_centered);
-    REQUIRE_FALSE(cfg.physics.collision_time_randomized);
     REQUIRE(cfg.physics.collision_subcycles_per_step == 4);
     REQUIRE(cfg.physics.ipm_orientation_mode_type == IPMOrientationMode::Fixed);
     REQUIRE(cfg.physics.ipm_orientation_mode == "fixed");
     REQUIRE(cfg.physics.ipm_fixed_orientation_index == 3);
     REQUIRE(cfg.physics.ipm_vrel_log_prefix == "vrel");
     REQUIRE(cfg.physics.ipm_momentum_log_prefix == "momentum");
+}
+
+TEST_CASE("ConfigOverride rejects removed collision timing split controls", "[config][override][physics]") {
+    FullConfig cfg;
+
+    REQUIRE_THROWS_WITH(
+        ConfigOverride::apply(cfg, {{"physics.collision_time_centered", "true"}}),
+        Catch::Matchers::ContainsSubstring("removed before v1.1.0"));
+
+    REQUIRE_THROWS_WITH(
+        ConfigOverride::apply(cfg, {{"physics.collision_time_randomized", "true"}}),
+        Catch::Matchers::ContainsSubstring("removed before v1.1.0"));
 }
 
 TEST_CASE("ConfigOverride applies space-charge model enum", "[config][override][physics]") {

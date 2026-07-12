@@ -106,10 +106,11 @@ alias `voltage_V`.
 ## v1.1 Runtime Additions
 
 - `physics.space_charge_model` selects `auto`, `direct`, `grid`, or `gpu`.
-- `physics.collision_multi_event_mode`, `collision_max_events_per_step`,
-  `collision_time_centered`, `collision_time_randomized`, and
+- `physics.collision_multi_event_mode`, `collision_max_events_per_step`, and
   `collision_subcycles_per_step` configure high-rate stochastic collision
-  approximations.
+  approximations. `collision_max_events_per_step` is a legacy name for the
+  minimum micro-subcycle count used by multi-event mode, not a physical event
+  cap.
 - `physics.ipm_*` fields configure InteractionPotentialModel orientation and
   optional diagnostics.
 - `output.trajectory_mode="minimal"` writes compact final state output under

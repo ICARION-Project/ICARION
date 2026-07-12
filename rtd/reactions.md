@@ -219,6 +219,12 @@ For pseudo-first-order reactions using the configured buffer gas density, an ord
 
 In that case ICARION uses the gas density implied by the domain environment. This is useful for generic buffer gas processes, but explicit concentrations are usually clearer and more relevant.
 
+`species: "neutral"` is only a non-equilibrium buffer gas fallback. For
+equilibrium-linked reactions, use an explicit neutral species such as `"N2"` or
+`"H2O"` when that neutral participates in the thermodynamic balance, or use
+`"M"` only for a third-body placeholder that cancels from the population
+equilibrium.
+
 ---
 
 ## Temperature-dependent rates
@@ -288,8 +294,15 @@ generate the corresponding dynamic reverse channel:
   "id": "cluster_forward",
   "reactant": "H3O+",
   "product": "H3O+_cluster",
-  "rate_constant": 1200.0,
+  "rate_constant": 2.0e-15,
   "rate_model": "Constant",
+  "order": [
+    {
+      "species": "H2O",
+      "exponent": 1,
+      "concentration_m3": 1.0e20
+    }
+  ],
   "equilibrium": true,
   "delta_r_H_J_mol": -42000.0,
   "delta_r_S_J_molK": -95.0
@@ -301,6 +314,29 @@ When `equilibrium` is true and both `delta_r_H_J_mol` and
 `<forward_id>__reverse` unless an explicit reverse channel already exists. At
 runtime the reverse effective rate is evaluated from the linked forward rate and
 the temperature-dependent equilibrium constant.
+
+The v1.1 equilibrium model has a narrow scope. It represents bath kinetics
+population balance for single ion species conversion,
+`A+ + nX -> B+ + products`, with optional third-body placeholder `M`. Neutral
+products are not explicit state variables. The concentration order terms are
+therefore also interpreted as the thermodynamic neutral partners in the
+equilibrium expression. This is suitable for simple cluster
+association/dissociation and isomerization-style balances, but not for a general
+exchange such as `A+ + X <-> B+ + Y` where the activity or concentration of `Y`
+must enter the reverse direction. If kinetic order and elementary
+stoichiometry differ, for example in empirical falloff models, use explicit
+forward and reverse rates instead of `equilibrium=true`.
+
+The equilibrium constant is treated as a dimensionless `K_p` referenced to
+standard pressure `p0 = 1 bar`. `delta_r_H_J_mol` and `delta_r_S_J_molK` are
+interpreted as temperature-independent standard reaction enthalpy and entropy
+over the simulated temperature range.
+
+Reaction events update species, mass, charge, CCS, and mobility, but keep the
+ion position and velocity unchanged. Thus equilibrium-linked reactions enforce
+chemical population ratios only; they do not implement microscopic detailed
+balance in full phase space, reaction enthalpy release, neutral recoil, or
+product energy partitioning.
 
 The SI fields above are the preferred form. Legacy `delta_r_H_kcalmol` and
 `delta_r_S_cal_molK` keys are still accepted and converted by the loader, but

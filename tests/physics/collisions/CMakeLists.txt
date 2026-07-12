@@ -145,6 +145,17 @@ target_include_directories(test_interaction_potential_collision_handler PRIVATE
 )
 add_test(NAME InteractionPotentialCollisionHandler COMMAND test_interaction_potential_collision_handler)
 
+find_program(Python3_EXECUTABLE NAMES python3 python)
+if(Python3_EXECUTABLE)
+    add_test(
+        NAME InteractionPotentialPrecomputeSmoke
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test_ipm_precompute_smoke.py
+            --repo-root ${CMAKE_SOURCE_DIR}
+            --precompute-bin $<TARGET_FILE:interaction_potential_precompute>
+    )
+endif()
+
 # Diagnostic: Energy distribution analysis
 add_executable(test_collision_energy_diagnostic test_collision_energy_diagnostic.cpp)
 target_link_libraries(test_collision_energy_diagnostic PRIVATE

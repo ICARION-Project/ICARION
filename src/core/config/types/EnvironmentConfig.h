@@ -94,23 +94,34 @@ struct EnvironmentConfig {
     }
 
     Vec3 gas_velocity_at(const Vec3& global_pos,
-                         const GeometryConfig* geometry = nullptr) const {
+                         const GeometryConfig* geometry = nullptr,
+                         const Mat3* rotation_global_to_local = nullptr,
+                         const Mat3* rotation_local_to_global = nullptr) const {
+        const auto to_local_pos = [&](const Vec3& pos) {
+            if (geometry && rotation_global_to_local) {
+                return (*rotation_global_to_local) * (pos - geometry->origin_m);
+            }
+            return geometry ? (pos - geometry->origin_m) : pos;
+        };
+        const auto to_global_vel = [&](const Vec3& vel_local) {
+            return rotation_local_to_global ? ((*rotation_local_to_global) * vel_local) : vel_local;
+        };
+
         switch (flow_model) {
             case FlowModelKind::Constant:
                 return gas_velocity_m_s;
             case FlowModelKind::AxialUniform:
-                return Vec3{0.0, 0.0, axial_flow_velocity_m_s};
+                return to_global_vel(Vec3{0.0, 0.0, axial_flow_velocity_m_s});
             case FlowModelKind::AxialParabolic: {
                 if (!geometry || geometry->radius_m <= 0.0) {
-                    return Vec3{0.0, 0.0, axial_flow_max_velocity_m_s};
+                    return to_global_vel(Vec3{0.0, 0.0, axial_flow_max_velocity_m_s});
                 }
-                const double dx = global_pos.x - geometry->origin_m.x;
-                const double dy = global_pos.y - geometry->origin_m.y;
-                const double r2 = dx * dx + dy * dy;
+                const Vec3 local_pos = to_local_pos(global_pos);
+                const double r2 = local_pos.x * local_pos.x + local_pos.y * local_pos.y;
                 const double R2 = geometry->radius_m * geometry->radius_m;
                 const double rr = (R2 > 0.0) ? r2 / R2 : 0.0;
                 const double uz = axial_flow_max_velocity_m_s * std::max(0.0, 1.0 - rr);
-                return Vec3{0.0, 0.0, uz};
+                return to_global_vel(Vec3{0.0, 0.0, uz});
             }
             default:
                 return gas_velocity_m_s;

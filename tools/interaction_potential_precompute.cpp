@@ -42,7 +42,7 @@ struct Options {
     std::string potential = "lj1264";
     std::string param_model = "sigma_epsilon";
     std::string format = "hdf5";
-    std::string orient_grid = "lebedev";
+    std::string orient_grid = "qmc";
     int n_orientations = 50;
     int n_trials = 20000;
     int threads = 0;
@@ -54,7 +54,9 @@ struct Options {
     double b_guess_m = 20.0 * ANGSTROM_TO_M;
     double b_growth = 2.0;
     double b_rel_tol = 1e-3;
+    double max_non_asymptotic_fraction = 0.005;
     double eta_dt = 0.02;
+    int max_steps = 200000;
     double sigma_scale = 1.0;
     double epsilon_scale = 1.0;
     double pol_damp_A = 0.0;
@@ -68,7 +70,7 @@ struct Options {
     bool n2_aniso_pol = false;
     double n2_alpha_par_A3 = 0.0;
     double n2_alpha_perp_A3 = 0.0;
-    bool store_full_cdf = false;
+    bool store_full_cdf = true;
     int checkpoint_cells = 0;
     bool resume = false;
     uint64_t seed = 0;
@@ -98,7 +100,7 @@ void print_usage() {
         << "  --potential <lj1264|exp6>   Potential model (default: lj1264)\\n"
         << "  --param-model <sigma_epsilon|mmff_reij>  Element parameterization (default: sigma_epsilon)\\n"
         << "  --format <hdf5|json>        Output format (default: hdf5)\\n"
-        << "  --orient-grid <lebedev|qmc|random>  Orientation grid (default: lebedev)\\n"
+        << "  --orient-grid <qmc|random|lebedev>  Orientation grid (default: qmc)\\n"
         << "  --n-orientations <int>      Number of orientations (default: 50)\\n"
         << "  --n-trials <int>            Monte Carlo trials per (E,Ω) (default: 20000)\\n"
         << "  --threads <int>             OpenMP thread count (0 = runtime default)\\n"
@@ -110,7 +112,9 @@ void print_usage() {
         << "  --b-guess-A <float>         Initial b_guess in Angstrom (default: 20)\\n"
         << "  --b-growth <float>          b growth factor (default: 2.0)\\n"
         << "  --b-rel-tol <float>         b_max binary search tolerance (default: 1e-3)\\n"
+        << "  --max-non-asymptotic-frac <float>  Abort if trajectory reject fraction exceeds this value (default: 0.005)\\n"
         << "  --eta-dt <float>            dt control factor η (default: 0.02)\\n"
+        << "  --max-steps <int>           Maximum integration steps per trajectory (default: 200000)\\n"
         << "  --sigma-scale <float>       Scale factor for LJ sigma (default: 1.0)\\n"
         << "  --epsilon-scale <float>     Scale factor for LJ epsilon (default: 1.0)\\n"
         << "  --pol-damp-A <float>        Polarization damping radius in Angstrom (default: 0, disabled)\\n"
@@ -129,7 +133,8 @@ void print_usage() {
         << "  --gas-params <file>         Gas LJ params JSON (default: data/forcefields/gas_lj_params.json)\\n"
         << "  --element-params <file>     Element LJ params JSON (default: gas params file)\\n"
         << "  --lebedev-file <file>       Lebedev grid file (default: data/forcefields/lebedev_011.txt)\\n"
-        << "  --store-full-cdf            Store full Δp CDF (default: off)\\n"
+        << "  --store-full-cdf            Store full Δp CDF (default)\\n"
+        << "  --compact-dp-stats          Store compact dp_stats only; lower-fidelity legacy path\\n"
         << "  --checkpoint-cells <int>    Write HDF5 checkpoint every N completed (Ω,v) cells (default: 0=final only)\\n"
         << "  --resume                    Resume from existing HDF5 checkpoint file\\n"
         << "  --seed <uint64>             RNG seed (default: 0 = hash(species,gas,version))\\n"
@@ -190,8 +195,12 @@ bool parse_args(int argc, char** argv, Options& opt) {
             opt.b_growth = std::stod(argv[++i]);
         } else if (arg == "--b-rel-tol" && i + 1 < argc) {
             opt.b_rel_tol = std::stod(argv[++i]);
+        } else if (arg == "--max-non-asymptotic-frac" && i + 1 < argc) {
+            opt.max_non_asymptotic_fraction = std::stod(argv[++i]);
         } else if (arg == "--eta-dt" && i + 1 < argc) {
             opt.eta_dt = std::stod(argv[++i]);
+        } else if (arg == "--max-steps" && i + 1 < argc) {
+            opt.max_steps = std::stoi(argv[++i]);
         } else if (arg == "--sigma-scale" && i + 1 < argc) {
             opt.sigma_scale = std::stod(argv[++i]);
         } else if (arg == "--epsilon-scale" && i + 1 < argc) {
@@ -230,6 +239,8 @@ bool parse_args(int argc, char** argv, Options& opt) {
             opt.lebedev_file = argv[++i];
         } else if (arg == "--store-full-cdf") {
             opt.store_full_cdf = true;
+        } else if (arg == "--compact-dp-stats" || arg == "--no-store-full-cdf") {
+            opt.store_full_cdf = false;
         } else if (arg == "--checkpoint-cells" && i + 1 < argc) {
             opt.checkpoint_cells = std::stoi(argv[++i]);
         } else if (arg == "--resume") {
@@ -276,6 +287,12 @@ bool parse_args(int argc, char** argv, Options& opt) {
         return false;
     }
     if (opt.checkpoint_cells < 0) {
+        return false;
+    }
+    if (opt.max_non_asymptotic_fraction < 0.0 || opt.max_non_asymptotic_fraction >= 1.0) {
+        return false;
+    }
+    if (opt.max_steps <= 0) {
         return false;
     }
     return true;
@@ -475,6 +492,7 @@ struct TrajectoryConfig {
 struct TrajectoryResult {
     Vec3 v_out;
     double max_rel_energy_drift = 0.0;
+    double max_rel_energy_cumulative = 0.0;
     bool reached_asymptotic = false;
     std::vector<Vec3> path_points;
 };
@@ -483,7 +501,13 @@ struct Lj1264Samples {
     std::vector<std::array<double, 4>> orientations_quat;
     std::vector<double> logv_bins;
     std::vector<double> sigma_mt;   // size N_orient * K
+    std::vector<double> sigma_event; // size N_orient * K
     std::vector<double> b_max;      // size N_orient * K
+    std::vector<long long> attempted_trajectories; // size N_orient * K
+    std::vector<long long> accepted_trajectories;  // size N_orient * K
+    std::vector<long long> rejected_non_asymptotic; // size N_orient * K
+    std::vector<double> max_energy_step_error; // size N_orient * K
+    std::vector<double> max_energy_cumulative_error; // size N_orient * K
     std::vector<long long> cdf_offsets; // size N_orient * K
     std::vector<long long> cdf_counts;  // size N_orient * K
     std::vector<double> cdf_values;
@@ -947,7 +971,7 @@ std::vector<AtomParam> build_atom_params_or_throw(
     write_attr_str("potential", opt.potential);
     write_attr_str("param_model", opt.param_model);
     write_attr_str("units", ICARION::physics::INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_UNITS);
-    write_attr_int("version", 1);
+    write_attr_int("version", ICARION::physics::INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_VERSION);
     write_attr_int("n_orientations", static_cast<long long>(n_orient));
     write_attr_int("v_bins", static_cast<long long>(n_bins));
     write_attr_int("seed", static_cast<long long>(opt.seed));
@@ -957,6 +981,8 @@ std::vector<AtomParam> build_atom_params_or_throw(
     write_attr_double("pol_damp_A", opt.pol_damp_A);
     write_attr_double("mmff_energy_scale", opt.mmff_energy_scale);
     write_attr_double("mmff_distance_scale", opt.mmff_distance_scale);
+    write_attr_double("max_non_asymptotic_fraction", opt.max_non_asymptotic_fraction);
+    write_attr_int("max_steps", opt.max_steps);
     if (completed_cells >= 0) {
         write_attr_int("completed_cells", completed_cells);
     }
@@ -1000,12 +1026,20 @@ std::vector<AtomParam> build_atom_params_or_throw(
     }
 
     // Main runtime rate table: momentum-transfer cross section per
-    // orientation/speed cell.
+    // orientation/speed cell. It is diagnostic for format-version 1 runtime; event
+    // sampling uses sigma_event_m2 below to avoid double weighting dp samples.
     if (!samples.sigma_mt.empty()) {
         hsize_t dims[2] = {n_orient, n_bins};
         H5::DataSpace space(2, dims);
         H5::DataSet dset = file.createDataSet("sigma_mt_m2", H5::PredType::NATIVE_DOUBLE, space);
         dset.write(samples.sigma_mt.data(), H5::PredType::NATIVE_DOUBLE);
+    }
+
+    if (!samples.sigma_event.empty()) {
+        hsize_t dims[2] = {n_orient, n_bins};
+        H5::DataSpace space(2, dims);
+        H5::DataSet dset = file.createDataSet("sigma_event_m2", H5::PredType::NATIVE_DOUBLE, space);
+        dset.write(samples.sigma_event.data(), H5::PredType::NATIVE_DOUBLE);
     }
 
     // Impact-parameter cutoff used to generate each cell. This is not needed
@@ -1017,6 +1051,31 @@ std::vector<AtomParam> build_atom_params_or_throw(
         H5::DataSet dset = file.createDataSet("b_max_m", H5::PredType::NATIVE_DOUBLE, space);
         dset.write(samples.b_max.data(), H5::PredType::NATIVE_DOUBLE);
     }
+
+    auto write_ll_cells = [&](const char* name, const std::vector<long long>& values) {
+        if (values.empty()) {
+            return;
+        }
+        hsize_t dims[2] = {n_orient, n_bins};
+        H5::DataSpace space(2, dims);
+        H5::DataSet dset = file.createDataSet(name, H5::PredType::NATIVE_LLONG, space);
+        dset.write(values.data(), H5::PredType::NATIVE_LLONG);
+    };
+    write_ll_cells("attempted_trajectories", samples.attempted_trajectories);
+    write_ll_cells("accepted_trajectories", samples.accepted_trajectories);
+    write_ll_cells("rejected_non_asymptotic", samples.rejected_non_asymptotic);
+
+    auto write_double_cells = [&](const char* name, const std::vector<double>& values) {
+        if (values.empty()) {
+            return;
+        }
+        hsize_t dims[2] = {n_orient, n_bins};
+        H5::DataSpace space(2, dims);
+        H5::DataSet dset = file.createDataSet(name, H5::PredType::NATIVE_DOUBLE, space);
+        dset.write(values.data(), H5::PredType::NATIVE_DOUBLE);
+    };
+    write_double_cells("max_energy_step_error", samples.max_energy_step_error);
+    write_double_cells("max_energy_cumulative_error", samples.max_energy_cumulative_error);
 
     // Optional high-fidelity momentum-kick payload. Per-cell CDF rows are
     // flattened into cdf_values/dp_samples, while offsets/counts preserve the
@@ -1125,7 +1184,49 @@ static bool load_hdf5_resume_checkpoint(
         };
 
         read_2d_double("sigma_mt_m2", samples.sigma_mt);
+        read_2d_double("sigma_event_m2", samples.sigma_event);
         read_2d_double("b_max_m", samples.b_max);
+
+        auto read_2d_ll_optional = [&](const char* name, std::vector<long long>& target) {
+            target.assign(n_cells, 0);
+            if (!file.nameExists(name)) {
+                return;
+            }
+            H5::DataSet ds = file.openDataSet(name);
+            H5::DataSpace sp = ds.getSpace();
+            if (sp.getSimpleExtentNdims() != 2) {
+                throw std::runtime_error(std::string("Dataset '") + name + "' rank mismatch");
+            }
+            hsize_t dims[2] = {0, 0};
+            sp.getSimpleExtentDims(dims);
+            if (dims[0] != n_orient || dims[1] != n_bins) {
+                throw std::runtime_error(std::string("Dataset '") + name + "' shape mismatch");
+            }
+            ds.read(target.data(), H5::PredType::NATIVE_LLONG);
+        };
+        read_2d_ll_optional("attempted_trajectories", samples.attempted_trajectories);
+        read_2d_ll_optional("accepted_trajectories", samples.accepted_trajectories);
+        read_2d_ll_optional("rejected_non_asymptotic", samples.rejected_non_asymptotic);
+
+        auto read_2d_double_optional = [&](const char* name, std::vector<double>& target) {
+            target.assign(n_cells, 0.0);
+            if (!file.nameExists(name)) {
+                return;
+            }
+            H5::DataSet ds = file.openDataSet(name);
+            H5::DataSpace sp = ds.getSpace();
+            if (sp.getSimpleExtentNdims() != 2) {
+                throw std::runtime_error(std::string("Dataset '") + name + "' rank mismatch");
+            }
+            hsize_t dims[2] = {0, 0};
+            sp.getSimpleExtentDims(dims);
+            if (dims[0] != n_orient || dims[1] != n_bins) {
+                throw std::runtime_error(std::string("Dataset '") + name + "' shape mismatch");
+            }
+            ds.read(target.data(), H5::PredType::NATIVE_DOUBLE);
+        };
+        read_2d_double_optional("max_energy_step_error", samples.max_energy_step_error);
+        read_2d_double_optional("max_energy_cumulative_error", samples.max_energy_cumulative_error);
 
         {
             H5::DataSet ds = file.openDataSet("dp_stats");
@@ -1495,8 +1596,17 @@ static bool load_hdf5_resume_checkpoint(
 
     const double inv_m = 1.0 / m_red;
     double energy_prev = 0.5 * m_red * norm2(v) + potential;
+    const double energy_initial = energy_prev;
+    const double initial_kinetic_energy = 0.5 * m_red * norm2(v0);
+    const double energy_floor = std::max(1e-30, initial_kinetic_energy * 1e-12);
+    const double energy_scale = std::max({
+        energy_floor,
+        std::abs(energy_prev),
+        initial_kinetic_energy
+    });
     double dt = 0.0;
     int good_steps = 0;
+    bool has_approached = false;
 
     if (cfg.store_path) {
         result.path_points.push_back(r);
@@ -1529,13 +1639,16 @@ static bool load_hdf5_resume_checkpoint(
         Vec3 v_trial = v_half + force_new * (0.5 * dt * inv_m);
 
         const double energy_new = 0.5 * m_red * norm2(v_trial) + potential_new;
-        const double rel_drift = std::abs(energy_new - energy_prev) / std::max(1e-12, std::abs(energy_prev));
-        result.max_rel_energy_drift = std::max(result.max_rel_energy_drift, rel_drift);
+        const double rel_drift = std::abs(energy_new - energy_prev) / energy_scale;
+        const double rel_cumulative = std::abs(energy_new - energy_initial) / energy_scale;
 
         if (rel_drift > cfg.energy_rel_tol_high) {
             dt *= 0.5;
             continue;
         }
+
+        result.max_rel_energy_drift = std::max(result.max_rel_energy_drift, rel_drift);
+        result.max_rel_energy_cumulative = std::max(result.max_rel_energy_cumulative, rel_cumulative);
 
         r = r_trial;
         v = v_trial;
@@ -1560,8 +1673,16 @@ static bool load_hdf5_resume_checkpoint(
         const double kin = 0.5 * m_red * norm2(v);
         const double r_norm_new = norm(r);
         const double f_norm_new = norm(force);
-        if (r_norm_new > cfg.r_cut_m && std::abs(potential) / std::max(1e-12, kin) < 1e-6 &&
-            (f_norm_new * r_norm_new) / std::max(1e-12, kin) < 1e-6) {
+        const double asymptotic_scale = std::max(energy_floor, kin);
+        const double radial_motion = dot_local(r, v);
+        if (radial_motion < 0.0) {
+            has_approached = true;
+        }
+        if (has_approached &&
+            radial_motion > 0.0 &&
+            r_norm_new > cfg.r_cut_m &&
+            std::abs(potential) / asymptotic_scale < 1e-6 &&
+            (f_norm_new * r_norm_new) / asymptotic_scale < 1e-6) {
             result.reached_asymptotic = true;
             break;
         }
@@ -1600,6 +1721,13 @@ static bool load_hdf5_resume_checkpoint(
     const TrajectoryResult result =
         integrate_trajectory(atoms, cfg, r0, v0, m_red, potential_type, polarization_model,
                              alpha_m3, cfg.pol_damp_m, gas_model, gas_axis);
+    if (!result.reached_asymptotic) {
+        throw std::runtime_error(
+            "b_max search trajectory did not reach the outbound asymptotic region at b="
+            + std::to_string(b / ANGSTROM_TO_M) + " A and v_rel="
+            + std::to_string(v_rel) + " m/s"
+        );
+    }
 
     const double v2 = norm2(v0);
     if (v2 <= 0.0) {
@@ -1625,8 +1753,8 @@ static bool load_hdf5_resume_checkpoint(
     const GasModelConfig* gas_model,
     const Vec3& gas_axis
 ) {
-    const double z0_margin_m = 20.0 * ANGSTROM_TO_M;
     const double r_cut_margin_m = 50.0 * ANGSTROM_TO_M;
+    const double z0_margin_m = r_cut_margin_m;
     auto weight = [&](double b) {
         return deflection_weight_for_b(
             atoms, base_cfg, b, v_rel, m_red, z0_margin_m, r_cut_margin_m,
@@ -1810,7 +1938,9 @@ int main(int argc, char** argv) {
     std::cout << "  b_guess:    " << (opt.b_guess_m / ANGSTROM_TO_M) << " Å\\n";
     std::cout << "  b_growth:   " << opt.b_growth << "\\n";
     std::cout << "  b_rel_tol:  " << opt.b_rel_tol << "\\n";
+    std::cout << "  max non-asymptotic frac: " << opt.max_non_asymptotic_fraction << "\\n";
     std::cout << "  eta_dt:     " << opt.eta_dt << "\\n";
+    std::cout << "  max_steps:  " << opt.max_steps << "\\n";
     std::cout << "  sigma_scale:" << opt.sigma_scale << "\\n";
     std::cout << "  eps_scale:  " << opt.epsilon_scale << "\\n";
     std::cout << "  pol_damp_A: " << opt.pol_damp_A << "\\n";
@@ -2126,15 +2256,22 @@ int main(int argc, char** argv) {
     const size_t n_orient = orientations.size();
     const size_t n_bins = logv_bins.size();
     samples.sigma_mt.assign(n_orient * n_bins, 0.0);
+    samples.sigma_event.assign(n_orient * n_bins, 0.0);
     samples.b_max.assign(n_orient * n_bins, 0.0);
+    samples.attempted_trajectories.assign(n_orient * n_bins, 0);
+    samples.accepted_trajectories.assign(n_orient * n_bins, 0);
+    samples.rejected_non_asymptotic.assign(n_orient * n_bins, 0);
+    samples.max_energy_step_error.assign(n_orient * n_bins, 0.0);
+    samples.max_energy_cumulative_error.assign(n_orient * n_bins, 0.0);
     samples.cdf_offsets.assign(n_orient * n_bins, -1);
     samples.cdf_counts.assign(n_orient * n_bins, 0);
     samples.dp_stats.assign(n_orient * n_bins * 4, 0.0);
 
-    const double z0_margin = 20.0 * ANGSTROM_TO_M;
     const double rcut_margin = 50.0 * ANGSTROM_TO_M;
+    const double z0_margin = rcut_margin;
     TrajectoryConfig base_traj_cfg;
     base_traj_cfg.eta_dt = opt.eta_dt;
+    base_traj_cfg.max_steps = opt.max_steps;
     base_traj_cfg.pol_damp_m = opt.pol_damp_A * ANGSTROM_TO_M;
     if (min_sigma > 0.0) {
         base_traj_cfg.max_step_m = 0.2 * min_sigma;
@@ -2223,7 +2360,7 @@ int main(int argc, char** argv) {
         ofs << "# v_rel_mps=" << v_rel << "\n";
         ofs << "# b_min_A=" << (b_min / ANGSTROM_TO_M) << "\n";
         ofs << "# b_max_A=" << (b_max / ANGSTROM_TO_M) << "\n";
-        ofs << "b_A,theta_rad,theta_deg,one_minus_cos,max_rel_energy_drift,reached_asymptotic,phi_xz_rad,phi_xz_deg,vout_x_norm,vout_z_norm\n";
+        ofs << "b_A,theta_rad,theta_deg,one_minus_cos,max_rel_energy_step_error,max_rel_energy_cumulative_error,reached_asymptotic,phi_xz_rad,phi_xz_deg,vout_x_norm,vout_z_norm\n";
 
         for (int i = 0; i < opt.scan_b_steps; ++i) {
             const double t = (opt.scan_b_steps == 1) ? 0.0 : static_cast<double>(i) / (opt.scan_b_steps - 1);
@@ -2252,7 +2389,8 @@ int main(int argc, char** argv) {
 
             ofs << std::setprecision(10)
                 << (b / ANGSTROM_TO_M) << "," << theta << "," << (theta * 180.0 / M_PI) << ","
-                << one_minus_cos << "," << res.max_rel_energy_drift << "," << (res.reached_asymptotic ? 1 : 0)
+                << one_minus_cos << "," << res.max_rel_energy_drift << "," << res.max_rel_energy_cumulative
+                << "," << (res.reached_asymptotic ? 1 : 0)
                 << "," << phi_xz << "," << (phi_xz * 180.0 / M_PI) << "," << vout_x_norm << "," << vout_z_norm
                 << "\n";
 
@@ -2275,7 +2413,8 @@ int main(int argc, char** argv) {
     std::vector<LocalCdfSamples> local_cdfs;
     if (opt.store_full_cdf) {
         if (opt.resume || opt.checkpoint_cells > 0) {
-            std::cerr << "Checkpoint/resume is currently supported only without --store-full-cdf.\\n";
+            std::cerr << "Checkpoint/resume is currently supported only with --compact-dp-stats "
+                         "(without full-CDF output).\\n";
             return EXIT_FAILURE;
         }
         local_cdfs.resize(n_orient * n_bins);
@@ -2314,19 +2453,23 @@ int main(int argc, char** argv) {
         size_t accepted_trials = 0;
         size_t rejected_non_asymptotic = 0;
         const size_t target_trials = static_cast<size_t>(opt.n_trials);
-        const size_t max_attempts = std::max<size_t>(target_trials, 1) * 5;
 
         auto accumulate_result = [&](const TrajectoryResult& res) {
             attempted_trials += 1;
+            const size_t cell_idx = oi * n_bins + ki;
+            samples.max_energy_step_error[cell_idx] =
+                std::max(samples.max_energy_step_error[cell_idx], res.max_rel_energy_drift);
+            samples.max_energy_cumulative_error[cell_idx] =
+                std::max(samples.max_energy_cumulative_error[cell_idx], res.max_rel_energy_cumulative);
             if (!res.reached_asymptotic) {
                 rejected_non_asymptotic += 1;
                 return;
             }
             accepted_trials += 1;
 
-            // Momentum-transfer weighting: sigma_mt integrates (1 - cos theta)
-            // over impact-parameter space. The same weight also defines the
-            // optional runtime CDF over sampled momentum kicks.
+            // sigma_mt integrates (1 - cos theta) over impact-parameter space.
+            // Runtime collision events are sampled from the geometric event
+            // area instead, so dp moments/CDFs remain uniform over disk area.
             const double cos_theta = dot_local(v0, res.v_out) * inv_v2;
             const double clamped = std::max(-1.0, std::min(1.0, cos_theta));
             const double w = 1.0 - clamped;
@@ -2336,13 +2479,13 @@ int main(int argc, char** argv) {
             const Vec3 dp_ion = dp_rel;
             const double dp_par = dp_ion.z;
             const double dp_perp = std::sqrt(dp_ion.x * dp_ion.x + dp_ion.y * dp_ion.y);
-            sum_par += w * dp_par;
-            sum_par2 += w * dp_par * dp_par;
-            sum_perp += w * dp_perp;
-            sum_perp2 += w * dp_perp * dp_perp;
+            sum_par += dp_par;
+            sum_par2 += dp_par * dp_par;
+            sum_perp += dp_perp;
+            sum_perp2 += dp_perp * dp_perp;
 
-            if (cdf_out && w > 0.0) {
-                local_weights.push_back(w);
+            if (cdf_out) {
+                local_weights.push_back(1.0);
                 local_dp.push_back(dp_ion.x);
                 local_dp.push_back(dp_ion.y);
                 local_dp.push_back(dp_ion.z);
@@ -2377,28 +2520,27 @@ int main(int argc, char** argv) {
                                     polarization_model, gas_params.alpha_m3,
                                     gas_model_ptr, gas_axis_bmax);
         }
-        samples.b_max[oi * n_bins + ki] = b_max;
+        const size_t cell_idx = oi * n_bins + ki;
+        samples.b_max[cell_idx] = b_max;
         traj_cfg.r_cut_m = b_max + rcut_margin;
 
-        while (accepted_trials < target_trials && attempted_trials < max_attempts) {
-            const size_t remaining = target_trials - accepted_trials;
-            const size_t trials_this_round = remaining;
-            for (size_t t = 0; t < trials_this_round; ++t) {
-                // Uniform disk sampling: sqrt(u) gives a uniform distribution
-                // in area over the impact-parameter disk.
-                const double u1 = uni(local_rng);
-                const double u2 = uni(local_rng);
-                const double b = b_max * std::sqrt(u1);
-                const double phi = 2.0 * M_PI * u2;
-                const Vec3 r0(b * std::cos(phi), b * std::sin(phi), -(b_max + z0_margin));
-                const Vec3 gas_axis = sample_gas_axis
-                    ? sample_unit_vector(local_rng)
-                    : Vec3(0.0, 0.0, 1.0);
-                const auto res = integrate_trajectory(atoms_rot, traj_cfg, r0, v0, m_red, potential_type,
-                                                      polarization_model, gas_params.alpha_m3, traj_cfg.pol_damp_m,
-                                                      gas_model_ptr, gas_axis);
-                accumulate_result(res);
-            }
+        for (size_t t = 0; t < target_trials; ++t) {
+            // Uniform disk sampling: sqrt(u) gives a uniform distribution
+            // in area over the impact-parameter disk. Do not redraw failed
+            // asymptotic trajectories: nonconvergence is part of the sampled
+            // cell quality and must remain visible.
+            const double u1 = uni(local_rng);
+            const double u2 = uni(local_rng);
+            const double b = b_max * std::sqrt(u1);
+            const double phi = 2.0 * M_PI * u2;
+            const Vec3 r0(b * std::cos(phi), b * std::sin(phi), -(b_max + z0_margin));
+            const Vec3 gas_axis = sample_gas_axis
+                ? sample_unit_vector(local_rng)
+                : Vec3(0.0, 0.0, 1.0);
+            const auto res = integrate_trajectory(atoms_rot, traj_cfg, r0, v0, m_red, potential_type,
+                                                  polarization_model, gas_params.alpha_m3, traj_cfg.pol_damp_m,
+                                                  gas_model_ptr, gas_axis);
+            accumulate_result(res);
         }
 
         if (accepted_trials == 0) {
@@ -2407,30 +2549,43 @@ int main(int argc, char** argv) {
                 + std::to_string(oi) + ", v-bin=" + std::to_string(ki) + ")"
             );
         }
-        if (accepted_trials < target_trials) {
+        const double non_asymptotic_fraction =
+            static_cast<double>(rejected_non_asymptotic) / static_cast<double>(std::max<size_t>(1, attempted_trials));
+        samples.attempted_trajectories[cell_idx] = static_cast<long long>(attempted_trials);
+        samples.accepted_trajectories[cell_idx] = static_cast<long long>(accepted_trials);
+        samples.rejected_non_asymptotic[cell_idx] = static_cast<long long>(rejected_non_asymptotic);
+        if (non_asymptotic_fraction > opt.max_non_asymptotic_fraction) {
+            throw std::runtime_error(
+                "Non-asymptotic trajectory fraction exceeds threshold for cell (orientation="
+                + std::to_string(oi) + ", v-bin=" + std::to_string(ki) + "): "
+                + std::to_string(non_asymptotic_fraction) + " > "
+                + std::to_string(opt.max_non_asymptotic_fraction)
+            );
+        }
+        if (rejected_non_asymptotic > 0) {
 #ifdef _OPENMP
 #pragma omp critical(ipm_asymptotic_quality_log)
 #endif
             {
-                std::cerr << "[interaction_potential_precompute] Warning: asymptotic quality gate accepted "
-                          << accepted_trials << "/" << target_trials
+                std::cerr << "[interaction_potential_precompute] Warning: asymptotic quality gate rejected "
+                          << rejected_non_asymptotic << "/" << attempted_trials
                           << " trajectories for cell (oi=" << oi << ", ki=" << ki << ")"
-                          << " after " << attempted_trials << " attempts"
-                          << " (rejected_non_asymptotic=" << rejected_non_asymptotic << ")\n";
+                          << " (fraction=" << non_asymptotic_fraction << ")\n";
             }
         }
 
         // Convert the Monte Carlo mean over the sampled disk into the physical
         // momentum-transfer cross section for this orientation/speed cell.
-        const double sigma_mt = (M_PI * b_max * b_max / static_cast<double>(accepted_trials)) * sum_w;
-        samples.sigma_mt[oi * n_bins + ki] = sigma_mt;
+        const double sigma_mt = (M_PI * b_max * b_max / static_cast<double>(attempted_trials)) * sum_w;
+        samples.sigma_mt[cell_idx] = sigma_mt;
+        samples.sigma_event[cell_idx] = M_PI * b_max * b_max;
 
-        const double inv_w = (sum_w > 0.0) ? 1.0 / sum_w : 0.0;
-        const double mean_par = sum_par * inv_w;
-        const double mean_perp = sum_perp * inv_w;
-        const double var_par = std::max(0.0, sum_par2 * inv_w - mean_par * mean_par);
-        const double var_perp = std::max(0.0, sum_perp2 * inv_w - mean_perp * mean_perp);
-        const size_t stats_idx = (oi * n_bins + ki) * 4;
+        const double inv_trials = 1.0 / static_cast<double>(accepted_trials);
+        const double mean_par = sum_par * inv_trials;
+        const double mean_perp = sum_perp * inv_trials;
+        const double var_par = std::max(0.0, sum_par2 * inv_trials - mean_par * mean_par);
+        const double var_perp = std::max(0.0, sum_perp2 * inv_trials - mean_perp * mean_perp);
+        const size_t stats_idx = cell_idx * 4;
         samples.dp_stats[stats_idx + 0] = mean_par;
         samples.dp_stats[stats_idx + 1] = mean_perp;
         samples.dp_stats[stats_idx + 2] = var_par;

@@ -38,12 +38,6 @@ PhysicsConfig PhysicsConfigLoader::load(const Json::Value& json) {
     if (json.isMember("collision_max_events_per_step") && json["collision_max_events_per_step"].isInt()) {
         config.collision_max_events_per_step = json["collision_max_events_per_step"].asInt();
     }
-    if (json.isMember("collision_time_centered") && json["collision_time_centered"].isBool()) {
-        config.collision_time_centered = json["collision_time_centered"].asBool();
-    }
-    if (json.isMember("collision_time_randomized") && json["collision_time_randomized"].isBool()) {
-        config.collision_time_randomized = json["collision_time_randomized"].asBool();
-    }
     if (json.isMember("collision_subcycles_per_step") && json["collision_subcycles_per_step"].isInt()) {
         config.collision_subcycles_per_step = json["collision_subcycles_per_step"].asInt();
     }

@@ -426,6 +426,117 @@ TEST_CASE("StochasticReactionHandler: closed 2-species box converges to target K
     REQUIRE(mean_b_fraction == Catch::Approx(expected_b_fraction).margin(0.06));
 }
 
+TEST_CASE("StochasticReactionHandler: equilibrium includes explicit neutral partner pressure", "[reaction][equilibrium][closed-box]") {
+    auto species_db = create_test_species_db();
+    auto env = create_test_environment(300.0, 2.5e25);
+
+    constexpr double p0_pa = 1.0e5;
+    constexpr double p_x_pa = 2.5e4;
+    const double x_concentration_m3 = p_x_pa / (BOLTZMANN_CONSTANT * env.temperature_K);
+
+    ReactionDatabase reaction_db;
+
+    // A+ + X <-> B+. For this model, [B]/[A] = K_p * p_X / p0.
+    const double target_keq = 4.0;
+    const double gas_constant_J_molK = 8.31446261815324;
+    const double dS_J_molK = gas_constant_J_molK * std::log(target_keq);
+
+    Reaction forward;
+    forward.id = "eq_explicit_partner_forward";
+    forward.reactant = "H3O+";
+    forward.product = "NH4+";
+    forward.rate_model = RateModel::Constant;
+    forward.rate_constant = 2.0e-23; // [m^3/s] with explicit [X]
+    ReactionOrderTerm partner_x;
+    partner_x.species = "H2O";
+    partner_x.exponent = 1;
+    partner_x.concentration_m3 = x_concentration_m3;
+    forward.order_terms.push_back(partner_x);
+    forward.has_thermo = true;
+    forward.delta_r_H_J_mol = 0.0;
+    forward.delta_r_S_J_molK = dS_J_molK;
+    reaction_db.reactions.push_back(forward);
+
+    Reaction reverse_dyn;
+    reverse_dyn.id = "eq_explicit_partner_forward__reverse";
+    reverse_dyn.reactant = "NH4+";
+    reverse_dyn.product = "H3O+";
+    reverse_dyn.reverse_dynamic_from_equilibrium = true;
+    reverse_dyn.linked_forward_id = "eq_explicit_partner_forward";
+    reaction_db.reactions.push_back(reverse_dyn);
+
+    std::vector<IonState> ions;
+    ions.reserve(400);
+    const auto& a_props = species_db.get("H3O+");
+    for (int i = 0; i < 399; ++i) {
+        IonState ion;
+        ion.species_id = "H3O+";
+        ion.mass_kg = a_props.mass_kg;
+        ion.ion_charge_C = a_props.charge_C;
+        ion.CCS_m2 = a_props.CCS_m2;
+        ion.reduced_mobility_cm2_Vs = a_props.mobility_m2Vs / CM2_TO_M2;
+        ion.active = true;
+        ion.born = true;
+        ions.push_back(ion);
+    }
+
+    const auto& b_props = species_db.get("NH4+");
+    IonState seed_b;
+    seed_b.species_id = "NH4+";
+    seed_b.mass_kg = b_props.mass_kg;
+    seed_b.ion_charge_C = b_props.charge_C;
+    seed_b.CCS_m2 = b_props.CCS_m2;
+    seed_b.reduced_mobility_cm2_Vs = b_props.mobility_m2Vs / CM2_TO_M2;
+    seed_b.active = true;
+    seed_b.born = true;
+    ions.push_back(seed_b);
+
+    auto ensemble = core::IonEnsemble::from_legacy(ions);
+    StochasticReactionHandler handler(false);
+    PhysicsRng rng(121212);
+
+    const double dt = 2.0e-4;
+    const int total_steps = 2200;
+    const int sample_start = 1200;
+    const int sample_stride = 20;
+
+    double sampled_b_fraction_sum = 0.0;
+    int sampled_points = 0;
+
+    for (int step = 0; step < total_steps; ++step) {
+        for (size_t i = 0; i < ensemble.size(); ++i) {
+            auto view = ensemble.reaction_data(i);
+            handler.handle_reaction(view, dt, rng, reaction_db, species_db, env);
+        }
+
+        if (step >= sample_start && ((step - sample_start) % sample_stride == 0)) {
+            int count_a = 0;
+            int count_b = 0;
+            for (size_t i = 0; i < ensemble.size(); ++i) {
+                const auto ion = ensemble.ion_state(i);
+                if (ion.species_id == "H3O+") {
+                    count_a += 1;
+                } else if (ion.species_id == "NH4+") {
+                    count_b += 1;
+                }
+            }
+
+            const double total = static_cast<double>(count_a + count_b);
+            REQUIRE(total > 0.0);
+            sampled_b_fraction_sum += static_cast<double>(count_b) / total;
+            sampled_points += 1;
+        }
+    }
+
+    REQUIRE(sampled_points > 5);
+
+    const double mean_b_fraction = sampled_b_fraction_sum / static_cast<double>(sampled_points);
+    const double expected_ratio_b_to_a = target_keq * (p_x_pa / p0_pa);
+    const double expected_b_fraction = expected_ratio_b_to_a / (1.0 + expected_ratio_b_to_a);
+
+    REQUIRE(mean_b_fraction == Catch::Approx(expected_b_fraction).margin(0.06));
+}
+
 TEST_CASE("StochasticReactionHandler: inactive gas_mixture disables species-dependent reactions", "[reaction][mixture]") {
     auto species_db = create_test_species_db();
 
@@ -560,6 +671,12 @@ TEST_CASE("StochasticReactionHandler: Third-order reaction", "[reaction][order]"
 TEST_CASE("StochasticReactionHandler: Buffer gas fallback", "[reaction][fallback]") {
     // Setup: Low buffer gas density
     auto reaction_db = create_test_reaction_db();
+    for (auto& rxn : reaction_db.reactions) {
+        if (rxn.id == "rxn_nh4_to_h3o") {
+            REQUIRE(rxn.order_terms.size() == 1);
+            rxn.order_terms[0].species = "M";
+        }
+    }
     auto species_db = create_test_species_db();
     auto env = create_test_environment(300.0, 1e20);  // Very low density
     env.gas_mixture.clear();
@@ -594,8 +711,38 @@ TEST_CASE("StochasticReactionHandler: Buffer gas fallback", "[reaction][fallback
         }
     }
     
-    // Should react frequently if buffer gas is considered; allow zero if disabled
-    REQUIRE(num_reactions >= 0);
+    // Should react frequently if buffer gas is considered.
+    REQUIRE(num_reactions > 90);
+}
+
+TEST_CASE("StochasticReactionHandler: neutral placeholder uses buffer gas density", "[reaction][fallback]") {
+    ReactionDatabase reaction_db;
+    Reaction rxn;
+    rxn.id = "neutral_placeholder_reaction";
+    rxn.reactant = "H3O+";
+    rxn.product = "NH4+";
+    rxn.rate_constant = 1.0e-15;  // [m^3/s]
+    ReactionOrderTerm term;
+    term.species = "neutral";
+    term.exponent = 1;
+    term.concentration_m3 = -1.0;
+    rxn.order_terms.push_back(term);
+    reaction_db.reactions.push_back(rxn);
+
+    auto species_db = create_test_species_db();
+    auto env = create_test_environment(300.0, 1e25);
+    env.gas_mixture.clear();
+
+    StochasticReactionHandler handler(false);
+    PhysicsRng rng(42);
+    constexpr double dt = 1e-6;
+
+    auto ensemble = make_ensemble_for_species(species_db, "H3O+");
+    auto view = ensemble.reaction_data(0);
+    const bool reacted = handler.handle_reaction(view, dt, rng, reaction_db, species_db, env);
+
+    REQUIRE(reacted);
+    REQUIRE(view.species_id() == "NH4+");
 }
 
 TEST_CASE("StochasticReactionHandler: Species database lookup", "[reaction][species]") {

@@ -80,6 +80,19 @@ InteractionPotentialCollisionHandler::InteractionPotentialCollisionHandler(
             );
             continue;
         }
+        const bool has_full_cdf =
+            !samples.cdf_offsets.empty() &&
+            !samples.cdf_counts.empty() &&
+            !samples.cdf_values.empty() &&
+            !samples.dp_samples.empty();
+        if (!has_full_cdf && !samples.dp_stats.empty()) {
+            ICARION::log::Logger::get("collision")->warn(
+                "[InteractionPotential] Offline samples for '{}' do not contain full CDF momentum kicks; "
+                "runtime will use the lower-fidelity dp_stats fallback. Regenerate with --store-full-cdf "
+                "for scientific production runs.",
+                id
+            );
+        }
         samples_.emplace(id, std::move(samples));
     }
 }
@@ -353,11 +366,12 @@ bool InteractionPotentialCollisionHandler::handle_collision(
     const size_t idx = samples.index(std::min(orient_idx, n_orient - 1), bin_idx);
 
     const double sigma_mt = samples.sigma_mt_m2[idx];
-    if (sigma_mt <= 0.0 || n_gas <= 0.0) {
+    const double sigma_event = samples.sigma_event_m2[idx];
+    if (sigma_event <= 0.0 || n_gas <= 0.0) {
         return false;
     }
 
-    const double k = n_gas * v_rel_mag * sigma_mt;
+    const double k = n_gas * v_rel_mag * sigma_event;
     if (momentum_logging_enabled_) {
         std::lock_guard<std::mutex> lock(state_mutex_);
         auto& log = momentum_logs_[species_id];

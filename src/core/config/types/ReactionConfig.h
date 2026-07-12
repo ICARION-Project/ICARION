@@ -13,6 +13,10 @@
 
 namespace ICARION::config {
 
+inline bool is_reaction_order_placeholder(const std::string& species) {
+    return species == "neutral" || species == "M";
+}
+
 /**
  * @brief Temperature dependence model for rate constant
  * 
@@ -64,7 +68,8 @@ struct ReactionOrderTerm {
  * @brief Single-reactant reaction with optional temperature dependence
  * 
  * Models: A⁺ + n·X → B⁺ + products
- * where A⁺ is reactant ion, X is neutral, B⁺ is product ion.
+ * where A⁺ is reactant ion, X is a neutral concentration term, and B⁺ is
+ * product ion. Neutral products are not explicit state variables.
  * 
  * Supports temperature-dependent rate constants (Arrhenius, modified Arrhenius).
  * Multi-step reactions reserved for v2.0.
@@ -98,6 +103,8 @@ struct Reaction {
     // All thermo values are stored internally in SI units.
     // The loader accepts SI keys (delta_r_H_J_mol, delta_r_S_J_molK) as primary
     // and legacy keys (delta_r_H_kcalmol, delta_r_S_cal_molK) with immediate conversion.
+    // v1.1 equilibrium is a population-balance model: order_terms are also the
+    // thermodynamic neutral partners, except third-body placeholder M.
     bool equilibrium = false;                     ///< Marks forward reaction as equilibrium-controlled
     bool has_thermo = false;                      ///< True if delta_r_H/S were provided in input
     double delta_r_H_J_mol = 0.0;                ///< Reaction enthalpy ΔrH° [J/mol] (SI, SSOT)
@@ -215,8 +222,8 @@ struct Reaction {
         for (const auto& term : order_terms) {
             result.merge(term.validate());
             
-            // Check species exists
-            if (!species_db.has(term.species)) {
+            // Check species exists; "neutral" and "M" are runtime placeholders.
+            if (!is_reaction_order_placeholder(term.species) && !species_db.has(term.species)) {
                 result.add_error("Reaction '" + id + "': order term species '" + 
                                term.species + "' not found in database");
             }

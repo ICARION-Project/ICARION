@@ -125,7 +125,7 @@ You can store gas-dependent CCS values (generated via `ccs_precompute`):
 
 ---
 
-## Species and Reaction Databases (v1.0.0)
+## Species and Reaction Databases (v1.1.0)
 
 ICARION supports external databases for species properties and reaction rates.
 
@@ -198,7 +198,7 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
       "id": "rxn_001_constant",
       "reactant": "H3O+",
       "product": "H5O2+",
-      "rate_constant": 3.5e-9,
+      "rate_constant": 3.5e-15,
       "rate_model": "Constant",
       "order": [
         {
@@ -213,7 +213,7 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
       "id": "rxn_002_arrhenius",
       "reactant": "H3O+",
       "product": "NH4+",
-      "rate_constant": 1.5e-9,
+      "rate_constant": 1.5e-15,
       "rate_model": "Arrhenius",
       "activation_energy_eV": 0.12,
       "order": [
@@ -229,7 +229,7 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
       "id": "rxn_003_capture",
       "reactant": "H3O+",
       "product": "H3O+·H2O",
-      "rate_constant": 2.0e-9,
+      "rate_constant": 2.0e-15,
       "rate_model": "ModifiedArrhenius",
       "temperature_exponent": -0.5,
       "reference_temperature_K": 300.0,
@@ -266,7 +266,7 @@ Reaction databases define ion-molecule reactions with **temperature-dependent** 
 **Optional fields (Concentration Dependence):**
 
 - `order`: Array of concentration-dependent terms
-  - `species`: Species ID for concentration dependence (or `"neutral"` for buffer gas)
+  - `species`: Species ID for concentration dependence, `"neutral"` for non-equilibrium buffer gas fallback, or `"M"` for a third-body placeholder
   - `exponent`: Concentration exponent (allowed: **0, 1, or 2**)
   - `concentration_m3`: Fixed concentration [m⁻³] or **-1** for buffer gas fallback
 - `description`: Human-readable description
@@ -305,7 +305,7 @@ ICARION **strictly validates** all order terms:
 |----------|-----------|-------------------|
 | **#1: Exponent range** | `exponent ∈ {0, 1, 2}` | ERROR: `"exponent": 3` → "exponent must be 0, 1, or 2" |
 | **#2: Concentration range** | `concentration_m3 ≥ -1.0` | ERROR: `"concentration_m3": -5.0` → "must be ≥ -1.0" |
-| **#3: Species exists** | `species ∈ species_db` (if not `"neutral"`) | ERROR: `"species": "XYZ"` → "species 'XYZ' not found" |
+| **#3: Species exists** | `species ∈ species_db` (if not `"neutral"` or `"M"`) | ERROR: `"species": "XYZ"` → "species 'XYZ' not found" |
 | **#4: No duplicate species** | Each `species` appears once | ERROR: Two terms with `"species": "O2"` → "duplicate order term for 'O2'. Use exponent=2 instead." |
 | **#5: Max one buffer gas** | At most one term with `concentration_m3 = -1` | ERROR: Two terms with `-1` → "only one term can use buffer gas fallback" |
 
@@ -314,13 +314,13 @@ ICARION **strictly validates** all order terms:
 ICARION also warns about likely unit mismatches:
 
 ```
-⚠  Reaction 'rxn_001': 2nd-order (exponent=1) but k = 1.5e-30 m⁶/s outside typical range [1e-12, 1e-6] m³/s
+⚠  Reaction 'rxn_001': 2nd-order (exponent=1) but k = 1.5e-30 m⁶/s outside typical range [1e-18, 1e-12] m³/s
 ```
 
 **Typical Rate Constant Ranges:**
 - **1st-order (spontaneous):** k ~ 10⁻³ to 10⁶ s⁻¹
-- **2nd-order (ion + neutral):** k ~ 10⁻¹² to 10⁻⁶ m³/s
-- **3rd-order (termolecular):** k ~ 10⁻³⁰ to 10⁻²⁴ m⁶/s
+- **2nd-order (ion + neutral):** k ~ 10⁻¹⁸ to 10⁻¹² m³/s
+- **3rd-order (termolecular):** k ~ 10⁻⁴⁴ to 10⁻³⁸ m⁶/s
 
 **Effective rate calculation:**
 
@@ -389,6 +389,33 @@ When `enable_reactions` is enabled, ICARION will:
 6. **Update species** by replacing reactant particle with product particle
 
 Equilibrium-linked reactions can mark a forward channel with `equilibrium=true` and SI thermochemistry metadata (`delta_r_H_J_mol`, `delta_r_S_J_molK`). The loader then creates a dynamic reverse channel unless one is already explicit; see `schema/reactions.schema.json` for the full schema.
+
+**Equilibrium scope:** v1.1 equilibrium support is a bath kinetics population model for single ion species conversion,
+`A+ + nX -> B+ + products`, with optional third-body placeholder `M`. Neutral
+products are not explicit state variables. The thermodynamic factor therefore
+assumes that concentration order terms represent the relevant stoichiometric
+neutral partners. This is appropriate for simple cluster association,
+dissociation, and isomerization-style population balances, but not for arbitrary
+exchange reactions such as `A+ + X <-> B+ + Y` where the activity or
+concentration of `Y` must appear in the reverse direction. Empirical falloff
+kinetics or reduced mechanisms where kinetic order and elementary stoichiometry
+differ should use explicit forward/reverse rates instead of `equilibrium=true`.
+The equilibrium constant is treated as a dimensionless `K_p` with standard
+pressure `p0 = 1 bar`; `delta_r_H_J_mol` and `delta_r_S_J_molK` are interpreted
+as temperature-independent standard reaction enthalpy and entropy over the
+simulated temperature range.
+
+For equilibrium reactions, do not use `species: "neutral"` as a real neutral
+partner. The loader rejects that combination because the equilibrium expression
+does not know which gas species activity should be included. Use an explicit
+neutral species such as `"N2"` or `"H2O"`, or use `"M"` only for a third-body
+placeholder that cancels from the population equilibrium.
+
+Reaction events update species, mass, charge, CCS, and mobility, but keep the
+ion position and velocity unchanged. Thus `equilibrium=true` enforces chemical
+population ratios, not microscopic detailed balance in full phase space; it does
+not model reaction enthalpy release, neutral recoil, or product energy
+partitioning.
 
 See [Reaction Database Schema](#reaction-database-schema) for details on configuring reactions.
 
@@ -689,7 +716,7 @@ When `enable_reactions` is set in the `physics` section, you must provide a `rea
       "reactant": "H3O+",
       "product": "NH4+",
       "rate_model": "Constant",
-      "rate_constant": 2.5e-9,
+      "rate_constant": 2.5e-15,
       "order": [
         {
           "species": "NH3",
@@ -730,7 +757,7 @@ Each entry in the `order` array defines a concentration dependence:
 
 | Field | Type | Values | Description |
 |-------|------|--------|-------------|
-| `species` | string | Species ID or `"neutral"` | Which species to use for concentration |
+| `species` | string | Species ID, `"neutral"`, or `"M"` | Which species or placeholder to use for concentration |
 | `exponent` | integer | 0, 1, 2 | Power to raise concentration to |
 | `concentration_m3` | number | ≥ -1.0 | Explicit concentration [m⁻³] or -1.0 for buffer gas |
 
@@ -738,6 +765,8 @@ Each entry in the `order` array defines a concentration dependence:
 
 - If `concentration_m3 = -1.0` (or omitted), use buffer gas density from `EnvironmentConfig.particle_density_m_3`
 - If `concentration_m3 > 0`, use the explicit value
+- `species: "neutral"` is allowed for non-equilibrium pseudo-first-order buffer gas kinetics only.
+- `species: "M"` is a third-body placeholder. It can be used in equilibrium-linked reactions when the third body cancels from the population equilibrium.
 
 ### Rate Constant Units (Order-Dependent)
 
@@ -800,7 +829,7 @@ Where:
   "reactant": "H3O+",
   "product": "NH4+",
   "rate_model": "Constant",
-  "rate_constant": 2.5e-9,
+  "rate_constant": 2.5e-15,
   "order": [
     {
       "species": "NH3",
@@ -819,7 +848,7 @@ Where:
   "reactant": "H3O+",
   "product": "H5O2+",
   "rate_model": "Arrhenius",
-  "rate_constant": 1.2e-28,
+  "rate_constant": 1.2e-40,
   "activation_energy_eV": 0.05,
   "order": [
     {
@@ -920,7 +949,7 @@ See `schema/simulation.schema.json` for all options.
 
 **Collision Models:** See [COLLISION_MODELS.md](COLLISION_MODELS.md) for detailed physics and use cases.
 
-**High-pressure stochastic collisions:** `collision_subcycles_per_step > 1` splits each collision application into equal micro-steps and recomputes collision probabilities in each sub-step. `collision_multi_event_mode=true` is a practical approximation for regimes where more than one collision per macro-step is likely; it enforces at least `collision_max_events_per_step` micro-subcycles. For the most accurate calculations, choose `dt_s` small enough that less than one collision per ion per step is expected.
+**High-pressure stochastic collisions:** `collision_subcycles_per_step > 1` splits each collision application into equal micro-steps and recomputes collision probabilities in each sub-step. `collision_multi_event_mode=true` is a practical approximation for regimes where more than one collision per macro-step is likely; it enforces at least `collision_max_events_per_step` micro-subcycles. Despite the legacy field name, `collision_max_events_per_step` is not a guaranteed upper bound on physical continuous-time collision events. Validate both `lambda * dt_collision` for collision statistics and the global `dt_s` for trajectory accuracy; subcycling does not make a large RK/global step valid if fields, gradients, momentum relaxation, walls, or domain boundaries are under-resolved.
 
 **InteractionPotentialModel controls:** `ipm_orientation_mode` accepts `random` or `fixed`; fixed mode uses `ipm_fixed_orientation_index`. Optional `ipm_vrel_log_prefix` and `ipm_momentum_log_prefix` enable CSV diagnostics. Species should reference offline sample files with the canonical `ipm_samples_file` key.
 
@@ -1075,7 +1104,7 @@ for f in examples/*/*.json; do python3 schema/validator.py schema/icarion-config
 
 ## Multi-Gas Configurations
 
-**Status:** Production-ready (v1.0.0)
+**Status:** Production-ready (v1.1.0)
 
 ICARION supports multi-component gas mixtures for realistic collision and reaction simulations.
 
@@ -1290,6 +1319,11 @@ TIMS examples usually also set an axial gas flow:
   }
 }
 ```
+
+Axial flow profiles are defined in the local domain coordinate system, matching
+the TIMS axial field direction. For rotated domains, ICARION evaluates the
+radial profile in local coordinates and rotates the velocity back to global
+coordinates before applying damping or stochastic collisions.
 
 See `examples/ims/ims_tims_basic.json` for a complete configuration.
 

@@ -62,6 +62,73 @@ private:
     double last_dt_ = 0.0;
 };
 
+class AlwaysCollidingCountingHandler : public ICollisionHandler {
+public:
+    bool handle_collision(core::IonCollisionData&,
+                          double dt,
+                          PhysicsRng&,
+                          const config::EnvironmentConfig&,
+                          CollisionEventDiagnostics* diagnostics = nullptr) override {
+        (void)diagnostics;
+        ++calls_;
+        last_dt_ = dt;
+        return true;
+    }
+
+    std::string name() const override { return "AlwaysCollidingCountingHandler"; }
+    size_t calls() const { return calls_; }
+    double last_dt() const { return last_dt_; }
+
+private:
+    size_t calls_ = 0;
+    double last_dt_ = 0.0;
+};
+
+class RecordingGasVelocityCollisionHandler : public ICollisionHandler {
+public:
+    bool handle_collision(core::IonCollisionData&,
+                          double,
+                          PhysicsRng&,
+                          const config::EnvironmentConfig& env,
+                          CollisionEventDiagnostics* diagnostics = nullptr) override {
+        (void)diagnostics;
+        ++calls_;
+        last_gas_velocity_ = env.gas_velocity_m_s;
+        return false;
+    }
+
+    std::string name() const override { return "RecordingGasVelocityCollisionHandler"; }
+    size_t calls() const { return calls_; }
+    Vec3 last_gas_velocity() const { return last_gas_velocity_; }
+
+private:
+    size_t calls_ = 0;
+    Vec3 last_gas_velocity_{0.0, 0.0, 0.0};
+};
+
+class BatchCapableRecordingGasVelocityCollisionHandler : public RecordingGasVelocityCollisionHandler {
+public:
+    bool supports_batch() const override { return true; }
+
+    bool handle_batch(core::IonEnsemble&,
+                      const std::vector<size_t>&,
+                      double,
+                      const config::EnvironmentConfig& env,
+                      std::vector<physics::PhysicsRng>&) override {
+        ++batch_calls_;
+        batch_gas_velocity_ = env.gas_velocity_m_s;
+        return true;
+    }
+
+    std::string name() const override { return "BatchCapableRecordingGasVelocityCollisionHandler"; }
+    size_t batch_calls() const { return batch_calls_; }
+    Vec3 batch_gas_velocity() const { return batch_gas_velocity_; }
+
+private:
+    size_t batch_calls_ = 0;
+    Vec3 batch_gas_velocity_{0.0, 0.0, 0.0};
+};
+
 class DeterministicCollisionHandler : public ICollisionHandler {
 public:
     bool handle_collision(core::IonCollisionData& view,
@@ -522,6 +589,100 @@ TEST_CASE("SimulationEngine: collision micro-subcycling dispatch", "[simulation]
         REQUIRE(engine.collision_events_total() == 0);
         REQUIRE_THAT(collision_handler->last_dt(), Catch::Matchers::WithinAbs(2.5e-10, 1e-18));
     }
+
+    SECTION("Multi-event micro-subcycling is not a global event cap") {
+        cfg.simulation.total_time_s = 1e-9;
+        cfg.simulation.dt_s = 1e-9;
+        cfg.simulation.compute_derived();
+        cfg.physics.collision_multi_event_mode = true;
+        cfg.physics.collision_max_events_per_step = 2;
+        cfg.physics.collision_subcycles_per_step = 1;
+
+        auto collision_handler = std::make_shared<AlwaysCollidingCountingHandler>();
+        SimulationEngine engine(cfg, {force_registry}, integrator, collision_handler);
+
+        std::vector<IonState> ions = {create_test_ion(), create_test_ion(), create_test_ion()};
+        for (auto& ion : ions) {
+            ion.vel = Vec3{0.0, 0.0, 0.0};
+        }
+
+        auto result = run_engine_aos(engine, ions);
+
+        REQUIRE(result.size() == 3);
+        REQUIRE(collision_handler->calls() == 6);
+        REQUIRE(engine.collision_macro_attempts_total() == 3);
+        REQUIRE(engine.collision_substep_attempts_total() == 6);
+        REQUIRE(engine.collision_events_total() == 6);
+        REQUIRE_THAT(collision_handler->last_dt(), Catch::Matchers::WithinAbs(5.0e-10, 1e-18));
+    }
+}
+
+TEST_CASE("SimulationEngine: collisions receive local gas flow profile", "[simulation][engine][collision][tims]") {
+    auto cfg = create_test_config();
+    cfg.physics.collision_model = CollisionModel::HSS;
+    cfg.simulation.total_time_s = 1e-9;
+    cfg.simulation.dt_s = 1e-9;
+    cfg.simulation.enable_openmp = false;
+    cfg.simulation.compute_derived();
+    cfg.domains[0].geometry.radius_m = 0.01;
+    cfg.domains[0].geometry.origin_m = Vec3{0.0, 0.0, 0.0};
+    cfg.domains[0].environment.flow_model = FlowModelKind::AxialParabolic;
+    cfg.domains[0].environment.axial_flow_max_velocity_m_s = 100.0;
+    cfg.domains[0].environment.gas_velocity_m_s = Vec3{0.0, 0.0, 50.0};
+    cfg.domains[0].finalize();
+
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
+    auto integrator = std::make_shared<RK4Strategy>();
+    auto collision_handler = std::make_shared<RecordingGasVelocityCollisionHandler>();
+    SimulationEngine engine(cfg, {force_registry}, integrator, collision_handler);
+
+    std::vector<IonState> ions = {create_test_ion()};
+    ions[0].pos = Vec3{0.005, 0.0, 0.001};
+    ions[0].vel = Vec3{0.0, 0.0, 0.0};
+
+    auto result = run_engine_aos(engine, ions);
+
+    REQUIRE(result.size() == 1);
+    REQUIRE(collision_handler->calls() == 1);
+    CHECK_THAT(collision_handler->last_gas_velocity().x, Catch::Matchers::WithinAbs(0.0, 1e-15));
+    CHECK_THAT(collision_handler->last_gas_velocity().y, Catch::Matchers::WithinAbs(0.0, 1e-15));
+    CHECK_THAT(collision_handler->last_gas_velocity().z, Catch::Matchers::WithinAbs(75.0, 1e-12));
+}
+
+TEST_CASE("SimulationEngine: non-constant gas flow bypasses batch collision path", "[simulation][engine][collision][tims]") {
+    auto cfg = create_test_config();
+    cfg.physics.collision_model = CollisionModel::HSS;
+    cfg.simulation.total_time_s = 1e-9;
+    cfg.simulation.dt_s = 1e-9;
+    cfg.simulation.enable_openmp = false;
+    cfg.simulation.compute_derived();
+    cfg.domains[0].environment.flow_model = FlowModelKind::AxialUniform;
+    cfg.domains[0].environment.axial_flow_velocity_m_s = 100.0;
+    cfg.domains[0].environment.gas_velocity_m_s = Vec3{0.0, 0.0, 100.0};
+    cfg.domains[0].rotation_local_to_global = Mat3::fromColumns(
+        Vec3{0.0, 0.0, -1.0},
+        Vec3{0.0, 1.0, 0.0},
+        Vec3{1.0, 0.0, 0.0}
+    );
+    cfg.domains[0].rotation_global_to_local = transpose(cfg.domains[0].rotation_local_to_global);
+    cfg.domains[0].finalize();
+
+    auto force_registry = std::make_shared<ForceRegistry>(cfg.domains[0]);
+    auto integrator = std::make_shared<RK4Strategy>();
+    auto collision_handler = std::make_shared<BatchCapableRecordingGasVelocityCollisionHandler>();
+    SimulationEngine engine(cfg, {force_registry}, integrator, collision_handler);
+
+    std::vector<IonState> ions = {create_test_ion()};
+    ions[0].vel = Vec3{0.0, 0.0, 0.0};
+
+    auto result = run_engine_aos(engine, ions);
+
+    REQUIRE(result.size() == 1);
+    REQUIRE(collision_handler->batch_calls() == 0);
+    REQUIRE(collision_handler->calls() == 1);
+    CHECK_THAT(collision_handler->last_gas_velocity().x, Catch::Matchers::WithinAbs(100.0, 1e-12));
+    CHECK_THAT(collision_handler->last_gas_velocity().y, Catch::Matchers::WithinAbs(0.0, 1e-15));
+    CHECK_THAT(collision_handler->last_gas_velocity().z, Catch::Matchers::WithinAbs(0.0, 1e-15));
 }
 
 TEST_CASE("SimulationEngine writes deep collision diagnostics", "[simulation][engine][collision][deep]") {

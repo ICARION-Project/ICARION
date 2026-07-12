@@ -143,10 +143,13 @@ def inspect_sample_file(path: Path, expected_species: str, expected_gas: str) ->
     try:
         with h5py.File(path, "r") as handle:
             fmt = handle.attrs.get("format", "")
+            units = handle.attrs.get("units", "")
             species = handle.attrs.get("species_id", "")
             gas = handle.attrs.get("gas", "")
             if isinstance(fmt, bytes):
                 fmt = fmt.decode()
+            if isinstance(units, bytes):
+                units = units.decode()
             if isinstance(species, bytes):
                 species = species.decode()
             if isinstance(gas, bytes):
@@ -154,23 +157,85 @@ def inspect_sample_file(path: Path, expected_species: str, expected_gas: str) ->
 
             if fmt != "ipm_offline_samples":
                 return False, f"unexpected format attribute: {fmt!r}"
+            if units != "logv, sigma_mt_m2, sigma_event_m2, b_max_m, dp_SI":
+                return False, f"unexpected units attribute: {units!r}"
+            if int(handle.attrs.get("version", -1)) != 1:
+                return False, f"unexpected version attribute: {handle.attrs.get('version')!r}"
             if species != expected_species or gas != expected_gas:
                 return False, f"metadata mismatch species={species!r} gas={gas!r}"
 
-            required = ["logv_bins", "orientations_quat", "sigma_mt_m2", "b_max_m", "dp_stats"]
+            required = [
+                "logv_bins",
+                "orientations_quat",
+                "sigma_event_m2",
+                "sigma_mt_m2",
+                "b_max_m",
+                "dp_stats",
+                "attempted_trajectories",
+                "accepted_trajectories",
+                "rejected_non_asymptotic",
+                "max_energy_step_error",
+                "max_energy_cumulative_error",
+                "cdf_offsets",
+                "cdf_counts",
+                "cdf_values",
+                "dp_samples",
+            ]
             missing = [name for name in required if name not in handle]
             if missing:
                 return False, f"missing datasets: {', '.join(missing)}"
 
             logv = np.asarray(handle["logv_bins"][:], dtype=float)
+            sigma_event = np.asarray(handle["sigma_event_m2"][:], dtype=float)
             sigma = np.asarray(handle["sigma_mt_m2"][:], dtype=float)
             b_max = np.asarray(handle["b_max_m"][:], dtype=float)
             dp_stats = np.asarray(handle["dp_stats"][:], dtype=float)
+            attempted = np.asarray(handle["attempted_trajectories"][:], dtype=np.int64)
+            accepted = np.asarray(handle["accepted_trajectories"][:], dtype=np.int64)
+            rejected = np.asarray(handle["rejected_non_asymptotic"][:], dtype=np.int64)
+            energy_step = np.asarray(handle["max_energy_step_error"][:], dtype=float)
+            energy_cumulative = np.asarray(handle["max_energy_cumulative_error"][:], dtype=float)
+            cdf_offsets = np.asarray(handle["cdf_offsets"][:], dtype=np.int64)
+            cdf_counts = np.asarray(handle["cdf_counts"][:], dtype=np.int64)
+            cdf_values = np.asarray(handle["cdf_values"][:], dtype=float)
+            dp_samples = np.asarray(handle["dp_samples"][:], dtype=float)
 
-            if logv.size == 0 or sigma.size == 0 or b_max.size == 0 or dp_stats.size == 0:
+            if (
+                logv.size == 0
+                or sigma_event.size == 0
+                or sigma.size == 0
+                or b_max.size == 0
+                or dp_stats.size == 0
+                or cdf_values.size == 0
+                or dp_samples.size == 0
+            ):
                 return False, "one or more required datasets are empty"
-            if not all(np.isfinite(arr).all() for arr in (logv, sigma, b_max, dp_stats)):
+            if not all(np.isfinite(arr).all() for arr in (logv, sigma_event, sigma, b_max, dp_stats, energy_step, energy_cumulative, cdf_values, dp_samples)):
                 return False, "sample datasets contain NaN/Inf"
+            if cdf_offsets.shape != sigma.shape or cdf_counts.shape != sigma.shape:
+                return False, "cdf_offsets/cdf_counts shape mismatch"
+            if attempted.shape != sigma.shape or accepted.shape != sigma.shape or rejected.shape != sigma.shape:
+                return False, "trajectory-quality dataset shape mismatch"
+            if energy_step.shape != sigma.shape or energy_cumulative.shape != sigma.shape:
+                return False, "energy-quality dataset shape mismatch"
+            if np.any(attempted <= 0) or np.any(accepted <= 0) or np.any(rejected < 0):
+                return False, "invalid trajectory-quality counts"
+            if np.any(accepted + rejected != attempted):
+                return False, "trajectory-quality counts are inconsistent"
+            if np.any(rejected != 0):
+                return False, "sample file contains non-asymptotic trajectory rejects"
+            if np.any(energy_step < 0.0) or np.any(energy_cumulative < 0.0):
+                return False, "energy-quality datasets contain negative entries"
+            if dp_samples.ndim != 2 or dp_samples.shape[1] != 3:
+                return False, "dp_samples must have shape (S, 3)"
+            if cdf_values.size != dp_samples.shape[0]:
+                return False, "cdf_values and dp_samples length mismatch"
+            if np.any(cdf_counts <= 0):
+                return False, "cdf_counts contains empty cells"
+            if np.any(cdf_offsets < 0) or np.any(cdf_offsets + cdf_counts > cdf_values.size):
+                return False, "CDF offsets/counts exceed cdf_values"
+            if not np.all(sigma_event > 0.0):
+                return False, "sigma_event_m2 contains non-positive entries"
             if not np.any(sigma > 0.0):
                 return False, "sigma_mt_m2 has no positive entries"
             if not np.all(b_max > 0.0):
@@ -178,7 +243,8 @@ def inspect_sample_file(path: Path, expected_species: str, expected_gas: str) ->
 
             return True, (
                 f"format ok; orientations={handle.attrs.get('n_orientations')}; "
-                f"v_bins={logv.size}; sigma_range=[{sigma.min():.3e}, {sigma.max():.3e}] m^2"
+                f"v_bins={logv.size}; sigma_event_range=[{sigma_event.min():.3e}, {sigma_event.max():.3e}] m^2; "
+                f"sigma_mt_range=[{sigma.min():.3e}, {sigma.max():.3e}] m^2"
             )
     except Exception as exc:
         return False, f"failed to inspect sample file: {exc}"

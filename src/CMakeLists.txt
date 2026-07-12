@@ -106,12 +106,6 @@ file(GLOB_RECURSE ICARION_SIMULATION_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/simulation/*.h"
 )
 
-# FieldSolver utilities (for field update API only)
-set(ICARION_FIELDSOLVER_SRC
-    "${CMAKE_CURRENT_SOURCE_DIR}/fieldsolver/utils/field_update_api.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/fieldsolver/utils/field_update_api.h"
-)
-
 # ---------------------------------------------------------------------
 # Add sources to library
 # ---------------------------------------------------------------------
@@ -123,7 +117,6 @@ target_sources(icarion_core PRIVATE
     ${ICARION_CONFIG_SRC}
     ${ICARION_UTILS_SRC}
     ${ICARION_SIMULATION_SRC}
-    ${ICARION_FIELDSOLVER_SRC}
     # Explicit new field models to avoid glob reconfigure misses
     core/config/types/FieldProviderModel.cpp
 )

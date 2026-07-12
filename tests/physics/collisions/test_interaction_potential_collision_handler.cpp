@@ -32,14 +32,40 @@ std::filesystem::path make_temp_h5_path(const std::string& tag) {
     return path;
 }
 
-void write_samples_file(const std::filesystem::path& path, const std::string& gas_tag) {
-    H5::H5File file(path.string(), H5F_ACC_TRUNC);
-
+void write_common_ipm_metadata(H5::H5File& file, const std::string& gas_tag, size_t n_orient = 1) {
     H5::DataSpace scalar_space(H5S_SCALAR);
     H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
+
+    const long long version = physics::INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_VERSION;
+    H5::Attribute version_attr = file.createAttribute("version", H5::PredType::NATIVE_LLONG, scalar_space);
+    version_attr.write(H5::PredType::NATIVE_LLONG, &version);
+
+    const char* format = physics::INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_FORMAT;
+    H5::Attribute format_attr = file.createAttribute("format", str_type, scalar_space);
+    format_attr.write(str_type, &format);
+
+    const char* units = physics::INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_UNITS;
+    H5::Attribute units_attr = file.createAttribute("units", str_type, scalar_space);
+    units_attr.write(str_type, &units);
+
     const char* gas_c = gas_tag.c_str();
     H5::Attribute gas_attr = file.createAttribute("gas", str_type, scalar_space);
     gas_attr.write(str_type, &gas_c);
+
+    const hsize_t dims[2] = {static_cast<hsize_t>(n_orient), 4};
+    H5::DataSpace space(2, dims);
+    H5::DataSet orientations = file.createDataSet("orientations_quat", H5::PredType::NATIVE_DOUBLE, space);
+    std::vector<double> values(n_orient * 4, 0.0);
+    for (size_t i = 0; i < n_orient; ++i) {
+        values[i * 4] = 1.0;
+    }
+    orientations.write(values.data(), H5::PredType::NATIVE_DOUBLE);
+}
+
+void write_samples_file(const std::filesystem::path& path, const std::string& gas_tag) {
+    H5::H5File file(path.string(), H5F_ACC_TRUNC);
+
+    write_common_ipm_metadata(file, gas_tag);
 
     {
         const hsize_t dims[1] = {1};
@@ -55,21 +81,26 @@ void write_samples_file(const std::filesystem::path& path, const std::string& ga
         const double sigma_values[1] = {1.0e-18};
         sigma.write(sigma_values, H5::PredType::NATIVE_DOUBLE);
 
+        H5::DataSet sigma_event = file.createDataSet("sigma_event_m2", H5::PredType::NATIVE_DOUBLE, space);
+        sigma_event.write(sigma_values, H5::PredType::NATIVE_DOUBLE);
+
         H5::DataSet bmax = file.createDataSet("b_max_m", H5::PredType::NATIVE_DOUBLE, space);
         const double bmax_values[1] = {1.0e-9};
         bmax.write(bmax_values, H5::PredType::NATIVE_DOUBLE);
     }
     {
-        const hsize_t dims[1] = {1};
-        H5::DataSpace space(1, dims);
-        H5::DataSet offsets = file.createDataSet("cdf_offsets", H5::PredType::NATIVE_LLONG, space);
+        const hsize_t cell_dims[2] = {1, 1};
+        H5::DataSpace cell_space(2, cell_dims);
+        H5::DataSet offsets = file.createDataSet("cdf_offsets", H5::PredType::NATIVE_LLONG, cell_space);
         const long long offsets_values[1] = {0};
         offsets.write(offsets_values, H5::PredType::NATIVE_LLONG);
 
-        H5::DataSet counts = file.createDataSet("cdf_counts", H5::PredType::NATIVE_LLONG, space);
+        H5::DataSet counts = file.createDataSet("cdf_counts", H5::PredType::NATIVE_LLONG, cell_space);
         const long long counts_values[1] = {1};
         counts.write(counts_values, H5::PredType::NATIVE_LLONG);
 
+        const hsize_t sample_dims[1] = {1};
+        H5::DataSpace space(1, sample_dims);
         H5::DataSet cdf = file.createDataSet("cdf_values", H5::PredType::NATIVE_DOUBLE, space);
         const double cdf_values[1] = {1.0};
         cdf.write(cdf_values, H5::PredType::NATIVE_DOUBLE);
@@ -93,11 +124,7 @@ void write_dp_stats_only_samples_file(
 ) {
     H5::H5File file(path.string(), H5F_ACC_TRUNC);
 
-    H5::DataSpace scalar_space(H5S_SCALAR);
-    H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
-    const char* gas_c = gas_tag.c_str();
-    H5::Attribute gas_attr = file.createAttribute("gas", str_type, scalar_space);
-    gas_attr.write(str_type, &gas_c);
+    write_common_ipm_metadata(file, gas_tag, n_orient);
 
     {
         const hsize_t dims[1] = {static_cast<hsize_t>(logv_bins.size())};
@@ -114,6 +141,9 @@ void write_dp_stats_only_samples_file(
 
         H5::DataSet sigma = file.createDataSet("sigma_mt_m2", H5::PredType::NATIVE_DOUBLE, space);
         sigma.write(sigma_mt_m2.data(), H5::PredType::NATIVE_DOUBLE);
+
+        H5::DataSet sigma_event = file.createDataSet("sigma_event_m2", H5::PredType::NATIVE_DOUBLE, space);
+        sigma_event.write(sigma_mt_m2.data(), H5::PredType::NATIVE_DOUBLE);
 
         H5::DataSet bmax = file.createDataSet("b_max_m", H5::PredType::NATIVE_DOUBLE, space);
         std::vector<double> bmax_values(n_orient * logv_bins.size(), 1.0e-9);
@@ -164,6 +194,7 @@ TEST_CASE("InteractionPotentialOfflineSampleSet validates CDF offset/count bound
     s.n_bins = 1;
     s.logv_bins = {0.0};
     s.sigma_mt_m2 = {1.0e-18};
+    s.sigma_event_m2 = {1.0e-18};
     s.b_max_m = {1.0e-9};
     s.cdf_offsets = {3};
     s.cdf_counts = {1};
@@ -179,6 +210,7 @@ TEST_CASE("InteractionPotentialOfflineSampleSet validates cdf_values to dp_sampl
     s.n_bins = 1;
     s.logv_bins = {0.0};
     s.sigma_mt_m2 = {1.0e-18};
+    s.sigma_event_m2 = {1.0e-18};
     s.b_max_m = {1.0e-9};
     s.cdf_offsets = {0};
     s.cdf_counts = {2};
@@ -194,6 +226,7 @@ TEST_CASE("InteractionPotentialOfflineSampleSet validates CDF monotonicity", "[c
     s.n_bins = 1;
     s.logv_bins = {0.0};
     s.sigma_mt_m2 = {1.0e-18};
+    s.sigma_event_m2 = {1.0e-18};
     s.b_max_m = {1.0e-9};
     s.cdf_offsets = {0};
     s.cdf_counts = {2};
@@ -229,20 +262,7 @@ TEST_CASE("InteractionPotentialOfflineSampleSet loader rejects non-physical sigm
 
     {
         H5::H5File file(sample_path.string(), H5F_ACC_TRUNC);
-        H5::DataSpace scalar_space(H5S_SCALAR);
-        H5::StrType str_type(H5::PredType::C_S1, H5T_VARIABLE);
-
-        const char* format = "ipm_offline_samples";
-        H5::Attribute format_attr = file.createAttribute("format", str_type, scalar_space);
-        format_attr.write(str_type, &format);
-
-        const char* units = "logv, sigma_mt_m2, b_max_m, dp_SI";
-        H5::Attribute units_attr = file.createAttribute("units", str_type, scalar_space);
-        units_attr.write(str_type, &units);
-
-        const char* gas = "He";
-        H5::Attribute gas_attr = file.createAttribute("gas", str_type, scalar_space);
-        gas_attr.write(str_type, &gas);
+        write_common_ipm_metadata(file, "He");
 
         {
             const hsize_t dims[1] = {1};
@@ -258,6 +278,10 @@ TEST_CASE("InteractionPotentialOfflineSampleSet loader rejects non-physical sigm
             const double sigma_values[1] = {0.0};
             sigma.write(sigma_values, H5::PredType::NATIVE_DOUBLE);
 
+            H5::DataSet sigma_event = file.createDataSet("sigma_event_m2", H5::PredType::NATIVE_DOUBLE, space);
+            const double sigma_event_values[1] = {1.0e-18};
+            sigma_event.write(sigma_event_values, H5::PredType::NATIVE_DOUBLE);
+
             H5::DataSet bmax = file.createDataSet("b_max_m", H5::PredType::NATIVE_DOUBLE, space);
             const double bmax_values[1] = {1.0e-9};
             bmax.write(bmax_values, H5::PredType::NATIVE_DOUBLE);
@@ -271,6 +295,120 @@ TEST_CASE("InteractionPotentialOfflineSampleSet loader rejects non-physical sigm
 
     std::error_code ec;
     std::filesystem::remove(sample_path, ec);
+}
+
+TEST_CASE("InteractionPotentialOfflineSampleSet loader rejects unsupported HDF5 versions", "[collision][ipm][loader]") {
+    const auto sample_path = make_temp_h5_path("old_version");
+    write_samples_file(sample_path, "He");
+
+    {
+        H5::H5File file(sample_path.string(), H5F_ACC_RDWR);
+        H5::Attribute attr = file.openAttribute("version");
+        const long long unsupported_version = 2;
+        attr.write(H5::PredType::NATIVE_LLONG, &unsupported_version);
+    }
+
+    physics::InteractionPotentialOfflineSampleSet loaded;
+    std::string error;
+    REQUIRE_FALSE(physics::load_interaction_potential_offline_sample_set_file(sample_path, loaded, &error));
+    REQUIRE_THAT(error, Catch::Matchers::ContainsSubstring("version"));
+
+    std::error_code ec;
+    std::filesystem::remove(sample_path, ec);
+}
+
+TEST_CASE("InteractionPotentialOfflineSampleSet loader requires core HDF5 attributes", "[collision][ipm][loader]") {
+    const std::vector<std::string> required_attrs = {"format", "units", "gas"};
+
+    for (const auto& attr_name : required_attrs) {
+        const auto sample_path = make_temp_h5_path("missing_" + attr_name);
+        write_samples_file(sample_path, "He");
+
+        {
+            H5::H5File file(sample_path.string(), H5F_ACC_RDWR);
+            H5Adelete(file.getId(), attr_name.c_str());
+        }
+
+        physics::InteractionPotentialOfflineSampleSet loaded;
+        std::string error;
+        REQUIRE_FALSE(physics::load_interaction_potential_offline_sample_set_file(sample_path, loaded, &error));
+        REQUIRE_THAT(error, Catch::Matchers::ContainsSubstring(attr_name));
+
+        std::error_code ec;
+        std::filesystem::remove(sample_path, ec);
+    }
+}
+
+TEST_CASE("InteractionPotentialOfflineSampleSet loader validates HDF5 cell-table shapes", "[collision][ipm][loader]") {
+    SECTION("b_max_m must be a 2D cell table") {
+        const auto sample_path = make_temp_h5_path("bmax_rank");
+        {
+            H5::H5File file(sample_path.string(), H5F_ACC_TRUNC);
+            write_common_ipm_metadata(file, "He");
+
+            const hsize_t one_dim[1] = {1};
+            H5::DataSpace vec_space(1, one_dim);
+            const double logv[1] = {std::log(200.0)};
+            file.createDataSet("logv_bins", H5::PredType::NATIVE_DOUBLE, vec_space).write(logv, H5::PredType::NATIVE_DOUBLE);
+
+            const hsize_t cell_dims[2] = {1, 1};
+            H5::DataSpace cell_space(2, cell_dims);
+            const double sigma[1] = {1.0e-18};
+            file.createDataSet("sigma_mt_m2", H5::PredType::NATIVE_DOUBLE, cell_space).write(sigma, H5::PredType::NATIVE_DOUBLE);
+            file.createDataSet("sigma_event_m2", H5::PredType::NATIVE_DOUBLE, cell_space).write(sigma, H5::PredType::NATIVE_DOUBLE);
+            file.createDataSet("b_max_m", H5::PredType::NATIVE_DOUBLE, vec_space).write(sigma, H5::PredType::NATIVE_DOUBLE);
+        }
+
+        physics::InteractionPotentialOfflineSampleSet loaded;
+        std::string error;
+        REQUIRE_FALSE(physics::load_interaction_potential_offline_sample_set_file(sample_path, loaded, &error));
+        REQUIRE_THAT(error, Catch::Matchers::ContainsSubstring("b_max_m"));
+
+        std::error_code ec;
+        std::filesystem::remove(sample_path, ec);
+    }
+
+    SECTION("CDF lookup tables must match cell-table shape") {
+        const auto sample_path = make_temp_h5_path("cdf_shape");
+        write_samples_file(sample_path, "He");
+        {
+            H5::H5File file(sample_path.string(), H5F_ACC_RDWR);
+            H5Ldelete(file.getId(), "cdf_offsets", H5P_DEFAULT);
+            const hsize_t bad_dims[1] = {1};
+            H5::DataSpace bad_space(1, bad_dims);
+            const long long values[1] = {0};
+            file.createDataSet("cdf_offsets", H5::PredType::NATIVE_LLONG, bad_space).write(values, H5::PredType::NATIVE_LLONG);
+        }
+
+        physics::InteractionPotentialOfflineSampleSet loaded;
+        std::string error;
+        REQUIRE_FALSE(physics::load_interaction_potential_offline_sample_set_file(sample_path, loaded, &error));
+        REQUIRE_THAT(error, Catch::Matchers::ContainsSubstring("cdf_offsets"));
+
+        std::error_code ec;
+        std::filesystem::remove(sample_path, ec);
+    }
+
+    SECTION("cdf_values must be one-dimensional") {
+        const auto sample_path = make_temp_h5_path("cdf_values_rank");
+        write_samples_file(sample_path, "He");
+        {
+            H5::H5File file(sample_path.string(), H5F_ACC_RDWR);
+            H5Ldelete(file.getId(), "cdf_values", H5P_DEFAULT);
+            const hsize_t bad_dims[2] = {1, 1};
+            H5::DataSpace bad_space(2, bad_dims);
+            const double values[1] = {1.0};
+            file.createDataSet("cdf_values", H5::PredType::NATIVE_DOUBLE, bad_space).write(values, H5::PredType::NATIVE_DOUBLE);
+        }
+
+        physics::InteractionPotentialOfflineSampleSet loaded;
+        std::string error;
+        REQUIRE_FALSE(physics::load_interaction_potential_offline_sample_set_file(sample_path, loaded, &error));
+        REQUIRE_THAT(error, Catch::Matchers::ContainsSubstring("cdf_values"));
+
+        std::error_code ec;
+        std::filesystem::remove(sample_path, ec);
+    }
 }
 
 TEST_CASE("InteractionPotentialCollisionHandler throws on gas mismatch between samples and environment", "[collision][ipm][safety]") {

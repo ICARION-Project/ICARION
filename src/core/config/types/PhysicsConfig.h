@@ -30,9 +30,7 @@ struct PhysicsConfig {
 
     // === Stochastic collision event handling ===
     bool collision_multi_event_mode = false;   ///< If true, enable multi-collision approximation via micro-subcycling inside each dt.
-    int collision_max_events_per_step = 16;    ///< Upper bound for micro-subcycles/events per dt when collision_multi_event_mode is enabled.
-    bool collision_time_centered = false;      ///< If true, apply collisions in two half-steps around force integration (reduces splitting bias)
-    bool collision_time_randomized = false;    ///< If true, randomize collision timing within each step (per-ion random pre/post split)
+    int collision_max_events_per_step = 16;    ///< Legacy name: minimum micro-subcycles per dt when collision_multi_event_mode is enabled.
     int collision_subcycles_per_step = 1;      ///< If >1, split each collision application into equal micro-steps (recompute rates each micro-step)
 
     // === InteractionPotentialModel model controls ===

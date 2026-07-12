@@ -25,14 +25,12 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
 
     const bool has_batch = collision_handler_->supports_batch();
     const bool multi_event_mode = config_.physics.collision_multi_event_mode;
-    const bool split_centered = config_.physics.collision_time_centered;
-    const bool split_randomized = config_.physics.collision_time_randomized;
     const int configured_subcycles = std::max(1, config_.physics.collision_subcycles_per_step);
-    const int max_events = std::max(1, config_.physics.collision_max_events_per_step);
+    const int min_multi_event_substeps = std::max(1, config_.physics.collision_max_events_per_step);
     const int subcycles = multi_event_mode
-        ? std::max(configured_subcycles, max_events)
+        ? std::max(configured_subcycles, min_multi_event_substeps)
         : configured_subcycles;
-    const bool needs_cpu_split = split_centered || split_randomized || subcycles > 1;
+    const bool needs_cpu_split = subcycles > 1;
     const bool deep_collision_enabled = deep_collision_diagnostics_.enabled();
     const size_t domain_count = config_.domains.size();
     auto per_domain = group_active_indices_by_domain(ensemble, domain_indices, domain_count);
@@ -43,8 +41,9 @@ void SimulationEngine::perform_collisions(core::IonEnsemble& ensemble,
             continue;
         }
         const auto& env = config_.domains[dom].environment;
+        const bool batch_safe_flow = env.flow_model == config::FlowModelKind::Constant;
         bool handled = false;
-        if (has_batch && !multi_event_mode && !needs_cpu_split && !deep_collision_enabled) {
+        if (has_batch && !multi_event_mode && !needs_cpu_split && !deep_collision_enabled && batch_safe_flow) {
             // Use batch path only if all dt are equal to avoid per-ion timestep bias.
             const double dt_batch = dt_used_per_ion[indices.front()];
             bool uniform_dt = true;
@@ -81,18 +80,25 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
     const auto* born = ensemble.born_data();
     const bool use_omp = parallel_enabled_;
     const bool multi_event_mode = config_.physics.collision_multi_event_mode;
-    const bool split_centered = config_.physics.collision_time_centered;
-    const bool split_randomized = config_.physics.collision_time_randomized;
     const int configured_subcycles = std::max(1, config_.physics.collision_subcycles_per_step);
-    const int max_events = std::max(1, config_.physics.collision_max_events_per_step);
+    const int min_multi_event_substeps = std::max(1, config_.physics.collision_max_events_per_step);
     const int collision_substeps = multi_event_mode
-        ? std::max(configured_subcycles, max_events)
+        ? std::max(configured_subcycles, min_multi_event_substeps)
         : configured_subcycles;
     uint64_t macro_attempts_local = 0;
     uint64_t substep_attempts_local = 0;
     uint64_t events_local = 0;
     std::atomic<bool> collision_exception{false};
     std::string collision_exception_msg;
+    const config::GeometryConfig* geometry = nullptr;
+    const Mat3* rotation_global_to_local = nullptr;
+    const Mat3* rotation_local_to_global = nullptr;
+    if (domain_index >= 0 && static_cast<size_t>(domain_index) < config_.domains.size()) {
+        const auto& domain = config_.domains[static_cast<size_t>(domain_index)];
+        geometry = &domain.geometry;
+        rotation_global_to_local = &domain.rotation_global_to_local;
+        rotation_local_to_global = &domain.rotation_local_to_global;
+    }
 
     #pragma omp parallel if(use_omp)
     {
@@ -107,92 +113,81 @@ void SimulationEngine::handle_collisions_cpu(core::IonEnsemble& ensemble,
             }
             macro_attempts_local += 1;
             const double dt_total = dt_used_per_ion[ion_idx];
-            std::array<double, 2> primary_segments{dt_total, 0.0};
-            int primary_count = 1;
-            if (split_randomized) {
-                const double alpha = rng_by_ion_[ion_idx].uniform01();
-                primary_segments[0] = dt_total * alpha;
-                primary_segments[1] = dt_total * (1.0 - alpha);
-                primary_count = 2;
-            } else if (split_centered) {
-                primary_segments[0] = 0.5 * dt_total;
-                primary_segments[1] = 0.5 * dt_total;
-                primary_count = 2;
-            }
-
             double elapsed = 0.0;
-            for (int seg = 0; seg < primary_count; ++seg) {
-                const double seg_dt = primary_segments[static_cast<size_t>(seg)];
-                if (seg_dt <= 0.0) {
-                    continue;
+            const double collision_dt = dt_total / static_cast<double>(collision_substeps);
+            for (int substep = 0; substep < collision_substeps; ++substep) {
+                if (collision_exception.load(std::memory_order_relaxed)) {
+                    break;
                 }
-                const double collision_dt = seg_dt / static_cast<double>(collision_substeps);
-                for (int substep = 0; substep < collision_substeps; ++substep) {
-                    if (collision_exception.load(std::memory_order_relaxed)) {
-                        break;
+                substep_attempts_local += 1;
+                auto view = ensemble.collision_data(ion_idx);
+                    config::EnvironmentConfig local_env = env;
+                    if (env.flow_model != config::FlowModelKind::Constant) {
+                        local_env.gas_velocity_m_s = env.gas_velocity_at(
+                            view.kin.pos(),
+                            geometry,
+                            rotation_global_to_local,
+                            rotation_local_to_global);
                     }
-                    substep_attempts_local += 1;
-                    auto view = ensemble.collision_data(ion_idx);
-                    physics::CollisionEventDiagnostics event_diag{};
-                    const bool collect_deep = deep_collision_diagnostics_.enabled();
-                    const Vec3 pos_before = collect_deep ? view.kin.pos() : Vec3{};
-                    const Vec3 vel_before = collect_deep ? view.kin.vel() : Vec3{};
-                    bool collided = false;
-                    try {
-                        collided = collision_handler_->handle_collision(
-                            view,
-                            collision_dt,
-                            rng_by_ion_[ion_idx],
-                            env,
-                            collect_deep ? &event_diag : nullptr);
-                    } catch (const std::exception& e) {
-                        if (!collision_exception.exchange(true)) {
-                            std::ostringstream oss;
-                            oss << "Collision handling failed in domain '"
-                                << config_.domains[static_cast<size_t>(domain_index)].name
-                                << "' for ion index " << ion_idx
-                                << " (species='" << ensemble.species_id(ion_idx) << "'): "
-                                << e.what();
-                            #pragma omp critical(simengine_collision_exception)
-                            {
-                                collision_exception_msg = oss.str();
-                            }
+                physics::CollisionEventDiagnostics event_diag{};
+                const bool collect_deep = deep_collision_diagnostics_.enabled();
+                const Vec3 pos_before = collect_deep ? view.kin.pos() : Vec3{};
+                const Vec3 vel_before = collect_deep ? view.kin.vel() : Vec3{};
+                bool collided = false;
+                try {
+                    collided = collision_handler_->handle_collision(
+                        view,
+                        collision_dt,
+                        rng_by_ion_[ion_idx],
+                        local_env,
+                        collect_deep ? &event_diag : nullptr);
+                } catch (const std::exception& e) {
+                    if (!collision_exception.exchange(true)) {
+                        std::ostringstream oss;
+                        oss << "Collision handling failed in domain '"
+                            << config_.domains[static_cast<size_t>(domain_index)].name
+                            << "' for ion index " << ion_idx
+                            << " (species='" << ensemble.species_id(ion_idx) << "'): "
+                            << e.what();
+                        #pragma omp critical(simengine_collision_exception)
+                        {
+                            collision_exception_msg = oss.str();
                         }
-                        break;
-                    } catch (...) {
-                        if (!collision_exception.exchange(true)) {
-                            std::ostringstream oss;
-                            oss << "Collision handling failed in domain '"
-                                << config_.domains[static_cast<size_t>(domain_index)].name
-                                << "' for ion index " << ion_idx
-                                << " (species='" << ensemble.species_id(ion_idx) << "'): unknown exception";
-                            #pragma omp critical(simengine_collision_exception)
-                            {
-                                collision_exception_msg = oss.str();
-                            }
+                    }
+                    break;
+                } catch (...) {
+                    if (!collision_exception.exchange(true)) {
+                        std::ostringstream oss;
+                        oss << "Collision handling failed in domain '"
+                            << config_.domains[static_cast<size_t>(domain_index)].name
+                            << "' for ion index " << ion_idx
+                            << " (species='" << ensemble.species_id(ion_idx) << "'): unknown exception";
+                        #pragma omp critical(simengine_collision_exception)
+                        {
+                            collision_exception_msg = oss.str();
                         }
-                        break;
                     }
-                    if (collided) {
-                        events_local += 1;
-                    }
-                    if (collect_deep) {
-                        const double event_time = current_time_ + elapsed + 0.5 * collision_dt;
-                        deep_collision_diagnostics_.note_collision(
-                            ion_idx,
-                            domain_index,
-                            collided,
-                            event_time,
-                            view.kin.get_mass(),
-                            pos_before,
-                            event_diag.v_rel_before_m_s,
-                            event_diag.sigma_mt_m2,
-                            vel_before,
-                            view.kin.vel(),
-                            !active[ion_idx]);
-                    }
-                    elapsed += collision_dt;
+                    break;
                 }
+                if (collided) {
+                    events_local += 1;
+                }
+                if (collect_deep) {
+                    const double event_time = current_time_ + elapsed + 0.5 * collision_dt;
+                    deep_collision_diagnostics_.note_collision(
+                        ion_idx,
+                        domain_index,
+                        collided,
+                        event_time,
+                        view.kin.get_mass(),
+                        pos_before,
+                        event_diag.v_rel_before_m_s,
+                        event_diag.sigma_mt_m2,
+                        vel_before,
+                        view.kin.vel(),
+                        !active[ion_idx]);
+                }
+                elapsed += collision_dt;
             }
         }
     }

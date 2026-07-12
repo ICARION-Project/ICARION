@@ -200,8 +200,17 @@ build/src/interaction_potential_precompute \
   [--n-orientations 50] \
   [--n-trials 20000] \
   [--v-bins 32] \
-  [--store-full-cdf]
+  [--store-full-cdf] [--compact-dp-stats]
 ```
+
+The default orientation grid is `qmc`. `lebedev` remains available for explicit
+experiments, but v1.1 runtime sampling treats stored orientations uniformly by
+index and does not consume Lebedev quadrature weights.
+
+`tools/generate_ipm_example_samples.sh` regenerates the bundled example HDF5
+tables with strict settings: `MAX_NON_ASYMPTOTIC_FRAC=0` and
+`MAX_STEPS=1000000` by default. Override these environment variables only when
+you intentionally want exploratory, non-release sample tables.
 
 ### Runtime Format
 
@@ -211,17 +220,24 @@ HDF5 attributes:
 - `version`: `1`
 - `species_id`, `gas`, `gas_model`
 - `mixing_rule`, `polarization`, `potential`, `param_model`
-- `units`: `logv, sigma_mt_m2, b_max_m, dp_SI`
+- `units`: `logv, sigma_mt_m2, sigma_event_m2, b_max_m, dp_SI`
 - `n_orientations`, `v_bins`, `seed`
+- `max_non_asymptotic_fraction`, `max_steps`
 
 Required datasets:
 
 - `logv_bins`: shape `(K)`, natural-log relative-speed bins
 - `orientations_quat`: shape `(N, 4)`
-- `sigma_mt_m2`: shape `(N, K)`, momentum-transfer cross section
-- `b_max_m`: shape `(N, K)`, impact-parameter integration cutoff
+- `sigma_event_m2`: shape `(N, K)`, geometric event cross section used by the runtime event rate
+- `sigma_mt_m2`: shape `(N, K)`, momentum-transfer cross section retained for diagnostics/auditing
+- `b_max_m`: shape `(N, K)`, impact parameter integration cutoff
+- `attempted_trajectories`: shape `(N, K)`, sampled trajectories in each cell
+- `accepted_trajectories`: shape `(N, K)`, trajectories that reached the asymptotic quality gate
+- `rejected_non_asymptotic`: shape `(N, K)`, trajectories rejected by the asymptotic quality gate
+- `max_energy_step_error`: shape `(N, K)`, maximum accepted-step relative energy change seen in the cell
+- `max_energy_cumulative_error`: shape `(N, K)`, maximum relative energy deviation from the initial total energy seen in the cell
 
-Optional full-CDF datasets:
+Full-CDF datasets (default/recommended):
 
 - `cdf_offsets`: shape `(N, K)`
 - `cdf_counts`: shape `(N, K)`
@@ -230,7 +246,19 @@ Optional full-CDF datasets:
 
 Fallback statistics:
 
-- `dp_stats`: shape `(N, K, 4)`, weighted mean parallel/perpendicular momentum kick and variances
+- `dp_stats`: shape `(N, K, 4)`, area-sampled mean parallel/perpendicular momentum kick and variances
 
 If the full CDF is absent, the runtime samples from `dp_stats`; if present, it
 uses `cdf_*` and `dp_samples` for the higher-fidelity momentum-kick distribution.
+Runtime event rates use `sigma_event_m2`; `sigma_mt_m2` is not applied a second
+time to the stored momentum kicks.
+
+The CDF and `dp_stats` payloads contain only trajectories that passed the
+asymptotic quality gate. Keep `rejected_non_asymptotic` at zero for strict
+production tables, or treat a nonzero fraction as a small conditioning error
+bounded by `max_non_asymptotic_fraction`.
+
+Use the default full-CDF output for scientific production runs. The
+`--compact-dp-stats` path is a lower-fidelity legacy/debug format: it preserves
+only four moments per orientation/speed cell and cannot retain correlations,
+non-Gaussian tails, or per-event kinematic bounds from the offline trajectories.

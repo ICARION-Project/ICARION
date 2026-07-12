@@ -11,8 +11,6 @@ namespace ICARION::physics {
 
 namespace {
 
-constexpr int EXPECTED_IPM_VERSION = 1;
-
 bool validate_physical_values(const InteractionPotentialOfflineSampleSet& out, std::string& error_msg) {
     if (out.logv_bins.empty()) {
         error_msg = "logv_bins must be non-empty";
@@ -37,6 +35,17 @@ bool validate_physical_values(const InteractionPotentialOfflineSampleSet& out, s
         }
         if (sigma <= 0.0) {
             error_msg = "sigma_mt_m2 entries must be > 0";
+            return false;
+        }
+    }
+
+    for (double sigma : out.sigma_event_m2) {
+        if (!std::isfinite(sigma)) {
+            error_msg = "sigma_event_m2 entries must be finite";
+            return false;
+        }
+        if (sigma <= 0.0) {
+            error_msg = "sigma_event_m2 entries must be > 0";
             return false;
         }
     }
@@ -87,32 +96,91 @@ bool validate_physical_values(const InteractionPotentialOfflineSampleSet& out, s
     return true;
 }
 
+bool read_double_cells(
+    H5::H5File& file,
+    const char* name,
+    size_t n_orient,
+    size_t n_bins,
+    std::vector<double>& target,
+    std::string& error_msg
+) {
+    H5::DataSet dset = file.openDataSet(name);
+    H5::DataSpace space = dset.getSpace();
+    if (space.getSimpleExtentNdims() != 2) {
+        error_msg = std::string(name) + " must be 2D (N x K)";
+        return false;
+    }
+    hsize_t dims[2];
+    space.getSimpleExtentDims(dims);
+    if (dims[0] != n_orient || dims[1] != n_bins) {
+        error_msg = std::string(name) + " dimensions mismatch";
+        return false;
+    }
+    target.assign(n_orient * n_bins, 0.0);
+    dset.read(target.data(), H5::PredType::NATIVE_DOUBLE);
+    return true;
+}
+
+bool read_long_long_cells(
+    H5::H5File& file,
+    const char* name,
+    size_t n_orient,
+    size_t n_bins,
+    std::vector<long long>& target,
+    std::string& error_msg
+) {
+    H5::DataSet dset = file.openDataSet(name);
+    H5::DataSpace space = dset.getSpace();
+    if (space.getSimpleExtentNdims() != 2) {
+        error_msg = std::string(name) + " must be 2D (N x K)";
+        return false;
+    }
+    hsize_t dims[2];
+    space.getSimpleExtentDims(dims);
+    if (dims[0] != n_orient || dims[1] != n_bins) {
+        error_msg = std::string(name) + " dimensions mismatch";
+        return false;
+    }
+    target.assign(n_orient * n_bins, 0);
+    dset.read(target.data(), H5::PredType::NATIVE_LLONG);
+    return true;
+}
+
 bool load_hdf5_samples(const std::filesystem::path& path, InteractionPotentialOfflineSampleSet& out, std::string& error_msg) {
     try {
         H5::H5File file(path.string(), H5F_ACC_RDONLY);
 
+        if (!file.attrExists("format") ||
+            ICARION::io::read_hdf5_attr_string(file, "format") != INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_FORMAT) {
+            error_msg = std::string("'format' attribute is required and must be '")
+                + INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_FORMAT + "'";
+            return false;
+        }
+        if (!file.attrExists("units") ||
+            ICARION::io::read_hdf5_attr_string(file, "units") != INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_UNITS) {
+            error_msg = std::string("'units' attribute is required and must be '")
+                + INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_UNITS + "'";
+            return false;
+        }
         out.gas = ICARION::io::read_hdf5_attr_string(file, "gas");
-        if (file.attrExists("gas") && out.gas.empty()) {
-            error_msg = "'gas' attribute must be non-empty when present";
-            return false;
-        }
-        if (file.attrExists("format") && ICARION::io::read_hdf5_attr_string(file, "format") != INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_FORMAT) {
-            error_msg = std::string("'format' attribute must be '") + INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_FORMAT + "'";
-            return false;
-        }
-        if (file.attrExists("units") && ICARION::io::read_hdf5_attr_string(file, "units") != INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_UNITS) {
-            error_msg = std::string("'units' attribute must be '") + INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_UNITS + "'";
+        if (!file.attrExists("gas") || out.gas.empty()) {
+            error_msg = "'gas' attribute is required and must be non-empty";
             return false;
         }
 
         long long attr_value = 0;
-        if (ICARION::io::read_hdf5_attr_long_long(file, "version", attr_value) && attr_value != EXPECTED_IPM_VERSION) {
+        if (!ICARION::io::read_hdf5_attr_long_long(file, "version", attr_value)) {
+            error_msg = "'version' attribute is required";
+            return false;
+        }
+        if (attr_value != INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_VERSION) {
             error_msg = "'version' attribute is not supported";
             return false;
         }
 
-        if (!file.nameExists("logv_bins") || !file.nameExists("sigma_mt_m2") || !file.nameExists("b_max_m")) {
-            error_msg = "HDF5 samples must contain logv_bins, sigma_mt_m2, b_max_m";
+        if (!file.nameExists("logv_bins") || !file.nameExists("orientations_quat") ||
+            !file.nameExists("sigma_mt_m2") || !file.nameExists("sigma_event_m2") || !file.nameExists("b_max_m")) {
+            error_msg = "HDF5 samples must contain logv_bins, orientations_quat, sigma_mt_m2, sigma_event_m2, b_max_m";
             return false;
         }
 
@@ -163,109 +231,62 @@ bool load_hdf5_samples(const std::filesystem::path& path, InteractionPotentialOf
         out.sigma_mt_m2.assign(out.n_orient * out.n_bins, 0.0);
         sigma_dset.read(out.sigma_mt_m2.data(), H5::PredType::NATIVE_DOUBLE);
 
+        {
+            H5::DataSet orient_dset = file.openDataSet("orientations_quat");
+            H5::DataSpace orient_space = orient_dset.getSpace();
+            if (orient_space.getSimpleExtentNdims() != 2) {
+                error_msg = "orientations_quat must be 2D (N x 4)";
+                return false;
+            }
+            hsize_t orient_dims[2];
+            orient_space.getSimpleExtentDims(orient_dims);
+            if (orient_dims[0] != out.n_orient || orient_dims[1] != 4) {
+                error_msg = "orientations_quat dimensions mismatch";
+                return false;
+            }
+        }
+
+        if (!read_double_cells(file, "sigma_event_m2", out.n_orient, out.n_bins, out.sigma_event_m2, error_msg)) {
+            return false;
+        }
+
         if (file.nameExists("q1_m2")) {
-            H5::DataSet q1_dset = file.openDataSet("q1_m2");
-            H5::DataSpace q1_space = q1_dset.getSpace();
-            int q1_rank = q1_space.getSimpleExtentNdims();
-            if (q1_rank != 2) {
-                error_msg = "q1_m2 must be 2D (N x K)";
-                return false;
-            }
-            hsize_t q1_dims[2];
-            q1_space.getSimpleExtentDims(q1_dims);
-            if (q1_dims[0] != out.n_orient || q1_dims[1] != out.n_bins) {
-                error_msg = "q1_m2 dimensions mismatch";
-                return false;
-            }
-            out.q1_m2.assign(out.n_orient * out.n_bins, 0.0);
-            q1_dset.read(out.q1_m2.data(), H5::PredType::NATIVE_DOUBLE);
+            if (!read_double_cells(file, "q1_m2", out.n_orient, out.n_bins, out.q1_m2, error_msg)) return false;
         }
         if (file.nameExists("q2_m2")) {
-            H5::DataSet q2_dset = file.openDataSet("q2_m2");
-            H5::DataSpace q2_space = q2_dset.getSpace();
-            int q2_rank = q2_space.getSimpleExtentNdims();
-            if (q2_rank != 2) {
-                error_msg = "q2_m2 must be 2D (N x K)";
-                return false;
-            }
-            hsize_t q2_dims[2];
-            q2_space.getSimpleExtentDims(q2_dims);
-            if (q2_dims[0] != out.n_orient || q2_dims[1] != out.n_bins) {
-                error_msg = "q2_m2 dimensions mismatch";
-                return false;
-            }
-            out.q2_m2.assign(out.n_orient * out.n_bins, 0.0);
-            q2_dset.read(out.q2_m2.data(), H5::PredType::NATIVE_DOUBLE);
+            if (!read_double_cells(file, "q2_m2", out.n_orient, out.n_bins, out.q2_m2, error_msg)) return false;
         }
         if (file.nameExists("q3_m2")) {
-            H5::DataSet q3_dset = file.openDataSet("q3_m2");
-            H5::DataSpace q3_space = q3_dset.getSpace();
-            int q3_rank = q3_space.getSimpleExtentNdims();
-            if (q3_rank != 2) {
-                error_msg = "q3_m2 must be 2D (N x K)";
-                return false;
-            }
-            hsize_t q3_dims[2];
-            q3_space.getSimpleExtentDims(q3_dims);
-            if (q3_dims[0] != out.n_orient || q3_dims[1] != out.n_bins) {
-                error_msg = "q3_m2 dimensions mismatch";
-                return false;
-            }
-            out.q3_m2.assign(out.n_orient * out.n_bins, 0.0);
-            q3_dset.read(out.q3_m2.data(), H5::PredType::NATIVE_DOUBLE);
+            if (!read_double_cells(file, "q3_m2", out.n_orient, out.n_bins, out.q3_m2, error_msg)) return false;
         }
         if (file.nameExists("q12_m2")) {
-            H5::DataSet q12_dset = file.openDataSet("q12_m2");
-            H5::DataSpace q12_space = q12_dset.getSpace();
-            int q12_rank = q12_space.getSimpleExtentNdims();
-            if (q12_rank != 2) {
-                error_msg = "q12_m2 must be 2D (N x K)";
-                return false;
-            }
-            hsize_t q12_dims[2];
-            q12_space.getSimpleExtentDims(q12_dims);
-            if (q12_dims[0] != out.n_orient || q12_dims[1] != out.n_bins) {
-                error_msg = "q12_m2 dimensions mismatch";
-                return false;
-            }
-            out.q12_m2.assign(out.n_orient * out.n_bins, 0.0);
-            q12_dset.read(out.q12_m2.data(), H5::PredType::NATIVE_DOUBLE);
+            if (!read_double_cells(file, "q12_m2", out.n_orient, out.n_bins, out.q12_m2, error_msg)) return false;
         }
         if (file.nameExists("q13_m2")) {
-            H5::DataSet q13_dset = file.openDataSet("q13_m2");
-            H5::DataSpace q13_space = q13_dset.getSpace();
-            int q13_rank = q13_space.getSimpleExtentNdims();
-            if (q13_rank != 2) {
-                error_msg = "q13_m2 must be 2D (N x K)";
-                return false;
-            }
-            hsize_t q13_dims[2];
-            q13_space.getSimpleExtentDims(q13_dims);
-            if (q13_dims[0] != out.n_orient || q13_dims[1] != out.n_bins) {
-                error_msg = "q13_m2 dimensions mismatch";
-                return false;
-            }
-            out.q13_m2.assign(out.n_orient * out.n_bins, 0.0);
-            q13_dset.read(out.q13_m2.data(), H5::PredType::NATIVE_DOUBLE);
+            if (!read_double_cells(file, "q13_m2", out.n_orient, out.n_bins, out.q13_m2, error_msg)) return false;
         }
 
-        H5::DataSet bmax_dset = file.openDataSet("b_max_m");
-        out.b_max_m.assign(out.n_orient * out.n_bins, 0.0);
-        bmax_dset.read(out.b_max_m.data(), H5::PredType::NATIVE_DOUBLE);
+        if (!read_double_cells(file, "b_max_m", out.n_orient, out.n_bins, out.b_max_m, error_msg)) {
+            return false;
+        }
 
         if (file.nameExists("cdf_offsets")) {
-            H5::DataSet off = file.openDataSet("cdf_offsets");
-            out.cdf_offsets.assign(out.n_orient * out.n_bins, 0);
-            off.read(out.cdf_offsets.data(), H5::PredType::NATIVE_LLONG);
+            if (!read_long_long_cells(file, "cdf_offsets", out.n_orient, out.n_bins, out.cdf_offsets, error_msg)) {
+                return false;
+            }
         }
         if (file.nameExists("cdf_counts")) {
-            H5::DataSet cnt = file.openDataSet("cdf_counts");
-            out.cdf_counts.assign(out.n_orient * out.n_bins, 0);
-            cnt.read(out.cdf_counts.data(), H5::PredType::NATIVE_LLONG);
+            if (!read_long_long_cells(file, "cdf_counts", out.n_orient, out.n_bins, out.cdf_counts, error_msg)) {
+                return false;
+            }
         }
         if (file.nameExists("cdf_values")) {
             H5::DataSet vals = file.openDataSet("cdf_values");
             H5::DataSpace vals_space = vals.getSpace();
+            if (vals_space.getSimpleExtentNdims() != 1) {
+                error_msg = "cdf_values must be 1D";
+                return false;
+            }
             hsize_t dims[1];
             vals_space.getSimpleExtentDims(dims);
             out.cdf_values.assign(static_cast<size_t>(dims[0]), 0.0);

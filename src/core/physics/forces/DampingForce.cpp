@@ -72,11 +72,19 @@ Vec3 DampingForce::compute_soa(const ForceState& state, double t,
 
     const auto* active_env = env_;
     const config::GeometryConfig* geometry = nullptr;
+    const Mat3* rotation_global_to_local = nullptr;
+    const Mat3* rotation_local_to_global = nullptr;
     if (ctx.domain) {
         active_env = &ctx.domain->environment;
         geometry = &ctx.domain->geometry;
+        rotation_global_to_local = &ctx.domain->rotation_global_to_local;
+        rotation_local_to_global = &ctx.domain->rotation_local_to_global;
     }
-    const Vec3 gas_velocity = active_env->gas_velocity_at(state.pos, geometry);
+    const Vec3 gas_velocity = active_env->gas_velocity_at(
+        state.pos,
+        geometry,
+        rotation_global_to_local,
+        rotation_local_to_global);
     const Vec3 relative_velocity = ion.vel - gas_velocity;
     return relative_velocity * (-gamma * ion.mass_kg);
 }

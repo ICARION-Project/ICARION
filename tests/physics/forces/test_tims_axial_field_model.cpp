@@ -21,6 +21,15 @@ ICARION::config::DomainConfig make_tims_domain() {
     return dom;
 }
 
+void rotate_local_z_to_global_x(ICARION::config::DomainConfig& dom) {
+    dom.rotation_local_to_global = Mat3::fromColumns(
+        Vec3{0.0, 0.0, -1.0},
+        Vec3{0.0, 1.0, 0.0},
+        Vec3{1.0, 0.0, 0.0}
+    );
+    dom.rotation_global_to_local = transpose(dom.rotation_local_to_global);
+}
+
 } // namespace
 
 TEST_CASE("TIMSAxialFieldModel evaluates linear ramp", "[field][tims]") {
@@ -63,4 +72,47 @@ TEST_CASE("ElectricFieldForce uses TIMS model for TIMS domains", "[forces][elect
 
     ICARION::physics::ElectricFieldForce force(dom);
     REQUIRE(force.name() == "ElectricField(TIMS)");
+}
+
+TEST_CASE("TIMS field and axial gas flow follow rotated local z axis", "[field][tims][flow][rotation]") {
+    auto dom = make_tims_domain();
+    rotate_local_z_to_global_x(dom);
+    dom.fields.tims.axial_field_initial_uniform_V_m = 500.0;
+    dom.fields.tims.axial_field_final_uniform_V_m = 500.0;
+    dom.environment.flow_model = ICARION::config::FlowModelKind::AxialUniform;
+    dom.environment.axial_flow_velocity_m_s = 12.0;
+
+    ICARION::config::TIMSAxialFieldModel model(dom);
+    const Vec3 e_global = model.E(Vec3{0.0, 0.0, 0.0}, 0.0);
+    const Vec3 u_global = dom.environment.gas_velocity_at(
+        Vec3{0.0, 0.0, 0.0},
+        &dom.geometry,
+        &dom.rotation_global_to_local,
+        &dom.rotation_local_to_global);
+
+    REQUIRE(e_global.x == Approx(500.0));
+    REQUIRE(e_global.y == Approx(0.0));
+    REQUIRE(e_global.z == Approx(0.0));
+    REQUIRE(u_global.x == Approx(12.0));
+    REQUIRE(u_global.y == Approx(0.0));
+    REQUIRE(u_global.z == Approx(0.0));
+}
+
+TEST_CASE("Parabolic gas flow radius is evaluated in local domain coordinates", "[flow][rotation]") {
+    auto dom = make_tims_domain();
+    rotate_local_z_to_global_x(dom);
+    dom.environment.flow_model = ICARION::config::FlowModelKind::AxialParabolic;
+    dom.environment.axial_flow_max_velocity_m_s = 100.0;
+
+    const Vec3 local_half_radius{0.5 * dom.geometry.radius_m, 0.0, 0.0};
+    const Vec3 global_pos = dom.geometry.origin_m + dom.rotation_local_to_global * local_half_radius;
+    const Vec3 u_global = dom.environment.gas_velocity_at(
+        global_pos,
+        &dom.geometry,
+        &dom.rotation_global_to_local,
+        &dom.rotation_local_to_global);
+
+    REQUIRE(u_global.x == Approx(75.0));
+    REQUIRE(u_global.y == Approx(0.0));
+    REQUIRE(u_global.z == Approx(0.0));
 }

@@ -10,12 +10,14 @@
 namespace ICARION::physics {
 
 inline constexpr const char* INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_FORMAT = "ipm_offline_samples";
-inline constexpr const char* INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_UNITS = "logv, sigma_mt_m2, b_max_m, dp_SI";
+inline constexpr const char* INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_UNITS = "logv, sigma_mt_m2, sigma_event_m2, b_max_m, dp_SI";
+inline constexpr int INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_VERSION = 1;
 
 struct InteractionPotentialOfflineSampleSet {
     std::string gas;
     std::vector<double> logv_bins;    // size K
     std::vector<double> sigma_mt_m2;  // size N*K
+    std::vector<double> sigma_event_m2; // size N*K
     std::vector<double> q1_m2;        // size N*K (optional; if absent, sigma_mt_m2 is used as Q1)
     std::vector<double> q2_m2;        // size N*K (optional)
     std::vector<double> q3_m2;        // size N*K (optional)
@@ -34,6 +36,7 @@ struct InteractionPotentialOfflineSampleSet {
         if (n_orient == 0 || n_bins == 0) return false;
         if (logv_bins.size() != n_bins) return false;
         if (sigma_mt_m2.size() != n_orient * n_bins) return false;
+        if (sigma_event_m2.size() != n_orient * n_bins) return false;
         if (!q1_m2.empty() && q1_m2.size() != n_orient * n_bins) return false;
         if (!q2_m2.empty() && q2_m2.size() != n_orient * n_bins) return false;
         if (!q3_m2.empty() && q3_m2.size() != n_orient * n_bins) return false;

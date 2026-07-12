@@ -65,6 +65,11 @@ void ConfigOverride::apply(FullConfig& config, const std::map<std::string, std::
         else if (key == "physics.enable_ou_thermalization") {
             config.physics.enable_ou_thermalization = parse_bool(value, key);
         }
+        else if (key == "physics.collision_time_centered" ||
+                 key == "physics.collision_time_randomized") {
+            throw std::runtime_error("Config override '" + key +
+                                     "' was removed before v1.1.0; use collision subcycling controls instead.");
+        }
         else if (key == "physics.collision_multi_event_mode") {
             config.physics.collision_multi_event_mode = parse_bool(value, key);
         }

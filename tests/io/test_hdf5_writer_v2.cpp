@@ -668,7 +668,7 @@ TEST_CASE("HDF5Writer v2 SHA256 hashing with ConfigLoader integration", "[hdf5][
         "simulation": {"dt_s": 1e-9, "total_time_s": 1e-6, "integrator": "RK4", "write_interval": 100},
         "physics": {"collision_model": "NoCollisions"},
         "output": {"folder": "./output", "trajectory_file": "test.h5"},
-        "ion_cloud": "/tmp/test_ion_cloud.json",
+        "ions": {"from_file": "/tmp/test_ion_cloud.json"},
         "domains": [{
             "name": "test_domain",
             "domain_index": 0,

@@ -516,9 +516,10 @@ Non-asymptotic trajectories are not silently redrawn until the target sample
 count is reached; if their fraction exceeds `--max-non-asymptotic-frac`
 (default: `0.005`), precompute aborts. The stored CDF and `dp_stats` payloads
 contain the accepted asymptotic trajectories only. For strict production
-tables, require zero rejects or treat any nonzero reject fraction as a small
-conditioning error bounded by this threshold. Regenerate IPM HDF5 files after
-changes to these numerical controls.
+tables, require zero rejects. A nonzero reject fraction introduces an unresolved
+conditioning bias; the threshold bounds only the fraction of unresolved
+trajectories, not the resulting error in transport moments. Regenerate IPM HDF5
+files after changes to these numerical controls.
 
 For relative speeds between stored bins, the runtime randomly chooses one of
 the neighboring log-speed bins. The sampled absolute momentum kick therefore

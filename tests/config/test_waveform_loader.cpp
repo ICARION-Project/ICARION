@@ -302,8 +302,9 @@ TEST_CASE("ValueOrWaveform: load waveform reference", "[waveform][loader][value_
     Json::Value json = "@my_ramp";
     ValueOrWaveform val = WaveformLoader::load_value_or_waveform(json, library);
     
-    REQUIRE(val.waveform_ref.has_value());
-    CHECK(*val.waveform_ref == "my_ramp");
+    REQUIRE(val.waveform.has_value());
+    CHECK(val.waveform->id == "my_ramp");
+    CHECK(std::holds_alternative<LinearWaveform>(val.waveform->data));
     CHECK(val.is_time_varying());
 }
 

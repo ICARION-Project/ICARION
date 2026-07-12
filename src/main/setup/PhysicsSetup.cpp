@@ -11,6 +11,7 @@
 #include "core/physics/collisions/geometryUtils.h"
 #include "core/physics/reactions/ReactionHandlerFactory.h"
 #include "core/io/fieldArrayLoader.h"
+#include "core/io/moleculeLoader.h"
 #include "core/config/types/TIMSAxialFieldModel.h"
 #include "fieldsolver/utils/GridFieldProvider.h"
 #include "fieldsolver/utils/CompositeFieldProvider.h"
@@ -18,9 +19,50 @@
 #include "core/types/IonEnsemble.h"
 #include <algorithm>
 #include <cctype>
+#include <stdexcept>
 #include <unordered_set>
 
 namespace ICARION::setup {
+
+namespace {
+
+physics::GeometryMap load_ehss_geometry_map_or_throw(const config::FullConfig& config) {
+    std::unordered_set<std::string> species_ids;
+    for (const auto& species : config.ions.species) {
+        species_ids.insert(species.species_id);
+    }
+    if (species_ids.empty()) {
+        for (const auto& [species_id, _] : config.species_db.species) {
+            species_ids.insert(species_id);
+        }
+    }
+    if (species_ids.empty()) {
+        throw std::runtime_error("EHSS collision model requires a non-empty species database");
+    }
+
+    physics::GeometryMap geometry_map;
+    for (const auto& species_id : species_ids) {
+        auto species_it = config.species_db.species.find(species_id);
+        if (species_it == config.species_db.species.end()) {
+            throw std::runtime_error("EHSS geometry setup: species '" + species_id + "' not found in species database");
+        }
+        const auto& props = species_it->second;
+        if (!props.geometry_file || props.geometry_file->empty()) {
+            throw std::runtime_error("EHSS geometry setup: species '" + species_id + "' has no geometry_file");
+        }
+
+        io::Molecule molecule = io::load_molecule(*props.geometry_file);
+        physics::GeometryData geometry = physics::convert_molecule_to_geometry(molecule, true);
+        if (geometry.first.empty() || geometry.second.empty()) {
+            throw std::runtime_error("EHSS geometry setup: species '" + species_id + "' geometry is empty");
+        }
+        geometry_map.emplace(species_id, std::move(geometry));
+    }
+
+    return geometry_map;
+}
+
+} // namespace
 
 PhysicsModules PhysicsSetup::initialize(
     const config::FullConfig& config,
@@ -303,24 +345,12 @@ std::shared_ptr<physics::ICollisionHandler> PhysicsSetup::create_collision_handl
     const physics::GeometryMap* geometry_map = nullptr;
     
     if (config.physics.collision_model == config::CollisionModel::EHSS) {
-        // Collect all ion species from config
-        std::unordered_set<std::string> species_ids;
-        for (const auto& species : config.ions.species) {
-            species_ids.insert(species.species_id);
-        }
-        
-        try {
-            log::Logger::main()->info("Loading molecular geometries for EHSS collision model");
-            geometry_map_ptr = std::make_unique<physics::GeometryMap>(
-                physics::load_geometry_map(species_ids, "/home/chsch95/ICARION/data/molecules/", false)
-            );
-            geometry_map = geometry_map_ptr.get();
-            log::Logger::main()->info("Loaded {} molecular geometries", geometry_map->size());
-        } catch (const std::exception& e) {
-            log::Logger::main()->error("Failed to load molecular geometries: {}", e.what());
-            log::Logger::main()->warn("Falling back to HSS collision model");
-            // Don't exit, let CollisionHandlerFactory handle the fallback
-        }
+        log::Logger::main()->info("Loading molecular geometries for EHSS collision model");
+        geometry_map_ptr = std::make_unique<physics::GeometryMap>(
+            load_ehss_geometry_map_or_throw(config)
+        );
+        geometry_map = geometry_map_ptr.get();
+        log::Logger::main()->info("Loaded {} molecular geometries", geometry_map->size());
     }
     
     constexpr double gamma_for_ou = 0.0;  // OU damping coefficient not used for stochastic models

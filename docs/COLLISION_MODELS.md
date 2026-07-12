@@ -261,8 +261,9 @@ Tables store `attempted_trajectories`, `accepted_trajectories`, and
 Precompute aborts if the non-asymptotic fraction exceeds
 `--max-non-asymptotic-frac` (default: `0.005`). The stored CDF and `dp_stats`
 payloads contain the accepted asymptotic trajectories only; for strict
-production tables, require zero rejects or treat any nonzero reject fraction as
-a small conditioning error bounded by this threshold.
+production tables, require zero rejects. A nonzero reject fraction introduces
+an unresolved conditioning bias; the threshold bounds only the fraction of
+unresolved trajectories, not the resulting error in transport moments.
 
 For relative speeds between stored bins, the runtime randomly chooses one of
 the neighboring log-speed bins. The sampled absolute momentum kick belongs to

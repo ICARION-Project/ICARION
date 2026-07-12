@@ -47,6 +47,12 @@ target_include_directories(test_simulation_engine_per_ion_dt PRIVATE ${CMAKE_SOU
 
 add_test(NAME test_simulation_engine_per_ion_dt COMMAND test_simulation_engine_per_ion_dt)
 
+add_executable(test_rk45_per_ion_dt test_rk45_per_ion_dt.cpp)
+target_link_libraries(test_rk45_per_ion_dt PRIVATE icarion_core Catch2::Catch2WithMain)
+target_include_directories(test_rk45_per_ion_dt PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME test_rk45_per_ion_dt COMMAND test_rk45_per_ion_dt)
+
 add_executable(test_simulation_engine_adaptive_sc test_simulation_engine_adaptive_sc.cpp)
 target_link_libraries(test_simulation_engine_adaptive_sc PRIVATE icarion_core Catch2::Catch2WithMain)
 target_include_directories(test_simulation_engine_adaptive_sc PRIVATE ${CMAKE_SOURCE_DIR}/src)

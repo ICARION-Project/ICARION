@@ -110,7 +110,7 @@ int main() {
     
     // Load H3O+ geometry from data/molecules/H3O+.json
     std::cout << "Loading H3O+ geometry...\n";
-    auto atoms = parse_h3o_geometry("/home/chsch95/ICARION/data/molecules/H3O+.json");
+    auto atoms = parse_h3o_geometry(std::string(ICARION_SOURCE_DIR) + "/data/molecules/H3O+.json");
     std::cout << "Loaded " << atoms.size() << " atoms\n";
     
     // Convert to geometry map format

@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Christoph Schaefer
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include "core/integrator/strategies/IIntegrationStrategy.h"
+#include "core/integrator/SimulationEngine.h"
 #include "core/types/IonEnsemble.h"
+#include "core/config/types/FullConfig.h"
 #include "core/config/types/DomainConfig.h"
 #include "core/physics/forces/ForceRegistry.h"
 #include <memory>
@@ -13,6 +16,7 @@ using namespace ICARION;
 using namespace ICARION::integrator;
 using namespace ICARION::physics;
 using namespace ICARION::config;
+using Catch::Approx;
 
 namespace {
 struct MockBatchIntegrator : public IIntegrationStrategy {

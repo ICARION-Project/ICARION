@@ -287,6 +287,7 @@ if(ICARION_USE_GPU)
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/include
     )
+    target_compile_definitions(test_gpu_ehss_thermalization PRIVATE ICARION_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
     add_executable(test_gpu_ehss_mapping test_gpu_ehss_mapping.cpp)
     target_link_libraries(test_gpu_ehss_mapping PRIVATE icarion_core)

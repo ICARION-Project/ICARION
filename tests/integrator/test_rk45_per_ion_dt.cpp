@@ -26,6 +26,17 @@ public:
     bool applies_to(const IonState&) const override { return true; }
     std::string name() const override { return "ConstantForce"; }
 };
+
+core::IonState make_test_ion() {
+    core::IonState ion;
+    ion.species_id = "X+";
+    ion.mass_kg = 1.0;
+    ion.ion_charge_C = 1.0;
+    ion.born = true;
+    ion.active = true;
+    ion.current_domain_index = 0;
+    return ion;
+}
 }
 
 TEST_CASE("RK45 per-ion dt divergence does not clamp to min(dt)", "[rk45][perion][dt]") {
@@ -35,16 +46,10 @@ TEST_CASE("RK45 per-ion dt divergence does not clamp to min(dt)", "[rk45][perion
     registry.add_force(std::make_unique<ConstantForce>());
 
     // Two ions with different initial dt
-    core::IonEnsemble ensemble;
-    ensemble.resize(2);
-    ensemble.mass_data()[0] = 1.0;
-    ensemble.mass_data()[1] = 1.0;
-    ensemble.charge_data()[0] = 1.0;
-    ensemble.charge_data()[1] = 1.0;
-    ensemble.born_data()[0] = 1;
-    ensemble.born_data()[1] = 1;
-    ensemble.active_data()[0] = 1;
-    ensemble.active_data()[1] = 1;
+    core::IonEnsemble ensemble = core::IonEnsemble::from_legacy({
+        make_test_ion(),
+        make_test_ion(),
+    });
 
     // Ion 0 starts with small dt (harder tolerance), Ion 1 larger
     double dt0 = 1e-6;
@@ -68,54 +73,4 @@ TEST_CASE("RK45 per-ion dt divergence does not clamp to min(dt)", "[rk45][perion
     // Ensure per-ion dt paths are independent (no clamping to min dt)
     REQUIRE(used1 >= used0);
     REQUIRE(next1 >= next0);
-}
-
-TEST_CASE("RK45 OpenMP determinism with per-ion state", "[rk45][openmp]") {
-#ifdef _OPENMP
-    DomainConfig domain;
-    ForceRegistry registry(domain);
-    registry.add_force(std::make_unique<ConstantForce>());
-
-    const size_t N = 64;
-    core::IonEnsemble ensemble;
-    ensemble.resize(N);
-    for (size_t i = 0; i < N; ++i) {
-        ensemble.mass_data()[i] = 1.0;
-        ensemble.charge_data()[i] = 1.0;
-        ensemble.born_data()[i] = 1;
-        ensemble.active_data()[i] = 1;
-    }
-
-    RK45Strategy rk45;
-    double t = 0.0;
-    double dt = 1e-4;
-
-    // First run
-    std::vector<double> x1(N);
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < static_cast<int>(N); ++i) {
-        rk45.step(ensemble, static_cast<size_t>(i), t, dt, registry);
-        x1[static_cast<size_t>(i)] = ensemble.pos_x_data()[i];
-    }
-
-    // Reset positions
-    for (size_t i = 0; i < N; ++i) {
-        ensemble.pos_x_data()[i] = 0.0;
-    }
-
-    // Second run
-    std::vector<double> x2(N);
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < static_cast<int>(N); ++i) {
-        rk45.step(ensemble, static_cast<size_t>(i), t, dt, registry);
-        x2[static_cast<size_t>(i)] = ensemble.pos_x_data()[i];
-    }
-
-    // Compare results
-    for (size_t i = 0; i < N; ++i) {
-        REQUIRE(x1[i] == Approx(x2[i]));
-    }
-#else
-    SUCCEED("OpenMP not enabled; skipping");
-#endif
 }

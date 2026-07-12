@@ -255,8 +255,9 @@ time to the stored momentum kicks.
 
 The CDF and `dp_stats` payloads contain only trajectories that passed the
 asymptotic quality gate. Keep `rejected_non_asymptotic` at zero for strict
-production tables, or treat a nonzero fraction as a small conditioning error
-bounded by `max_non_asymptotic_fraction`.
+production tables. A nonzero reject fraction introduces an unresolved
+conditioning bias; `max_non_asymptotic_fraction` bounds only the fraction of
+unresolved trajectories, not the resulting error in transport moments.
 
 Use the default full-CDF output for scientific production runs. The
 `--compact-dp-stats` path is a lower-fidelity legacy/debug format: it preserves

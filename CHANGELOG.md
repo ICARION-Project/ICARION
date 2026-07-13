@@ -2,7 +2,7 @@
 
 All notable changes to this project follow [Semantic Versioning](https://semver.org/) and are documented in this file.
 
-## [1.1.0] - 2026-07-08
+## [1.1.0] - 2026-07-12
 
 ### Added
 
@@ -34,7 +34,7 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
   substeps for high-rate regimes; this improves multi-collision sampling but
   remains an approximation unless the base timestep is chosen small enough.
 
-## [1.0.1] - 2026-06-02
+## [1.0.1] - 2026-06-08
 
 ### Fixed
 
@@ -51,7 +51,7 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
   This biased the contact normal and momentum-transfer cosine distribution.  The fix
   iterates all atoms and selects the one with the smallest `s_hit`.
 
-## [1.0.0] - 2025-12-04
+## [1.0.0] - 2026-05-09
 
 - Initial v1.0.0 release tag.
 - Stable JSON configuration schema (SSOT) with validation.

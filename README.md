@@ -265,7 +265,7 @@ Example:
       "id": "rxn_001_h3o_to_pentanalH+",
       "reactant": "H3O+",
       "product": "PentanalH+",
-      "rate_constant": 3e-9,
+      "rate_constant": 3e-15,
       "order": [
         {
           "species": "Pentanal",

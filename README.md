@@ -480,7 +480,6 @@ ICARION/
 ├── CMakeLists.txt              # Root CMake configuration
 ├── LICENSE                     # GNU GPL v3.0
 ├── README.md                   # This file
-├── RELEASE_NOTES_v1.1.0.md       # v1.1.0 release notes
 ├── build/                      # CMake build artifacts (generated)
 ├── analysis/                   # Analysis scripts/outputs
 ├── cmake/                      # CMake modules and configuration
@@ -498,6 +497,7 @@ ICARION/
 │   ├── COLLISION_MODELS.md     # Physics of collision models
 │   ├── CONFIG_GUIDE.md         # Configuration file format
 │   ├── DEVELOPERS_GUIDE.md     # Contributing and development setup
+│   ├── releases/               # Release notes for x.y.0 releases
 │   ├── HDF5_OUTPUT_STRUCTURE.md # Output file specification
 │   ├── JSON_LOGGING.md         # Logging system documentation
 │   └── TROUBLESHOOTING.md      # Common issues and solutions

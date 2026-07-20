@@ -181,8 +181,9 @@ void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
         return;
     }
     
-    // Check if flush needed BEFORE adding 
-    if (should_write_before_add(t)) {
+    // Flush only for buffer capacity. The time interval controls when callers
+    // sample, not when buffered snapshots are committed to HDF5.
+    if (should_write_before_add()) {
         flush();
     }
     
@@ -224,6 +225,9 @@ void OutputManager::log_step(double t, const core::IonEnsemble& ensemble) {
         species_buffer_.push_back(species_idx[i]);
         per_ion_time_buffer_.push_back(t_ptr ? t_ptr[i] : t);
     }
+
+    // Anchor the next sample to the snapshot that was actually recorded.
+    next_write_time_ = t + write_interval_dt_;
 }
 
 void OutputManager::log_progress(const std::string& message) {
@@ -243,16 +247,17 @@ bool OutputManager::should_write(double t_current) const {
     if (!trajectory_enabled_) {
         return false;
     }
-    // Check if write is needed (used by external callers)
-    return (times_buffer_.size() >= buffer_max_) || (t_current >= next_write_time_);
+    // This method controls sampling only. Buffer-capacity flushes are handled
+    // internally by log_step() and must not create extra snapshots.
+    return t_current >= next_write_time_;
 }
 
-bool OutputManager::should_write_before_add(double t_current) const {
+bool OutputManager::should_write_before_add() const {
     if (!trajectory_enabled_) {
         return false;
     }
-    // Check BEFORE adding to buffer (allows buffer to reach buffer_max exactly)
-    if ((times_buffer_.size() >= buffer_max_) || (t_current >= next_write_time_)) {
+    // Check BEFORE adding to buffer (allows buffer to reach buffer_max exactly).
+    if (times_buffer_.size() >= buffer_max_) {
         return true;
     }
 
@@ -290,9 +295,6 @@ void OutputManager::flush() {
         }
     }
     
-    // Store last time before clearing buffer (for drift-free next_write_time_)
-    double last_flushed_time = times_buffer_.back();
-    
     try {
         // Write all buffered snapshots in ONE batch operation
         io::HDF5Writer::append_trajectory_batch_flat(
@@ -315,9 +317,6 @@ void OutputManager::flush() {
         domain_buffer_.clear();
         species_buffer_.clear();
         
-        // Update next write time (avoid drift with adaptive timesteps)
-        // Use last flushed time as anchor, not incremental addition
-        next_write_time_ = last_flushed_time + write_interval_dt_;
         total_writes_++;
         
     } catch (const std::exception& e) {

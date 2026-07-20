@@ -144,22 +144,46 @@ TEST_CASE("OutputManager - Time-based write trigger", "[OutputManager]") {
     
     // Log steps before time interval
     manager.log_step(0.0, ions);
-    manager.log_step(5e-5, ions);  // 50 μs
-    
-    REQUIRE(manager.buffer_size() == 2);
-    REQUIRE_FALSE(manager.should_write(5e-5));
-    
-    // Check that time interval would trigger write
-    REQUIRE(manager.should_write(1.5e-4));  // 150 μs exceeds 100 μs interval
-    
-    // Log step after time interval (triggers auto-flush)
-    manager.log_step(1.5e-4, ions);
-    
-    // Auto-flush triggered - buffer cleared, new snapshot added
+
     REQUIRE(manager.buffer_size() == 1);
+    REQUIRE_FALSE(manager.should_write(5e-5));
+
+    // The caller records a scheduled sample. It remains buffered rather than
+    // forcing a one-snapshot HDF5 append.
+    REQUIRE(manager.should_write(1.5e-4));  // 150 μs exceeds 100 μs interval
+    manager.log_step(1.5e-4, ions);
+
+    REQUIRE(manager.buffer_size() == 2);
+    REQUIRE_FALSE(manager.should_write(2.0e-4));
+    REQUIRE(manager.should_write(2.5e-4));
     
     // Cleanup
     manager.finalize(1.5e-4, ions);
+    std::filesystem::remove_all(test_dir);
+}
+
+TEST_CASE("OutputManager - Full buffer does not trigger an extra sample", "[OutputManager]") {
+    std::filesystem::create_directories(test_dir);
+    auto hdf5_file = test_dir / "test_capacity_sampling.h5";
+    auto config = create_test_config();
+    auto ions = create_test_ions(10);
+
+    OutputManager manager(hdf5_file.string(), "", 1e-4, 2);
+    manager.initialize(config, ions);
+
+    manager.log_step(0.0, ions);
+    REQUIRE(manager.should_write(1e-4));
+    manager.log_step(1e-4, ions);
+
+    REQUIRE(manager.buffer_size() == 2);
+    REQUIRE_FALSE(manager.should_write(1.5e-4));
+    REQUIRE(manager.should_write(2e-4));
+
+    // Capacity is flushed when the next scheduled snapshot is added.
+    manager.log_step(2e-4, ions);
+    REQUIRE(manager.buffer_size() == 1);
+
+    manager.finalize(2e-4, ions);
     std::filesystem::remove_all(test_dir);
 }
 

@@ -121,13 +121,9 @@ public:
     void log_progress(const std::string& message);
     
     /**
-     * @brief Check if HDF5 write is needed
+     * @brief Check if a trajectory snapshot should be sampled
      * @param t_current Current simulation time [s]
-     * @return true if flush should be triggered
-     * 
-     * Returns true if:
-     * - Buffer is full (times_buffer_.size() >= buffer_max_)
-     * - Time interval exceeded (t_current >= next_write_time_)
+     * @return true if the sampling interval has been reached
      */
     bool should_write(double t_current) const;
     
@@ -139,13 +135,12 @@ public:
 private:
     /**
      * @brief Internal check before adding to buffer
-     * @param t_current Current simulation time [s]
      * @return true if flush should be triggered before adding new element
      * 
-     * Same logic as should_write(), but used internally in log_step()
-     * to allow buffer to fill to buffer_max exactly.
+     * Internal capacity check used by log_step() before adding a snapshot.
+     * Time-based sampling is handled separately by should_write().
      */
-    bool should_write_before_add(double t_current) const;
+    bool should_write_before_add() const;
     
 public:
     /**
@@ -153,8 +148,6 @@ public:
      * 
      * Writes all buffered trajectory snapshots to HDF5.
      * Clears buffers after successful write.
-     * Updates next_write_time_.
-     * 
      * Thread-safe (HDF5 library handles file locking).
      */
     void flush();

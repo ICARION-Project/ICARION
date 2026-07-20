@@ -2,6 +2,17 @@
 
 All notable changes to this project follow [Semantic Versioning](https://semver.org/) and are documented in this file.
 
+## [1.1.1] - 2026-07-20
+
+### Fixed
+
+- **Trajectory output scheduling and HDF5 batching**: removed overlapping
+  step-based and time-based output triggers that produced adjacent duplicate
+  snapshots. Buffer capacity now controls HDF5 flushes only and no longer
+  creates extra trajectory samples. This restores one snapshot per configured
+  `simulation.write_interval` and avoids pathological one-snapshot HDF5
+  appends and oversized trajectory files.
+
 ## [1.1.0] - 2026-07-12
 
 ### Added
@@ -62,6 +73,7 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
 - Validation suite shipped in-repo with scripts/results/figures.
 - Documentation: architecture, CLI usage, config schema, validation report.
 
+[1.1.1]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.1.0
 [1.0.1]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.0.1
 [1.0.0]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.0.0

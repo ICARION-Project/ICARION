@@ -28,8 +28,8 @@ The `Release Packages` GitHub Actions workflow builds release assets
 automatically for tags matching `v*`.
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.1.1
+git push origin v1.1.1
 ```
 
 The workflow creates a draft GitHub Release with:

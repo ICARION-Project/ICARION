@@ -269,9 +269,10 @@ core::IonEnsemble SimulationEngine::run(core::IonEnsemble& ensemble) {
         // Process one timestep using SoA
         double new_time = process_timestep(ensemble);
         
-        // Log trajectory snapshot (write every write_interval steps)
-        if (current_step_ == 0 || current_step_ % config_.simulation.write_interval == 0 ||
-            output_manager_->should_write(new_time)) {
+        // OutputManager owns the time-based sampling schedule. Combining this
+        // with a separate step-modulo trigger produces adjacent duplicate
+        // snapshots at every write interval.
+        if (current_step_ == 0 || output_manager_->should_write(new_time)) {
             PROFILE_SCOPE_IF_ENABLED("Output Writing");
             output_manager_->log_step(new_time, ensemble);
         }

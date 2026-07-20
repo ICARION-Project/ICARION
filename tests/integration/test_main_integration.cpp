@@ -22,8 +22,10 @@
 #include "core/physics/collisions/CollisionHandlerFactory.h"
 #include "core/physics/reactions/ReactionHandlerFactory.h"
 
+#include <H5Cpp.h>
 #include <filesystem>
 #include <cmath>
+#include <vector>
 
 using namespace ICARION;
 using namespace ICARION::config;
@@ -149,9 +151,28 @@ TEST_CASE("Main integration: Complete simulation pipeline", "[integration][main]
         
         // Verify results
         REQUIRE(final_ensemble.size() == initial_count);
-        
-        // Just verify simulation completed successfully
-        // (movement check might fail for very short simulations)
+
+        // One initial post-step snapshot plus one snapshot per configured
+        // interval. The former dual trigger produced adjacent duplicates.
+        H5::H5File file(config.output.trajectory_file, H5F_ACC_RDONLY);
+        auto time_dataset = file.openDataSet("/trajectory/time");
+        auto time_space = time_dataset.getSpace();
+        hsize_t time_dims[1];
+        time_space.getSimpleExtentDims(time_dims);
+        REQUIRE(time_dims[0] == 10);
+
+        std::vector<double> times(time_dims[0]);
+        time_dataset.read(times.data(), H5::PredType::NATIVE_DOUBLE);
+        for (size_t i = 1; i < times.size(); ++i) {
+            REQUIRE(times[i] > times[i - 1]);
+            REQUIRE_THAT(
+                times[i] - times[i - 1],
+                Catch::Matchers::WithinAbs(10e-9, 1e-15)
+            );
+        }
+
+        file.close();
+        std::filesystem::remove(config.output.trajectory_file);
     }
 }
 

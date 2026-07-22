@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icarion.io/schemas/v1.1.0/metadata.schema.json",
+  "title": "Optional user metadata",
+  "type": "object",
+  "properties": {
+    "note": { "type": "string", "minLength": 1, "description": "Inline user annotation (maximum 65,536 UTF-8 bytes at runtime)" },
+    "note_file": { "type": "string", "minLength": 1, "description": "Annotation file resolved relative to the main config file" }
+  },
+  "not": { "required": ["note", "note_file"] },
+  "additionalProperties": false
+}

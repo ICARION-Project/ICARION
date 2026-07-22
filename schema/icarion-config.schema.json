@@ -10,6 +10,10 @@
       "type": "string",
       "description": "Optional human-readable title for the simulation run"
     },
+    "metadata": {
+      "$ref": "metadata.schema.json",
+      "description": "Optional human-readable user annotation"
+    },
     
     "species_database": {
       "type": "string",

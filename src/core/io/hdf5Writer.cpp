@@ -14,6 +14,7 @@
  */
 
 #include "hdf5Writer.h"
+#include "UserAnnotation.h"
 #include "core/log/Logger.h"
 #include "core/config/conversion/EnumMapper.h"
 #include "core/config/types/WaveformConfig.h"
@@ -128,6 +129,10 @@ void HDF5Writer::create_file(
         write_config_metadata(file, config);
         write_reproducibility_metadata(file, config, git_hash, build_info);
         write_system_metadata(file);
+        if (config.user_annotation.present) {
+            auto metadata = file.openGroup("/metadata");
+            write_annotation_hdf5(metadata, config.user_annotation);
+        }
         
         write_species_metadata(file, config.species_db, ions);
         

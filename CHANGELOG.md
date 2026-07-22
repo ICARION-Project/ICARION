@@ -6,6 +6,8 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
 
 ### Added
 
+- **Optional user annotations**: simulation and IPM HDF5 files can store an optional exact-byte note supplied through configuration, inline CLI text, or a note file under `/metadata/annotations`.
+
 - **Self-describing IPM sample files**: `interaction_potential_precompute` now
   writes structured reproducibility metadata, resolved species/neutral and
   precompute settings, input SHA-256 hashes and embedded inputs, RNG seed

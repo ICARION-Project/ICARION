@@ -100,6 +100,10 @@ ICARION uses a hierarchical JSON configuration with four main sections:
 - A log message `[INFO] No [species/reaction] database specified, using global fallback: ...` indicates fallback usage
 - If no database is found (neither specified nor fallback), databases remain empty (which is valid for simulations without reactions)
 
+#### User annotation metadata
+
+Attach human-readable context at the top level with either `metadata.note` or `metadata.note_file` (mutually exclusive), for example `{"metadata":{"note":"Production simulation for manuscript Figure 4"}}`. A relative note file resolves from the main config. Notes preserve exact bytes and line breaks, must be non-empty and NUL-free, and are limited to 65,536 UTF-8 bytes. They complement rather than replace resolved configuration, input, build, RNG, and completion provenance. User-entered notes may contain identifying information.
+
 ### Gas-specific CCS maps (HSS/EHSS)
 
 You can store gas-dependent CCS values (generated via `ccs_precompute`):

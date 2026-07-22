@@ -90,6 +90,23 @@ FullConfig ConfigLoader::load_from_json(const Json::Value& root,
     if (root.isMember("title")) {
         config.title = root["title"].asString();
     }
+    if (root.isMember("metadata")) {
+        const auto& metadata = root["metadata"];
+        if (!metadata.isObject()) throw std::runtime_error("'metadata' must be an object");
+        for (const auto& key : metadata.getMemberNames()) {
+            if (key != "note" && key != "note_file")
+                throw std::runtime_error("Unknown metadata property: " + key);
+        }
+        if (metadata.isMember("note") && metadata.isMember("note_file"))
+            throw std::runtime_error("metadata.note and metadata.note_file are mutually exclusive");
+        if (metadata.isMember("note")) {
+            if (!metadata["note"].isString()) throw std::runtime_error("metadata.note must be a string");
+            config.user_annotation = ICARION::io::resolve_inline_annotation(metadata["note"].asString());
+        } else if (metadata.isMember("note_file")) {
+            if (!metadata["note_file"].isString()) throw std::runtime_error("metadata.note_file must be a string");
+            config.user_annotation = ICARION::io::resolve_file_annotation(metadata["note_file"].asString(), base_path);
+        }
+    }
     
     // Note: config_file_path is set in load() function (not here, since we only have base_path)
     

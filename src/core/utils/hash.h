@@ -18,6 +18,16 @@
 
 namespace ICARION::utils {
 
+inline std::string sha256_bytes(const std::string& bytes) {
+    unsigned char digest[SHA256_DIGEST_LENGTH];
+    SHA256(reinterpret_cast<const unsigned char*>(bytes.data()), bytes.size(), digest);
+    std::ostringstream oss;
+    for (unsigned char value : digest) {
+        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(value);
+    }
+    return oss.str();
+}
+
 /**
  * @brief Compute SHA256 hash of a file
  * 

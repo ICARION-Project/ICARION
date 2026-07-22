@@ -1,6 +1,7 @@
 // ICARION: Ion Collision And Reaction IntegratiON
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ReproducibilityMetadata.h"
+#include "UserAnnotation.h"
 
 #include <chrono>
 #include <cstdlib>
@@ -299,5 +300,6 @@ void write_ipm_metadata(H5::H5File& file, const IpmMetadata& m, int format_versi
     real(completion, "wall_clock_runtime_s", m.wall_clock_runtime_s); boolean(completion, "is_checkpoint", m.checkpoint);
     real(completion, "accumulated_wall_clock_runtime_s", m.accumulated_wall_clock_runtime_s);
     boolean(completion, "resume_mode_used", m.resume_used);
+    write_annotation_hdf5(metadata, m.user_annotation);
 }
 } // namespace ICARION::io::reproducibility

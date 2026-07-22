@@ -37,6 +37,8 @@ struct CLIOptions {
     std::optional<std::string> output_file;  ///< Override output HDF5 filename
     std::optional<std::string> output_dir;   ///< Override output directory
     std::optional<uint64_t> buffer_byte_cap; ///< Cap for trajectory buffer (bytes, 0 = unlimited)
+    std::optional<std::string> note;          ///< Inline user annotation
+    std::optional<std::string> note_file;     ///< User annotation file
     
     // === Config overrides ===
     std::map<std::string, std::string> overrides;  ///< Config key-value overrides (--set)

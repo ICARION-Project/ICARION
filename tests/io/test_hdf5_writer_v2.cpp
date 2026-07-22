@@ -19,17 +19,19 @@
 #include <H5Cpp.h>
 #include <filesystem>
 #include <fstream>
+#include <atomic>
+#include <chrono>
 
 using namespace ICARION;
 using Catch::Approx;
 
 namespace {
     std::string get_test_file() {
-        static std::string file = "/tmp/test_hdf5_v2.h5";
-        if (std::filesystem::exists(file)) {
-            std::filesystem::remove(file);
-        }
-        return file;
+        static std::atomic<unsigned long long> sequence{0};
+        const auto unique = std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + "_" +
+            std::to_string(sequence.fetch_add(1));
+        return (std::filesystem::temp_directory_path() / ("test_hdf5_v2_" + unique + ".h5")).string();
     }
     
     config::FullConfig create_minimal_config() {
@@ -182,6 +184,7 @@ TEST_CASE("HDF5Writer v2 creates correct file structure", "[hdf5][io]") {
     // Check main groups
     REQUIRE(file.nameExists("/metadata"));
     REQUIRE(file.nameExists("/metadata/config"));
+    REQUIRE_FALSE(file.nameExists("/metadata/annotations"));
     REQUIRE(file.nameExists("/metadata/reproducibility"));
     REQUIRE(file.nameExists("/metadata/system"));
     REQUIRE(file.nameExists("/metadata/species"));
@@ -191,6 +194,36 @@ TEST_CASE("HDF5Writer v2 creates correct file structure", "[hdf5][io]") {
     REQUIRE(file.nameExists("/domains/domain_0"));
     
     file.close();
+}
+
+TEST_CASE("HDF5Writer writes optional user annotation", "[hdf5][io][annotation]") {
+    const std::string test_file = get_test_file();
+    const std::string other_file = get_test_file();
+    auto config = create_minimal_config();
+    config.user_annotation = io::resolve_inline_annotation("simulation note\nline two");
+    io::HDF5Writer::create_file(test_file, config, to_ensemble(create_test_ions()), "test", "test");
+    H5::H5File file(test_file, H5F_ACC_RDONLY);
+    REQUIRE(file.nameExists("/metadata/annotations/note"));
+    auto metadata = file.openGroup("/metadata");
+    const auto annotation = io::read_annotation_hdf5(metadata);
+    REQUIRE(annotation.note == "simulation note\nline two");
+    REQUIRE(annotation.source == "inline");
+    metadata.close();
+    file.close();
+    auto other_config = create_minimal_config();
+    other_config.user_annotation = io::resolve_inline_annotation("different context");
+    const auto ensemble = to_ensemble(create_test_ions());
+    io::HDF5Writer::create_file(other_file, other_config, ensemble, "test", "test");
+    io::HDF5Writer::append_trajectory(test_file, 0.0, ensemble);
+    io::HDF5Writer::append_trajectory(other_file, 0.0, ensemble);
+    H5::H5File first(test_file, H5F_ACC_RDONLY), second(other_file, H5F_ACC_RDONLY);
+    std::vector<double> first_positions(ensemble.size() * 3), second_positions(ensemble.size() * 3);
+    first.openDataSet("/trajectory/positions").read(first_positions.data(), H5::PredType::NATIVE_DOUBLE);
+    second.openDataSet("/trajectory/positions").read(second_positions.data(), H5::PredType::NATIVE_DOUBLE);
+    REQUIRE(first_positions == second_positions);
+    first.close(); second.close();
+    std::filesystem::remove(test_file);
+    std::filesystem::remove(other_file);
 }
 
 TEST_CASE("HDF5Writer v2 writes simulation metadata correctly", "[hdf5][io]") {

@@ -119,6 +119,7 @@ target_sources(icarion_core PRIVATE
     ${ICARION_SIMULATION_SRC}
     # Explicit new field models to avoid glob reconfigure misses
     core/config/types/FieldProviderModel.cpp
+    core/io/UserAnnotation.cpp
 )
 
 # Include root for headers

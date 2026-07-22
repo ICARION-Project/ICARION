@@ -100,7 +100,9 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
         ("output-dir", "Override output directory", 
          cxxopts::value<std::string>(), "DIR")
         ("buffer-byte-cap", "Cap in-memory trajectory buffer (bytes, 0 = unlimited)", 
-         cxxopts::value<uint64_t>(), "BYTES");
+         cxxopts::value<uint64_t>(), "BYTES")
+        ("note", "Attach a free-text annotation to the HDF5 output", cxxopts::value<std::string>(), "TEXT")
+        ("note-file", "Read the HDF5 annotation from FILE", cxxopts::value<std::string>(), "FILE");
     
     // === Config overrides (Phase 1: ACTIVE) ===
     parser.add_options("Advanced")
@@ -245,6 +247,12 @@ CLIOptions parse_arguments(int argc, char* argv[]) {
     if (result.count("buffer-byte-cap")) {
         opts.buffer_byte_cap = result["buffer-byte-cap"].as<uint64_t>();
     }
+    if (result.count("note") && result.count("note-file")) {
+        std::cerr << "Error: --note and --note-file are mutually exclusive\n";
+        std::exit(1);
+    }
+    if (result.count("note")) opts.note = result["note"].as<std::string>();
+    if (result.count("note-file")) opts.note_file = result["note-file"].as<std::string>();
     
     // === Parse config overrides (Phase 1: ACTIVE) ===
     if (result.count("set")) {

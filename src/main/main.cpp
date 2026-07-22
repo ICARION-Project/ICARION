@@ -354,6 +354,14 @@ int main(int argc, char* argv[]) {
             log::Logger::main()->info("RNG seed override: {}", opts.seed.value());
             config.simulation.rng_seed = opts.seed.value();
         }
+        if (opts.note.has_value() || opts.note_file.has_value()) {
+            if (config.user_annotation.present) {
+                log::Logger::main()->info("CLI annotation overrides configuration annotation");
+            }
+            config.user_annotation = opts.note.has_value()
+                ? io::resolve_inline_annotation(*opts.note)
+                : io::resolve_file_annotation(*opts.note_file);
+        }
         
         if (opts.no_reactions) {
             log::Logger::main()->info("Disabling reactions (--no-reactions)");

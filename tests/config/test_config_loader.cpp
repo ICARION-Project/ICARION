@@ -7,8 +7,10 @@
 
 #include "core/config/loader/ConfigLoader.h"
 #include <fstream>
+#include <chrono>
 #include <filesystem>
 #include <cmath>
+#include <sstream>
 
 using namespace ICARION::config;
 using Catch::Approx;
@@ -76,6 +78,45 @@ namespace {
 // ============================================================================
 // Basic Config Loading
 // ============================================================================
+
+TEST_CASE("ConfigLoader resolves optional user annotations", "[config][annotation]") {
+    Json::CharReaderBuilder builder;
+    Json::Value root;
+    std::string errors;
+    std::istringstream input(make_lqit_config_with_fields(R"({"type":"uniform","electric_Vm":[0,0,0]})"));
+    REQUIRE(Json::parseFromStream(builder, input, &root, &errors));
+
+    SECTION("inline note") {
+        root["metadata"]["note"] = "config note\nsecond line";
+        auto config = ConfigLoader::load_from_json(root, "/tmp");
+        REQUIRE(config.user_annotation.note == "config note\nsecond line");
+        REQUIRE(config.user_annotation.source == "inline");
+    }
+    SECTION("file note relative to config directory") {
+        const auto dir = std::filesystem::temp_directory_path() /
+            ("icarion_config_note_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        std::filesystem::create_directories(dir);
+        const auto path = dir / "note.md";
+        std::ofstream(path, std::ios::binary) << "file annotation\n";
+        root["metadata"]["note_file"] = path.filename().string();
+        auto config = ConfigLoader::load_from_json(root, dir);
+        REQUIRE(config.user_annotation.note == "file annotation\n");
+        REQUIRE(config.user_annotation.source_filename == path.filename().string());
+        std::filesystem::remove_all(dir);
+    }
+    SECTION("mutually exclusive and unknown fields fail") {
+        root["metadata"]["note"] = "one";
+        root["metadata"]["note_file"] = "two";
+        REQUIRE_THROWS(ConfigLoader::load_from_json(root, "/tmp"));
+        root.removeMember("metadata");
+        root["metadata"]["unknown"] = true;
+        REQUIRE_THROWS(ConfigLoader::load_from_json(root, "/tmp"));
+    }
+    SECTION("no metadata remains valid") {
+        auto config = ConfigLoader::load_from_json(root, "/tmp");
+        REQUIRE_FALSE(config.user_annotation.present);
+    }
+}
 
 TEST_CASE("ConfigLoader loads minimal valid config", "[config][loader]") {
     std::string config = R"({

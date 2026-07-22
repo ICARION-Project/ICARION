@@ -13,6 +13,7 @@
 #include "IonConfig.h"
 #include "WaveformConfig.h"
 #include "core/types/IonState.h"
+#include "core/io/UserAnnotation.h"
 #include <vector>
 #include <string>
 #include <stdexcept>
@@ -54,6 +55,7 @@ struct FullConfig {
     std::string title = "";                     ///< Simulation title/description
     std::string config_file_path = "";          ///< Path to loaded config file (for reference)
     std::string resolved_config_json = "";      ///< Resolved config JSON snapshot (runtime, optional)
+    ICARION::io::UserAnnotation user_annotation; ///< Optional non-numerical user note
     
     /**
      * @brief Load databases from specified paths

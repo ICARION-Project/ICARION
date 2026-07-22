@@ -293,6 +293,12 @@ with h5py.File('simulation.h5', 'r') as f:
 
 ---
 
+### `/metadata/annotations/` (optional)
+
+Both simulation and IPM files may contain `/metadata/annotations/{note,source,source_filename,note_sha256}`. `source` is `inline` or `file`; file sources store only the basename. The note preserves user-supplied UTF-8 bytes and its SHA-256 covers those exact bytes. The group is absent when unused and does not affect numerical format versions or results.
+
+---
+
 ## Trajectory Group
 
 ### `/trajectory/`

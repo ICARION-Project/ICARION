@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include "UserAnnotation.h"
 
 namespace ICARION::io::reproducibility {
 
@@ -94,6 +95,7 @@ struct IpmMetadata {
     std::uint64_t total_cells = 0;
     bool success = false;
     bool checkpoint = true;
+    UserAnnotation user_annotation;
 };
 
 std::string utc_timestamp_now();

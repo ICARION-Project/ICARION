@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -84,6 +85,19 @@ def main() -> int:
         ]
         subprocess.run(cmd, cwd=args.repo_root, check=True)
 
+        scan_with_note = list(cmd)
+        scan_with_note.extend(["--scan-deflection", "--scan-v-rel", "1000", "--scan-b-steps", "2",
+                               "--note", "must not be discarded"])
+        scan_result = subprocess.run(scan_with_note, cwd=args.repo_root, text=True, capture_output=True)
+        expected_scan_diagnostic = (
+            "--note and --note-file are only supported for HDF5 IPM sample or checkpoint output, "
+            "not --scan-deflection."
+        )
+        if scan_result.returncode != 1 or expected_scan_diagnostic not in scan_result.stderr:
+            raise AssertionError(
+                f"scan annotation rejection failed: rc={scan_result.returncode}, stderr={scan_result.stderr!r}"
+            )
+
         with h5py.File(output, "r") as handle:
             legacy_attributes = {
                 "format", "version", "species_id", "gas", "gas_model", "mixing_rule",
@@ -106,6 +120,8 @@ def main() -> int:
             expected_groups = {"schema", "software", "system", "rng", "species", "neutral", "precompute", "inputs", "completion"}
             if expected_groups.difference(handle["metadata"]):
                 raise AssertionError("incomplete /metadata hierarchy")
+            if "annotations" in handle["metadata"]:
+                raise AssertionError("annotation group written without a note")
 
             def text(path: str) -> str:
                 value = handle[path][()]
@@ -303,6 +319,39 @@ def main() -> int:
                 if not np.array_equal(first[dataset][...], second[dataset][...]):
                     raise AssertionError(f"fixed-seed numerical payload changed: {dataset}")
 
+        annotated_output = tmp_dir / "annotated.h5"
+        annotated_cmd = list(cmd)
+        annotated_cmd[annotated_cmd.index(str(output))] = str(annotated_output)
+        annotated_cmd.extend(["--note", "line one\nline two"])
+        subprocess.run(annotated_cmd, cwd=args.repo_root, check=True)
+        with h5py.File(annotated_output, "r") as annotated, h5py.File(output, "r") as plain:
+            annotation = annotated["metadata/annotations"]
+            if annotation["note"][()].decode() != "line one\nline two":
+                raise AssertionError("inline annotation bytes changed")
+            if annotation["source"][()].decode() != "inline" or annotation["source_filename"][()].decode() != "":
+                raise AssertionError("inline annotation provenance incorrect")
+            expected_note_hash = hashlib.sha256(b"line one\nline two").hexdigest()
+            if annotation["note_sha256"][()].decode() != expected_note_hash:
+                raise AssertionError("inline annotation hash incorrect")
+            for dataset in ("logv_bins", "orientations_quat", "sigma_event_m2", "sigma_mt_m2", "b_max_m",
+                            "cdf_offsets", "cdf_counts", "cdf_values", "dp_samples", "dp_stats"):
+                if not np.array_equal(annotated[dataset][...], plain[dataset][...]):
+                    raise AssertionError(f"annotation changed numerical IPM dataset: {dataset}")
+
+        note_file = tmp_dir / "ipm_note.md"
+        note_file.write_bytes(b"file note\r\nexact\n")
+        file_note_output = tmp_dir / "file_note.h5"
+        file_note_cmd = list(cmd)
+        file_note_cmd[file_note_cmd.index(str(output))] = str(file_note_output)
+        file_note_cmd.extend(["--note-file", str(note_file)])
+        subprocess.run(file_note_cmd, cwd=args.repo_root, check=True)
+        with h5py.File(file_note_output, "r") as handle:
+            annotation = handle["metadata/annotations"]
+            if annotation["note"][()].decode() != "file note\r\nexact\n":
+                raise AssertionError("file annotation bytes changed")
+            if annotation["source_filename"][()].decode() != "ipm_note.md":
+                raise AssertionError("file annotation did not store basename only")
+
         auto_output = tmp_dir / "auto_seed.h5"
         auto_cmd = [value for value in cmd if value not in ("--seed", "12345")]
         auto_cmd[auto_cmd.index(str(output))] = str(auto_output)
@@ -327,6 +376,7 @@ def main() -> int:
         checkpoint_cmd[checkpoint_cmd.index(str(output))] = str(checkpoint_output)
         checkpoint_cmd.remove("--store-full-cdf")
         checkpoint_cmd.extend(["--compact-dp-stats", "--checkpoint-cells", "1"])
+        checkpoint_cmd.extend(["--note", "checkpoint annotation"])
         checkpoint_cmd[checkpoint_cmd.index("--n-orientations") + 1] = "2"
         checkpoint_cmd.append("--stop-after-checkpoint")
         checkpoint_result = subprocess.run(checkpoint_cmd, cwd=args.repo_root)
@@ -337,15 +387,92 @@ def main() -> int:
                 raise AssertionError("checkpoint incorrectly marked successful")
             if not bool(handle["metadata/completion/is_checkpoint"][()]):
                 raise AssertionError("checkpoint not marked incomplete")
+            if handle["metadata/annotations/note"][()].decode() != "checkpoint annotation":
+                raise AssertionError("checkpoint annotation missing")
             original_start = handle["metadata/completion/start_timestamp_utc"][()]
             if isinstance(original_start, bytes):
                 original_start = original_start.decode()
+
+        identical_inline_checkpoint = tmp_dir / "identical_inline_checkpoint.h5"
+        identical_file_checkpoint = tmp_dir / "identical_file_checkpoint.h5"
+        annotation_free_checkpoint = tmp_dir / "annotation_free_checkpoint.h5"
+        corrupt_annotation_checkpoint = tmp_dir / "corrupt_annotation_checkpoint.h5"
+        for copy_path in (identical_inline_checkpoint, identical_file_checkpoint,
+                          annotation_free_checkpoint, corrupt_annotation_checkpoint):
+            shutil.copy2(checkpoint_output, copy_path)
+
+        def checkpoint_resume_command(path: Path) -> list[str]:
+            result = [arg for arg in checkpoint_cmd if arg != "--stop-after-checkpoint"] + ["--resume"]
+            result[result.index(str(checkpoint_output))] = str(path)
+            return result
+
+        subprocess.run(checkpoint_resume_command(identical_inline_checkpoint), cwd=args.repo_root, check=True)
+        identical_note_file = tmp_dir / "identical_checkpoint_note.txt"
+        identical_note_file.write_text("checkpoint annotation", encoding="utf-8")
+        identical_file_cmd = checkpoint_resume_command(identical_file_checkpoint)
+        note_index = identical_file_cmd.index("--note")
+        identical_file_cmd[note_index:note_index + 2] = ["--note-file", str(identical_note_file)]
+        subprocess.run(identical_file_cmd, cwd=args.repo_root, check=True)
+        with h5py.File(identical_file_checkpoint, "r") as handle:
+            if handle["metadata/annotations/source"][()].decode() != "inline":
+                raise AssertionError("identical file resume rewrote original annotation provenance")
+
+        with h5py.File(annotation_free_checkpoint, "r+") as handle:
+            del handle["metadata/annotations"]
+        added_annotation = subprocess.run(checkpoint_resume_command(annotation_free_checkpoint),
+                                          cwd=args.repo_root, text=True, capture_output=True)
+        if added_annotation.returncode == 0 or "checkpoint has no annotation" not in added_annotation.stderr:
+            raise AssertionError("resume added an annotation to an annotation-free checkpoint")
+
+        with h5py.File(corrupt_annotation_checkpoint, "r+") as handle:
+            handle["metadata/annotations/note_sha256"][()] = "0" * 64
+        corrupt_annotation = subprocess.run(checkpoint_resume_command(corrupt_annotation_checkpoint),
+                                            cwd=args.repo_root, text=True, capture_output=True)
+        if corrupt_annotation.returncode != 1 or "annotation integrity" not in corrupt_annotation.stderr:
+            raise AssertionError("resume accepted corrupted annotation metadata")
+
+        corruption_cases = {
+            "missing_dataset": lambda group: group.__delitem__("note"),
+            "numeric_note": lambda group: (
+                group.__delitem__("note"), group.create_dataset("note", data=np.int32(7))
+            ),
+            "nonscalar_note": lambda group: (
+                group.__delitem__("note"),
+                group.create_dataset("note", data=np.array(["checkpoint annotation"],
+                                     dtype=h5py.string_dtype(encoding="utf-8")))
+            ),
+            "fixed_note": lambda group: (
+                group.__delitem__("note"), group.create_dataset("note", data=np.bytes_("checkpoint annotation"))
+            ),
+            "invalid_utf8_note": lambda group: (
+                group.__delitem__("note"),
+                group.create_dataset("note", data=b"bad\xff", dtype=h5py.string_dtype(encoding="utf-8"))
+            ),
+        }
+        for label, mutate in corruption_cases.items():
+            corrupt_path = tmp_dir / f"corrupt_{label}.h5"
+            shutil.copy2(checkpoint_output, corrupt_path)
+            with h5py.File(corrupt_path, "r+") as handle:
+                mutate(handle["metadata/annotations"])
+            result = subprocess.run(checkpoint_resume_command(corrupt_path), cwd=args.repo_root,
+                                    text=True, capture_output=True)
+            if result.returncode != 1 or "annotation integrity" not in result.stderr:
+                raise AssertionError(
+                    f"resume corruption case {label} was not rejected cleanly: "
+                    f"rc={result.returncode}, stderr={result.stderr!r}"
+                )
 
         changed_seed_cmd = [arg for arg in checkpoint_cmd if arg != "--stop-after-checkpoint"] + ["--resume"]
         changed_seed_cmd[changed_seed_cmd.index("12345")] = "12346"
         changed_seed = subprocess.run(changed_seed_cmd, cwd=args.repo_root, text=True, capture_output=True)
         if changed_seed.returncode == 0 or "mismatch for seed" not in changed_seed.stderr:
             raise AssertionError(f"resume did not reject changed seed: rc={changed_seed.returncode}, stderr={changed_seed.stderr!r}")
+
+        changed_annotation_cmd = [arg for arg in checkpoint_cmd if arg != "--stop-after-checkpoint"] + ["--resume"]
+        changed_annotation_cmd[changed_annotation_cmd.index("checkpoint annotation")] = "different annotation"
+        changed_annotation = subprocess.run(changed_annotation_cmd, cwd=args.repo_root, text=True, capture_output=True)
+        if changed_annotation.returncode == 0 or "annotation integrity" not in changed_annotation.stderr:
+            raise AssertionError("resume accepted a different annotation")
 
         changed_forcefield = tmp_dir / "changed_forcefield.json"
         changed_forcefield.write_bytes(forcefield.read_bytes() + b"\n")
@@ -356,7 +483,7 @@ def main() -> int:
         if changed_input.returncode == 0 or "input hash" not in changed_input.stderr:
             raise AssertionError(f"resume did not reject changed input: rc={changed_input.returncode}, stderr={changed_input.stderr!r}")
 
-        resume_cmd = [arg for arg in checkpoint_cmd if arg != "--stop-after-checkpoint"] + ["--resume"]
+        resume_cmd = [arg for arg in checkpoint_cmd if arg not in ("--stop-after-checkpoint", "--note", "checkpoint annotation")] + ["--resume"]
         subprocess.run(resume_cmd, cwd=args.repo_root, check=True)
         with h5py.File(checkpoint_output, "r") as handle:
             resumed_start = handle["metadata/completion/start_timestamp_utc"][()]
@@ -370,6 +497,10 @@ def main() -> int:
                 raise AssertionError("resumed output not marked successful")
             if bool(handle["metadata/completion/is_checkpoint"][()]):
                 raise AssertionError("resumed final output still marked as checkpoint")
+            if handle["metadata/annotations/note"][()].decode() != "checkpoint annotation":
+                raise AssertionError("resume without flags did not preserve annotation")
+            if handle["metadata/annotations/source"][()].decode() != "inline":
+                raise AssertionError("resume rewrote annotation provenance")
 
         subprocess.run([str(args.loader_bin), str(checkpoint_output)], check=True)
 

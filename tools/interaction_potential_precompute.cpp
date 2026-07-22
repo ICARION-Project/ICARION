@@ -88,6 +88,8 @@ struct Options {
     std::string gas_params_file = "data/forcefields/gas_lj_params.json";
     std::string element_params_file;
     std::string lebedev_file;
+    std::optional<std::string> note;
+    std::optional<std::string> note_file;
     bool scan_deflection = false;
     double scan_b_min_m = 0.0;
     double scan_b_max_m = 0.0;
@@ -148,6 +150,8 @@ void print_usage() {
         << "  --resume                    Resume from existing HDF5 checkpoint file\\n"
         << "  --seed <uint64>             RNG seed; when omitted, derive it from species and gas\\n"
         << "  --stop-after-checkpoint     Intentionally stop after first incomplete checkpoint\\n"
+        << "  --note <text>               Attach a free-text HDF5 annotation\\n"
+        << "  --note-file <file>          Read the HDF5 annotation from a file\\n"
         << "  --scan-deflection           Output deflection scan (θ(b), 1−cosθ) to --output CSV\\n"
         << "  --scan-v-rel <float>        Relative speed for deflection scan (m/s)\\n"
         << "  --scan-b-min-A <float>      Minimum impact parameter for scan (Angstrom)\\n"
@@ -257,6 +261,10 @@ bool parse_args(int argc, char** argv, Options& opt) {
             opt.resume = true;
         } else if (arg == "--stop-after-checkpoint") {
             opt.stop_after_checkpoint = true;
+        } else if (arg == "--note" && i + 1 < argc) {
+            opt.note = argv[++i];
+        } else if (arg == "--note-file" && i + 1 < argc) {
+            opt.note_file = argv[++i];
         } else if (arg == "--seed" && i + 1 < argc) {
             opt.supplied_seed = static_cast<uint64_t>(std::stoull(argv[++i]));
         } else if (arg == "--scan-deflection") {
@@ -1200,6 +1208,20 @@ static bool load_hdf5_resume_checkpoint(
             const auto expected = input.used ? input.sha256 : "not_used";
             if (actual != expected) throw std::runtime_error("Resume provenance mismatch for input hash: " + input.key);
         }
+        auto metadata_group = file.openGroup("/metadata");
+        ICARION::io::UserAnnotation checkpoint_annotation;
+        try {
+            checkpoint_annotation = ICARION::io::read_annotation_hdf5(metadata_group);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Resume annotation integrity error: ") + e.what());
+        }
+        if (expected_metadata.user_annotation.present) {
+            if (!checkpoint_annotation.present)
+                throw std::runtime_error("Resume annotation integrity error: checkpoint has no annotation");
+            if (expected_metadata.user_annotation.note_sha256 != checkpoint_annotation.note_sha256)
+                throw std::runtime_error("Resume annotation integrity error: supplied note differs from checkpoint");
+        }
+        expected_metadata.user_annotation = checkpoint_annotation;
         expected_metadata.start_timestamp_utc = read_string_dataset("/metadata/completion/start_timestamp_utc");
         file.openDataSet("/metadata/completion/accumulated_wall_clock_runtime_s").read(
             &expected_metadata.accumulated_wall_clock_runtime_s, H5::PredType::NATIVE_DOUBLE);
@@ -1968,6 +1990,10 @@ int main(int argc, char** argv) {
         "--input", "--output", "--gas-params", "--element-params", "--lebedev-file", "--scan-paths-out"
     };
     for (int i = 0; i < argc; ++i) {
+        if (std::string(argv[i]) == "--note" || std::string(argv[i]) == "--note-file") {
+            ++i;
+            continue;
+        }
         if (i != 0) command_line_stream << ' ';
         const bool path_argument = i == 0 || (i > 0 && path_options.count(argv[i - 1]) != 0);
         const std::string displayed = path_argument ? std::filesystem::path(argv[i]).filename().string() : argv[i];
@@ -1987,6 +2013,22 @@ int main(int argc, char** argv) {
     }
     if (opt.stop_after_checkpoint && (opt.checkpoint_cells <= 0 || opt.store_full_cdf)) {
         std::cerr << "--stop-after-checkpoint requires --checkpoint-cells > 0 and --compact-dp-stats.\n";
+        return EXIT_FAILURE;
+    }
+    if (opt.note.has_value() && opt.note_file.has_value()) {
+        std::cerr << "--note and --note-file are mutually exclusive\n";
+        return EXIT_FAILURE;
+    }
+    if (opt.scan_deflection && (opt.note.has_value() || opt.note_file.has_value())) {
+        std::cerr << "--note and --note-file are only supported for HDF5 IPM sample or checkpoint output, not --scan-deflection.\n";
+        return EXIT_FAILURE;
+    }
+    ICARION::io::UserAnnotation requested_annotation;
+    try {
+        if (opt.note.has_value()) requested_annotation = ICARION::io::resolve_inline_annotation(*opt.note);
+        else if (opt.note_file.has_value()) requested_annotation = ICARION::io::resolve_file_annotation(*opt.note_file);
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << "\n";
         return EXIT_FAILURE;
     }
 
@@ -2475,6 +2517,7 @@ int main(int argc, char** argv) {
     };
     metadata.start_timestamp_utc = start_timestamp_utc;
     metadata.total_cells = orientations.size() * logv_bins.size();
+    metadata.user_annotation = requested_annotation;
 
     Lj1264Samples samples;
     samples.orientations_quat = orientations;

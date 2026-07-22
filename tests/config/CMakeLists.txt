@@ -23,6 +23,13 @@ set_tests_properties(ConfigLoader PROPERTIES
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+find_program(Python3_EXECUTABLE NAMES python3 python)
+if(Python3_EXECUTABLE)
+    add_test(NAME UserAnnotationSchema
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_annotation_schema.py
+                ${CMAKE_SOURCE_DIR})
+endif()
+
 add_executable(test_config_override
     test_config_override.cpp
 )

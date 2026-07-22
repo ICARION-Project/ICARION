@@ -63,6 +63,12 @@ Useful flags:
 For anything other than short test runs, prefer an explicit output directory and a descriptive filename.
 See [Output files](output-files.md) for the HDF5 layout.
 
+Add optional human context with mutually exclusive `--note TEXT` or `--note-file FILE`. CLI annotations override a configured annotation; note files resolve from the current working directory.
+
+```bash
+icarion --note "Production simulation for manuscript Figure 4" config.json
+```
+
 ## Logging
 
 ```bash
@@ -199,6 +205,8 @@ An explicit `--seed` uses exactly that unsigned value, including zero. If it is 
 `--checkpoint-cells N` enables periodic compact checkpoints and `--resume` continues a compatible compact checkpoint. Resume validates models, numerical settings, grids, seed, and all used input hashes. Every IPM HDF5 sample or checkpoint file contains additive `/metadata` groups with resolved settings, immutable embedded input snapshots and SHA-256 hashes, RNG provenance, and completion state. See [Interaction-potential precomputation](ipm-precomputation.md).
 
 `--stop-after-checkpoint` is a deliberate checkpoint workflow test option. It requires compact checkpoint mode, leaves an incomplete checkpoint, and exits with status `2`. This status is returned only for that IPM workflow: it is neither an `icarion` simulation exit code nor a successful completed IPM table.
+
+IPM accepts the same `--note` and `--note-file` options. Annotation content is excluded from numerical options, RNG, and numerical compatibility, while checkpoint resume enforces its separate integrity and preservation rules.
 
 ## Exit codes
 

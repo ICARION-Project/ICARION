@@ -31,6 +31,10 @@ IPM files contain collision lookup data consumed through `ipm_samples_file`. The
 
 See [Interaction-potential precomputation](ipm-precomputation.md) for datasets, provenance, checkpoint/resume state, and inspection examples.
 
+## Optional annotations
+
+Either file class may add `/metadata/annotations` with scalar UTF-8 datasets `note`, `source`, `source_filename`, and `note_sha256`. `source` is `inline` or `file`; a file stores only its basename. Notes preserve exact bytes up to 65,536 bytes and do not affect numerical results. The group is omitted when unused.
+
 ---
 
 ## Configure output

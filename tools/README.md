@@ -182,6 +182,8 @@ Precompute interaction-potential collision lookup data for `ipm_samples_file`.
 The tool integrates classical trajectories for each orientation and relative
 velocity bin, then writes a runtime HDF5 lookup file.
 
+`--note TEXT` or `--note-file FILE` adds optional human context under `/metadata/annotations`. Notes are exact-byte UTF-8 strings up to 65,536 bytes; file provenance stores only the basename. Resume preserves the original annotation and rejects additions, removals, corruption, or changed content.
+
 ### Build
 
 ```bash

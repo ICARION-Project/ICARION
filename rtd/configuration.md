@@ -32,6 +32,10 @@ A configuration is a single JSON object with the following common sections:
 
 The schema requires `simulation`, `physics`, `output`, and at least one entry in `domains`. A normal trajectory simulation also needs `ions`, even though specialized workflows can load or generate ion ensembles differently. For example, `reaction_database` is only needed if reactions are enabled. In practice, new users should start from an example file and modify one parameter at a time.
 
+### Optional user annotation
+
+Use either `{"metadata":{"note":"Production simulation for manuscript Figure 4"}}` or `{"metadata":{"note_file":"notes/figure4_run.md"}}`. The fields are mutually exclusive and relative files resolve from the main config directory. Notes preserve exact line breaks and bytes, reject NULs and empty content, and have a 65,536-byte UTF-8 limit. They are human context only and do not affect numerical results. Avoid personal information unless intentional.
+
 ---
 
 ## Required core sections

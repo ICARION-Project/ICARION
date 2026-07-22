@@ -36,6 +36,16 @@ Reference the result from the resolved ion entry:
 
 Use an explicit seed for publication calculations.
 
+Optional context can be attached without changing numerical identity:
+
+```bash
+interaction_potential_precompute \
+  --input species.json --species H3O+ --gas He \
+  --output H3O+_He_ipm.h5 --note-file ipm_notes.md
+```
+
+The exact note bytes, `inline`/`file` source, basename only file provenance, and SHA-256 are stored under `/metadata/annotations`. Notes are limited to 65,536 UTF-8 bytes and may contain identifying text only when supplied by the user. They complement rather than replace resolved inputs, build/RNG provenance, and completion state.
+
 ## Numerical format
 
 The runtime contract remains:
@@ -75,6 +85,7 @@ Full-CDF tables are recommended for scientific production. Compact `dp_stats` fi
 ├── inputs
 │   ├── hashes
 │   └── blobs
+├── annotations     # optional
 └── completion
 ```
 
@@ -88,6 +99,7 @@ Full-CDF tables are recommended for scientific production. Compact `dp_stats` fi
 | `/metadata/neutral` | Final gas model and parameters with source labels. |
 | `/metadata/precompute` | Fully resolved numerical and model settings. |
 | `/metadata/inputs` | Input filenames, SHA-256 hashes, and immutable embedded snapshots. |
+| `/metadata/annotations` | Optional exact-byte user note, source, basename, and SHA-256. |
 | `/metadata/completion` | Progress, checkpoint, resume, and timing state. |
 
 ### `/metadata/schema`
@@ -137,6 +149,8 @@ build/src/interaction_potential_precompute \
 ```
 
 Resume validates numerical settings, model choices, seed, velocity and orientation grids, and every used input hash before accepting completed cells. A mismatch aborts rather than mixing calculations.
+
+Annotations are immutable across checkpoints. Resume without flags preserves an existing annotation. A supplied annotation must match the checkpoint content exactly, while the checkpoint's original source and filename are retained. Adding a note to an unannotated checkpoint, changing or removing one, or encountering malformed/hash-mismatched annotation metadata aborts with exit code 1.
 
 `--stop-after-checkpoint` is only a checkpoint-workflow testing option. It requires compact checkpoint mode, deliberately exits after the first incomplete checkpoint, and returns exit code 2. It is not a successful production completion.
 

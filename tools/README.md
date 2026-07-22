@@ -257,9 +257,11 @@ time to the stored momentum kicks.
 
 IPM HDF5 files are self-describing. In addition to the backward-compatible
 root attributes and numerical datasets above, `/metadata` records the metadata
-schema and data format versions, ICARION/Git/compiler/build information, host
-system information, the RNG and per-cell seed scheme, resolved ion and neutral
+schema and data format versions, ICARION/Git/compiler/build information,
+non-identifying system information, the RNG and per-cell seed scheme, resolved ion and neutral
 definitions, every resolved precompute option, and completion/checkpoint state.
+Neutral parameter source datasets use the exact values `built_in`,
+`parameter_file`, `cli_override`, `derived_isotropic_fallback`, and `not_used`.
 The species database entry and molecular geometry are stored with their filenames,
 SHA-256 hashes, and embedded text. Gas and element parameter files and a
 Lebedev grid (when used) are handled the same way; identical files are embedded

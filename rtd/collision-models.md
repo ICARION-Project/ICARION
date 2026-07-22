@@ -362,6 +362,10 @@ classical scattering trajectories for sampled molecular orientations and
 relative speed bins, then stores momentum-transfer cross sections and sampled
 momentum kicks. The runtime loads this table through `ipm_samples_file`.
 
+### Methodological context
+
+Classical trajectory calculations for collision cross sections, mobility, and collision integrals are established methods represented by MOBCAL/MobCal-MPI, IMoS, Collidoscope, and CoSIMS. ICARION does not claim the trajectory method or offline scattering calculation as novel. Its particular use is to persist stochastic momentum-transfer tables and sample them inside time-resolved instrument simulations. See [Related and complementary software](related-software.md) and [Interaction-potential precomputation](ipm-precomputation.md).
+
 Example species entry:
 
 ```json

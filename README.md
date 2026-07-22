@@ -42,6 +42,8 @@ It includes installation instructions, first simulations, configuration files,
 species and reaction databases, collision models, HDF5 output, analysis
 workflows, and validation.
 
+ICARION builds on established trajectory method and ion trajectory simulation traditions; see [Related and Complementary Software](docs/RELATED_SOFTWARE.md). Its [self-describing IPM tables](https://icarion.readthedocs.io/en/latest/ipm-precomputation/) retain offline collision provenance for runtime use.
+
 Additional repository documentation:
 
 - [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md) — configuration fields, schema, and validation.
@@ -50,6 +52,7 @@ Additional repository documentation:
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common build/run issues (incl. WSL).
 - [docs/HDF5_OUTPUT_STRUCTURE.md](docs/HDF5_OUTPUT_STRUCTURE.md) — output file layout.
 - [docs/COLLISION_MODELS.md](docs/COLLISION_MODELS.md) — collision physics background and model guidance.
+- [docs/RELATED_SOFTWARE.md](docs/RELATED_SOFTWARE.md) — complementary CCS, mobility, and instrument-simulation software.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — high-level design and module overview.
 - [docs/GPU_ARCHITECTURE.md](docs/GPU_ARCHITECTURE.md) — GPU code structure and data flow.
 - [docs/JSON_LOGGING.md](docs/JSON_LOGGING.md) — structured logging format and examples.

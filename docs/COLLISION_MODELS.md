@@ -243,6 +243,10 @@ deterministic trajectory at exact event times.
 
 `InteractionPotentialModel` uses precomputed offline sample files referenced from the species database via `ipm_samples_file`. The runtime interpolates the table for the current relative speed and samples from stored momentum-transfer possibilities. For one relative speed and orientation, multiple momentum-transfer outcomes remain possible because the impact parameter is still sampled; the table stores that distribution rather than a single deterministic transfer.
 
+#### Methodological context
+
+Classical trajectory calculations for CCS, mobility, and collision integrals are established methods represented by MOBCAL/MobCal-MPI, IMoS, Collidoscope, and CoSIMS. ICARION does not claim those methods or offline scattering calculations as novel. Its use is to retain stochastic momentum-transfer tables for sampling within time-resolved instrument simulations. See [Related and Complementary Software](RELATED_SOFTWARE.md) and the [IPM precomputation guide](../rtd/ipm-precomputation.md).
+
 Files produced by `interaction_potential_precompute` also contain structured
 reproducibility information under `/metadata`: software/build/system facts, RNG
 and cell-seed provenance, resolved species and neutral parameters, resolved

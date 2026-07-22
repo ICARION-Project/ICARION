@@ -194,11 +194,18 @@ sampling. If the full CDF is absent, the runtime can use the lower-fidelity
 `dp_stats` fallback. Runtime event rates use `sigma_event_m2`; `sigma_mt_m2` is
 diagnostic and is not applied a second time to stored momentum kicks.
 
+An explicit `--seed` uses exactly that unsigned value, including zero. If it is omitted, the tool derives an implementation-dependent seed from species and gas and records both its origin and resolved value. Full-CDF output is recommended for production; `--compact-dp-stats` stores only lower-fidelity statistics.
+
+`--checkpoint-cells N` enables periodic compact checkpoints and `--resume` continues a compatible compact checkpoint. Resume validates models, numerical settings, grids, seed, and all used input hashes. Every IPM HDF5 sample or checkpoint file contains additive `/metadata` groups with resolved settings, immutable embedded input snapshots and SHA-256 hashes, RNG provenance, and completion state. See [Interaction-potential precomputation](ipm-precomputation.md).
+
+`--stop-after-checkpoint` is a deliberate checkpoint workflow test option. It requires compact checkpoint mode, leaves an incomplete checkpoint, and exits with status `2`. This status is returned only for that IPM workflow: it is neither an `icarion` simulation exit code nor a successful completed IPM table.
+
 ## Exit codes
 
-ICARION returns `0` for success and `1` for invalid arguments, validation
-failures, or runtime errors. Shell scripts should check the exit code before
-starting post-processing.
+- `0`: successful completed simulation
+- `1`: invalid arguments, validation failure, or runtime error
+
+These are the general `icarion` simulation exit codes. Shell scripts should check the exit code before starting post-processing.
 
 ```bash
 icarion config.json

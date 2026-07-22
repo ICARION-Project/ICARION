@@ -1,8 +1,14 @@
 # HDF5 Output Structure
 
-**Version:** 1.1.0
+## Separate offline IPM sample format
+
+This document describes simulation output from `icarion`. `interaction_potential_precompute` writes a separate HDF5 format with root attribute `format = ipm_offline_samples`, numerical version 1, and its own `/metadata/schema`, `/metadata/software`, `/metadata/rng`, `/metadata/inputs`, and completion-related groups. It must not be interpreted as the simulation output metadata schema.
+
+See the [tool reference](../tools/README.md#interaction_potential_precompute), [Read the Docs IPM guide](../rtd/ipm-precomputation.md), and [collision-model documentation](COLLISION_MODELS.md#interactionpotentialmodel-offline-tables).
+
+**Version:** 1.1.x
 **Last Updated:** July 2026
-**Status:** Current for v1.1.0; waveform library, config/species/reaction DBs, field arrays, compact output, and collision diagnostics are embedded in HDF5 where enabled.
+**Status:** Current for v1.1.x; waveform library, config/species/reaction DBs, field arrays, compact output, and collision diagnostics are embedded in HDF5 where enabled.
 **Implementation:** Writer is SoA-native (IonEnsemble).
 
 ---

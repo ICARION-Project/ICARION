@@ -12,6 +12,11 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
   provenance, and explicit checkpoint/completion state without changing the
   backward-compatible IPM numerical format.
 
+### Documentation
+
+- Added public documentation for IPM precomputation, metadata, immutable input provenance, checkpoint/resume behavior, and HDF5 inspection.
+- Added scientific context and a related software overview covering MOBCAL/MobCal-MPI, IMoS, Collidoscope, CoSIMS, IDSimF, ITSIM, and SIMION.
+
 ## [1.1.1] - 2026-07-20
 
 ### Fixed

@@ -2142,24 +2142,36 @@ int main(int argc, char** argv) {
     std::cout << "  orientations generated: " << orientations.size() << "\\n";
 
     GasParams gas_params;
-    std::string sigma_source = "parameter_file";
-    std::string epsilon_source = "parameter_file";
+    std::string sigma_source = "built_in";
+    std::string epsilon_source = "built_in";
     std::string polarizability_source = "built_in";
+    std::string alpha_parallel_value_source = "not_used";
+    std::string alpha_perpendicular_value_source = "not_used";
     try {
         gas_params = gas_params_or_throw(opt.gas);
+        if (gas_params.alpha_par_m3 > 0.0) alpha_parallel_value_source = "built_in";
+        if (gas_params.alpha_perp_m3 > 0.0) alpha_perpendicular_value_source = "built_in";
         if (gas_params.sigma_m <= 0.0 || gas_params.epsilon_J <= 0.0) {
             const auto file_params = load_gas_lj_params_or_throw(gas_input.content, gas_input.filename, opt.gas);
-            gas_params.sigma_m = file_params.sigma_m;
-            gas_params.epsilon_J = file_params.epsilon_J;
+            if (gas_params.sigma_m <= 0.0) {
+                gas_params.sigma_m = file_params.sigma_m;
+                sigma_source = "parameter_file";
+            }
+            if (gas_params.epsilon_J <= 0.0) {
+                gas_params.epsilon_J = file_params.epsilon_J;
+                epsilon_source = "parameter_file";
+            }
             if (file_params.alpha_m3 > 0.0) {
                 gas_params.alpha_m3 = file_params.alpha_m3;
                 polarizability_source = "parameter_file";
             }
             if (file_params.alpha_par_m3 > 0.0) {
                 gas_params.alpha_par_m3 = file_params.alpha_par_m3;
+                alpha_parallel_value_source = "parameter_file";
             }
             if (file_params.alpha_perp_m3 > 0.0) {
                 gas_params.alpha_perp_m3 = file_params.alpha_perp_m3;
+                alpha_perpendicular_value_source = "parameter_file";
             }
         }
         // Explicit CLI overrides take precedence over built-in/database values.
@@ -2259,9 +2271,9 @@ int main(int argc, char** argv) {
             gas_model.alpha_par_m3 = alpha_par_m3;
             gas_model.alpha_perp_m3 = alpha_perp_m3;
             alpha_parallel_source = alpha_parallel_cli ? "cli_override"
-                : (gas_params.alpha_par_m3 > 0.0 ? "parameter_file" : "derived_isotropic_fallback");
+                : (gas_params.alpha_par_m3 > 0.0 ? alpha_parallel_value_source : "derived_isotropic_fallback");
             alpha_perpendicular_source = alpha_perpendicular_cli ? "cli_override"
-                : (gas_params.alpha_perp_m3 > 0.0 ? "parameter_file" : "derived_isotropic_fallback");
+                : (gas_params.alpha_perp_m3 > 0.0 ? alpha_perpendicular_value_source : "derived_isotropic_fallback");
             if (opt.n2_alpha_par_A3 <= 0.0) {
                 opt.n2_alpha_par_A3 = alpha_par_m3 / ANGSTROM3_TO_M3;
             }
@@ -2379,6 +2391,9 @@ int main(int argc, char** argv) {
     metadata.polarizability_source = polarizability_source;
     metadata.polarizability_parallel_source = alpha_parallel_source;
     metadata.polarizability_perpendicular_source = alpha_perpendicular_source;
+    gas_input.used = sigma_source == "parameter_file" || epsilon_source == "parameter_file" ||
+        polarizability_source == "parameter_file" || alpha_parallel_value_source == "parameter_file" ||
+        alpha_perpendicular_value_source == "parameter_file";
     metadata.seed = opt.seed;
     metadata.seed_explicit = opt.supplied_seed.has_value();
     metadata.orientation_sampling_mode = opt.orient_grid;

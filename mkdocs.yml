@@ -52,6 +52,8 @@ nav:
       - Troubleshooting: troubleshooting.md
   - Physics:
       - Collision models: collision-models.md
+      - IPM precomputation and provenance: ipm-precomputation.md
+      - Related and complementary software: related-software.md
       - Reactions: reactions.md
       - Multi-domain simulations: multi-domain.md
   - Validation: validation.md

@@ -14,6 +14,7 @@ ICARION can be used to model ion motion in instrument regions such as drift cell
 - **Multi-domain instruments:** different instrument regions can be combined seamlessly in one run.
 - **Explicit physics modules:** collision models, reaction handling, force models, and numerical integrators are modular.
 - **Reproducible output:** simulation results and metadata are written to structured HDF5 files with relevant metadata to ensure reproducibility.
+- **Offline interaction potentials:** self-describing IPM tables retain resolved settings, RNG provenance, and embedded input snapshots; see [Interaction-potential precomputation](ipm-precomputation.md).
 - **Validation-oriented design:** examples and validation workflows are intended to make physical behavior traceable.
 
 ## Start here

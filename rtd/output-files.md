@@ -1,6 +1,11 @@
 # Output files
 
-ICARION writes simulation results as HDF5 files. The output is inspectable without rerunning the simulation: it stores trajectory arrays, initial ion metadata, domain settings, selected configuration values, reproducibility metadata, and optional compact analysis output.
+ICARION writes two distinct classes of HDF5 files: simulation output from `icarion`, and offline interaction potential (IPM) sample tables from `interaction_potential_precompute`. This page primarily describes simulation output.
+
+!!! important
+    Simulation trajectory HDF5 files and IPM offline sample HDF5 files use different top-level layouts and metadata schemas.
+
+Simulation output is inspectable without rerunning the simulation: it stores trajectory arrays, initial ion metadata, domain settings, selected configuration values, reproducibility metadata, and optional compact analysis output.
 
 For the first example run:
 
@@ -17,6 +22,14 @@ results/ims/
 ```
 
 The `.config.json` file is the resolved configuration snapshot written next to the HDF5 file. The same snapshot is also embedded in the HDF5 metadata when available.
+
+---
+
+## Offline IPM sample files
+
+IPM files contain collision lookup data consumed through `ipm_samples_file`. Their numerical contract remains `format = ipm_offline_samples`, version `1`; the additive metadata schema is version `1.0.0`. Its groups are `/metadata/schema`, `/metadata/software`, `/metadata/system`, `/metadata/rng`, `/metadata/species`, `/metadata/neutral`, `/metadata/precompute`, `/metadata/inputs`, and `/metadata/completion`--not the simulation-output `/metadata/reproducibility` layout.
+
+See [Interaction-potential precomputation](ipm-precomputation.md) for datasets, provenance, checkpoint/resume state, and inspection examples.
 
 ---
 

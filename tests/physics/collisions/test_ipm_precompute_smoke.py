@@ -25,6 +25,13 @@ def write_forcefield(path: Path) -> None:
                 "sigma_A": 2.551,
                 "epsilon_eV": 0.0008798,
                 "alpha_A3": 0.204956,
+            },
+            "N2": {
+                "sigma_A": 3.798,
+                "epsilon_eV": 0.00694,
+                "alpha_A3": 1.74,
+                "alpha_parallel_A3": 2.45,
+                "alpha_perp_A3": 1.39,
             }
         },
         "elements": {
@@ -133,6 +140,16 @@ def main() -> int:
                 raise AssertionError("publication-sensitive identity stored in IPM metadata")
             if float(handle["metadata/precompute/temperature_K"][()]) != 298.15:
                 raise AssertionError("incorrect resolved temperature")
+            if text("metadata/neutral/sigma_source") != "parameter_file":
+                raise AssertionError("file-derived He sigma source not recorded")
+            if text("metadata/neutral/epsilon_source") != "parameter_file":
+                raise AssertionError("file-derived He epsilon source not recorded")
+            if text("metadata/neutral/polarizability_source") != "parameter_file":
+                raise AssertionError("file-derived He polarizability source not recorded")
+            if not bool(handle["metadata/inputs/hashes/gas_parameter_file_used"][()]):
+                raise AssertionError("used He gas parameter snapshot marked unused")
+            if not bool(handle["metadata/inputs/hashes/element_parameter_file_used"][()]):
+                raise AssertionError("shared element parameter input not marked used")
             if not bool(handle["metadata/completion/success"][()]) or bool(handle["metadata/completion/is_checkpoint"][()]):
                 raise AssertionError("final output not marked complete")
 
@@ -185,6 +202,94 @@ def main() -> int:
                     raise AssertionError(f"{dataset} contains invalid values")
 
         subprocess.run([str(args.loader_bin), str(output)], check=True)
+
+        def provenance_run(name: str, extra: list[str], gas: str = "He", params: Path = forcefield) -> Path:
+            result = tmp_dir / name
+            run_cmd = list(cmd)
+            run_cmd[run_cmd.index(str(output))] = str(result)
+            run_cmd[run_cmd.index("He")] = gas
+            run_cmd[run_cmd.index(str(forcefield))] = str(params)
+            run_cmd[run_cmd.index(str(forcefield))] = str(params)
+            run_cmd[run_cmd.index("--n-trials") + 1] = "1"
+            run_cmd[run_cmd.index("--v-bins") + 1] = "1"
+            run_cmd.extend(extra)
+            subprocess.run(run_cmd, cwd=args.repo_root, check=True)
+            return result
+
+        parameter_output = provenance_run("parameter_fallback.h5", [], gas="N2")
+        with h5py.File(parameter_output, "r") as handle:
+            def parameter_text(path: str) -> str:
+                value = handle[path][()]
+                return value.decode() if isinstance(value, bytes) else str(value)
+            if parameter_text("metadata/neutral/sigma_source") != "parameter_file" or \
+                    parameter_text("metadata/neutral/epsilon_source") != "parameter_file":
+                raise AssertionError("N2 parameter-file fallback source not recorded")
+            if not bool(handle["metadata/inputs/hashes/gas_parameter_file_used"][()]):
+                raise AssertionError("used N2 gas parameter file marked unused")
+
+        override_output = provenance_run(
+            "cli_override.h5", ["--gas-sigma-A", "2.7", "--gas-epsilon-eV", "0.001"])
+        with h5py.File(override_output, "r") as handle:
+            def override_text(path: str) -> str:
+                value = handle[path][()]
+                return value.decode() if isinstance(value, bytes) else str(value)
+            if override_text("metadata/neutral/sigma_source") != "cli_override" or \
+                    override_text("metadata/neutral/epsilon_source") != "cli_override":
+                raise AssertionError("CLI gas override source not recorded")
+            if override_text("metadata/neutral/polarizability_source") != "parameter_file":
+                raise AssertionError("file-derived He polarizability lost after LJ override")
+            if not bool(handle["metadata/inputs/hashes/gas_parameter_file_used"][()]):
+                raise AssertionError("He gas parameter file with used polarizability marked unused")
+
+        he_no_alpha_forcefield = tmp_dir / "he_no_alpha_forcefield.json"
+        he_no_alpha_params = json.loads(forcefield.read_text(encoding="utf-8"))
+        he_no_alpha_params["gases"]["He"].pop("alpha_A3")
+        he_no_alpha_forcefield.write_text(json.dumps(he_no_alpha_params), encoding="utf-8")
+        he_no_alpha_output = provenance_run(
+            "he_builtin_polarizability.h5", [], params=he_no_alpha_forcefield)
+        with h5py.File(he_no_alpha_output, "r") as handle:
+            def he_no_alpha_text(path: str) -> str:
+                value = handle[path][()]
+                return value.decode() if isinstance(value, bytes) else str(value)
+            if he_no_alpha_text("metadata/neutral/sigma_source") != "parameter_file" or \
+                    he_no_alpha_text("metadata/neutral/epsilon_source") != "parameter_file":
+                raise AssertionError("He LJ parameter-file source not retained without alpha_A3")
+            if he_no_alpha_text("metadata/neutral/polarizability_source") != "built_in":
+                raise AssertionError("built-in He polarizability source not recorded")
+            if not bool(handle["metadata/inputs/hashes/gas_parameter_file_used"][()]):
+                raise AssertionError("He gas parameter file supplying LJ values marked unused")
+
+        anisotropic_file_output = provenance_run(
+            "n2_anisotropic_file.h5",
+            ["--gas-model", "diatomic", "--polarization", "pairwise", "--n2-aniso-pol"],
+            gas="N2")
+        with h5py.File(anisotropic_file_output, "r") as handle:
+            def anisotropic_text(path: str) -> str:
+                value = handle[path][()]
+                return value.decode() if isinstance(value, bytes) else str(value)
+            if anisotropic_text("metadata/neutral/polarizability_parallel_source") != "parameter_file" or \
+                    anisotropic_text("metadata/neutral/polarizability_perpendicular_source") != "parameter_file":
+                raise AssertionError("file-derived anisotropic N2 source not recorded")
+
+        isotropic_forcefield = tmp_dir / "isotropic_forcefield.json"
+        isotropic_params = json.loads(forcefield.read_text(encoding="utf-8"))
+        isotropic_params["gases"]["N2"].pop("alpha_A3")
+        isotropic_params["gases"]["N2"].pop("alpha_parallel_A3")
+        isotropic_params["gases"]["N2"].pop("alpha_perp_A3")
+        isotropic_forcefield.write_text(json.dumps(isotropic_params), encoding="utf-8")
+        anisotropic_builtin_output = provenance_run(
+            "n2_anisotropic_builtin_fallback.h5",
+            ["--gas-model", "diatomic", "--polarization", "pairwise", "--n2-aniso-pol"],
+            gas="N2", params=isotropic_forcefield)
+        with h5py.File(anisotropic_builtin_output, "r") as handle:
+            def fallback_text(path: str) -> str:
+                value = handle[path][()]
+                return value.decode() if isinstance(value, bytes) else str(value)
+            if fallback_text("metadata/neutral/polarizability_source") != "built_in":
+                raise AssertionError("built-in isotropic N2 source not recorded")
+            if fallback_text("metadata/neutral/polarizability_parallel_source") != "derived_isotropic_fallback" or \
+                    fallback_text("metadata/neutral/polarizability_perpendicular_source") != "derived_isotropic_fallback":
+                raise AssertionError("anisotropic N2 isotropic fallback source not recorded")
 
         repeat_output = tmp_dir / "repeat_fixed_seed.h5"
         repeat_cmd = list(cmd)

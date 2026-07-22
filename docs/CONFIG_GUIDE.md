@@ -119,13 +119,13 @@ You can store gas-dependent CCS values (generated via `ccs_precompute`):
 - HSS: uses σ per gas from `CCS_HSS[gas]`, else mixture override `cross_section_m2`, else `ion.CCS_m2`.
 - EHSS: uses `CCS_EHSS[gas]` if present, else orientation samples (if provided), else geometry, else (without geometry) throws.
 - EHSS offline runs can also reference a precomputed single-gas sample table with `EHSS_offline_samples_file`.
-- InteractionPotentialModel runs reference offline tables with the canonical `ipm_samples_file` key.
+- InteractionPotentialModel runs reference self-describing offline HDF5 tables with the canonical `ipm_samples_file` key. Each table retains resolved settings, immutable input snapshots and hashes, RNG provenance, and completion state; retain the exact `.h5` file for scientific reproducibility.
 - Tool: `./ccs_precompute --input species.json --output out.json --species H3O+ --ref-gas He --ref-ccs-A2 110.0 [--model HSS|EHSS] [--override] [--n-orientations 300]`.
 - Orientation samples tool: `./ehss_samples_precompute --input species.json --output h3o_samples.json --species H3O+ [--n-orientations 300] [--n-samples 8000]`.
 
 ---
 
-## Species and Reaction Databases (v1.1.0)
+## Species and Reaction Databases (v1.1.x)
 
 ICARION supports external databases for species properties and reaction rates.
 
@@ -951,7 +951,7 @@ See `schema/simulation.schema.json` for all options.
 
 **High-pressure stochastic collisions:** `collision_subcycles_per_step > 1` splits each collision application into equal micro-steps and recomputes collision probabilities in each sub-step. `collision_multi_event_mode=true` is a practical approximation for regimes where more than one collision per macro-step is likely; it enforces at least `collision_max_events_per_step` micro-subcycles. Despite the legacy field name, `collision_max_events_per_step` is not a guaranteed upper bound on physical continuous-time collision events. Validate both `lambda * dt_collision` for collision statistics and the global `dt_s` for trajectory accuracy; subcycling does not make a large RK/global step valid if fields, gradients, momentum relaxation, walls, or domain boundaries are under-resolved.
 
-**InteractionPotentialModel controls:** `ipm_orientation_mode` accepts `random` or `fixed`; fixed mode uses `ipm_fixed_orientation_index`. Optional `ipm_vrel_log_prefix` and `ipm_momentum_log_prefix` enable CSV diagnostics. Species should reference offline sample files with the canonical `ipm_samples_file` key.
+**InteractionPotentialModel controls:** `ipm_orientation_mode` accepts `random` or `fixed`; fixed mode uses `ipm_fixed_orientation_index`. Optional `ipm_vrel_log_prefix` and `ipm_momentum_log_prefix` enable CSV diagnostics. Species should reference self-describing offline sample files with the canonical `ipm_samples_file` key; retain that exact file alongside publication inputs and outputs.
 
 **Space charge:** Set `enable_space_charge` to true to activate Coulomb coupling. `space_charge_model` selects the backend: `auto` uses Direct for small ion counts and Grid for larger ion counts, `direct` forces the O(N²) direct summation model, `grid` forces the geometry-aware Poisson model, and `gpu` requires an available CUDA-backed model. `enable_space_charge_gpu=true` requests GPU P³M only in `auto` mode; CPU builds or unavailable GPU contexts fall back to Direct/Grid.
 
@@ -1104,7 +1104,7 @@ for f in examples/*/*.json; do python3 schema/validator.py schema/icarion-config
 
 ## Multi-Gas Configurations
 
-**Status:** Production-ready (v1.1.0)
+**Status:** Production-ready (v1.1.x)
 
 ICARION supports multi-component gas mixtures for realistic collision and reaction simulations.
 
@@ -1475,6 +1475,6 @@ rejects mixed top-level/nested definitions and rejects axes that specify both
 
 ## Version
 
-This guide corresponds to the ICARION v1.1.0 configuration surface.
+This guide corresponds to the ICARION v1.1.x configuration surface.
 
 For schema version history, see the git log for the `schema/` directory.

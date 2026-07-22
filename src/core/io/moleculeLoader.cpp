@@ -8,6 +8,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <algorithm>
+#include <sstream>
 #include <json/json.h>
 
 namespace ICARION {
@@ -108,33 +109,40 @@ void Molecule::validate(double charge_tolerance) const {
 // -----------------------------
 
 Molecule load_molecule(const std::string& filepath) {
-    std::ifstream file(filepath);
+    std::ifstream file(filepath, std::ios::binary);
     if (!file) {
         throw std::runtime_error("Cannot open molecule file: " + filepath);
     }
+    std::ostringstream content;
+    content << file.rdbuf();
+    return load_molecule_json(content.str(), filepath);
+}
+
+Molecule load_molecule_json(const std::string& content, const std::string& source_name) {
+    std::istringstream file(content);
     
     Json::Value root;
     try {
         file >> root;
     } catch (const Json::Exception& e) {
-        throw std::runtime_error("JSON parse error in " + filepath + ": " + e.what());
+        throw std::runtime_error("JSON parse error in " + source_name + ": " + e.what());
     }
     
     if (!root.isMember("molecule")) {
-        throw std::runtime_error("Molecule file missing 'molecule' object: " + filepath);
+        throw std::runtime_error("Molecule file missing 'molecule' object: " + source_name);
     }
     
     const Json::Value& mol_json = root["molecule"];
     
     // Required fields
     if (!mol_json.isMember("name")) {
-        throw std::runtime_error("Molecule missing required field 'name' in: " + filepath);
+        throw std::runtime_error("Molecule missing required field 'name' in: " + source_name);
     }
     if (!mol_json.isMember("atoms")) {
-        throw std::runtime_error("Molecule missing required field 'atoms' in: " + filepath);
+        throw std::runtime_error("Molecule missing required field 'atoms' in: " + source_name);
     }
     if (!mol_json["atoms"].isArray()) {
-        throw std::runtime_error("'atoms' must be an array in: " + filepath);
+        throw std::runtime_error("'atoms' must be an array in: " + source_name);
     }
     
     Molecule mol;
@@ -151,16 +159,16 @@ Molecule load_molecule(const std::string& filepath) {
         
         // Required fields
         if (!atom_json.isMember("element")) {
-            throw std::runtime_error("Atom " + std::to_string(i) + " missing 'element' in: " + filepath);
+            throw std::runtime_error("Atom " + std::to_string(i) + " missing 'element' in: " + source_name);
         }
         if (!atom_json.isMember("pos")) {
-            throw std::runtime_error("Atom " + std::to_string(i) + " missing 'pos' in: " + filepath);
+            throw std::runtime_error("Atom " + std::to_string(i) + " missing 'pos' in: " + source_name);
         }
         if (!atom_json.isMember("mass_u")) {
-            throw std::runtime_error("Atom " + std::to_string(i) + " missing 'mass_u' in: " + filepath);
+            throw std::runtime_error("Atom " + std::to_string(i) + " missing 'mass_u' in: " + source_name);
         }
         if (!atom_json.isMember("partial_charge_e")) {
-            throw std::runtime_error("Atom " + std::to_string(i) + " missing 'partial_charge_e' in: " + filepath);
+            throw std::runtime_error("Atom " + std::to_string(i) + " missing 'partial_charge_e' in: " + source_name);
         }
         
         Atom atom;
@@ -171,7 +179,7 @@ Molecule load_molecule(const std::string& filepath) {
         // Parse position array (JSON positions are in Angstrom, convert to meters)
         const Json::Value& pos = atom_json["pos"];
         if (!pos.isArray() || pos.size() != 3) {
-            throw std::runtime_error("Atom " + std::to_string(i) + " 'pos' must be array of 3 numbers in: " + filepath);
+            throw std::runtime_error("Atom " + std::to_string(i) + " 'pos' must be array of 3 numbers in: " + source_name);
         }
         atom.pos_m = Vec3{
             pos[0].asDouble() * ANGSTROM_TO_M,

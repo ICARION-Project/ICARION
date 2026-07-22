@@ -142,6 +142,8 @@ struct Molecule {
  */
 Molecule load_molecule(const std::string& filepath);
 
+Molecule load_molecule_json(const std::string& content, const std::string& source_name);
+
 /**
  * @brief Load molecule with automatic property calculation
  * 

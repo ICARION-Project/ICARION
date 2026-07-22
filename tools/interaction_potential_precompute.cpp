@@ -5,18 +5,22 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <functional>
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <sstream>
 #include <string>
 #include <stdexcept>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <filesystem>
 #include <fstream>
 #include <limits>
 #include <cstdint>
+#include <optional>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -27,9 +31,12 @@
 #include "utils/constants.h"
 #include "core/types/Vec3.h"
 #include "core/io/moleculeLoader.h"
+#include "core/io/ReproducibilityMetadata.h"
 #include "core/physics/collisions/InteractionPotentialOfflineSampleSet.h"
 
 namespace {
+
+constexpr int INTENTIONAL_CHECKPOINT_EXIT_CODE = 2;
 
 struct Options {
     std::string input;
@@ -73,7 +80,9 @@ struct Options {
     bool store_full_cdf = true;
     int checkpoint_cells = 0;
     bool resume = false;
+    bool stop_after_checkpoint = false;
     uint64_t seed = 0;
+    std::optional<uint64_t> supplied_seed;
     double gas_sigma_m = 0.0;
     double gas_epsilon_J = 0.0;
     std::string gas_params_file = "data/forcefields/gas_lj_params.json";
@@ -137,7 +146,8 @@ void print_usage() {
         << "  --compact-dp-stats          Store compact dp_stats only; lower-fidelity legacy path\\n"
         << "  --checkpoint-cells <int>    Write HDF5 checkpoint every N completed (Ω,v) cells (default: 0=final only)\\n"
         << "  --resume                    Resume from existing HDF5 checkpoint file\\n"
-        << "  --seed <uint64>             RNG seed (default: 0 = hash(species,gas,version))\\n"
+        << "  --seed <uint64>             RNG seed; when omitted, derive it from species and gas\\n"
+        << "  --stop-after-checkpoint     Intentionally stop after first incomplete checkpoint\\n"
         << "  --scan-deflection           Output deflection scan (θ(b), 1−cosθ) to --output CSV\\n"
         << "  --scan-v-rel <float>        Relative speed for deflection scan (m/s)\\n"
         << "  --scan-b-min-A <float>      Minimum impact parameter for scan (Angstrom)\\n"
@@ -245,8 +255,10 @@ bool parse_args(int argc, char** argv, Options& opt) {
             opt.checkpoint_cells = std::stoi(argv[++i]);
         } else if (arg == "--resume") {
             opt.resume = true;
+        } else if (arg == "--stop-after-checkpoint") {
+            opt.stop_after_checkpoint = true;
         } else if (arg == "--seed" && i + 1 < argc) {
-            opt.seed = static_cast<uint64_t>(std::stoull(argv[++i]));
+            opt.supplied_seed = static_cast<uint64_t>(std::stoull(argv[++i]));
         } else if (arg == "--scan-deflection") {
             opt.scan_deflection = true;
         } else if (arg == "--scan-v-rel" && i + 1 < argc) {
@@ -406,11 +418,9 @@ std::array<double, 4> quat_from_z_to_dir(const Vec3& dir) {
     return {std::cos(half), axis_n.x * s, axis_n.y * s, axis_n.z * s};
 }
 
-std::vector<std::array<double, 4>> load_lebedev_orientations(const std::string& path, int expected_points = -1) {
-    std::ifstream ifs(path);
-    if (!ifs) {
-        throw std::runtime_error("Failed to open Lebedev grid file: " + path);
-    }
+std::vector<std::array<double, 4>> load_lebedev_orientations(
+    const std::string& content, const std::string& source_name, int expected_points = -1) {
+    std::istringstream ifs(content);
     std::vector<std::array<double, 4>> out;
     if (expected_points > 0) {
         out.reserve(static_cast<size_t>(expected_points));
@@ -426,7 +436,7 @@ std::vector<std::array<double, 4>> load_lebedev_orientations(const std::string& 
         out.push_back(quat_from_z_to_dir(dir));
     }
     if (expected_points > 0 && static_cast<int>(out.size()) != expected_points) {
-        throw std::runtime_error("Lebedev grid size mismatch: expected " +
+        throw std::runtime_error("Lebedev grid size mismatch in " + source_name + ": expected " +
                                  std::to_string(expected_points) + ", got " +
                                  std::to_string(out.size()));
     }
@@ -646,16 +656,13 @@ double mix_epsilon(MixingRule rule, double epsilon_i_J, double epsilon_g_J) {
     return std::sqrt(epsilon_i_J * epsilon_g_J);
 }
 
-GasParams load_gas_lj_params_or_throw(const std::string& path, const std::string& gas) {
-    std::ifstream ifs(path);
-    if (!ifs) {
-        throw std::runtime_error("Failed to open gas params file: " + path);
-    }
+GasParams load_gas_lj_params_or_throw(const std::string& content, const std::string& source_name, const std::string& gas) {
+    std::istringstream ifs(content);
     Json::CharReaderBuilder builder;
     Json::Value root;
     std::string errs;
     if (!Json::parseFromStream(builder, ifs, &root, &errs)) {
-        throw std::runtime_error("Failed to parse gas params file: " + errs);
+        throw std::runtime_error("Failed to parse gas params file " + source_name + ": " + errs);
     }
     if (!root.isMember("gases") || !root["gases"].isObject()) {
         throw std::runtime_error("Gas params file must contain a 'gases' object");
@@ -688,16 +695,14 @@ GasParams load_gas_lj_params_or_throw(const std::string& path, const std::string
     return gp;
 }
 
-std::unordered_map<std::string, ElementParams> load_element_params_or_throw(const std::string& path) {
-    std::ifstream ifs(path);
-    if (!ifs) {
-        throw std::runtime_error("Failed to open element params file: " + path);
-    }
+std::unordered_map<std::string, ElementParams> load_element_params_or_throw(
+    const std::string& content, const std::string& source_name) {
+    std::istringstream ifs(content);
     Json::CharReaderBuilder builder;
     Json::Value root;
     std::string errs;
     if (!Json::parseFromStream(builder, ifs, &root, &errs)) {
-        throw std::runtime_error("Failed to parse element params file: " + errs);
+        throw std::runtime_error("Failed to parse element params file " + source_name + ": " + errs);
     }
     if (!root.isMember("elements") || !root["elements"].isObject()) {
         throw std::runtime_error("Element params file must contain an 'elements' object");
@@ -935,8 +940,10 @@ std::vector<AtomParam> build_atom_params_or_throw(
     const std::string& gas,
     const Options& opt,
     const Lj1264Samples& samples,
+    const ICARION::io::reproducibility::IpmMetadata& base_metadata,
     const std::vector<unsigned char>* cell_done = nullptr,
-    long long completed_cells = -1
+    long long completed_cells = -1,
+    bool final_output = true
 ) {
     const hsize_t n_orient = static_cast<hsize_t>(samples.orientations_quat.size());
     const hsize_t n_bins = static_cast<hsize_t>(samples.logv_bins.size());
@@ -1123,12 +1130,21 @@ std::vector<AtomParam> build_atom_params_or_throw(
         H5::DataSet dset = file.createDataSet("cell_done", H5::PredType::NATIVE_UCHAR, space);
         dset.write(cell_done->data(), H5::PredType::NATIVE_UCHAR);
     }
+
+    auto metadata = base_metadata;
+    metadata.completed_cells = completed_cells >= 0 ? static_cast<std::uint64_t>(completed_cells) : metadata.total_cells;
+    metadata.success = final_output && metadata.completed_cells == metadata.total_cells;
+    metadata.checkpoint = !metadata.success;
+    metadata.completion_timestamp_utc = ICARION::io::reproducibility::utc_timestamp_now();
+    ICARION::io::reproducibility::write_ipm_metadata(
+        file, metadata, ICARION::physics::INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_VERSION);
 }
 
 static bool load_hdf5_resume_checkpoint(
     const std::string& input_h5,
     const std::vector<double>& expected_logv,
     Lj1264Samples& samples,
+    ICARION::io::reproducibility::IpmMetadata& expected_metadata,
     std::vector<unsigned char>& cell_done,
     size_t& completed_cells,
     std::string& error
@@ -1141,9 +1157,67 @@ static bool load_hdf5_resume_checkpoint(
     try {
         H5::H5File file(input_h5, H5F_ACC_RDONLY);
 
+        auto read_attr_string = [&](const char* name) {
+            auto attr = file.openAttribute(name); auto type = attr.getStrType();
+            std::string value(type.getSize(), '\0'); attr.read(type, value.data());
+            const auto end = value.find('\0'); if (end != std::string::npos) value.resize(end); return value;
+        };
+        auto require_string_attr = [&](const char* name, const std::string& expected) {
+            const auto actual = read_attr_string(name);
+            if (actual != expected) throw std::runtime_error(std::string("Resume provenance mismatch for ") + name + ": expected '" + expected + "', found '" + actual + "'");
+        };
+        require_string_attr("format", ICARION::physics::INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_FORMAT);
+        require_string_attr("species_id", expected_metadata.species_id);
+        require_string_attr("gas", expected_metadata.gas_id);
+        require_string_attr("gas_model", expected_metadata.gas_model);
+        require_string_attr("potential", expected_metadata.potential_model);
+        require_string_attr("param_model", expected_metadata.parameter_model);
+        require_string_attr("mixing_rule", expected_metadata.mixing_rule);
+        require_string_attr("polarization", expected_metadata.polarization_model);
+        long long version = 0; file.openAttribute("version").read(H5::PredType::NATIVE_LLONG, &version);
+        if (version != ICARION::physics::INTERACTION_POTENTIAL_OFFLINE_SAMPLE_SET_VERSION) throw std::runtime_error("Resume provenance mismatch for format version");
+        long long seed = 0; file.openAttribute("seed").read(H5::PredType::NATIVE_LLONG, &seed);
+        if (static_cast<std::uint64_t>(seed) != expected_metadata.seed) throw std::runtime_error("Resume provenance mismatch for seed");
+
+        auto read_string_dataset = [&](const std::string& path) {
+            auto ds = file.openDataSet(path); auto type = ds.getStrType();
+            std::string value(type.getSize(), '\0'); ds.read(value.data(), type);
+            const auto end = value.find('\0'); if (end != std::string::npos) value.resize(end); return value;
+        };
+        auto normalized_options = [](const std::string& json) {
+            Json::CharReaderBuilder builder; Json::Value value; std::string errors;
+            std::istringstream stream(json);
+            if (!Json::parseFromStream(builder, stream, &value, &errors)) throw std::runtime_error("Invalid resolved options JSON in resume provenance");
+            value.removeMember("resume_requested");
+            Json::StreamWriterBuilder writer; writer["indentation"] = "";
+            return Json::writeString(writer, value);
+        };
+        if (normalized_options(read_string_dataset("/metadata/precompute/resolved_options_json")) !=
+            normalized_options(expected_metadata.resolved_options_json))
+            throw std::runtime_error("Resume provenance mismatch for resolved options");
+        for (const auto& input : expected_metadata.inputs) {
+            const auto actual = read_string_dataset("/metadata/inputs/hashes/" + input.key + "_sha256");
+            const auto expected = input.used ? input.sha256 : "not_used";
+            if (actual != expected) throw std::runtime_error("Resume provenance mismatch for input hash: " + input.key);
+        }
+        expected_metadata.start_timestamp_utc = read_string_dataset("/metadata/completion/start_timestamp_utc");
+        file.openDataSet("/metadata/completion/accumulated_wall_clock_runtime_s").read(
+            &expected_metadata.accumulated_wall_clock_runtime_s, H5::PredType::NATIVE_DOUBLE);
+
         const hsize_t n_orient = static_cast<hsize_t>(samples.orientations_quat.size());
         const hsize_t n_bins = static_cast<hsize_t>(samples.logv_bins.size());
         const size_t n_cells = static_cast<size_t>(n_orient * n_bins);
+
+        {
+            auto ds = file.openDataSet("orientations_quat"); auto sp = ds.getSpace(); hsize_t dims[2]{};
+            if (sp.getSimpleExtentNdims() != 2) throw std::runtime_error("Resume orientations_quat rank mismatch");
+            sp.getSimpleExtentDims(dims);
+            if (dims[0] != n_orient || dims[1] != 4) throw std::runtime_error("Resume orientations_quat shape mismatch");
+            std::vector<double> actual(static_cast<size_t>(n_orient) * 4); ds.read(actual.data(), H5::PredType::NATIVE_DOUBLE);
+            size_t pos = 0;
+            for (const auto& q : samples.orientations_quat) for (double value : q)
+                if (actual[pos++] != value) throw std::runtime_error("Resume provenance mismatch for orientations_quat");
+        }
 
         {
             H5::DataSet logv_dset = file.openDataSet("logv_bins");
@@ -1887,6 +1961,18 @@ static bool load_hdf5_resume_checkpoint(
 }  // namespace
 
 int main(int argc, char** argv) {
+    const auto wall_start = std::chrono::steady_clock::now();
+    const std::string start_timestamp_utc = ICARION::io::reproducibility::utc_timestamp_now();
+    std::ostringstream command_line_stream;
+    const std::unordered_set<std::string> path_options = {
+        "--input", "--output", "--gas-params", "--element-params", "--lebedev-file", "--scan-paths-out"
+    };
+    for (int i = 0; i < argc; ++i) {
+        if (i != 0) command_line_stream << ' ';
+        const bool path_argument = i == 0 || (i > 0 && path_options.count(argv[i - 1]) != 0);
+        const std::string displayed = path_argument ? std::filesystem::path(argv[i]).filename().string() : argv[i];
+        command_line_stream << std::quoted(displayed);
+    }
     Options opt;
     if (!parse_args(argc, argv, opt)) {
         print_usage();
@@ -1897,6 +1983,10 @@ int main(int argc, char** argv) {
     }
     if (opt.gas_model != "mono" && opt.gas_model != "diatomic") {
         std::cerr << "Unsupported --gas-model '" << opt.gas_model << "' (use mono or diatomic).\\n";
+        return EXIT_FAILURE;
+    }
+    if (opt.stop_after_checkpoint && (opt.checkpoint_cells <= 0 || opt.store_full_cdf)) {
+        std::cerr << "--stop-after-checkpoint requires --checkpoint-cells > 0 and --compact-dp-stats.\n";
         return EXIT_FAILURE;
     }
 
@@ -1947,9 +2037,7 @@ int main(int argc, char** argv) {
     std::cout << "  full CDF:   " << (opt.store_full_cdf ? "yes" : "no") << "\\n";
     std::cout << "  resume:     " << (opt.resume ? "yes" : "no") << "\\n";
     std::cout << "  checkpoint: " << opt.checkpoint_cells << " cells\\n";
-    if (opt.seed == 0) {
-        opt.seed = default_seed_for(opt.species_id, opt.gas);
-    }
+    opt.seed = opt.supplied_seed.value_or(default_seed_for(opt.species_id, opt.gas));
     std::cout << "  seed:       " << opt.seed << "\\n";
     if (opt.gas_model != "mono") {
         std::cout << "  n2_bond_A:  " << opt.n2_bond_A << "\\n";
@@ -1975,8 +2063,54 @@ int main(int argc, char** argv) {
                   << ", orient=" << opt.scan_orient_index << ")\\n";
     }
 
+    auto species_input = ICARION::io::reproducibility::capture_input_file(
+        "species_database", opt.input, "resolved species definition", true, true);
+    Json::Value root;
+    {
+        std::istringstream input(species_input.content);
+        Json::CharReaderBuilder builder; std::string errors;
+        if (!Json::parseFromStream(builder, input, &root, &errors)) {
+            std::cerr << "Failed to parse input JSON snapshot: " << errors << "\n";
+            return EXIT_FAILURE;
+        }
+    }
+    if (!root.isMember("species") || !root["species"].isObject() ||
+        !root["species"].isMember(opt.species_id)) {
+        std::cerr << "Species '" << opt.species_id << "' not found in input\n";
+        return EXIT_FAILURE;
+    }
+    const Json::Value& props = root["species"][opt.species_id];
+    if (!props.isMember("geometry_file") || !props["geometry_file"].isString() ||
+        !props.isMember("charge") || !props["charge"].isNumeric()) {
+        std::cerr << "Species '" << opt.species_id << "' lacks geometry_file or charge\n";
+        return EXIT_FAILURE;
+    }
+    const std::filesystem::path geom_path = std::filesystem::path(opt.input).parent_path() /
+        props["geometry_file"].asString();
+    auto geometry_input = ICARION::io::reproducibility::capture_input_file(
+        "molecular_geometry", geom_path.string(), "ion molecular geometry", true, true);
+    ICARION::io::Molecule molecule;
+    try {
+        molecule = ICARION::io::load_molecule_json(geometry_input.content, geometry_input.filename);
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to load geometry snapshot: " << e.what() << "\n";
+        return EXIT_FAILURE;
+    }
+    if (opt.element_params_file.empty()) opt.element_params_file = opt.gas_params_file;
+    auto gas_input = ICARION::io::reproducibility::capture_input_file(
+        "gas_parameter_file", opt.gas_params_file, "neutral sigma/epsilon and optional polarizability", true, true);
+    auto element_input = gas_input;
+    element_input.key = "element_parameter_file";
+    element_input.role = "ion atom interaction parameters";
+    if (std::filesystem::weakly_canonical(opt.element_params_file) != std::filesystem::weakly_canonical(opt.gas_params_file)) {
+        element_input = ICARION::io::reproducibility::capture_input_file(
+            "element_parameter_file", opt.element_params_file, "ion atom interaction parameters", true, true);
+    }
+
     std::mt19937_64 rng(opt.seed);
     std::vector<std::array<double, 4>> orientations;
+    auto lebedev_input = ICARION::io::reproducibility::capture_input_file(
+        "lebedev_grid_file", "", "orientation grid", false, false);
     if (opt.orient_grid == "random") {
         orientations = generate_orientations_random(opt.n_orientations, rng);
     } else if (opt.orient_grid == "lebedev") {
@@ -1995,7 +2129,9 @@ int main(int argc, char** argv) {
                 "50, 110, 194, 302, 590"
             );
         }
-        orientations = load_lebedev_orientations(lebedev_path);
+        lebedev_input = ICARION::io::reproducibility::capture_input_file(
+            "lebedev_grid_file", lebedev_path, "orientation grid", true, true);
+        orientations = load_lebedev_orientations(lebedev_input.content, lebedev_input.filename);
         if (opt.n_orientations != static_cast<int>(orientations.size())) {
             std::cerr << "[interaction_potential_precompute] Lebedev grid size (" << orientations.size()
                       << ") overrides --n-orientations.\\n";
@@ -2005,68 +2141,19 @@ int main(int argc, char** argv) {
     }
     std::cout << "  orientations generated: " << orientations.size() << "\\n";
 
-    Json::Value root;
-    {
-        std::ifstream ifs(opt.input);
-        if (!ifs) {
-            std::cerr << "Failed to open input JSON: " << opt.input << "\\n";
-            return EXIT_FAILURE;
-        }
-        Json::CharReaderBuilder builder;
-        std::string errs;
-        if (!Json::parseFromStream(builder, ifs, &root, &errs)) {
-            std::cerr << "Failed to parse input JSON: " << errs << "\\n";
-            return EXIT_FAILURE;
-        }
-    }
-
-    if (!root.isMember("species") || !root["species"].isObject()) {
-        std::cerr << "Input JSON must contain a 'species' object\\n";
-        return EXIT_FAILURE;
-    }
-    const Json::Value& species = root["species"];
-    if (!species.isMember(opt.species_id)) {
-        std::cerr << "Species '" << opt.species_id << "' not found in input\\n";
-        return EXIT_FAILURE;
-    }
-    const Json::Value& props = species[opt.species_id];
-    if (!props.isMember("geometry_file") || !props["geometry_file"].isString()) {
-        std::cerr << "Species '" << opt.species_id << "' has no geometry_file\\n";
-        return EXIT_FAILURE;
-    }
-    if (!props.isMember("charge") || !props["charge"].isNumeric()) {
-        std::cerr << "Species '" << opt.species_id << "' has no charge\\n";
-        return EXIT_FAILURE;
-    }
-
-    std::filesystem::path base = std::filesystem::path(opt.input).parent_path();
-    std::filesystem::path geom_path = base / props["geometry_file"].asString();
-    if (!std::filesystem::exists(geom_path)) {
-        std::cerr << "Geometry file not found: " << geom_path << "\\n";
-        return EXIT_FAILURE;
-    }
-
-    ICARION::io::Molecule molecule;
-    try {
-        molecule = ICARION::io::load_molecule(geom_path.string());
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to load geometry: " << e.what() << "\\n";
-        return EXIT_FAILURE;
-    }
-
-    if (opt.element_params_file.empty()) {
-        opt.element_params_file = opt.gas_params_file;
-    }
-
     GasParams gas_params;
+    std::string sigma_source = "parameter_file";
+    std::string epsilon_source = "parameter_file";
+    std::string polarizability_source = "built_in";
     try {
         gas_params = gas_params_or_throw(opt.gas);
         if (gas_params.sigma_m <= 0.0 || gas_params.epsilon_J <= 0.0) {
-            const auto file_params = load_gas_lj_params_or_throw(opt.gas_params_file, opt.gas);
+            const auto file_params = load_gas_lj_params_or_throw(gas_input.content, gas_input.filename, opt.gas);
             gas_params.sigma_m = file_params.sigma_m;
             gas_params.epsilon_J = file_params.epsilon_J;
             if (file_params.alpha_m3 > 0.0) {
                 gas_params.alpha_m3 = file_params.alpha_m3;
+                polarizability_source = "parameter_file";
             }
             if (file_params.alpha_par_m3 > 0.0) {
                 gas_params.alpha_par_m3 = file_params.alpha_par_m3;
@@ -2078,9 +2165,11 @@ int main(int argc, char** argv) {
         // Explicit CLI overrides take precedence over built-in/database values.
         if (opt.gas_sigma_m > 0.0) {
             gas_params.sigma_m = opt.gas_sigma_m;
+            sigma_source = "cli_override";
         }
         if (opt.gas_epsilon_J > 0.0) {
             gas_params.epsilon_J = opt.gas_epsilon_J;
+            epsilon_source = "cli_override";
         }
         if (gas_params.sigma_m <= 0.0 || gas_params.epsilon_J <= 0.0) {
             throw std::runtime_error("Missing gas LJ parameters (sigma/epsilon)");
@@ -2093,7 +2182,7 @@ int main(int argc, char** argv) {
 
     std::unordered_map<std::string, ElementParams> element_params;
     try {
-        element_params = load_element_params_or_throw(opt.element_params_file);
+        element_params = load_element_params_or_throw(element_input.content, element_input.filename);
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\\n";
         return EXIT_FAILURE;
@@ -2136,6 +2225,10 @@ int main(int argc, char** argv) {
     }
 
     GasModelConfig gas_model;
+    const bool alpha_parallel_cli = opt.n2_alpha_par_A3 > 0.0;
+    const bool alpha_perpendicular_cli = opt.n2_alpha_perp_A3 > 0.0;
+    std::string alpha_parallel_source = "not_used";
+    std::string alpha_perpendicular_source = "not_used";
     const GasModelConfig* gas_model_ptr = nullptr;
     if (opt.gas_model != "mono") {
         if (opt.gas != "N2") {
@@ -2165,6 +2258,10 @@ int main(int argc, char** argv) {
                 : (gas_params.alpha_perp_m3 > 0.0 ? gas_params.alpha_perp_m3 : gas_params.alpha_m3);
             gas_model.alpha_par_m3 = alpha_par_m3;
             gas_model.alpha_perp_m3 = alpha_perp_m3;
+            alpha_parallel_source = alpha_parallel_cli ? "cli_override"
+                : (gas_params.alpha_par_m3 > 0.0 ? "parameter_file" : "derived_isotropic_fallback");
+            alpha_perpendicular_source = alpha_perpendicular_cli ? "cli_override"
+                : (gas_params.alpha_perp_m3 > 0.0 ? "parameter_file" : "derived_isotropic_fallback");
             if (opt.n2_alpha_par_A3 <= 0.0) {
                 opt.n2_alpha_par_A3 = alpha_par_m3 / ANGSTROM3_TO_M3;
             }
@@ -2249,6 +2346,120 @@ int main(int argc, char** argv) {
         logv_bins.push_back(logv_min + t * (logv_max - logv_min));
     }
     std::cout << "  v_rel range: [" << v_min << ", " << v_max << "] m/s\\n";
+
+    Json::StreamWriterBuilder json_writer;
+    json_writer["indentation"] = "";
+    ICARION::io::reproducibility::IpmMetadata metadata;
+    metadata.species_id = opt.species_id;
+    metadata.charge_e = props["charge"].asDouble();
+    metadata.ion_mass_kg = m_ion;
+    metadata.ion_mass_u = m_ion / AMU_TO_KG;
+    metadata.reference_temperature_K = props.get("reference_temperature_K", 0.0).asDouble();
+    metadata.species_entry_json = Json::writeString(json_writer, props);
+    metadata.geometry_filename = geom_path.filename().string();
+    metadata.atom_count = molecule.num_atoms();
+    metadata.geometry_total_mass_u = molecule.total_mass_u;
+    metadata.gas_id = opt.gas;
+    metadata.gas_model = opt.gas_model;
+    metadata.gas_mass_kg = m_gas;
+    metadata.gas_mass_u = m_gas / AMU_TO_KG;
+    metadata.sigma_m = gas_params.sigma_m;
+    metadata.epsilon_J = gas_params.epsilon_J;
+    metadata.polarizability_m3 = gas_params.alpha_m3;
+    metadata.polarizability_parallel_m3 = gas_model.anisotropic_pol ? gas_model.alpha_par_m3 : gas_params.alpha_par_m3;
+    metadata.polarizability_perpendicular_m3 = gas_model.anisotropic_pol ? gas_model.alpha_perp_m3 : gas_params.alpha_perp_m3;
+    metadata.n2_bond_m = gas_model.bond_m;
+    metadata.n2_quadrupole = gas_model.quadrupole;
+    metadata.n2_q_site_e = opt.n2_q_site_e;
+    metadata.n2_q_center_e = opt.n2_q_center_e;
+    metadata.n2_average_lj = opt.n2_average_lj;
+    metadata.n2_anisotropic_polarizability = gas_model.anisotropic_pol;
+    metadata.sigma_source = sigma_source;
+    metadata.epsilon_source = epsilon_source;
+    metadata.polarizability_source = polarizability_source;
+    metadata.polarizability_parallel_source = alpha_parallel_source;
+    metadata.polarizability_perpendicular_source = alpha_perpendicular_source;
+    metadata.seed = opt.seed;
+    metadata.seed_explicit = opt.supplied_seed.has_value();
+    metadata.orientation_sampling_mode = opt.orient_grid;
+    metadata.potential_model = opt.potential;
+    metadata.parameter_model = opt.param_model;
+    metadata.mixing_rule = opt.mixing_rule;
+    metadata.polarization_model = opt.polarization;
+    metadata.orientations = static_cast<int>(orientations.size());
+    metadata.trials_per_cell = opt.n_trials;
+    metadata.velocity_bins = static_cast<int>(logv_bins.size());
+    metadata.temperature_K = temperature_K;
+    metadata.velocity_min_m_s = v_min;
+    metadata.velocity_max_m_s = v_max;
+    metadata.deflection_epsilon = opt.epsilon_deflection;
+    metadata.impact_parameter_guess_m = opt.b_guess_m;
+    metadata.impact_parameter_growth_factor = opt.b_growth;
+    metadata.impact_parameter_relative_tolerance = opt.b_rel_tol;
+    metadata.maximum_non_asymptotic_fraction = opt.max_non_asymptotic_fraction;
+    metadata.integration_eta_dt = opt.eta_dt;
+    metadata.maximum_trajectory_steps = opt.max_steps;
+    metadata.sigma_scale_factor = opt.sigma_scale;
+    metadata.epsilon_scale_factor = opt.epsilon_scale;
+    metadata.polarization_damping_radius_m = opt.pol_damp_A * ANGSTROM_TO_M;
+    metadata.mmff_energy_scale_factor = opt.mmff_energy_scale;
+    metadata.mmff_distance_scale_factor = opt.mmff_distance_scale;
+    metadata.full_cdf = opt.store_full_cdf;
+    metadata.checkpoint_interval_cells = opt.checkpoint_cells;
+    metadata.resume_requested = opt.resume;
+    metadata.openmp_threads = resolved_threads;
+    metadata.command_line = command_line_stream.str();
+    Json::Value resolved_json;
+    resolved_json["species_id"] = opt.species_id;
+    resolved_json["gas_id"] = opt.gas;
+    resolved_json["seed"] = Json::UInt64(opt.seed);
+    resolved_json["temperature_K"] = temperature_K;
+    resolved_json["velocity_min_m_s"] = v_min;
+    resolved_json["velocity_max_m_s"] = v_max;
+    resolved_json["number_of_orientations"] = static_cast<Json::UInt64>(orientations.size());
+    resolved_json["number_of_velocity_bins"] = opt.v_bins;
+    resolved_json["trials_per_cell"] = opt.n_trials;
+    resolved_json["potential_model"] = opt.potential;
+    resolved_json["parameter_model"] = opt.param_model;
+    resolved_json["mixing_rule"] = opt.mixing_rule;
+    resolved_json["polarization_model"] = opt.polarization;
+    resolved_json["orientation_grid_type"] = opt.orient_grid;
+    resolved_json["full_cdf_mode"] = opt.store_full_cdf;
+    resolved_json["effective_openmp_thread_count"] = resolved_threads;
+    resolved_json["deflection_epsilon"] = opt.epsilon_deflection;
+    resolved_json["impact_parameter_initial_guess_m"] = opt.b_guess_m;
+    resolved_json["impact_parameter_growth_factor"] = opt.b_growth;
+    resolved_json["impact_parameter_relative_tolerance"] = opt.b_rel_tol;
+    resolved_json["maximum_non_asymptotic_fraction"] = opt.max_non_asymptotic_fraction;
+    resolved_json["integration_eta_dt"] = opt.eta_dt;
+    resolved_json["maximum_trajectory_steps"] = opt.max_steps;
+    resolved_json["sigma_scale_factor"] = opt.sigma_scale;
+    resolved_json["epsilon_scale_factor"] = opt.epsilon_scale;
+    resolved_json["polarization_damping_radius_m"] = opt.pol_damp_A * ANGSTROM_TO_M;
+    resolved_json["mmff_energy_scale_factor"] = opt.mmff_energy_scale;
+    resolved_json["mmff_distance_scale_factor"] = opt.mmff_distance_scale;
+    resolved_json["gas_model"] = opt.gas_model;
+    resolved_json["gas_sigma_m"] = gas_params.sigma_m;
+    resolved_json["gas_epsilon_J"] = gas_params.epsilon_J;
+    resolved_json["gas_polarizability_m3"] = gas_params.alpha_m3;
+    resolved_json["n2_bond_m"] = gas_model.bond_m;
+    resolved_json["n2_quadrupole"] = gas_model.quadrupole;
+    resolved_json["n2_q_site_e"] = opt.n2_q_site_e;
+    resolved_json["n2_q_center_e"] = opt.n2_q_center_e;
+    resolved_json["n2_average_lj"] = opt.n2_average_lj;
+    resolved_json["n2_anisotropic_polarizability"] = gas_model.anisotropic_pol;
+    resolved_json["n2_polarizability_parallel_m3"] = metadata.polarizability_parallel_m3;
+    resolved_json["n2_polarizability_perpendicular_m3"] = metadata.polarizability_perpendicular_m3;
+    resolved_json["checkpoint_interval_cells"] = opt.checkpoint_cells;
+    resolved_json["resume_requested"] = opt.resume;
+    metadata.resolved_options_json = Json::writeString(json_writer, resolved_json);
+    metadata.inputs = {
+        std::move(species_input), std::move(geometry_input),
+        std::move(gas_input), std::move(element_input),
+        std::move(lebedev_input)
+    };
+    metadata.start_timestamp_utc = start_timestamp_utc;
+    metadata.total_cells = orientations.size() * logv_bins.size();
 
     Lj1264Samples samples;
     samples.orientations_quat = orientations;
@@ -2634,11 +2845,13 @@ int main(int argc, char** argv) {
                 opt.output,
                 logv_bins,
                 samples,
+                metadata,
                 cell_done,
                 completed_cells,
                 resume_error
             );
             if (resume_loaded) {
+                metadata.resume_used = true;
                 std::cout << "  resume loaded: " << completed_cells << "/" << total_cells << " cells" << std::endl;
                 const int completed_pct = (total_cells > 0)
                     ? static_cast<int>((100.0 * static_cast<double>(completed_cells)) / static_cast<double>(total_cells))
@@ -2673,8 +2886,12 @@ int main(int argc, char** argv) {
             if (!final_flush && opt.checkpoint_cells <= 0) {
                 return;
             }
-            write_hdf5(opt.output, opt.species_id, opt.gas, opt, samples, &cell_done,
-                       static_cast<long long>(completed_cells));
+            metadata.wall_clock_runtime_s = std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - wall_start).count();
+            metadata.accumulated_wall_clock_runtime_s += metadata.wall_clock_runtime_s;
+            write_hdf5(opt.output, opt.species_id, opt.gas, opt, samples, metadata, &cell_done,
+                       static_cast<long long>(completed_cells), final_flush && completed_cells == total_cells);
+            metadata.accumulated_wall_clock_runtime_s -= metadata.wall_clock_runtime_s;
             std::cout << "  checkpoint: " << completed_cells << "/" << total_cells << " cells" << std::endl;
         };
 
@@ -2709,6 +2926,10 @@ int main(int argc, char** argv) {
             completed_cells += (end - offset);
             log_progress_deciles();
             flush_checkpoint(false);
+            if (opt.stop_after_checkpoint && completed_cells < total_cells) {
+                std::cout << "  intentional stop after incomplete checkpoint\n";
+                return INTENTIONAL_CHECKPOINT_EXIT_CODE;
+            }
         }
 
         if (completed_cells == total_cells && next_progress_pct <= 100) {
@@ -2742,7 +2963,10 @@ int main(int argc, char** argv) {
 
     if (opt.format == "hdf5" || opt.format == "h5") {
         if (opt.store_full_cdf) {
-            write_hdf5(opt.output, opt.species_id, opt.gas, opt, samples);
+            metadata.wall_clock_runtime_s = std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - wall_start).count();
+            metadata.accumulated_wall_clock_runtime_s = metadata.wall_clock_runtime_s;
+            write_hdf5(opt.output, opt.species_id, opt.gas, opt, samples, metadata);
         }
     } else {
         std::cerr << "JSON output not implemented for interaction_potential_precompute\\n";

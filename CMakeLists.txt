@@ -61,10 +61,33 @@ if(GIT_FOUND)
     if(NOT GIT_HASH)
         set(GIT_HASH "unknown")
     endif()
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} status --porcelain
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_STATUS_PORCELAIN
+        RESULT_VARIABLE GIT_STATUS_RESULT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(NOT GIT_STATUS_RESULT EQUAL 0)
+        set(ICARION_GIT_STATE "unknown")
+    elseif(GIT_STATUS_PORCELAIN)
+        set(ICARION_GIT_STATE "dirty")
+    else()
+        set(ICARION_GIT_STATE "clean")
+    endif()
 else()
     set(GIT_HASH "unknown")
+    set(ICARION_GIT_STATE "unknown")
 endif()
 add_compile_definitions(GIT_HASH="${GIT_HASH}")
+add_compile_definitions(
+    ICARION_GIT_STATE="${ICARION_GIT_STATE}"
+    ICARION_GIT_STATE_CAPTURE="configure_time"
+    ICARION_BUILD_CONFIGURATION="$<CONFIG>"
+    ICARION_CMAKE_GPU_ENABLED=$<BOOL:${USE_GPU_ACCEL}>
+    ICARION_CMAKE_CORE_ONLY_ENABLED=$<BOOL:${ICARION_BUILD_CORE_ONLY}>
+)
 message(STATUS "Git commit hash: ${GIT_HASH}")
 
 # ─────────────────────────────────────────────────────────────────────

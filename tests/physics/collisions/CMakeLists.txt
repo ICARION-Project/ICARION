@@ -145,6 +145,10 @@ target_include_directories(test_interaction_potential_collision_handler PRIVATE
 )
 add_test(NAME InteractionPotentialCollisionHandler COMMAND test_interaction_potential_collision_handler)
 
+add_executable(ipm_loader_probe ipm_loader_probe.cpp)
+target_link_libraries(ipm_loader_probe PRIVATE icarion_core)
+target_include_directories(ipm_loader_probe PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+
 find_program(Python3_EXECUTABLE NAMES python3 python)
 if(Python3_EXECUTABLE)
     add_test(
@@ -153,6 +157,11 @@ if(Python3_EXECUTABLE)
             ${CMAKE_CURRENT_SOURCE_DIR}/test_ipm_precompute_smoke.py
             --repo-root ${CMAKE_SOURCE_DIR}
             --precompute-bin $<TARGET_FILE:interaction_potential_precompute>
+            --loader-bin $<TARGET_FILE:ipm_loader_probe>
+            --expected-version ${PROJECT_VERSION}
+            --expected-config $<CONFIG>
+            --expected-cuda $<BOOL:${USE_GPU_ACCEL}>
+            --expected-core-only $<BOOL:${ICARION_BUILD_CORE_ONLY}>
     )
 endif()
 

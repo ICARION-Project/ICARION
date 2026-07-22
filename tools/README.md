@@ -253,6 +253,51 @@ uses `cdf_*` and `dp_samples` for the higher-fidelity momentum-kick distribution
 Runtime event rates use `sigma_event_m2`; `sigma_mt_m2` is not applied a second
 time to the stored momentum kicks.
 
+### Reproducibility metadata
+
+IPM HDF5 files are self-describing. In addition to the backward-compatible
+root attributes and numerical datasets above, `/metadata` records the metadata
+schema and data format versions, ICARION/Git/compiler/build information, host
+system information, the RNG and per-cell seed scheme, resolved ion and neutral
+definitions, every resolved precompute option, and completion/checkpoint state.
+The species database entry and molecular geometry are stored with their filenames,
+SHA-256 hashes, and embedded text. Gas and element parameter files and a
+Lebedev grid (when used) are handled the same way; identical files are embedded
+only once and cross-referenced. Required input hashing failures abort the write
+instead of recording a misleading successful hash.
+Input bytes and hashes are captured before numerical work begins and reused for
+every checkpoint and the final file. Resume validates the numerical settings,
+grids, seed, models, and all used input hashes before accepting prior cells.
+Local usernames, hostnames, and absolute paths are intentionally omitted from
+IPM metadata.
+
+For checkpoint-workflow testing, `--stop-after-checkpoint` deliberately stops
+after the first checkpoint and returns exit status 2. It requires
+`--checkpoint-cells > 0` together with `--compact-dp-stats`; the resulting file
+is explicitly marked incomplete and is not reported as a successful final run.
+
+Inspect the hierarchy from a shell with:
+
+```bash
+h5dump -n h3o_ipm_he.h5
+h5dump -d /metadata/precompute/temperature_K h3o_ipm_he.h5
+```
+
+Or with Python/h5py:
+
+```python
+import h5py
+
+with h5py.File("h3o_ipm_he.h5", "r") as h5:
+    print(h5["metadata/software/icarion_version"][()].decode())
+    print(h5["metadata/inputs/hashes/molecular_geometry_sha256"][()].decode())
+    geometry = h5["metadata/inputs/blobs/molecular_geometry"][()].decode()
+```
+
+The optional `/metadata` hierarchy does not change IPM format version 1. Older
+readers continue to use the root attributes and numerical datasets and ignore
+the additional group.
+
 The CDF and `dp_stats` payloads contain only trajectories that passed the
 asymptotic quality gate. Keep `rejected_non_asymptotic` at zero for strict
 production tables. A nonzero reject fraction introduces an unresolved

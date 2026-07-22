@@ -2,6 +2,16 @@
 
 All notable changes to this project follow [Semantic Versioning](https://semver.org/) and are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **Self-describing IPM sample files**: `interaction_potential_precompute` now
+  writes structured reproducibility metadata, resolved species/neutral and
+  precompute settings, input SHA-256 hashes and embedded inputs, RNG seed
+  provenance, and explicit checkpoint/completion state without changing the
+  backward-compatible IPM numerical format.
+
 ## [1.1.1] - 2026-07-20
 
 ### Fixed

@@ -243,6 +243,14 @@ deterministic trajectory at exact event times.
 
 `InteractionPotentialModel` uses precomputed offline sample files referenced from the species database via `ipm_samples_file`. The runtime interpolates the table for the current relative speed and samples from stored momentum-transfer possibilities. For one relative speed and orientation, multiple momentum-transfer outcomes remain possible because the impact parameter is still sampled; the table stores that distribution rather than a single deterministic transfer.
 
+Files produced by `interaction_potential_precompute` also contain structured
+reproducibility information under `/metadata`: software/build/system facts, RNG
+and cell-seed provenance, resolved species and neutral parameters, resolved
+precompute settings, input filenames and SHA-256 hashes, embedded text inputs, and
+checkpoint/completion state. This hierarchy is additive; the version-1 root
+attributes and numerical lookup datasets used by the runtime are unchanged.
+See `tools/README.md` for `h5dump` and h5py inspection examples.
+
 Format version 1 separates the event cross section from the diagnostic momentum-transfer cross section. Runtime collision probabilities use `sigma_event_m2`, while `sigma_mt_m2` records the corresponding momentum-transfer integral for auditing. Stored `dp_samples` and `dp_stats` are sampled over impact-parameter area, so the momentum-transfer factor is not applied a second time during runtime sampling.
 
 Use full-CDF sample tables for scientific production runs. The compact

@@ -98,6 +98,7 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
 - Validation suite shipped in-repo with scripts/results/figures.
 - Documentation: architecture, CLI usage, config schema, validation report.
 
+[1.1.2]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.1.2
 [1.1.1]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.1.0
 [1.0.1]: https://github.com/ICARION-Project/ICARION/releases/tag/v1.0.1

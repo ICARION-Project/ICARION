@@ -1,4 +1,4 @@
-ICARION v1.1.1 — Ion Collision And Reaction IntegratiON
+ICARION v1.1.2 — Ion Collision And Reaction IntegratiON
 Modular C++/CUDA framework for multi-domain ion dynamics simulation.
 
 ---
@@ -26,7 +26,7 @@ Start with `ICARION-Launcher-Guide.md` if you use the Windows or Linux launcher.
 
 # Release & API
 
-- **Versioning:** v1.1.1 (semantic versioning). See `CHANGELOG.md`.
+- **Versioning:** v1.1.2 (semantic versioning). See `CHANGELOG.md`.
 - **Stable surface:** JSON configuration schema is considered stable for v1.1.x.
 - **Internal API:** C++ headers/classes are internal and may evolve between minor releases.
 - **License:** GPL-3.0-only (see `LICENSE`); third-party dependencies listed in `CMakeLists.txt` and `cmake/`.

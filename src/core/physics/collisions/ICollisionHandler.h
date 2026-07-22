@@ -87,6 +87,10 @@ public:
     
     /**
      * @brief Get collision statistics (for debugging/logging)
+     *
+     * Call only after the simulation engine's collision-worker barrier.
+     * Implementations may reduce worker-owned counters without synchronizing
+     * concurrent handle_collision() writes.
      * 
      * @return Collision statistics (total collisions, rejection rate, etc.)
      */
@@ -94,6 +98,8 @@ public:
     
     /**
      * @brief Reset statistics counters
+     *
+     * Call only while no handle_collision() invocations are active.
      */
     virtual void reset_stats() {}
 

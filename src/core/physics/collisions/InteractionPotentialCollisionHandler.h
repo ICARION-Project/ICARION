@@ -11,12 +11,15 @@
 #include "ICollisionHandler.h"
 #include "InteractionPotentialOfflineSampleSet.h"
 #include "core/config/types/SpeciesConfig.h"
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace ICARION::physics {
+
+struct InteractionPotentialCollisionStatsState;
 
 /**
  * @brief InteractionPotential collision handler using offline samples
@@ -43,11 +46,16 @@ public:
     ) override;
 
     std::string name() const override { return "InteractionPotentialModel"; }
+
+    // Statistics slots are written by their owning worker without locking.
+    // Call these methods only after the collision-worker barrier (or when no
+    // handle_collision() calls are active).
     CollisionStats get_stats() const override;
     void reset_stats() override;
 
 private:
     void flush_logs();
+    void record_attempt(double rate, bool rejected, bool collision) const;
 
     struct VrelLog {
         std::vector<uint64_t> bin_counts;
@@ -70,13 +78,11 @@ private:
     bool enable_logging_ = false;
     const config::SpeciesDatabase* species_db_ = nullptr;
     std::unordered_map<std::string, InteractionPotentialOfflineSampleSet> samples_;
-    std::unordered_set<std::string> logged_use_;
+    std::unordered_map<std::string, std::unique_ptr<std::once_flag>> logged_use_once_;
     std::unordered_set<std::string> warned_low_coverage_;
     std::unordered_set<std::string> warned_high_coverage_;
 
-    CollisionStats stats_;
-    size_t rate_samples_ = 0;
-    double rate_sum_ = 0.0;
+    std::shared_ptr<InteractionPotentialCollisionStatsState> stats_state_;
 
     bool vrel_logging_enabled_ = false;
     std::string vrel_log_prefix_;

@@ -816,3 +816,49 @@ TEST_CASE("InteractionPotentialCollisionHandler parses orientation_mode case-ins
     std::error_code ec;
     std::filesystem::remove(sample_path, ec);
 }
+
+TEST_CASE("InteractionPotentialCollisionHandler supports alternating handlers on one thread", "[collision][ipm][stats]") {
+    const auto sample_path = make_temp_h5_path("alternating_handlers");
+    write_dp_stats_only_samples_file(
+        sample_path,
+        "He",
+        {std::log(300.0)},
+        {1.0e-18},
+        {1.0e-22, 0.0, 0.0, 0.0}
+    );
+
+    auto species_db = make_species_db(sample_path);
+    physics::InteractionPotentialCollisionHandler first(false, &species_db);
+    physics::InteractionPotentialCollisionHandler second(false, &species_db);
+
+    config::EnvironmentConfig env;
+    env.temperature_K = 0.0;
+    env.gas_species = "He";
+    env.gas_mass_kg = 4.0 * AMU_TO_KG;
+    env.particle_density_m_3 = 1.0e25;
+    env.gas_velocity_m_s = Vec3{0.0, 0.0, 0.0};
+
+    physics::PhysicsRng first_rng(2050);
+    physics::PhysicsRng second_rng(2051);
+    for (int attempt = 0; attempt < 64; ++attempt) {
+        auto first_ensemble = core::IonEnsemble::from_legacy({make_test_ion(300.0)});
+        auto first_view = first_ensemble.collision_data(0);
+        REQUIRE(first.handle_collision(first_view, 1.0e-6, first_rng, env));
+
+        auto second_ensemble = core::IonEnsemble::from_legacy({make_test_ion(300.0)});
+        auto second_view = second_ensemble.collision_data(0);
+        REQUIRE(second.handle_collision(second_view, 1.0e-6, second_rng, env));
+    }
+
+    CHECK(first.get_stats().total_collisions == 64);
+    CHECK(second.get_stats().total_collisions == 64);
+    CHECK(near_rate(first.get_stats().average_collision_rate, 3.0e9));
+    CHECK(near_rate(second.get_stats().average_collision_rate, 3.0e9));
+
+    first.reset_stats();
+    CHECK(first.get_stats().total_collisions == 0);
+    CHECK(second.get_stats().total_collisions == 64);
+
+    std::error_code ec;
+    std::filesystem::remove(sample_path, ec);
+}

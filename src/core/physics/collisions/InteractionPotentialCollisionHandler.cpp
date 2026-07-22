@@ -8,17 +8,55 @@
 #include "core/log/Logger.h"
 #include "utils/constants.h"
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <stdexcept>
+
+namespace ICARION::physics {
 
 namespace {
     constexpr double MIN_RELATIVE_VELOCITY = 1e-10;
+
+    struct alignas(64) InteractionPotentialStatsSlot {
+        std::uint64_t generation = 0;
+        CollisionStats stats{};
+        size_t rate_samples = 0;
+        double rate_sum = 0.0;
+    };
+
+    thread_local const InteractionPotentialCollisionStatsState* interaction_potential_cached_state = nullptr;
+    thread_local std::uint64_t interaction_potential_cached_state_id = 0;
+    thread_local InteractionPotentialStatsSlot* interaction_potential_cached_slot = nullptr;
+
+    struct InteractionPotentialSlotCacheEntry {
+        std::uint64_t state_id = 0;
+        InteractionPotentialStatsSlot* slot = nullptr;
+    };
+
+    thread_local std::unordered_map<
+        const InteractionPotentialCollisionStatsState*,
+        InteractionPotentialSlotCacheEntry
+    > interaction_potential_slot_cache;
 }
 
-namespace ICARION::physics {
+struct InteractionPotentialCollisionStatsState {
+    InteractionPotentialCollisionStatsState();
+    mutable std::mutex mutex;
+    const std::uint64_t id;
+    std::atomic<std::uint64_t> generation{1};
+    std::vector<std::unique_ptr<InteractionPotentialStatsSlot>> slots;
+};
+
+InteractionPotentialCollisionStatsState::InteractionPotentialCollisionStatsState()
+    : id([]() {
+        static std::atomic<std::uint64_t> next_id{1};
+        return next_id.fetch_add(1, std::memory_order_relaxed);
+    }())
+{}
 
 InteractionPotentialCollisionHandler::InteractionPotentialCollisionHandler(
     bool enable_logging,
@@ -29,6 +67,7 @@ InteractionPotentialCollisionHandler::InteractionPotentialCollisionHandler(
     const std::string& momentum_log_prefix
 ) : enable_logging_(enable_logging)
   , species_db_(species_db)
+  , stats_state_(std::make_shared<InteractionPotentialCollisionStatsState>())
 {
     if (!vrel_log_prefix.empty()) {
         vrel_logging_enabled_ = true;
@@ -93,8 +132,45 @@ InteractionPotentialCollisionHandler::InteractionPotentialCollisionHandler(
                 id
             );
         }
+        logged_use_once_.emplace(id, std::make_unique<std::once_flag>());
         samples_.emplace(id, std::move(samples));
     }
+}
+
+void InteractionPotentialCollisionHandler::record_attempt(
+    double rate,
+    bool rejected,
+    bool collision
+) const {
+    auto* state = stats_state_.get();
+    InteractionPotentialStatsSlot* slot = interaction_potential_cached_slot;
+    if (interaction_potential_cached_state != state || interaction_potential_cached_state_id != state->id) {
+        auto cache_it = interaction_potential_slot_cache.find(state);
+        if (cache_it != interaction_potential_slot_cache.end() && cache_it->second.state_id == state->id) {
+            slot = cache_it->second.slot;
+        } else {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            auto owned_slot = std::make_unique<InteractionPotentialStatsSlot>();
+            slot = owned_slot.get();
+            state->slots.push_back(std::move(owned_slot));
+            interaction_potential_slot_cache[state] = {state->id, slot};
+        }
+        interaction_potential_cached_state = state;
+        interaction_potential_cached_state_id = state->id;
+        interaction_potential_cached_slot = slot;
+    }
+
+    const std::uint64_t generation = state->generation.load(std::memory_order_acquire);
+    if (slot->generation != generation) {
+        slot->generation = generation;
+        slot->stats = {};
+        slot->rate_samples = 0;
+        slot->rate_sum = 0.0;
+    }
+    slot->rate_sum += rate;
+    slot->rate_samples++;
+    slot->stats.rejected_collisions += rejected ? 1 : 0;
+    slot->stats.total_collisions += collision ? 1 : 0;
 }
 
 InteractionPotentialCollisionHandler::~InteractionPotentialCollisionHandler() {
@@ -226,29 +302,28 @@ bool InteractionPotentialCollisionHandler::handle_collision(
     const config::EnvironmentConfig& env,
     CollisionEventDiagnostics* diagnostics
 ) {
-    auto mark_logged_once = [&](const std::string& key) {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        return logged_use_.insert(key).second;
-    };
-
     const std::string& species_id = view.species_id();
     auto it = samples_.find(species_id);
     if (it == samples_.end()) {
         throw std::runtime_error("[InteractionPotential] Missing offline samples for species '" + species_id + "'");
     }
     const InteractionPotentialOfflineSampleSet& samples = it->second;
-    if (!samples.valid()) {
-        throw std::runtime_error("[InteractionPotential] Invalid offline samples for species '" + species_id + "'");
-    }
+    // Constructor validation is sufficient because loaded sample tables are immutable.
+    // Revalidating full CDF vectors here would scan every sample on every ion step.
 
-    if (enable_logging_ && mark_logged_once(species_id)) {
-        ICARION::log::Logger::get("collision")->info(
-            "[InteractionPotential] Using offline samples for '{}' (gas '{}', N_orient={}, bins={})",
-            species_id,
-            samples.gas.empty() ? env.gas_species : samples.gas,
-            samples.n_orient,
-            samples.n_bins
-        );
+    if (enable_logging_) {
+        auto once_it = logged_use_once_.find(species_id);
+        if (once_it != logged_use_once_.end()) {
+            std::call_once(*once_it->second, [&]() {
+                ICARION::log::Logger::get("collision")->info(
+                    "[InteractionPotential] Using offline samples for '{}' (gas '{}', N_orient={}, bins={})",
+                    species_id,
+                    samples.gas.empty() ? env.gas_species : samples.gas,
+                    samples.n_orient,
+                    samples.n_bins
+                );
+            });
+        }
     }
 
     const config::GasMixtureComponent* active_component = nullptr;
@@ -381,16 +456,9 @@ bool InteractionPotentialCollisionHandler::handle_collision(
         log.v2_sum += v_rel_mag * v_rel_mag;
         log.q_c = view.kin.get_charge();
     }
-    {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        rate_sum_ += k;
-        rate_samples_ += 1;
-        stats_.average_collision_rate = (rate_samples_ > 0) ? (rate_sum_ / static_cast<double>(rate_samples_)) : 0.0;
-    }
     const double P = 1.0 - std::exp(-k * dt);
     if (rng.uniform01() >= P) {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        stats_.rejected_collisions++;
+        record_attempt(k, true, false);
         return false;
     }
 
@@ -457,8 +525,7 @@ bool InteractionPotentialCollisionHandler::handle_collision(
     }
 
     if (!sampled) {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        stats_.rejected_collisions++;
+        record_attempt(k, true, false);
         return false;
     }
 
@@ -480,23 +547,34 @@ bool InteractionPotentialCollisionHandler::handle_collision(
         diagnostics->v_rel_before_m_s = v_rel_mag;
         diagnostics->sigma_mt_m2 = sigma_mt;
     }
-    {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        stats_.total_collisions++;
-    }
+    record_attempt(k, false, true);
     return true;
 }
 
 CollisionStats InteractionPotentialCollisionHandler::get_stats() const {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    return stats_;
+    auto* state = stats_state_.get();
+    std::lock_guard<std::mutex> lock(state->mutex);
+    const std::uint64_t generation = state->generation.load(std::memory_order_acquire);
+    CollisionStats reduced{};
+    size_t rate_samples = 0;
+    double rate_sum = 0.0;
+    for (const auto& slot : state->slots) {
+        if (!slot || slot->generation != generation) {
+            continue;
+        }
+        reduced.total_collisions += slot->stats.total_collisions;
+        reduced.rejected_collisions += slot->stats.rejected_collisions;
+        rate_samples += slot->rate_samples;
+        rate_sum += slot->rate_sum;
+    }
+    reduced.average_collision_rate = rate_samples > 0
+        ? rate_sum / static_cast<double>(rate_samples)
+        : 0.0;
+    return reduced;
 }
 
 void InteractionPotentialCollisionHandler::reset_stats() {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    stats_ = {};
-    rate_samples_ = 0;
-    rate_sum_ = 0.0;
+    stats_state_->generation.fetch_add(1, std::memory_order_acq_rel);
 }
 
 } // namespace ICARION::physics

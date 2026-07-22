@@ -2,7 +2,7 @@
 
 All notable changes to this project follow [Semantic Versioning](https://semver.org/) and are documented in this file.
 
-## [Unreleased]
+## [1.1.2] - 2026-07-22
 
 ### Added
 
@@ -13,6 +13,14 @@ All notable changes to this project follow [Semantic Versioning](https://semver.
   precompute settings, input SHA-256 hashes and embedded inputs, RNG seed
   provenance, and explicit checkpoint/completion state without changing the
   backward-compatible IPM numerical format.
+
+### Fixed
+
+- **`InteractionPotentialModel` runtime performance**: immutable full-CDF sample
+  tables are now validated once when loaded instead of being revalidated on
+  every ion timestep, which repeatedly rescanned the complete momentum-sample
+  payload. Collision statistics now use thread-local accumulation instead of a
+  globally serialized mutex.
 
 ### Documentation
 
